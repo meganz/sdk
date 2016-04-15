@@ -77,7 +77,7 @@ void Transfer::failed(error e, dstime timeleft)
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (!timeleft)
+    if (!timeleft || e != API_EOVERQUOTA)
     {
         bt.backoff();
     }
@@ -555,7 +555,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         }
     }
 
-    if (timeleft)
+    if (e == API_EOVERQUOTA && timeleft)
     {
         // don't retry at least until the end of the overquota state
         client->overquotauntil = Waiter::ds + timeleft;
@@ -708,10 +708,18 @@ bool DirectReadSlot::doio()
     {
         if (req->httpstatus == 509)
         {
+            if (req->timeleft < 0)
+            {
+                int creqtag = dr->drn->client->reqtag;
+                dr->drn->client->reqtag = 0;
+                dr->drn->client->sendevent(99408, "Overquota without timeleft");
+                dr->drn->client->reqtag = creqtag;
+            }
+
             dstime backoff;
 
             LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-            if (req->timeleft)
+            if (req->timeleft > 0)
             {
                 backoff = req->timeleft * 10;
             }

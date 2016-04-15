@@ -390,7 +390,7 @@ void CommandDirectRead::procresult()
                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                         }
 
-                        drn->cmdresult(e, tl * 10);
+                        drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
                     
                     return;
@@ -622,7 +622,7 @@ void CommandGetFile::procresult()
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
 
-                                        return tslot->transfer->failed(e, tl * 10);
+                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
