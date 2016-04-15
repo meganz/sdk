@@ -4064,13 +4064,11 @@ void MegaClient::sc_se()
                 break;
             }
 
-            // `se` actionpackets are only sent for your own user
             u = finduser(uh);
             if (!u)
             {
                 LOG_warn << "user for email change not found. Not a contact?";
             }
-            // TODO: manage different status once multiple-emails is supported
             else if (status == 3)
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
@@ -4079,6 +4077,7 @@ void MegaClient::sc_se()
                 u->changed.email = true;
                 notifyuser(u);
             }
+            // TODO: manage different status once multiple-emails is supported
 
             break;
         default:
