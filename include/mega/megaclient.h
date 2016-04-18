@@ -860,7 +860,7 @@ public:
     bool compareDatabases(string filename1, string filename2);
 
     // request a link to recover account
-    error getrecoverylink(const char *email, bool masterkey);
+    error getrecoverylink(const char *email, bool hasMasterkey);
 
     // query information about recovery link
     error queryrecoverylink(const char *link);

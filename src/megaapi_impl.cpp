@@ -6163,18 +6163,46 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         return;
     }
 
-    // check if link requires masterkey to be provided
-    const char *mk64 = request->getPrivateKey();
-    if ((type == 9) && !mk64)
+    string link = request->getLink();
+    int pos = link.find("#recover");
+    if (pos == link.npos)
     {
         fireOnRequestFinish(request, MegaError(API_EARGS));
         return;
     }
+    const char *code = link.substr(pos+strlen("#recover")).c_str();
 
-    byte mk[SymmCipher::KEYLENGTH];
-    Base64::atob(mk64, mk, sizeof mk);
+    switch (type)
+    {
+    case RECOVER_WITH_MASTERKEY:
+        {
+            const char *mk64 = request->getPrivateKey();
+            if (!mk64)
+            {
+                fireOnRequestFinish(request, MegaError(API_EARGS));
+                return;
+            }
 
-    client->getprivatekey(request->getLink());
+            client->getprivatekey(code);
+            break;
+        }
+
+    case RECOVER_WITHOUT_MASTERKEY:
+        {
+            byte pwkey[SymmCipher::KEYLENGTH];
+            client->pw_key(request->getPassword(), pwkey);
+
+            client->confirmrecoverylink(code, email, pwkey);
+            break;
+        }
+
+
+    default:
+        LOG_debug << "Unknown type of recovery link";
+
+        fireOnRequestFinish(request, MegaError(API_EARGS));
+        return;
+    }
 }
 
 void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
@@ -6186,29 +6214,25 @@ void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
     if (e)
     {
         fireOnRequestFinish(request, MegaError(e));
+        return;
     }
-    else
+
+    string link = request->getLink();
+    int pos = link.find("#recover");
+    if (pos == link.npos)
     {
-        // compute the password key, the login_hash, encrypt the masterkey
-        string link = request->getLink();
-        int pos = link.find("#recover");
-        if (pos == link.npos)
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-        }
-        else
-        {
-            const char *code = link.substr(pos+strlen("#recover")).c_str();
-
-            byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(request->getPassword(), pwkey);
-
-            byte mk[SymmCipher::KEYLENGTH];
-            Base64::atob(request->getPrivateKey(), mk, sizeof mk);
-
-            client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
-        }
+        fireOnRequestFinish(request, MegaError(API_EARGS));
+        return;
     }
+    const char *code = link.substr(pos+strlen("#recover")).c_str();
+
+    byte pwkey[SymmCipher::KEYLENGTH];
+    client->pw_key(request->getPassword(), pwkey);
+
+    byte mk[SymmCipher::KEYLENGTH];
+    Base64::atob(request->getPrivateKey(), mk, sizeof mk);
+
+    client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
 }
 
 void MegaApiImpl::confirmrecoverylink_result(error e)
@@ -10371,13 +10395,19 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
         {
             const char *link = request->getLink();
-            if(!link)
+
+            const char* code;
+            if (link && (code = strstr(link, "#recover")))
+            {
+                code += 8;
+            }
+            else
             {
                 e = API_EARGS;
                 break;
             }
 
-            e = client->queryrecoverylink(link);
+            e = client->queryrecoverylink(code);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_RECOVERY_LINK:
@@ -10385,14 +10415,19 @@ void MegaApiImpl::sendPendingRequests()
             const char *link = request->getLink();
             const char *newPwd = request->getPassword();
 
-            if(!link || !newPwd)
+            const char* code;
+            if (newPwd && link && (code = strstr(link, "#recover")))
+            {
+                code += 8;
+            }
+            else
             {
                 e = API_EARGS;
                 break;
             }
 
             // concatenate query + confirm requests
-            e = client->queryrecoverylink(link);
+            e = client->queryrecoverylink(code);
             break;
         }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:

@@ -548,34 +548,22 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
     return true;
 }
 
-error MegaClient::getrecoverylink(const char *email, bool masterkey)
+error MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
 {
     if (!email || !email[0])
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandGetRecoveryLink(this, email, masterkey ? 9 : 10));
+    reqs.add(new CommandGetRecoveryLink(this, email,
+                hasMasterkey ? RECOVER_WITH_MASTERKEY : RECOVER_WITHOUT_MASTERKEY));
 
     return API_OK;
 }
 
-error MegaClient::queryrecoverylink(const char *link)
+error MegaClient::queryrecoverylink(const char *code)
 {
-    const char* ptr;
-
-    if ((ptr = strstr(link, "#recover")))
-    {
-        ptr += 8;
-    }
-    else
-    {
-        return API_EARGS;
-    }
-
-    reqs.add(new CommandQueryRecoveryLink(this, ptr));
-
-    return API_OK;
+    reqs.add(new CommandQueryRecoveryLink(this, code));
 }
 
 error MegaClient::getprivatekey(const char *code)
@@ -585,17 +573,41 @@ error MegaClient::getprivatekey(const char *code)
 
 error MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
 {
+    if (!pwkey || !email)
+    {
+        return API_EARGS;
+    }
+
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
     if (masterkey)
     {
-        // encrypt masterkey using new password
-        SymmCipher pwcipher(pwkey);
-        byte encryptedmasterkey[SymmCipher::KEYLENGTH];
-        memcpy(encryptedmasterkey, masterkey, sizeof encryptedmasterkey);
-        pwcipher.ecb_encrypt(encryptedmasterkey);
+        // encrypt provided masterkey using the new password
+        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+        pwcipher.ecb_encrypt(encryptedMasterKey);
 
-        u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+    }
+    else
+    {
+        // create a new masterkey
+        byte masterkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(masterkey, sizeof masterkey);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedmasterkey, NULL));
+        // generate a new session
+        byte initialSession[2 * SymmCipher::KEYLENGTH];
+        PrnGen::genblock(initialSession, sizeof initialSession);
+        key.setkey(masterkey);
+        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+        // and encrypt the master key to the new password
+        pwcipher.ecb_encrypt(masterkey);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
     }
 }
 

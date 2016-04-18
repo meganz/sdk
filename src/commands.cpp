@@ -3681,7 +3681,8 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
 
     if (initialSession)
     {
-        arg("z", initialSession, sizeof initialSession);
+        arg("z", initialSession, 2 * SymmCipher::KEYLENGTH);
+    }
     }
 
     tag = client->reqtag;

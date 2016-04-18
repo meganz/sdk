@@ -3540,7 +3540,7 @@ static void process_line(char* l)
                         {
                             cout << "You're logged in. Please, logout first." << endl;
                         }
-                        else if (words.size() == 2)  // query recovery link
+                        else if (words.size() == 2)
                         {
                             string link = words[1];
 
@@ -3551,7 +3551,7 @@ static void process_line(char* l)
                             }
 
                             recoverycode.assign(link.substr(pos+strlen("#recover")));
-                            client->queryrecoverylink(link.c_str());
+                            client->queryrecoverylink(recoverycode.c_str());
                         }
                         else
                         {

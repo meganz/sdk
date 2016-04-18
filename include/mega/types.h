@@ -390,6 +390,8 @@ struct TextChat
 typedef vector<TextChat*> textchat_vector;
 #endif
 
+typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21 } recovery_t;
+
 } // namespace
 
 #endif
