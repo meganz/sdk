@@ -4099,8 +4099,8 @@ void MegaClient::sc_se()
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-                u->email = email;
-                u->changed.email = true;
+                mapuser(uh, email.c_str()); // update email used as index for user's map
+                u->changed.email = true;               
                 notifyuser(u);
             }
             // TODO: manage different status once multiple-emails is supported
@@ -5993,7 +5993,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         // yes: add email reference
         u = &users[hit->second];
 
-        if (!u->email.size())
+        if (!u->email.size() || strcmp(u->email.c_str(), email))
         {
             Node::copystring(&u->email, email);
             umindex[nuid] = hit->second;
