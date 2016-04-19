@@ -6196,6 +6196,9 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             break;
         }
 
+    case CANCEL_ACCOUNT:
+        fireOnRequestFinish(request, MegaError());
+        break;
 
     default:
         LOG_debug << "Unknown type of recovery link";
@@ -6240,6 +6243,15 @@ void MegaApiImpl::confirmrecoverylink_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::confirmcancellink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }

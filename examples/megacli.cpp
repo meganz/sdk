@@ -1795,6 +1795,7 @@ static void process_line(char* l)
                 cout << "      passwd" << endl;
                 cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
                 cout << "      recover recoverylink" << endl;
+                cout << "      cancel [cancellink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -3517,7 +3518,40 @@ static void process_line(char* l)
                         }
                     }
 #endif
+                    else if (words[0] == "cancel")
+                    {
+                        if (!client->loggedin())
+                        {
+                            cout << "Please, login into your account first." << endl;
+                            return;
+                        }
+
+                        if (words.size() == 1)  // get link
+                        {
+                            client->getcancellink();
+                        }
+                        else if (words.size() == 2) // link confirmation
+                        {
+                            string link = words[1];
+
+                            int pos = link.find("#cancel");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid cancellation link." << endl;
+                            }
+
+                            string code;
+                            code.assign(link.substr(pos+strlen("#cancel")));
+                            client->confirmcancellink(code.c_str());
+                        }
+                        else
+                        {
+                            cout << "       cancel [link]" << endl;
+                            return;
+                        }
+                    }
                     break;
+
 
                 case 7:
                     if (words[0] == "confirm")
@@ -3852,11 +3886,11 @@ void DemoApp::getrecoverylink_result(error e)
 {
     if (e)
     {
-        cout << "Unable to send recovery link (" << errorstring(e) << ")" << endl;
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Please check your e-mail and enter the command \"recover\" followed by the recovery link." << endl;
+        cout << "Please check your e-mail and enter the command \"recover\" / \"cancel\" followed by the link." << endl;
     }
 }
 

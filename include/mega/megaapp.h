@@ -177,6 +177,9 @@ struct MEGA_API MegaApp
     // confirm recovery link result
     virtual void confirmrecoverylink_result(error) {}
 
+    // convirm cancellation link result
+    virtual void confirmcancellink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

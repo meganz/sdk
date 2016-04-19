@@ -1621,6 +1621,7 @@ protected:
         virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);
         virtual void getprivatekey_result(error, const char *ukpriv);
         virtual void confirmrecoverylink_result(error);
+        virtual void confirmcancellink_result(error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

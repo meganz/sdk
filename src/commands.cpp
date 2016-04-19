@@ -3701,7 +3701,26 @@ void CommandConfirmRecoveryLink::procresult()
     }
 }
 
+CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const char *code)
+{
+    cmd("erx");
+    arg("c", code);
 
+    tag = client->reqtag;
+}
+
+void CommandConfirmCancelLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->confirmcancellink_result((error)client->json.getint());
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)

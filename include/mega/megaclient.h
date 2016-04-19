@@ -871,6 +871,12 @@ public:
     // confirm a recovery link to restore the account
     error confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
 
+    // request a link to cancel the account
+    error getcancellink();
+
+    // confirm a link to cancel the account
+    error confirmcancellink(const char *code);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

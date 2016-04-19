@@ -633,6 +633,14 @@ public:
     CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
 };
 
+class MEGA_API CommandConfirmCancelLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmCancelLink(MegaClient *, const char *);
+};
+
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command

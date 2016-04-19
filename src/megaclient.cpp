@@ -611,6 +611,16 @@ error MegaClient::confirmrecoverylink(const char *code, const char *email, const
     }
 }
 
+error MegaClient::getcancellink()
+{
+    reqs.add(new CommandGetRecoveryLink(this, finduser(me)->email.c_str(), CANCEL_ACCOUNT));
+}
+
+error MegaClient::confirmcancellink(const char *code)
+{
+    reqs.add(new CommandConfirmCancelLink(this, code));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
