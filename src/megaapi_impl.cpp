@@ -5032,7 +5032,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     sdkMutex.lock();
     vector<Node*> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
-    if(!user)
+    if(!user || (user->show != VISIBLE))
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -5059,7 +5059,12 @@ MegaNodeList* MegaApiImpl::getInShares()
     vector<Node*> vNodes;
 	for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
 	{
-		User *user = &(it->second);
+        User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
+
 		Node *n;
 
 		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
@@ -5084,6 +5089,11 @@ MegaShareList* MegaApiImpl::getInSharesList()
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
+
         Node *n;
 
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
@@ -5155,7 +5165,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)
+        if (share->user && (share->user->show == VISIBLE))
         {
             vShares.push_back(share);
             vHandles.push_back(node->nodehandle);
@@ -5199,8 +5209,12 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
 
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
-        vShares.push_back(it->second);
-        vHandles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user && (share->user->show == VISIBLE))
+        {
+            vShares.push_back(it->second);
+            vHandles.push_back(node->nodehandle);
+        }
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
@@ -11407,7 +11421,7 @@ bool OutShareProcessor::processNode(Node *node)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)    // public links have no user
+        if (share->user && (share->user->show == VISIBLE)) // public links have no user
         {
             shares.push_back(share);
             handles.push_back(node->nodehandle);
@@ -11441,8 +11455,12 @@ bool PendingOutShareProcessor::processNode(Node *node)
 
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
-        shares.push_back(it->second);
-        handles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user && (share->user->show == VISIBLE))
+        {
+            shares.push_back(it->second);
+            handles.push_back(node->nodehandle);
+        }
     }
 
     return true;
