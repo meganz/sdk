@@ -180,6 +180,9 @@ struct MEGA_API MegaApp
     // convirm cancellation link result
     virtual void confirmcancellink_result(error) {}
 
+    // validation of password
+    virtual void validatepassword_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

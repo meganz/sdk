@@ -1127,6 +1127,8 @@ class MegaApiImpl : public MegaApp
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void cancelAccount(MegaRequestListener *listener = NULL);
+        void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
@@ -1622,6 +1624,7 @@ protected:
         virtual void getprivatekey_result(error, const char *ukpriv);
         virtual void confirmrecoverylink_result(error);
         virtual void confirmcancellink_result(error);
+        virtual void validatepassword_result(error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

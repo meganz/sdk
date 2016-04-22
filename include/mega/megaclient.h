@@ -99,6 +99,9 @@ public:
     // session login: binary session, bytecount
     void login(const byte*, int);
 
+    // check password
+    error validatepwd(const byte *);
+
     // get user data
     void getuserdata();
 
@@ -860,22 +863,22 @@ public:
     bool compareDatabases(string filename1, string filename2);
 
     // request a link to recover account
-    error getrecoverylink(const char *email, bool hasMasterkey);
+    void getrecoverylink(const char *email, bool hasMasterkey);
 
     // query information about recovery link
-    error queryrecoverylink(const char *link);
+    void queryrecoverylink(const char *link);
 
     // request private key for integrity checking the masterkey
-    error getprivatekey(const char *code);
+    void getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    error confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
+    void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
 
     // request a link to cancel the account
-    error getcancellink();
+    void getcancellink(const char *email);
 
     // confirm a link to cancel the account
-    error confirmcancellink(const char *code);
+    void confirmcancellink(const char *code);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

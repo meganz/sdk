@@ -3683,7 +3683,6 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     {
         arg("z", initialSession, 2 * SymmCipher::KEYLENGTH);
     }
-    }
 
     tag = client->reqtag;
 }
@@ -3719,6 +3718,28 @@ void CommandConfirmCancelLink::procresult()
     {
         client->json.storeobject();
         return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+{
+    cmd("us");
+    arg("user", email);
+    arg("uh", (byte*)&emailhash, sizeof emailhash);
+
+    tag = client->reqtag;
+}
+
+void CommandValidatePassword::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->validatepassword_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        return client->app->validatepassword_result((error)API_OK);
     }
 }
 

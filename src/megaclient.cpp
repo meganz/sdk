@@ -548,36 +548,24 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
     return true;
 }
 
-error MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
+void MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
 {
-    if (!email || !email[0])
-    {
-        return API_EARGS;
-    }
-
     reqs.add(new CommandGetRecoveryLink(this, email,
                 hasMasterkey ? RECOVER_WITH_MASTERKEY : RECOVER_WITHOUT_MASTERKEY));
-
-    return API_OK;
 }
 
-error MegaClient::queryrecoverylink(const char *code)
+void MegaClient::queryrecoverylink(const char *code)
 {
     reqs.add(new CommandQueryRecoveryLink(this, code));
 }
 
-error MegaClient::getprivatekey(const char *code)
+void MegaClient::getprivatekey(const char *code)
 {
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-error MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
 {
-    if (!pwkey || !email)
-    {
-        return API_EARGS;
-    }
-
     SymmCipher pwcipher(pwkey);
 
     string emailstr = email;
@@ -611,12 +599,12 @@ error MegaClient::confirmrecoverylink(const char *code, const char *email, const
     }
 }
 
-error MegaClient::getcancellink()
+void MegaClient::getcancellink(const char *email)
 {
-    reqs.add(new CommandGetRecoveryLink(this, finduser(me)->email.c_str(), CANCEL_ACCOUNT));
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
 }
 
-error MegaClient::confirmcancellink(const char *code)
+void MegaClient::confirmcancellink(const char *code)
 {
     reqs.add(new CommandConfirmCancelLink(this, code));
 }
@@ -5721,6 +5709,26 @@ void MegaClient::login(const byte* session, int size)
         restag = reqtag;
         app->login_result(API_EARGS);
     }
+}
+
+// check password's integrity
+error MegaClient::validatepwd(const byte *pwkey)
+{
+    User *u = finduser(me);
+    if (!u)
+    {
+        return API_EACCESS;
+    }
+
+    SymmCipher pwcipher(pwkey);
+    pwcipher.setkey((byte*)pwkey);
+
+    string lcemail(u->email.c_str());
+    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+
+    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
+
+    return API_OK;
 }
 
 int MegaClient::dumpsession(byte* session, size_t size)

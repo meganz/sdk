@@ -2955,6 +2955,22 @@ void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd,
     waiter->notify();
 }
 
+void MegaApiImpl::cancelAccount(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
+    request->setLink(link);
+    request->setPassword(pwd);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 {
     Proxy *localProxySettings = new Proxy();
@@ -6196,10 +6212,6 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             break;
         }
 
-    case CANCEL_ACCOUNT:
-        fireOnRequestFinish(request, MegaError());
-        break;
-
     default:
         LOG_debug << "Unknown type of recovery link";
 
@@ -6254,6 +6266,32 @@ void MegaApiImpl::confirmcancellink_result(error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
 
     fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::validatepassword_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
+
+    if (e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+    }
+    else
+    {
+        const char *link = request->getLink();
+        const char* code;
+        if (code = strstr(link, "#cancel"))
+        {
+            code += strlen("#cancel");
+            client->confirmcancellink(code);
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
+    }
 }
 
 #ifdef ENABLE_CHAT
@@ -10401,7 +10439,13 @@ void MegaApiImpl::sendPendingRequests()
 			const char *email = request->getEmail();
             bool hasMasterKey = request->getFlag();
 
-            e = client->getrecoverylink(email, hasMasterKey);
+            if (!email || !email[0])
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getrecoverylink(email, hasMasterKey);
 			break;
 		}
         case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
@@ -10419,7 +10463,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->queryrecoverylink(code);
+            client->queryrecoverylink(code);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_RECOVERY_LINK:
@@ -10430,7 +10474,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* code;
             if (newPwd && link && (code = strstr(link, "#recover")))
             {
-                code += 8;
+                code += strlen("#recover");
             }
             else
             {
@@ -10439,7 +10483,49 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             // concatenate query + confirm requests
-            e = client->queryrecoverylink(code);
+            client->queryrecoverylink(code);
+            break;
+        }
+        case MegaRequest::TYPE_GET_CANCEL_LINK:
+        {
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            User *u = client->finduser(client->me);
+            if (!u)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->getcancellink(u->email.c_str());
+            break;
+        }
+        case MegaRequest::TYPE_CONFIRM_CANCEL_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+            }
+
+            const char* code;
+            if (!pwd || !link || !(code = strstr(link, "#cancel")))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            byte pwkey[SymmCipher::KEYLENGTH];
+            client->pw_key(pwd, pwkey);
+
+            // concatenate login + confirm requests
+            e = client->validatepwd(pwkey);
             break;
         }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:

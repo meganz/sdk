@@ -1592,6 +1592,10 @@ static void process_line(char* l)
 
                 signupcode.clear();
             }
+            else if (recoverycode.size())   // cancelling account --> check password
+            {
+                client->validatepwd(pwkey);
+            }
             else
             {
                 client->login(login.c_str(), pwkey);
@@ -3207,8 +3211,6 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "reset")
                     {
-                        recoveryemail = words[1];
-
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
                             cout << "You're logged in. Please, logout first." << endl;
@@ -3216,6 +3218,7 @@ static void process_line(char* l)
                         else if (words.size() == 2 ||
                             (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
                         {
+                            recoveryemail = words[1];
                             client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
                         }
                         else
@@ -3520,7 +3523,7 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "cancel")
                     {
-                        if (!client->loggedin())
+                        if (client->loggedin() != FULLACCOUNT)
                         {
                             cout << "Please, login into your account first." << endl;
                             return;
@@ -3528,7 +3531,13 @@ static void process_line(char* l)
 
                         if (words.size() == 1)  // get link
                         {
-                            client->getcancellink();
+                            User *u = client->finduser(client->me);
+                            if (!u)
+                            {
+                                cout << "Error retrieving logged user." << endl;
+                                return;
+                            }
+                            client->getcancellink(u->email.c_str());
                         }
                         else if (words.size() == 2) // link confirmation
                         {
@@ -3538,11 +3547,12 @@ static void process_line(char* l)
                             if (pos == link.npos)
                             {
                                 cout << "Invalid cancellation link." << endl;
+                                return;
                             }
 
-                            string code;
-                            code.assign(link.substr(pos+strlen("#cancel")));
-                            client->confirmcancellink(code.c_str());
+                            recoverycode.assign(link.substr(pos+strlen("#cancel")));
+                            setprompt(LOGINPASSWORD);
+                            return;
                         }
                         else
                         {
@@ -3947,6 +3957,32 @@ void DemoApp::confirmrecoverylink_result(error e)
     {
         cout << "Password changed successfully." << endl;
     }
+}
+
+void DemoApp::confirmcancellink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to cancel the account (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Account cancelled successfully." << endl;
+    }
+}
+
+void DemoApp::validatepassword_result(error e)
+{
+    if (e)
+    {
+        cout << "Wrong password (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Password is correct, cancelling account..." << endl;
+        client->confirmcancellink(recoverycode.c_str());
+    }
+    recoverycode.clear();
 }
 
 void DemoApp::ephemeral_result(handle uh, const byte* pw)

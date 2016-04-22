@@ -641,6 +641,14 @@ public:
     CommandConfirmCancelLink(MegaClient *, const char *);
 };
 
+class MEGA_API CommandValidatePassword : public Command
+{
+public:
+    void procresult();
+
+    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+};
+
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
