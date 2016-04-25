@@ -49,9 +49,9 @@ on_exit_error() {
 
 on_exit_ok() {
     if [ $configure_only -eq 1 ]; then
-		echo "Successfully configured MEGA SDK!"
+        echo "Successfully configured MEGA SDK!"
     elif [ $download_only -eq 1 ]; then
-        echo "Successfully download MEGA SDK dependencies!"
+        echo "Successfully downloaded MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
     fi
