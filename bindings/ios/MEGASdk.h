@@ -363,6 +363,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 + (NSString *)base64HandleForHandle:(uint64_t)handle;
 
 /**
+ * @brief Converts the handle of a user to a Base64-encoded string
+ *
+ * @param User handle to be converted
+ * @return Base64-encoded user handle
+ */
++ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
+
+/**
  * @brief Retry all pending requests.
  *
  * When requests fails they wait some time before being retried. That delay grows exponentially if the request

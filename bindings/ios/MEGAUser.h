@@ -21,10 +21,20 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
-    MEGAUserVisibilityUnknown = -1,
-    MEGAUserVisibilityHidden = 0,
-    MEGAUserVisibilityVisible,
-    MEGAUserVisibilityMe
+    MEGAUserVisibilityUnknown  = -1,
+    MEGAUserVisibilityHidden   = 0,
+    MEGAUserVisibilityVisible  = 1,
+    MEGAUserVisibilityInactive = 2,
+    MEGAUserVisibilityBlocked  = 3
+};
+
+typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
+    MEGAUserChangeTypeAuth      = 0x01,
+    MEGAUserChangeTypeLstint    = 0x02,
+    MEGAUserChangeTypeAvatar    = 0x04,
+    MEGAUserChangeTypeFirstname = 0x08,
+    MEGAUserChangeTypeLastname  = 0x10,
+    MEGAUserChangeTypeEmail     = 0x20
 };
 
 /**
@@ -51,6 +61,12 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 @property (readonly, nonatomic) NSString *email;
 
 /**
+ * @brief The handle associated with the contact.
+ *
+ */
+@property (readonly, nonatomic) uint64_t handle;
+
+/**
  * @brief The current visibility of the contact.
  *
  * The returned value will be one of these:
@@ -71,9 +87,69 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 @property (readonly, nonatomic) MEGAUserVisibility access;
 
 /**
+ * @brief A bit field with the changes of the user
+ *
+ * This value is only useful for nodes notified by [DelegateMEGAListener onUsersUpdate] or
+ * [DelegateMEGAGlobalListener onUsersUpdate] that can notify about user modifications.
+ *
+ * The value is an OR combination of these flags:
+ *
+ * - MEGAUserChangeTypeAuth            = 0x01
+ * Check if the user has new or modified authentication information
+ *
+ * - MEGAUserChangeTypeLstint          = 0x02
+ * Check if the last interaction timestamp is modified
+ *
+ * - MEGAUserChangeTypeAvatar          = 0x04
+ * Check if the user has a new or modified avatar image
+ *
+ * - MEGAUserChangeTypeFirstname       = 0x08
+ * Check if the user has new or modified firstname
+ *
+ * - MEGAUserChangeTypeLastname        = 0x10
+ * Check if the user has new or modified lastname
+ *
+ * - MEGAUserChangeTypeEmail           = 0x20
+ * Check if the user has modified email
+ */
+@property (readonly, nonatomic) MEGAUserChangeType changes;
+
+/**
  * @brief The timestamp when the contact was added to the contact list (in seconds since the epoch).
  */
 @property (readonly, nonatomic) NSDate *timestamp;
+
+/**
+ * @brief Returns YES if this user has an specific change
+ *
+ * This value is only useful for nodes notified by [DelegateMEGAListener onUsersUpdate] or
+ * [DelegateMEGAGlobalListener onUsersUpdate] that can notify about user modifications.
+ *
+ * In other cases, the return value of this function will be always false.
+ *
+ * @param changeType The type of change to check. It can be one of the following values:
+ *
+ * - MEGAUserChangeTypeAuth            = 0x01
+ * Check if the user has new or modified authentication information
+ *
+ * - MEGAUserChangeTypeLstint          = 0x02
+ * Check if the last interaction timestamp is modified
+ *
+ * - MEGAUserChangeTypeAvatar          = 0x04
+ * Check if the user has a new or modified avatar image
+ *
+ * - MEGAUserChangeTypeFirstname       = 0x08
+ * Check if the user has new or modified firstname
+ *
+ * - MEGAUserChangeTypeLastname        = 0x10
+ * Check if the user has new or modified lastname
+ *
+ * - MEGAUserChangeTypeEmail           = 0x20
+ * Check if the user has modified email
+ *
+ * @return YES if this user has an specific change
+ */
+- (BOOL)hasChangedType:(MEGAUserChangeType)changeType;
 
 /**
  * @brief Creates a copy of this MEGAUser object.
