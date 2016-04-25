@@ -125,6 +125,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (MEGAUser *)myUser {
+    MegaUser *user = self.megaApi->getMyUser();
+    return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -385,6 +390,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
@@ -956,6 +969,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     if (assetRepresentation == nil) return nil;
     
     MEGAInputStream mis = MEGAInputStream(assetRepresentation);
+    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
+    if (data == nil) return nil;
+    
+    MEGAInputStream mis = MEGAInputStream(data);
     const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];

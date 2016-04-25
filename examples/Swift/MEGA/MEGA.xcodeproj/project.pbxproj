@@ -20,6 +20,8 @@
 		41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AB404D1A52D66500E5E16E /* LoginViewController.swift */; };
 		41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */; };
 		41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */; };
+		41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */; };
+		41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */; };
 		41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B41A5E94B8008B6E73 /* Helper.swift */; };
 		41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */; };
 		41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41C346BB1B4C47C9002091F8 /* libMEGASDK.a */; };
@@ -56,6 +58,8 @@
 		41AB404D1A52D66500E5E16E /* LoginViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactsTableViewController.swift; sourceTree = "<group>"; };
 		41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactTableViewCell.swift; sourceTree = "<group>"; };
+		41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		41B4A5B41A5E94B8008B6E73 /* Helper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Helper.swift; sourceTree = "<group>"; };
 		41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetailsNodeInfoViewController.swift; path = ../CloudDrive/DetailsNodeInfoViewController.swift; sourceTree = "<group>"; };
 		41C346BB1B4C47C9002091F8 /* libMEGASDK.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libMEGASDK.a; path = "../../../bindings/ios/build/Debug-iphoneos/libMEGASDK.a"; sourceTree = "<group>"; };
@@ -83,6 +87,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */,
+				41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */,
 				41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */,
 				41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */,
 				41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */,
@@ -233,6 +239,8 @@
 		41F175931A51E57C00570E30 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */,
+				41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */,
 				41C346BB1B4C47C9002091F8 /* libMEGASDK.a */,
 				41F175A91A51F1C200570E30 /* libsqlite3.dylib */,
 				41F175A71A51F1B700570E30 /* libz.dylib */,

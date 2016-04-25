@@ -817,6 +817,16 @@ class MegaNode
         virtual bool isTakenDown();
 
         /**
+         * @brief Returns true if this MegaNode is a private node from a foreign account
+         *
+         * Only MegaNodes created with MegaApi::createPublicFileNode and MegaApi::createPublicFolderNode
+         * returns true in this function.
+         *
+         * @return true if this node is a private node from a foreign account
+         */
+        virtual bool isForeign();
+
+        /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
@@ -845,15 +855,33 @@ class MegaNode
         virtual std::string* getAttrString();
 
         /**
-         * @brief Return the special auth token to access this node
+         * @brief Return the private auth token to access this node
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
-         * @return Auth token to access the node
+         * @return Private auth token to access the node
          * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
          */
-        virtual std::string* getAuth();
+        virtual std::string* getPrivateAuth();
+
+        /**
+         * @brief Set an auth token to access this node
+         * @param Auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual void setPrivateAuth(const char *privateAuth);
+
+        /**
+         * @brief Return the public auth token to access this node
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Public auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual std::string* getPublicAuth();
 
 #ifdef ENABLE_SYNC
         /**
@@ -977,7 +1005,8 @@ class MegaUser
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
             CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10
+            CHANGE_TYPE_LASTNAME        = 0x10,
+            CHANGE_TYPE_EMAIL           = 0x20
         };
 
         /**
@@ -1005,6 +1034,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
          *
+         * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
+         * Check if the user has modified email
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1031,6 +1063,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
+         * Check if the user has modified email
          */
         virtual int getChanges();
 };
@@ -4127,6 +4162,38 @@ class MegaApi
         char *dumpXMPPSession();
 
         /**
+         * @brief Get an authentication token that can be used to identify the user account
+         *
+         * If this MegaApi object is not logged into an account, this function will return NULL
+         *
+         * The value returned by this function can be used in other instances of MegaApi
+         * thanks to the function MegaApi::setAccountAuth.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Authentication token
+         */
+        char *getAccountAuth();
+
+        /**
+         * @brief Use an authentication token to identify an account while accessing public folders
+         *
+         * This function is useful to preserve the PRO status when a public folder is being
+         * used. The identifier will be sent in all API requests made after the call to this function.
+         *
+         * To stop using the current authentication token, it's needed to explicitly call
+         * this function with NULL as parameter. Otherwise, the value set would continue
+         * being used despite this MegaApi object is logged in or logged out.
+         *
+         * It's recommended to call this function before the usage of MegaApi::loginToFolder
+         *
+         * @param auth Authentication token used to identify the account of the user.
+         * You can get it using MegaApi::getAccountAuth with an instance of MegaApi logged into
+         * an account.
+         */
+        void setAccountAuth(const char* auth);
+
+        /**
          * @brief Initialize the creation of a new MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
@@ -4393,7 +4460,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @note The visibility of your own user is unhdefined and shouldn't be used.
+         * @note The visibility of your own user is undefined and shouldn't be used.
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();
@@ -6887,11 +6954,12 @@ class MegaApi
          * @param size Size of the node
          * @param mtime Modification time of the node
          * @param parentHandle Handle of the parent node
-         * @param auth Authentication token to access the node
+         * @param privateAuth Private authentication token to access the node
+         * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
-        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *auth);
+        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -6904,10 +6972,11 @@ class MegaApi
          * @param handle Handle of the node
          * @param name Name of the node (Base64 encoded)
          * @param parentHandle Handle of the parent node
-         * @param auth Authentication token to access the node
+         * @param privateAuth Private authentication token to access the node
+         * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
-        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth);
+        MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
          * @brief Get the SDK version

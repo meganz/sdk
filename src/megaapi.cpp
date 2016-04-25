@@ -349,7 +349,12 @@ bool MegaNode::isExpired()
 
 bool MegaNode::isTakenDown()
 {
-  return false;
+    return false;
+}
+
+bool MegaNode::isForeign()
+{
+    return false;
 }
 
 string *MegaNode::getNodeKey()
@@ -362,7 +367,17 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
-string *MegaNode::getAuth()
+string *MegaNode::getPrivateAuth()
+{
+    return NULL;
+}
+
+void MegaNode::setPrivateAuth(const char *)
+{
+    return;
+}
+
+string *MegaNode::getPublicAuth()
 {
     return NULL;
 }
@@ -1190,6 +1205,16 @@ char *MegaApi::dumpXMPPSession()
     return pImpl->dumpXMPPSession();
 }
 
+char *MegaApi::getAccountAuth()
+{
+    return pImpl->getAccountAuth();
+}
+
+void MegaApi::setAccountAuth(const char *auth)
+{
+    pImpl->setAccountAuth(auth);
+}
+
 void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, name, listener);
@@ -1926,16 +1951,16 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
-MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
+MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *auth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, auth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
-MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFolderNode(handle, name, parentHandle, auth);
+    return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
 }
 
 const char *MegaApi::getVersion()

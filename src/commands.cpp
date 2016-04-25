@@ -351,6 +351,7 @@ void CommandDirectRead::procresult()
     else
     {
         error e = API_EINTERNAL;
+        dstime tl = 0;
 
         for (;;)
         {
@@ -376,10 +377,20 @@ void CommandDirectRead::procresult()
                     e = (error)client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 'l'):
+                    tl = client->json.getint();
+                    break;
+
                 case EOO:
                     if (!canceled && drn)
                     {
-                        drn->cmdresult(e);
+                        if (e == API_EOVERQUOTA && !tl)
+                        {
+                            // default retry interval
+                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                        }
+
+                        drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
                     
                     return;
@@ -400,10 +411,10 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
 {
     cmd("g");
-    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
     if (client->usehttps)
@@ -411,16 +422,14 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
         arg("ssl", 2);
     }
 
-    if(auth)
+    if (privateauth)
     {
-        if(strlen(auth) == 8)
-        {
-            arg("en", auth);
-        }
-        else
-        {
-            arg("esid", auth);
-        }
+        arg("esid", privateauth);
+    }
+
+    if (publicauth)
+    {
+        arg("en", publicauth);
     }
 
     tslot = ctslot;
@@ -609,11 +618,11 @@ void CommandGetFile::procresult()
 
                                         if (e == API_EOVERQUOTA && !tl)
                                         {
-                                            // Fixed one hour retry interval
-                                            tl = 3600;
+                                            // default retry interval
+                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
 
-                                        return tslot->transfer->failed(e, tl * 10);
+                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
