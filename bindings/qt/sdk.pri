@@ -134,13 +134,16 @@ HEADERS  += include/mega.h \
             include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
-            bindings/qt/QTMegaRequestListener.h \
+            include/mega/mega_utf8proc.h
+
+CONFIG(USE_MEGAAPI) {
+    HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
             bindings/qt//QTMegaGlobalListener.h \
             bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
-            bindings/qt/QTMegaEvent.h \
-            include/mega/mega_utf8proc.h
+            bindings/qt/QTMegaEvent.h
+}
 
 win32 {
     HEADERS  += include/mega/win32/megasys.h  \
