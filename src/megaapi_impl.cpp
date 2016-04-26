@@ -9245,6 +9245,13 @@ void MegaApiImpl::sendPendingTransfers()
                             transferMap[nextTag]=transfer;
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
+
+                            long long overquotaDelay = getBandwidthOverquotaDelay();
+                            if (overquotaDelay)
+                            {
+                                fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
+                            }
+
                             fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
