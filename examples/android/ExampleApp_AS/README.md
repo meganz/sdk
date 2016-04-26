@@ -34,3 +34,7 @@ git clone --recursive https://github.com/meganz/sdk.git
 ```
 * Configure the variable `NDK_ROOT` to point to your Android NDK installation path at `app/src/main/jni/Makefile`.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
+
+### Notes
+
+To compile the MEGA SDK (required for this example), the building scripts consider that the Android example is located inside the SDK folder: `<sdk>/examples/android/ExampleApp_AS`. In case you want to copy the example to a different path of your choice, you need to place a copy of the SDK in the folder `<your_path>/ExampleApp_AS/app/src/main/jni/mega` (or you can clone the repository, so you can keep the SDK up to date).
