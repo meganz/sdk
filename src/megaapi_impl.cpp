@@ -1003,7 +1003,7 @@ bool MegaTransferPrivate::isSyncTransfer() const
 
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
-	return (transfer == NULL);
+    return !parentPath && !fileName;
 }
 
 int MegaTransferPrivate::getType() const
@@ -4117,7 +4117,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -4147,12 +4147,17 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
 	transfer->setEndPos(endPos);
 	transfer->setMaxRetries(maxRetries);
 
+    if (folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
+
 	transferQueue.push(transfer);
 	waiter->notify();
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(node, localFolder, 0, 0, listener); }
+{ startDownload(node, localFolder, 0, 0, 0, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -9229,8 +9234,19 @@ void MegaApiImpl::sendPendingTransfers()
 
                 if (!node && !publicNode) { e = API_EARGS; break; }
 
+                if (!transfer->isStreamingTransfer() && node && node->type != FILENODE)
+                {
+                    // Folder download
+                    transferMap[nextTag] = transfer;
+                    transfer->setTag(nextTag);
+                    MegaFolderDownloadController *downloader = new MegaFolderDownloadController(this, transfer);
+                    downloader->start();
+                    break;
+                }
+
+                // File download
                 currentTransfer=transfer;
-                if(parentPath || fileName)
+                if(!transfer->isStreamingTransfer())
                 {
                     string name;
                     string securename;
@@ -12100,8 +12116,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
 {
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
-    this->parenthandle = transfer->getParentHandle();
-    this->name = transfer->getFileName();
     this->transfer = transfer;
     this->listener = transfer->getListener();
     this->recursive = 0;
@@ -12115,7 +12129,8 @@ void MegaFolderUploadController::start()
     transfer->setStartTime(Waiter::ds);
     megaApi->fireOnTransferStart(transfer);
 
-    MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
+    const char *name = transfer->getFileName();
+    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
     if(!parent)
     {
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
@@ -12332,6 +12347,223 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     transfer->setUpdateTime(Waiter::ds);
 
     if(t->getSpeed())
+    {
+        transfer->setSpeed(t->getSpeed());
+    }
+
+    megaApi->fireOnTransferUpdate(transfer);
+    checkCompletion();
+}
+
+MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
+{
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+    this->transfer = transfer;
+    this->listener = transfer->getListener();
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->tag = transfer->getTag();
+}
+
+void MegaFolderDownloadController::start()
+{
+    transfer->setFolderTransferTag(-1);
+    transfer->setStartTime(Waiter::ds);
+    megaApi->fireOnTransferStart(transfer);
+
+    const char *parentPath = transfer->getParentPath();
+    const char *fileName = transfer->getFileName();
+    Node *node = client->nodebyhandle(transfer->getNodeHandle());
+
+    if (transfer->isStreamingTransfer() || !node || node->type == FILENODE)
+    {
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
+        delete this;
+    }
+
+    string name;
+    string securename;
+    string path;
+
+    if (parentPath)
+    {
+        path = parentPath;
+    }
+    else
+    {
+        string separator;
+        client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+        path = ".";
+        path.append(separator);
+    }
+
+    if (!fileName)
+    {
+        attr_map::iterator ait = node->attrs.map.find('n');
+        if (ait == node->attrs.map.end())
+        {
+            name = "CRYPTO_ERROR";
+        }
+        else if (!ait->second.size())
+        {
+            name = "BLANK";
+        }
+        else
+        {
+            name = ait->second;
+        }
+    }
+    else
+    {
+        name = fileName;
+    }
+
+    client->fsaccess->name2local(&name);
+    client->fsaccess->local2path(&name, &securename);
+    path += securename;
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if (!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+        path.insert(0, "\\\\?\\");
+#endif
+
+    transfer->setPath(path.c_str());
+    downloadFolderNode(node, &path);
+}
+
+void MegaFolderDownloadController::downloadFolderNode(Node *node, string *path)
+{
+    recursive++;
+
+    string localpath;
+    client->fsaccess->path2local(path, &localpath);
+    FileAccess *da = client->fsaccess->newfileaccess();
+    if (!da->fopen(&localpath, true, false))
+    {
+        client->fsaccess->mkdirlocal(&localpath);
+    }
+    else if (da->type != FILENODE)
+    {
+        LOG_debug << "Already existing folder detected: " << *path;
+    }
+    else
+    {
+        delete da;
+        LOG_err << "Local file detected where there should be a folder: " << *path;
+        return;
+    }
+    delete da;
+
+    localpath.append(client->fsaccess->localseparator);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
+    {
+        Node *child = (*it);
+        int l = localpath.size();
+
+        string name;
+        attr_map::iterator ait = child->attrs.map.find('n');
+        if (ait == child->attrs.map.end())
+        {
+            name = "CRYPTO_ERROR";
+        }
+        else if (!ait->second.size())
+        {
+            name = "BLANK";
+        }
+        else
+        {
+            name = ait->second;
+        }
+
+        client->fsaccess->name2local(&name);
+        localpath.append(name);
+
+        string utf8path;
+        client->fsaccess->local2path(&localpath, &utf8path);
+
+        if (child->type == FILENODE)
+        {
+            pendingTransfers++;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if (fa->fopen(&localpath, true, false) && fa->type == FILENODE)
+            {
+                FileFingerprint fp;
+                fp.genfingerprint(fa);
+                if ((fp.isvalid && child->isvalid && fp == *(FileFingerprint *)child)
+                        || (!child->isvalid && fa->size == child->size && fa->mtime == child->mtime))
+                {
+                    LOG_debug << "Already downloaded file detected: " << utf8path;
+                    int nextTag = client->nextreqtag();
+                    MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, this);
+
+                    t->setPath(utf8path.data());
+                    t->setNodeHandle(child->nodehandle);
+
+                    t->setTag(nextTag);
+                    t->setFolderTransferTag(tag);
+                    t->setTotalBytes(child->size);
+                    megaApi->transferMap[nextTag] = t;
+                    megaApi->fireOnTransferStart(t);
+
+                    t->setTransferredBytes(child->size);
+                    t->setDeltaSize(child->size);
+                    megaApi->fireOnTransferFinish(t, MegaError(API_OK));
+                    localpath.resize(l);
+                    delete fa;
+                    continue;
+                }
+            }
+            delete fa;
+
+            MegaNode *megaChild = MegaNodePrivate::fromNode(child);
+            megaApi->startDownload(megaChild, utf8path.c_str(), 0, 0, tag, this);
+            delete megaChild;
+        }
+        else
+        {
+            downloadFolderNode(child, &utf8path);
+        }
+
+        localpath.resize(l);
+    }
+
+    recursive--;
+    checkCompletion();
+}
+
+void MegaFolderDownloadController::checkCompletion()
+{
+    if (!recursive && !pendingTransfers)
+    {
+        LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        delete this;
+    }
+}
+
+void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
+{
+    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
+    transfer->setUpdateTime(Waiter::ds);
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+{
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
+{
+    pendingTransfers--;
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+
+    if (t->getSpeed())
     {
         transfer->setSpeed(t->getSpeed());
     }
