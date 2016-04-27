@@ -5027,29 +5027,41 @@ MegaUser* MegaApiImpl::getContact(const char* email)
 
 MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 {
-    if(!megaUser) return new MegaNodeListPrivate();
+    if (!megaUser)
+    {
+        return new MegaNodeListPrivate();
+    }
 
     sdkMutex.lock();
     vector<Node*> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
-    if(!user)
+    if (!user || user->show != VISIBLE)
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
-	for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-	{
+    for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
+    {
         Node *n;
         if ((n = client->nodebyhandle(*sit)) && !n->parent)
+        {
             vNodes.push_back(n);
-	}
+        }
+    }
+
     MegaNodeList *nodeList;
-    if(vNodes.size()) nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-    else nodeList = new MegaNodeListPrivate();
+    if (vNodes.size())
+    {
+        nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
+    }
+    else
+    {
+        nodeList = new MegaNodeListPrivate();
+    }
 
     sdkMutex.unlock();
-	return nodeList;
+    return nodeList;
 }
 
 MegaNodeList* MegaApiImpl::getInShares()
@@ -5057,21 +5069,27 @@ MegaNodeList* MegaApiImpl::getInShares()
     sdkMutex.lock();
 
     vector<Node*> vNodes;
-	for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-	{
-		User *user = &(it->second);
-		Node *n;
+    for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+    {
+        User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
 
-		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-		{
+        Node *n;
+        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
+        {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
-				vNodes.push_back(n);
-		}
-	}
+            {
+                vNodes.push_back(n);
+            }
+        }
+    }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
     sdkMutex.unlock();
-	return nodeList;
+    return nodeList;
 }
 
 MegaShareList* MegaApiImpl::getInSharesList()
@@ -5084,6 +5102,11 @@ MegaShareList* MegaApiImpl::getInSharesList()
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
+
         Node *n;
 
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
@@ -5155,7 +5178,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)
+        if (share->user && (share->user->show == VISIBLE))
         {
             vShares.push_back(share);
             vHandles.push_back(node->nodehandle);
@@ -11414,7 +11437,7 @@ bool OutShareProcessor::processNode(Node *node)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)    // public links have no user
+        if (share->user && (share->user->show == VISIBLE)) // public links have no user
         {
             shares.push_back(share);
             handles.push_back(node->nodehandle);
