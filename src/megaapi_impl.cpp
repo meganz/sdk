@@ -5209,12 +5209,8 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
 
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
-        Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE))
-        {
-            vShares.push_back(it->second);
-            vHandles.push_back(node->nodehandle);
-        }
+        vShares.push_back(it->second);
+        vHandles.push_back(node->nodehandle);
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
@@ -11455,12 +11451,8 @@ bool PendingOutShareProcessor::processNode(Node *node)
 
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
-        Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE))
-        {
-            shares.push_back(it->second);
-            handles.push_back(node->nodehandle);
-        }
+        shares.push_back(it->second);
+        handles.push_back(node->nodehandle);
     }
 
     return true;
