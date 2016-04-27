@@ -6837,6 +6837,25 @@ class MegaApi
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
 
         /**
+         * @brief Search nodes containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The search will consider every accessible node for the account:
+         *  - Cloud drive
+         *  - Inbox
+         *  - Rubbish bin
+         *  - Incoming shares from other users
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* search(const char* searchString);
+
+        /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
          * @param node The parent node of the tree to explore
          * @param processor MegaTreeProcessor that will receive callbacks for every node in the tree

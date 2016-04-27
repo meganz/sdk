@@ -5367,6 +5367,58 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
+MegaNodeList *MegaApiImpl::search(const char *searchString)
+{
+    if(!searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    sdkMutex.lock();
+
+    node_vector result;
+    Node *node;
+
+    // rootnodes
+    for (int i = 0; i < sizeof client->rootnodes; i++)
+    {
+        node = client->nodebyhandle(client->rootnodes[i]);
+
+        SearchTreeProcessor searchProcessor(searchString);
+        processTree(node, &searchProcessor);
+        node_vector& vNodes = searchProcessor.getResults();
+
+        result.insert(result.end(), vNodes.begin(), vNodes.end());
+    }
+
+    // inshares
+    MegaShareList *shares = getInSharesList();
+    for (int i = 0; i < shares->size(); i++)
+    {
+        node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+        SearchTreeProcessor searchProcessor(searchString);
+        processTree(node, &searchProcessor);
+        vector<Node *>& vNodes  = searchProcessor.getResults();
+
+        result.insert(result.end(), vNodes.begin(), vNodes.end());
+    }
+
+    MegaNodeList *nodeList;
+    if(result.size())
+    {
+        nodeList = new MegaNodeListPrivate(result.data(), result.size());
+    }
+    else
+    {
+        nodeList = new MegaNodeListPrivate();
+    }
+
+    sdkMutex.unlock();
+
+    return nodeList;
+}
+
 MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                             MegaHandle parentHandle, const char* privateauth, const char *publicauth)
 {

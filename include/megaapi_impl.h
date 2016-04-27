@@ -1330,6 +1330,7 @@ class MegaApiImpl : public MegaApp
 
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
+        MegaNodeList* search(const char* searchString);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth);
