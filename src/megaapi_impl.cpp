@@ -5403,17 +5403,10 @@ MegaNodeList *MegaApiImpl::search(const char *searchString)
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
+    delete shares;
 
-    MegaNodeList *nodeList;
-    if(result.size())
-    {
-        nodeList = new MegaNodeListPrivate(result.data(), result.size());
-    }
-    else
-    {
-        nodeList = new MegaNodeListPrivate();
-    }
-
+    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), result.size());
+    
     sdkMutex.unlock();
 
     return nodeList;
@@ -5527,22 +5520,25 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive)
 {
-    if(!n || !searchString) return new MegaNodeListPrivate();
+    if (!n || !searchString)
+    {
+    	return new MegaNodeListPrivate();
+    }
+    
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(n->getHandle());
-	if(!node)
-	{
+    
+    Node *node = client->nodebyhandle(n->getHandle());
+    if (!node)
+    {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
-	}
+    }
 
-	SearchTreeProcessor searchProcessor(searchString);
-	processTree(node, &searchProcessor, recursive);
+    SearchTreeProcessor searchProcessor(searchString);
+    processTree(node, &searchProcessor, recursive);
     vector<Node *>& vNodes = searchProcessor.getResults();
 
-    MegaNodeList *nodeList;
-    if(vNodes.size()) nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-    else nodeList = new MegaNodeListPrivate();
+    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
 
     sdkMutex.unlock();
 
