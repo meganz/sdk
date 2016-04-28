@@ -367,6 +367,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
+        void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
@@ -407,7 +408,13 @@ class MegaTransferPrivate : public MegaTransfer
 	protected:		
 		int type;
 		int tag;
-        bool syncTransfer;
+
+        struct
+        {
+            bool syncTransfer : 1;
+            bool streamingTransfer : 1;
+        };
+
         int64_t startTime;
         int64_t updateTime;
         int64_t time;

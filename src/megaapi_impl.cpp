@@ -907,6 +907,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->publicNode = NULL;
     this->lastBytes = NULL;
     this->syncTransfer = false;
+    this->streamingTransfer = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
 }
@@ -942,6 +943,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setPublicNode(transfer->getPublicNode());
     this->setTransfer(transfer->getTransfer());
     this->setSyncTransfer(transfer->isSyncTransfer());
+    this->setStreamingTransfer(transfer->isStreamingTransfer());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
 }
@@ -1003,7 +1005,7 @@ bool MegaTransferPrivate::isSyncTransfer() const
 
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
-    return !parentPath && !fileName;
+    return streamingTransfer;
 }
 
 int MegaTransferPrivate::getType() const
@@ -1128,7 +1130,12 @@ void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
 
 void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
 {
-	this->syncTransfer = syncTransfer;
+    this->syncTransfer = syncTransfer;
+}
+
+void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
+{
+    this->streamingTransfer = streamingTransfer;
 }
 
 void MegaTransferPrivate::setStartTime(int64_t startTime)
@@ -4198,6 +4205,7 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 		transfer->setPublicNode(node);
 	}
 
+    transfer->setStreamingTransfer(true);
 	transfer->setStartPos(startPos);
 	transfer->setEndPos(startPos + size - 1);
 	transfer->setMaxRetries(maxRetries);
@@ -9232,7 +9240,12 @@ void MegaApiImpl::sendPendingTransfers()
                     node = client->nodebyhandle(nodehandle);
                 }
 
-                if (!node && !publicNode) { e = API_EARGS; break; }
+                if ((!node && !publicNode) ||
+                        (!transfer->isStreamingTransfer() && !parentPath && !fileName))
+                {
+                    e = API_EARGS;
+                    break;
+                }
 
                 if (!transfer->isStreamingTransfer() && node && node->type != FILENODE)
                 {
@@ -9246,7 +9259,7 @@ void MegaApiImpl::sendPendingTransfers()
 
                 // File download
                 currentTransfer=transfer;
-                if(!transfer->isStreamingTransfer())
+                if (!transfer->isStreamingTransfer())
                 {
                     string name;
                     string securename;
@@ -12375,12 +12388,6 @@ void MegaFolderDownloadController::start()
     const char *parentPath = transfer->getParentPath();
     const char *fileName = transfer->getFileName();
     Node *node = client->nodebyhandle(transfer->getNodeHandle());
-
-    if (transfer->isStreamingTransfer() || !node || node->type == FILENODE)
-    {
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-        delete this;
-    }
 
     string name;
     string securename;
