@@ -5421,45 +5421,51 @@ class MegaApi
         ///////////////////   TRANSFERS ///////////////////
 
         /**
-         * @brief Upload a file
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
+         * @brief Upload a file or a folder
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
          * @param listener MegaTransferListener to track this transfer
          */
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
 
         /**
-         * @brief Upload a file with a custom modification time
+         * @brief Upload a file or a folder with a custom modification time
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          * @param listener MegaTransferListener to track this transfer
+         *
+         * The custom modification time will be only applied for file transfers. If a folder
+         * is transferred using this function, the custom modification time won't have any effect,
          */
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
 
         /**
-         * @brief Upload a file with a custom name
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param fileName Custom file name for the file in MEGA
+         * @brief Upload a file or folder with a custom name
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
 
         /**
-         * @brief Upload a file with a custom name and a custom modification time
+         * @brief Upload a file or a folder with a custom name and a custom modification time
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param fileName Custom file name for the file in MEGA
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          * @param listener MegaTransferListener to track this transfer
+         *
+         * The custom modification time will be only applied for file transfers. If a folder
+         * is transferred using this function, the custom modification time won't have any effect,
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
-         * @brief Download a file from MEGA
-         * @param node MegaNode that identifies the file
-         * @param localPath Destination path for the file
+         * @brief Download a file or a folder from MEGA
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
          * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
          * one of these characters, the file will be downloaded to a file in that path.
@@ -5469,7 +5475,7 @@ class MegaApi
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
 
         /**
-         * @brief Start an streaming download
+         * @brief Start an streaming download for a file in MEGA
          *
          * Streaming downloads don't save the downloaded data into a local file. It is provided
          * in MegaTransferListener::onTransferUpdate in a byte buffer. The pointer is returned by
@@ -5480,7 +5486,7 @@ class MegaApi
          * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
          * with MegaApi::addTransferListener won't receive them for performance reasons
          *
-         * @param node MegaNode that identifies the file (public nodes aren't supported yet)
+         * @param node MegaNode that identifies the file
          * @param startPos First byte to download from the file
          * @param size Size of the data to download
          * @param listener MegaTransferListener to track this transfer
