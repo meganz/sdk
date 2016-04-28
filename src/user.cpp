@@ -116,11 +116,6 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    if (v == ME)
-    {
-        client->me = uh;
-    }
-
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
 

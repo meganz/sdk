@@ -161,6 +161,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool outshares : 1;
         bool pendingshares : 1;
         bool parent : 1;
+        bool publiclink : 1;
     } changed;
     
     void setkey(const byte* = NULL);
@@ -207,6 +208,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // handle of public link for the node
     PublicLink *plink;
+
+    void setpubliclink(handle, m_time_t, bool);
 
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);

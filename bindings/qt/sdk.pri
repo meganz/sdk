@@ -33,19 +33,22 @@ SOURCES += src/attrmap.cpp \
     src/proxy.cpp \
     src/pendingcontactrequest.cpp \
     src/crypto/cryptopp.cpp  \
+    src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
-    src/megaapi.cpp \
-    src/megaapi_impl.cpp \
-    bindings/qt/QTMegaRequestListener.cpp \
-    bindings/qt/QTMegaTransferListener.cpp \
-    bindings/qt//QTMegaGlobalListener.cpp \
-    bindings/qt/QTMegaSyncListener.cpp \
-    bindings/qt/QTMegaListener.cpp \
-    bindings/qt/QTMegaEvent.cpp \
     src/mega_utf8proc.cpp
+
+CONFIG(USE_MEGAAPI) {
+    SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
+        bindings/qt/QTMegaRequestListener.cpp \
+        bindings/qt/QTMegaTransferListener.cpp \
+        bindings/qt//QTMegaGlobalListener.cpp \
+        bindings/qt/QTMegaSyncListener.cpp \
+        bindings/qt/QTMegaListener.cpp \
+        bindings/qt/QTMegaEvent.cpp
+}
 
 # CONFIG += USE_LIBUV
 CONFIG(USE_LIBUV) {
@@ -125,6 +128,7 @@ HEADERS  += include/mega.h \
             include/mega/proxy.h \
             include/mega/pendingcontactrequest.h \
             include/mega/crypto/cryptopp.h  \
+            include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
             include/mega/gfx/external.h \
@@ -132,13 +136,16 @@ HEADERS  += include/mega.h \
             include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
-            bindings/qt/QTMegaRequestListener.h \
+            include/mega/mega_utf8proc.h
+
+CONFIG(USE_MEGAAPI) {
+    HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
             bindings/qt//QTMegaGlobalListener.h \
             bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
-            bindings/qt/QTMegaEvent.h \
-            include/mega/mega_utf8proc.h
+            bindings/qt/QTMegaEvent.h
+}
 
 win32 {
     HEADERS  += include/mega/win32/megasys.h  \
@@ -185,25 +192,24 @@ win32 {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
 
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
     DEFINES += PCRE_STATIC
 
     contains(CONFIG, BUILDX64) {
-	release {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/static_x64"
-	}
-	else {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/staticd_x64"
-	}
+       release {
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
+        }
+        else {
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64d"
+        }
     }
 
     !contains(CONFIG, BUILDX64) {
-	release {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/static"
-	}
-	else {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/staticd"
-	}
+        release {
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32"
+        }
+        else {
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32d"
+        }
     }
 
     LIBS += -lshlwapi -lws2_32 -luser32
@@ -211,12 +217,10 @@ win32 {
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   INCLUDEPATH += /usr/include/cryptopp
 
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
     LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
    }
    else {
@@ -226,8 +230,7 @@ unix:!macx {
 
 macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
-   SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/qt/libs/sqlite3.c
+   SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto

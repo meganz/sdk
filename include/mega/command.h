@@ -93,7 +93,7 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 
     void procresult();
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*);
+    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
     ~HttpReqCommandPutFA();
 };
 
@@ -104,7 +104,7 @@ class MEGA_API CommandGetFA : public Command
 public:
     void procresult();
 
-    CommandGetFA(int, handle, bool);
+    CommandGetFA(MegaClient *client, int, handle, bool);
 };
 
 class MEGA_API CommandLogin : public Command
@@ -305,7 +305,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandDirectRead(DirectReadNode*);
+    CommandDirectRead(MegaClient *client, DirectReadNode*);
 };
 
 class MEGA_API CommandGetFile : public Command
@@ -318,7 +318,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(TransferSlot*, byte*, handle, bool, const char* = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -329,7 +329,7 @@ public:
     void cancel(void);
     void procresult();
 
-    CommandPutFile(TransferSlot*, int);
+    CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
 class MEGA_API CommandAttachFA : public Command
@@ -456,6 +456,7 @@ public:
 class MEGA_API CommandSetPH : public Command
 {
     handle h;
+    m_time_t ets;
 
 public:
     void procresult();

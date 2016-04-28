@@ -110,7 +110,7 @@ public class SwingExample extends JFrame implements MegaRequestListenerInterface
 
         if (megaApi == null) {
             String path = System.getProperty("user.dir");
-            megaApi = new MegaApiSwing(MainWindow.APP_KEY, MainWindow.USER_AGENT, path);
+            megaApi = new MegaApiSwing(SwingExample.APP_KEY, SwingExample.USER_AGENT, path);
         }
     }
 

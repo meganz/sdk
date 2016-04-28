@@ -63,6 +63,7 @@ struct MEGA_API User : public Cachable
         bool avatar : 1;    // avatar image
         bool firstname : 1;
         bool lastname : 1;
+        bool email : 1;
     } changed;
 
     // user's public key

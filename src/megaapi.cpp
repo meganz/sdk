@@ -349,7 +349,12 @@ bool MegaNode::isExpired()
 
 bool MegaNode::isTakenDown()
 {
-  return false;
+    return false;
+}
+
+bool MegaNode::isForeign()
+{
+    return false;
 }
 
 string *MegaNode::getNodeKey()
@@ -362,7 +367,17 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
-string *MegaNode::getAuth()
+string *MegaNode::getPrivateAuth()
+{
+    return NULL;
+}
+
+void MegaNode::setPrivateAuth(const char *)
+{
+    return;
+}
+
+string *MegaNode::getPublicAuth()
 {
     return NULL;
 }
@@ -1075,6 +1090,11 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+MegaUser *MegaApi::getMyUser()
+{
+    return pImpl->getMyUser();
+}
+
 char *MegaApi::getMyXMPPJid()
 {
     return pImpl->getMyXMPPJid();
@@ -1185,9 +1205,24 @@ char *MegaApi::dumpXMPPSession()
     return pImpl->dumpXMPPSession();
 }
 
+char *MegaApi::getAccountAuth()
+{
+    return pImpl->getAccountAuth();
+}
+
+void MegaApi::setAccountAuth(const char *auth)
+{
+    pImpl->setAccountAuth(auth);
+}
+
 void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, name, listener);
+}
+
+void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char*  lastname, MegaRequestListener *listener)
+{
+    pImpl->createAccount(email, password, firstname, lastname, listener);
 }
 
 void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
@@ -1480,6 +1515,16 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
+void MegaApi::useHttpsOnly(bool httpsOnly)
+{
+    pImpl->useHttpsOnly(httpsOnly);
+}
+
+bool MegaApi::usingHttpsOnly()
+{
+    return pImpl->usingHttpsOnly();
+}
+
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)
 {
     pImpl->addContact(email, listener);
@@ -1554,6 +1599,11 @@ int MegaApi::getUploadMethod()
 MegaTransferList *MegaApi::getTransfers()
 {
     return pImpl->getTransfers();
+}
+
+MegaTransferList *MegaApi::getStreamingTransfers()
+{
+    return pImpl->getStreamingTransfers();
 }
 
 MegaTransfer *MegaApi::getTransferByTag(int transferTag)
@@ -1756,6 +1806,31 @@ MegaNode* MegaApi::getRubbishNode()
     return pImpl->getRubbishNode();
 }
 
+void MegaApi::setDefaultFilePermissions(int permissions)
+{
+    pImpl->setDefaultFilePermissions(permissions);
+}
+
+int MegaApi::getDefaultFilePermissions()
+{
+    return pImpl->getDefaultFilePermissions();
+}
+
+void MegaApi::setDefaultFolderPermissions(int permissions)
+{
+    pImpl->setDefaultFolderPermissions(permissions);
+}
+
+int MegaApi::getDefaultFolderPermissions()
+{
+    return pImpl->getDefaultFolderPermissions();
+}
+
+long long MegaApi::getBandwidthOverquotaDelay()
+{
+    return pImpl->getBandwidthOverquotaDelay();
+}
+
 MegaUserList* MegaApi::getContacts()
 {
     return pImpl->getContacts();
@@ -1861,16 +1936,16 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
-MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
+MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *auth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, auth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
-MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFolderNode(handle, name, parentHandle, auth);
+    return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
 }
 
 const char *MegaApi::getVersion()
@@ -1886,6 +1961,16 @@ const char *MegaApi::getUserAgent()
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 {
     pImpl->changeApiUrl(apiURL, disablepkp);
+}
+
+void MegaApi::retrySSLerrors(bool enable)
+{
+    pImpl->retrySSLerrors(enable);
+}
+
+void MegaApi::setPublicKeyPinning(bool enable)
+{
+    pImpl->setPublicKeyPinning(enable);
 }
 
 char *MegaApi::base64ToBase32(const char *base64)
@@ -1934,6 +2019,11 @@ MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recurs
     return pImpl->search(n, searchString, recursive);
 }
 
+MegaNodeList *MegaApi::search(const char *searchString)
+{
+    return pImpl->search(searchString);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
@@ -1962,6 +2052,16 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
 MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *parent)
 {
     return pImpl->getNodeByFingerprint(fingerprint, parent);
+}
+
+MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
+{
+    return pImpl->getNodesByFingerprint(fingerprint);
+}
+
+MegaNode *MegaApi::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
+{
+    return pImpl->getExportableNodeByFingerprint(fingerprint, name);
 }
 
 bool MegaApi::hasFingerprint(const char *fingerprint)
@@ -2845,7 +2945,9 @@ char *MegaApi::getMimeType(const char *extension)
         (*mimeMap)["zip"]="application/x-zip-compressed";
     }
 
-    map<string, string>::iterator it = mimeMap->find(extension);
+    string key = extension;
+    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+    map<string, string>::iterator it = mimeMap->find(key);
     if (it == mimeMap->end())
     {
         return NULL;
@@ -3106,6 +3208,16 @@ int MegaAccountDetails::getNumTransactions() const
 MegaAccountTransaction *MegaAccountDetails::getTransaction(int i) const
 {
     return NULL;
+}
+
+int MegaAccountDetails::getTemporalBandwidthInterval()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTemporalBandwidth()
+{
+    return 0;
 }
 
 void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
@@ -3500,6 +3612,11 @@ const MegaTextChatPeerList *MegaTextChat::getPeerList() const
 bool MegaTextChat::isGroup() const
 {
     return false;
+}
+
+MegaHandle MegaTextChat::getOriginatingUser() const
+{
+    return INVALID_HANDLE;
 }
 
 MegaTextChatList::~MegaTextChatList()

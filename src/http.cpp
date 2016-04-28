@@ -263,8 +263,8 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 
     if (!getfromnetwork || !dnsservers->size())
     {
-        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
         *dnsservers = MEGA_DNS_SERVERS;
+        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
     }
     else
     {
@@ -329,6 +329,7 @@ HttpReq::HttpReq(bool b)
     chunked = false;
     type = REQ_JSON;
     buflen = 0;
+    protect = false;
 
     init();
 }
@@ -350,7 +351,7 @@ void HttpReq::init()
     sslcheckfailed = false;
     bufpos = 0;
     contentlength = 0;
-    timeleft = 0;
+    timeleft = -1;
     lastdata = 0;
 }
 

@@ -413,6 +413,12 @@ void CurlHttpIO::disconnect()
     {
         filterDNSservers();
     }
+
+    if (proxyurl.size() && !proxyip.size())
+    {
+        LOG_debug << "Unresolved proxy name. Resolving...";
+        request_proxy_ip();
+    }
 }
 
 // wake up from cURL I/O
@@ -528,6 +534,10 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             httpctx->hostip.append("]");
         }
     }
+    else if (status != ARES_SUCCESS)
+    {
+        LOG_warn << "c-ares error (proxy) " << status;
+    }
 
     if (!httpctx->ares_pending)
     {
@@ -556,8 +566,11 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             // name resolutions for proxies. Abort requests.
             httpio->drop_pending_requests();
 
-            // reinitialize c-ares to prevent persistent hangs
-            httpio->reset = true;
+            if (status != ARES_EDESTRUCTION)
+            {
+                // reinitialize c-ares to prevent persistent hangs
+                httpio->reset = true;
+            }
         }
         else
         {
@@ -623,7 +636,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             httpctx->hostip = oss.str();
         }
     }
-    else if(status != ARES_SUCCESS)
+    else if (status != ARES_SUCCESS)
     {
         LOG_verbose << "c-ares error. code: " << status;
     }
@@ -665,8 +678,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
                 // unable to get the IP.
                 httpio->inetstatus(false);
 
-                // reinitialize c-ares to prevent permanent hangs
-                httpio->reset = true;
+                if (status != ARES_EDESTRUCTION)
+                {
+                    // reinitialize c-ares to prevent permanent hangs
+                    httpio->reset = true;
+                }
             }
 
             req->httpiohandle = NULL;
@@ -825,6 +841,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, true);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
@@ -861,11 +880,17 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         {
             if(!httpio->proxyscheme.size() || !httpio->proxyscheme.compare(0, 4, "http"))
             {
+                LOG_debug << "Using HTTP proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
             }
             else if(!httpio->proxyscheme.compare(0, 5, "socks"))
             {
+                LOG_debug << "Using SOCKS proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+            }
+            else
+            {
+                LOG_warn << "Unknown proxy type";
             }
 
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
@@ -873,8 +898,13 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
             if (httpio->proxyusername.size())
             {
+                LOG_debug << "Using proxy authentication " << httpio->proxyusername.size() << " " << httpio->proxypassword.size();
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, httpio->proxyusername.c_str());
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
+            }
+            else
+            {
+                LOG_debug << "NOT using proxy authentication";
             }
 
             if(httpctx->port == 443)
@@ -1141,6 +1171,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
+
+        if (proxyurl.size() && !proxyip.size())
+        {
+            LOG_debug << "Unresolved proxy name. Resolving...";
+            request_proxy_ip();
+        }
     }
 
     // purge DNS cache if needed
@@ -1181,11 +1217,19 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
-    if(proxyip.size())
+    if (proxyip.size())
     {
-        //If we are using a proxy, don't resolve the IP
+        // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";
         send_request(httpctx);
+        return;
+    }
+
+    if (proxyurl.size() && proxyinflight)
+    {
+        // we are waiting for a proxy, queue the request
+        pendingrequests.push(httpctx);
+        LOG_debug << "Queueing request for the proxy";
         return;
     }
 
@@ -1259,9 +1303,12 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
 
+    LOG_debug << "Setting proxy" << proxyurl;
+
     if (!crackurl(&proxyurl, &proxyscheme, &proxyhost, &proxyport))
     {
-        // malformed proxy string
+        LOG_err << "Malformed proxy string: " << proxyurl;
+
         // invalidate inflight proxy changes
 
         // mark the proxy as invalid (proxyurl set but proxyhost not set)
@@ -1420,6 +1467,11 @@ bool CurlHttpIO::doio()
                 if (req->status == REQ_SUCCESS)
                 {
                     lastdata = Waiter::ds;
+                }
+                else
+                {
+                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
                 success = true;
@@ -1632,7 +1684,25 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
-    if (!memcmp(ptr, "Content-Length:", 15))
+    if (size * nmemb > 2)
+    {
+        LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
+    }
+
+    if (!memcmp(ptr, "HTTP/", 5))
+    {
+        if (((HttpReq*)target)->contentlength >= 0)
+        {
+            // For authentication with some proxies, cURL sends two requests in the context of a single one
+            // Content-Length is reset here to not take into account the header from the first response
+
+            LOG_warn << "Receiving a second response. Resetting Content-Length";
+            ((HttpReq*)target)->contentlength = -1;
+        }
+
+        return size * nmemb;
+    }
+    else if (!memcmp(ptr, "Content-Length:", 15))
     {
         if (((HttpReq*)target)->contentlength < 0)
         {
@@ -1723,7 +1793,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     static int errors = 0;
     int ok = 0;
 
-    if(MegaClient::disablepkp)
+    if(MegaClient::disablepkp || !request->protect)
     {
         return 1;
     }

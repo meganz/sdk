@@ -823,7 +823,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_BITCODE = NO;
-				GCC_PREPROCESSOR_DEFINITIONS = _DARWIN_C_SOURCE;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_DARWIN_C_SOURCE,
+					HAVE_LIBUV,
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,

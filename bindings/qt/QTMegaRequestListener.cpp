@@ -13,11 +13,19 @@ QTMegaRequestListener::QTMegaRequestListener(MegaApi *megaApi, MegaRequestListen
 QTMegaRequestListener::~QTMegaRequestListener()
 {
     this->listener = NULL;
-    megaApi->removeRequestListener(this);
+    if (megaApi)
+    {
+        megaApi->removeRequestListener(this);
+    }
 }
 
 void QTMegaRequestListener::onRequestStart(MegaApi *api, MegaRequest *request)
 {
+    if (request->getType() == MegaRequest::TYPE_DELETE)
+    {
+        megaApi = NULL;
+    }
+
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnRequestStart);
     event->setRequest(request->copy());
     QCoreApplication::postEvent(this, event, INT_MIN);

@@ -121,8 +121,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete [] val;
     return ret;
+}
+
+- (MEGAUser *)myUser {
+    MegaUser *user = self.megaApi->getMyUser();
+    return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
 #pragma mark - Init
@@ -175,60 +179,96 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (void)removeMEGADelegate:(id<MEGADelegate>)delegate {
+    std::vector<DelegateMEGAListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAListener *>::iterator it = _activeMegaListeners.begin();
     while (it != _activeMegaListeners.end()) {
         DelegateMEGAListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeMegaListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
+    std::vector<DelegateMEGARequestListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGARequestListener *>::iterator it = _activeRequestListeners.begin();
     while (it != _activeRequestListeners.end()) {
         DelegateMEGARequestListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeRequestListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeRequestListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeRequestListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
+    std::vector<DelegateMEGATransferListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGATransferListener *>::iterator it = _activeTransferListeners.begin();
     while (it != _activeTransferListeners.end()) {
         DelegateMEGATransferListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeTransferListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeTransferListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
-
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeTransferListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+    std::vector<DelegateMEGAGlobalListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAGlobalListener *>::iterator it = _activeGlobalListeners.begin();
     while (it != _activeGlobalListeners.end()) {
         DelegateMEGAGlobalListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeGlobalListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeGlobalListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeGlobalListener(listenersToRemove[i]);
+    }
 
 }
 
@@ -265,7 +305,23 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
-    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+    const char *val = MegaApi::handleToBase64(handle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle {
+    const char *val = MegaApi::userHandleToBase64(userhandle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)retryPendingConnections {
@@ -349,6 +405,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
@@ -928,6 +992,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
+    if (data == nil) return nil;
+    
+    MEGAInputStream mis = MEGAInputStream(data);
+    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (NSString *)fingerprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
@@ -991,7 +1067,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 - (NSString *)CRCForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
-    return self.megaApi->getCRC([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getCRC([node getCPtr])] : nil;
+    const char *val = self.megaApi->getCRC([node getCPtr]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent {
@@ -1031,11 +1113,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)escapeFsIncompatible:(NSString *)name {
-    return (name != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])] : nil;
+    if (name == nil) return nil;
+    
+    const char *val = self.megaApi->escapeFsIncompatible([name UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (NSString *)unescapeFsIncompatible:(NSString *)localName {
-    return (localName != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])] : nil;
+    if (localName == nil) return nil;
+    
+    const char *val = self.megaApi->unescapeFsIncompatible([localName UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {

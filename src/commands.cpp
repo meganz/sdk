@@ -31,13 +31,23 @@
 #include "mega.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
 {
     cmd("ufa");
     arg("s", cdata->size());
 
+    if (checkAccess)
+    {
+        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+    }
+
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     th = cth;
     type = ctype;
@@ -55,9 +65,21 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 
 void HttpReqCommandPutFA::procresult()
 {
+    error e;
+
     if (client->json.isnumeric())
     {
-        status = REQ_FAILURE;
+        e = (error)client->json.getint();
+
+        if (e == API_EAGAIN || e == API_ERATELIMIT)
+        {
+            status = REQ_FAILURE;
+        }
+        else
+        {
+            status = REQ_SUCCESS;
+            return client->app->putfa_result(th, type, e);
+        }
     }
     else
     {
@@ -87,6 +109,7 @@ void HttpReqCommandPutFA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
+                        status = REQ_SUCCESS;
                         return client->app->putfa_result(th, type, API_EINTERNAL);
                     }
             }
@@ -94,12 +117,17 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
 {
     part = p;
 
     cmd("ufa");
     arg("fah", (byte*)&fahref, sizeof fahref);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if (chunked)
     {
@@ -207,11 +235,17 @@ void CommandAttachFA::procresult()
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(TransferSlot* ctslot, int ms)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 {
     tslot = ctslot;
 
     cmd("u");
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
+
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }
@@ -280,13 +314,18 @@ void CommandPutFile::procresult()
 }
 
 // request temporary source URL for DirectRead
-CommandDirectRead::CommandDirectRead(DirectReadNode* cdrn)
+CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {
     drn = cdrn;
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 }
 
 void CommandDirectRead::cancel()
@@ -312,6 +351,7 @@ void CommandDirectRead::procresult()
     else
     {
         error e = API_EINTERNAL;
+        dstime tl = 0;
 
         for (;;)
         {
@@ -337,10 +377,20 @@ void CommandDirectRead::procresult()
                     e = (error)client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 'l'):
+                    tl = client->json.getint();
+                    break;
+
                 case EOO:
                     if (!canceled && drn)
                     {
-                        drn->cmdresult(e);
+                        if (e == API_EOVERQUOTA && !tl)
+                        {
+                            // default retry interval
+                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                        }
+
+                        drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
                     
                     return;
@@ -361,22 +411,25 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
 {
     cmd("g");
-    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
-    if(auth)
+    if (client->usehttps)
     {
-        if(strlen(auth) == 8)
-        {
-            arg("en", auth);
-        }
-        else
-        {
-            arg("esid", auth);
-        }
+        arg("ssl", 2);
+    }
+
+    if (privateauth)
+    {
+        arg("esid", privateauth);
+    }
+
+    if (publicauth)
+    {
+        arg("en", publicauth);
     }
 
     tslot = ctslot;
@@ -563,7 +616,13 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        return tslot->transfer->failed(e, tl * 10);
+                                        if (e == API_EOVERQUOTA && !tl)
+                                        {
+                                            // default retry interval
+                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                                        }
+
+                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
@@ -776,6 +835,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             {
                 switch (nn[i].source)
                 {
+                    case NEW_PUBLIC:
                     case NEW_NODE:
                         snk.add((NodeCore*)(nn + i), tn, 0);
                         break;
@@ -783,13 +843,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                     case NEW_UPLOAD:
                         snk.add((NodeCore*)(nn + i), tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
-
-                    case NEW_PUBLIC:
-                        break;
                 }
             }
 
-            snk.get(this);
+            snk.get(this, true);
         }
     }
 
@@ -827,7 +884,7 @@ void CommandPutNodes::procresult()
                 }
             }
 
-            return client->putnodes_sync_result(e, nn, 0);
+            return client->putnodes_sync_result(e, nn, nnsize);
         }
         else
 #endif
@@ -1422,7 +1479,9 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     beginarray("s");
     beginobject();
 
-    arg("u", u ? u->uid.c_str() : MegaClient::EXPORTEDLINK);
+    arg("u", u ? ((u->show == VISIBLE) ? u->uid.c_str() : u->email.c_str()) : MegaClient::EXPORTEDLINK);
+    // if the email is registered, the pubk request has returned the userhandle -->
+    // sending the userhandle instead of the email makes the API to assume the user is already a contact
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -2317,7 +2376,7 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
 
 void CommandGetUserQuota::procresult()
 {
-    short td;
+    m_off_t td;
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
@@ -2356,10 +2415,10 @@ void CommandGetUserQuota::procresult()
         {
             case MAKENAMEID2('b', 't'):                  // age of transfer
                                                          // window start
-                td = (short)client->json.getint();
+                td = client->json.getint();
                 if (td != -1)
                 {
-                    details->transfer_hist_starttime = time(NULL) - (unsigned short)td;
+                    details->transfer_hist_starttime = time(NULL) - td;
                 }
                 break;
 
@@ -2372,7 +2431,7 @@ void CommandGetUserQuota::procresult()
                 {
                     m_off_t t;
 
-                    while ((t = client->json.getint()) >= 0)
+                    while (client->json.isnumeric() && (t = client->json.getint()) != -1)
                     {
                         details->transfer_hist.push_back(t);
                     }
@@ -2680,6 +2739,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
     }
 
     this->h = n->nodehandle;
+    this->ets = ets;
     this->tag = client->reqtag;
 }
 
@@ -2695,6 +2755,14 @@ void CommandSetPH::procresult()
     if (ISUNDEF(ph))
     {
         return client->app->exportnode_result(API_EINTERNAL);
+    }
+
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        n->setpubliclink(ph, ets, false);
+        n->changed.publiclink = true;
+        client->notifynode(n);
     }
 
     client->app->exportnode_result(h, ph);

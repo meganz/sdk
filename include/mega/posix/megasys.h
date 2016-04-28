@@ -75,6 +75,8 @@
 
 #ifdef HAVE_GLOB_H
     #include <glob.h>
+#else
+    #include <third_party/glob/glob.h>
 #endif
 
 #ifdef HAVE_DIRENT_H

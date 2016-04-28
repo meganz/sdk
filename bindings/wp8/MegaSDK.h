@@ -161,8 +161,8 @@ namespace mega
         void getUserData(MUser^ user);
         void getUserDataById(String^ user, MRequestListenerInterface^ listener);
         void getUserDataById(String^ user);
-        void createAccount(String^ email, String^ password, String^ name, MRequestListenerInterface^ listener);
-        void createAccount(String^ email, String^ password, String^ name);        
+        void createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener);
+        void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
@@ -174,6 +174,7 @@ namespace mega
         int isLoggedIn();
         String^ getMyEmail();
         String^ getMyUserHandle();
+        MUser^ getMyUser();
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
@@ -357,6 +358,7 @@ namespace mega
         MUser^ getContact(String^ email);
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
+        MShareList^ getInSharesList();
         bool isShared(MNode^ node);
         bool isOutShare(MNode^ node);
         bool isInShare(MNode^ node);
@@ -364,7 +366,8 @@ namespace mega
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
         MShareList^ getPendingOutShares();
-        MShareList ^getPendingOutShares(MNode^ megaNode);
+        MShareList^ getPendingOutShares(MNode^ megaNode);
+        MNodeList^ getPublicLinks();
         MContactRequestList^ getIncomingContactRequests();
         MContactRequestList^ getOutgoingContactRequests();
 
@@ -378,6 +381,9 @@ namespace mega
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
         MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
+        MNodeList^ getNodesByFingerprint(String^ fingerprint);
+        MNode^ getExportableNodeByFingerprint(String^ fingerprint);
+        MNode^ getExportableNodeByFingerprint(String^ fingerprint, String^ name);
         bool hasFingerprint(String^ fingerprint);
         
         //CRC

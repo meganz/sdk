@@ -24,8 +24,8 @@
 namespace mega {
 
 // static member initialization
-SimpleLogger::OutputMap SimpleLogger::outputs;
-SimpleLogger::OutputSettingsMap SimpleLogger::outputSettings;
+OutputMap SimpleLogger::outputs;
+OutputSettingsMap SimpleLogger::outputSettings;
 Logger *SimpleLogger::logger = NULL;
 char SimpleLogger::base64Handle[14];
 
