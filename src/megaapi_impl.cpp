@@ -12458,6 +12458,10 @@ void MegaFolderDownloadController::downloadFolderNode(Node *node, string *path)
     {
         delete da;
         LOG_err << "Local file detected where there should be a folder: " << *path;
+
+        recursive--;
+        checkCompletion();
+
         return;
     }
     delete da;
