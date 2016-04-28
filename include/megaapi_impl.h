@@ -162,8 +162,6 @@ protected:
 
     MegaApiImpl *megaApi;
     MegaClient *client;
-    const char* name;
-    handle parenthandle;
     MegaTransferPrivate *transfer;
     MegaTransferListener *listener;
     int recursive;
@@ -175,6 +173,30 @@ public:
     virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+};
+
+class MegaFolderDownloadController : public MegaTransferListener
+{
+public:
+    MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
+    void start();
+
+protected:
+    void downloadFolderNode(Node *node, string *path);
+    void checkCompletion();
+
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+
+public:
+    virtual void onTransferStart(MegaApi *, MegaTransfer *t);
+    virtual void onTransferUpdate(MegaApi *, MegaTransfer *t);
+    virtual void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e);
 };
 
 class MegaNodePrivate : public MegaNode
@@ -345,6 +367,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
+        void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
@@ -385,7 +408,13 @@ class MegaTransferPrivate : public MegaTransfer
 	protected:		
 		int type;
 		int tag;
-        bool syncTransfer;
+
+        struct
+        {
+            bool syncTransfer : 1;
+            bool streamingTransfer : 1;
+        };
+
         int64_t startTime;
         int64_t updateTime;
         int64_t time;
@@ -1214,6 +1243,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
@@ -1691,7 +1721,6 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 
 class MegaHashSignatureImpl
