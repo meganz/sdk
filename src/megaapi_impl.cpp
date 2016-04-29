@@ -10717,15 +10717,20 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK:
         {
-            User *u = client->finduser(client->me);
-
-            if (client->loggedin() != FULLACCOUNT || !u)
+            if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
                 break;
             }
 
-            client->getemaillink(u->email.c_str());
+            const char *email = request->getEmail();
+            if (!email)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getemaillink(email);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK:
