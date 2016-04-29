@@ -93,6 +93,12 @@ bool File::serialize(string *d)
 
 File *File::unserialize(string *d)
 {
+    if (!d->size())
+    {
+        LOG_err << "Error unserializing File: Empty string";
+        return NULL;
+    }
+
     d->erase(0, 1);
 
     FileFingerprint *fp = FileFingerprint::unserialize(d);

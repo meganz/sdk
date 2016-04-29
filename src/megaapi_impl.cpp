@@ -2662,7 +2662,7 @@ MegaFileGet *MegaFileGet::unserialize(string *d)
     MegaFile *file = MegaFile::unserialize(d);
     if (!file)
     {
-        LOG_err << "Error unserializing MegaFileGet: Unable to unserialize File";
+        LOG_err << "Error unserializing MegaFileGet: Unable to unserialize MegaFile";
         return NULL;
     }
 
@@ -2758,7 +2758,7 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
     MegaFile *file = MegaFile::unserialize(d);
     if (!file)
     {
-        LOG_err << "Error unserializing MegaFilePut: Unable to unserialize File";
+        LOG_err << "Error unserializing MegaFilePut: Unable to unserialize MegaFile";
         return NULL;
     }
 
@@ -6332,6 +6332,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
             if(!transfer->getStartTime())
             {
                 transfer->setStartTime(Waiter::ds);
+                transfer->setTransferredBytes(tr->slot->progressreported);
             }
 
             m_off_t deltaSize = tr->slot->progressreported - transfer->getTransferredBytes();
@@ -6455,7 +6456,23 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
 
 void MegaApiImpl::transfer_resume(string *d)
 {
-    MegaFileGet *file = MegaFileGet::unserialize(d);
+    if (!d || d->size() < sizeof(char))
+    {
+        return;
+    }
+
+    MegaFile *file;
+    char type = MemAccess::get<char>(d->data());
+    switch (type)
+    {
+    case GET:
+        file = MegaFileGet::unserialize(d);
+        break;
+    case PUT:
+        file = MegaFilePut::unserialize(d);
+        break;
+    }
+
     if (!file)
     {
         return;
@@ -6464,7 +6481,7 @@ void MegaApiImpl::transfer_resume(string *d)
     MegaTransferPrivate* transfer = file->getTransfer();
     currentTransfer = transfer;
     client->nextreqtag();
-    client->startxfer(GET, file);
+    client->startxfer((direction_t)type, file);
     waiter->notify();
 }
 
@@ -9508,7 +9525,7 @@ void MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
-
+                    f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, true);
                     if(!started)
                     {

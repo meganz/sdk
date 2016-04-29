@@ -194,13 +194,15 @@ void TransferSlot::doio(MegaClient* client)
                     {
                         errorcount = 0;
                         transfer->failcount = 0;
+                        transfer->chunkmacs[reqs[i]->pos].finished = true;
 
                         // completed put transfers are signalled through the
                         // return of the upload token
                         if (reqs[i]->in.size())
                         {
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
-                            {
+                            {                                        
+                                LOG_debug << "Upload token received";
                                 if (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN + 1)
                                     == NewNode::UPLOADTOKENLEN)
                                 {
@@ -214,10 +216,11 @@ void TransferSlot::doio(MegaClient* client)
                             }
 
                             transfer->progresscompleted -= reqs[i]->size;
+                            transfer->chunkmacs[reqs[i]->pos].finished = false;
 
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
-                        }
+                        }                        
                     }
                     else
                     {
@@ -358,6 +361,7 @@ void TransferSlot::doio(MegaClient* client)
                                          &transfer->chunkmacs, transfer->ctriv,
                                          transfer->pos, npos))
                     {
+                        reqs[i]->pos = transfer->pos;
                         reqs[i]->status = REQ_PREPARED;
                         transfer->pos = npos;
                     }

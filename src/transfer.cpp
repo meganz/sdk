@@ -115,7 +115,7 @@ bool Transfer::serialize(string *d)
     }
 
     string fp;
-    (*files.begin())->serializefingerprint(&fp);
+    serializefingerprint(&fp);
     ll = fp.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(fp.data(), ll);
@@ -194,7 +194,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         m_off_t pos = MemAccess::get<m_off_t>(ptr);
         ptr += sizeof(m_off_t);
 
-        memcpy(t->chunkmacs[pos].mac, ptr, sizeof(ChunkMAC));
+        memcpy(&(t->chunkmacs[pos]), ptr, sizeof(ChunkMAC));
         ptr += sizeof(ChunkMAC);
     }
 
@@ -215,10 +215,12 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     FileFingerprint *fp = new FileFingerprint();
     fp->unserializefingerprint(&fingerprint);
 
-    t->size = MemAccess::get<m_off_t>(ptr);
+    m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
 
-    fp->size = t->size;
+    *(FileFingerprint*)t = *(FileFingerprint*)fp;
+    t->size = size;
+    fp->size = size;
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(fp, t));
 
     ll = MemAccess::get<unsigned short>(ptr);
@@ -332,6 +334,7 @@ void Transfer::complete()
 
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
+                LOG_err << "Fingerprint mismatch";
                 if (!badfp.isvalid || !(badfp == fingerprint))
                 {
                     badfp = fingerprint;
@@ -641,7 +644,7 @@ void Transfer::completefiles()
 
 m_off_t Transfer::nextpos()
 {
-    while (chunkmacs.find(pos) != chunkmacs.end())
+    while (chunkmacs.find(pos) != chunkmacs.end() && chunkmacs[pos].finished)
     {
         m_off_t chunkceil = ChunkedHash::chunkceil(pos);
         m_off_t chunksize =  chunkceil - ChunkedHash::chunkfloor(pos);

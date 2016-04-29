@@ -532,6 +532,7 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
     fa->fwrite(buf + skip, bufpos - skip - prune, dlpos + skip);
 
     memcpy((*macs)[dlpos].mac, mac, sizeof mac);
+    (*macs)[dlpos].finished = true;
 }
 
 // prepare chunk for uploading: mac and encrypt
@@ -555,6 +556,7 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     key->ctr_crypt((byte*)out->data(), size, pos, ctriv, mac, 1);
 
     memcpy((*macs)[pos].mac, mac, sizeof mac);
+    (*macs)[pos].finished = false;
 
     // unpad for POSTing
     out->resize(size);

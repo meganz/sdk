@@ -148,6 +148,7 @@ struct MEGA_API HttpIO : public EventTrigger
 struct MEGA_API HttpReq
 {
     reqstatus_t status;
+    m_off_t pos;
 
     int httpstatus;
 

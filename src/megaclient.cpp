@@ -2153,11 +2153,25 @@ bool MegaClient::dispatch(direction_t d)
 
                 nextit->second->pos = 0;
 
-                // always (re)start upload from scratch
+                // resume at the end of the last contiguous completed block
+                for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
+                     it != nextit->second->chunkmacs.end(); it++)
+                {
+                    if (nextit->second->pos != it->first || !it->second.finished)
+                    {
+                        break;
+                    }
+
+                    if (nextit->second->size)
+                    {
+                        nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
+                        nextit->second->progresscompleted = nextit->second->pos;
+                    }
+                }
+
                 if (d == PUT)
                 {
                     nextit->second->size = ts->fa->size;
-                    nextit->second->chunkmacs.clear();
 
                     // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
                     if (gfx && nextit->second->localfilename.size() && !nextit->second->uploadhandle)
@@ -2173,22 +2187,6 @@ bool MegaClient::dispatch(direction_t d)
                 }
                 else
                 {
-                    // downloads resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
-                         it != nextit->second->chunkmacs.end(); it++)
-                    {
-                        if (nextit->second->pos != it->first)
-                        {
-                            break;
-                        }
-
-                        if (nextit->second->size)
-                        {
-                            nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
-                            nextit->second->progresscompleted = nextit->second->pos;
-                        }
-                    }
-
                     for (file_list::iterator it = nextit->second->files.begin();
                          it != nextit->second->files.end(); it++)
                     {
@@ -9124,7 +9122,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 FileAccess* fa = fsaccess->newfileaccess();
-                if(fa->fopen(&it->second->localfilename))
+                if (fa->fopen(&it->second->localfilename) || d == PUT)
                 {
                     LOG_debug << "Resuming transfer";
                     t = it->second;
