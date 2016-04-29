@@ -44,6 +44,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     finished = false;
 
     faputcompletion_it = client->faputcompletion.end();
+    transfers_it = client->transfers[type].end();
 }
 
 // delete transfer with underlying slot, notify files
