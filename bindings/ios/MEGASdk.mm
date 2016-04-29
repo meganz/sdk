@@ -121,7 +121,6 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete [] val;
     return ret;
 }
 
@@ -306,7 +305,23 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
-    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+    const char *val = MegaApi::handleToBase64(handle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle {
+    const char *val = MegaApi::userHandleToBase64(userhandle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)retryPendingConnections {
@@ -1052,7 +1067,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 - (NSString *)CRCForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
-    return self.megaApi->getCRC([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getCRC([node getCPtr])] : nil;
+    const char *val = self.megaApi->getCRC([node getCPtr]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent {
@@ -1092,11 +1113,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)escapeFsIncompatible:(NSString *)name {
-    return (name != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])] : nil;
+    if (name == nil) return nil;
+    
+    const char *val = self.megaApi->escapeFsIncompatible([name UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (NSString *)unescapeFsIncompatible:(NSString *)localName {
-    return (localName != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])] : nil;
+    if (localName == nil) return nil;
+    
+    const char *val = self.megaApi->unescapeFsIncompatible([localName UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {

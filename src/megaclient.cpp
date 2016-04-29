@@ -6089,8 +6089,13 @@ void MegaClient::mapuser(handle uh, const char* email)
         // yes: add email reference
         u = &users[hit->second];
 
-        if (!u->email.size() || strcmp(u->email.c_str(), email))
-        {
+        if (strcmp(u->email.c_str(), email))
+        { 
+            if (u->email.size())
+            {
+                umindex.erase(u->email);
+            }
+
             Node::copystring(&u->email, email);
             umindex[nuid] = hit->second;
         }

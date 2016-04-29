@@ -1,0 +1,3 @@
+/openssl
+/openssl-*
+!/openssl-*.sha1

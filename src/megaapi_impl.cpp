@@ -907,6 +907,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->publicNode = NULL;
     this->lastBytes = NULL;
     this->syncTransfer = false;
+    this->streamingTransfer = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
 }
@@ -942,6 +943,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setPublicNode(transfer->getPublicNode());
     this->setTransfer(transfer->getTransfer());
     this->setSyncTransfer(transfer->isSyncTransfer());
+    this->setStreamingTransfer(transfer->isStreamingTransfer());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
 }
@@ -1003,7 +1005,7 @@ bool MegaTransferPrivate::isSyncTransfer() const
 
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
-	return (transfer == NULL);
+    return streamingTransfer;
 }
 
 int MegaTransferPrivate::getType() const
@@ -1128,7 +1130,12 @@ void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
 
 void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
 {
-	this->syncTransfer = syncTransfer;
+    this->syncTransfer = syncTransfer;
+}
+
+void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
+{
+    this->streamingTransfer = streamingTransfer;
 }
 
 void MegaTransferPrivate::setStartTime(int64_t startTime)
@@ -4177,7 +4184,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -4207,12 +4214,17 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
 	transfer->setEndPos(endPos);
 	transfer->setMaxRetries(maxRetries);
 
+    if (folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
+
 	transferQueue.push(transfer);
 	waiter->notify();
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(node, localFolder, 0, 0, listener); }
+{ startDownload(node, localFolder, 0, 0, 0, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -4253,6 +4265,7 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 		transfer->setPublicNode(node);
 	}
 
+    transfer->setStreamingTransfer(true);
 	transfer->setStartPos(startPos);
 	transfer->setEndPos(startPos + size - 1);
 	transfer->setMaxRetries(maxRetries);
@@ -5087,29 +5100,41 @@ MegaUser* MegaApiImpl::getContact(const char* email)
 
 MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 {
-    if(!megaUser) return new MegaNodeListPrivate();
+    if (!megaUser)
+    {
+        return new MegaNodeListPrivate();
+    }
 
     sdkMutex.lock();
     vector<Node*> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
-    if(!user)
+    if (!user || user->show != VISIBLE)
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
-	for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-	{
+    for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
+    {
         Node *n;
         if ((n = client->nodebyhandle(*sit)) && !n->parent)
+        {
             vNodes.push_back(n);
-	}
+        }
+    }
+
     MegaNodeList *nodeList;
-    if(vNodes.size()) nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-    else nodeList = new MegaNodeListPrivate();
+    if (vNodes.size())
+    {
+        nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
+    }
+    else
+    {
+        nodeList = new MegaNodeListPrivate();
+    }
 
     sdkMutex.unlock();
-	return nodeList;
+    return nodeList;
 }
 
 MegaNodeList* MegaApiImpl::getInShares()
@@ -5117,21 +5142,27 @@ MegaNodeList* MegaApiImpl::getInShares()
     sdkMutex.lock();
 
     vector<Node*> vNodes;
-	for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-	{
-		User *user = &(it->second);
-		Node *n;
+    for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+    {
+        User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
 
-		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-		{
+        Node *n;
+        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
+        {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
-				vNodes.push_back(n);
-		}
-	}
+            {
+                vNodes.push_back(n);
+            }
+        }
+    }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
     sdkMutex.unlock();
-	return nodeList;
+    return nodeList;
 }
 
 MegaShareList* MegaApiImpl::getInSharesList()
@@ -5144,6 +5175,11 @@ MegaShareList* MegaApiImpl::getInSharesList()
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         User *user = &(it->second);
+        if (user->show != VISIBLE)
+        {
+            continue;
+        }
+
         Node *n;
 
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
@@ -5215,7 +5251,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)
+        if (share->user && (share->user->show == VISIBLE))
         {
             vShares.push_back(share);
             vHandles.push_back(node->nodehandle);
@@ -5404,6 +5440,51 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
+MegaNodeList *MegaApiImpl::search(const char *searchString)
+{
+    if(!searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    sdkMutex.lock();
+
+    node_vector result;
+    Node *node;
+
+    // rootnodes
+    for (int i = 0; i < sizeof client->rootnodes; i++)
+    {
+        node = client->nodebyhandle(client->rootnodes[i]);
+
+        SearchTreeProcessor searchProcessor(searchString);
+        processTree(node, &searchProcessor);
+        node_vector& vNodes = searchProcessor.getResults();
+
+        result.insert(result.end(), vNodes.begin(), vNodes.end());
+    }
+
+    // inshares
+    MegaShareList *shares = getInSharesList();
+    for (int i = 0; i < shares->size(); i++)
+    {
+        node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+        SearchTreeProcessor searchProcessor(searchString);
+        processTree(node, &searchProcessor);
+        vector<Node *>& vNodes  = searchProcessor.getResults();
+
+        result.insert(result.end(), vNodes.begin(), vNodes.end());
+    }
+    delete shares;
+
+    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), result.size());
+    
+    sdkMutex.unlock();
+
+    return nodeList;
+}
+
 MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                             MegaHandle parentHandle, const char* privateauth, const char *publicauth)
 {
@@ -5512,22 +5593,25 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive)
 {
-    if(!n || !searchString) return new MegaNodeListPrivate();
+    if (!n || !searchString)
+    {
+    	return new MegaNodeListPrivate();
+    }
+    
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(n->getHandle());
-	if(!node)
-	{
+    
+    Node *node = client->nodebyhandle(n->getHandle());
+    if (!node)
+    {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
-	}
+    }
 
-	SearchTreeProcessor searchProcessor(searchString);
-	processTree(node, &searchProcessor, recursive);
+    SearchTreeProcessor searchProcessor(searchString);
+    processTree(node, &searchProcessor, recursive);
     vector<Node *>& vNodes = searchProcessor.getResults();
 
-    MegaNodeList *nodeList;
-    if(vNodes.size()) nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-    else nodeList = new MegaNodeListPrivate();
+    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
 
     sdkMutex.unlock();
 
@@ -9446,10 +9530,26 @@ void MegaApiImpl::sendPendingTransfers()
                     node = client->nodebyhandle(nodehandle);
                 }
 
-                if (!node && !publicNode) { e = API_EARGS; break; }
+                if ((!node && !publicNode) ||
+                        (!transfer->isStreamingTransfer() && !parentPath && !fileName))
+                {
+                    e = API_EARGS;
+                    break;
+                }
 
+                if (!transfer->isStreamingTransfer() && node && node->type != FILENODE)
+                {
+                    // Folder download
+                    transferMap[nextTag] = transfer;
+                    transfer->setTag(nextTag);
+                    MegaFolderDownloadController *downloader = new MegaFolderDownloadController(this, transfer);
+                    downloader->start();
+                    break;
+                }
+
+                // File download
                 currentTransfer=transfer;
-                if(parentPath || fileName)
+                if (!transfer->isStreamingTransfer())
                 {
                     string name;
                     string securename;
@@ -9535,6 +9635,13 @@ void MegaApiImpl::sendPendingTransfers()
                             transferMap[nextTag]=transfer;
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
+
+                            long long overquotaDelay = getBandwidthOverquotaDelay();
+                            if (overquotaDelay)
+                            {
+                                fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
+                            }
+
                             fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
@@ -11838,7 +11945,7 @@ bool OutShareProcessor::processNode(Node *node)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user)    // public links have no user
+        if (share->user && (share->user->show == VISIBLE)) // public links have no user
         {
             shares.push_back(share);
             handles.push_back(node->nodehandle);
@@ -12453,8 +12560,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
 {
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
-    this->parenthandle = transfer->getParentHandle();
-    this->name = transfer->getFileName();
     this->transfer = transfer;
     this->listener = transfer->getListener();
     this->recursive = 0;
@@ -12468,7 +12573,8 @@ void MegaFolderUploadController::start()
     transfer->setStartTime(Waiter::ds);
     megaApi->fireOnTransferStart(transfer);
 
-    MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
+    const char *name = transfer->getFileName();
+    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
     if(!parent)
     {
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
@@ -12685,6 +12791,221 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     transfer->setUpdateTime(Waiter::ds);
 
     if(t->getSpeed())
+    {
+        transfer->setSpeed(t->getSpeed());
+    }
+
+    megaApi->fireOnTransferUpdate(transfer);
+    checkCompletion();
+}
+
+MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
+{
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+    this->transfer = transfer;
+    this->listener = transfer->getListener();
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->tag = transfer->getTag();
+}
+
+void MegaFolderDownloadController::start()
+{
+    transfer->setFolderTransferTag(-1);
+    transfer->setStartTime(Waiter::ds);
+    megaApi->fireOnTransferStart(transfer);
+
+    const char *parentPath = transfer->getParentPath();
+    const char *fileName = transfer->getFileName();
+    Node *node = client->nodebyhandle(transfer->getNodeHandle());
+
+    string name;
+    string securename;
+    string path;
+
+    if (parentPath)
+    {
+        path = parentPath;
+    }
+    else
+    {
+        string separator;
+        client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+        path = ".";
+        path.append(separator);
+    }
+
+    if (!fileName)
+    {
+        attr_map::iterator ait = node->attrs.map.find('n');
+        if (ait == node->attrs.map.end())
+        {
+            name = "CRYPTO_ERROR";
+        }
+        else if (!ait->second.size())
+        {
+            name = "BLANK";
+        }
+        else
+        {
+            name = ait->second;
+        }
+    }
+    else
+    {
+        name = fileName;
+    }
+
+    client->fsaccess->name2local(&name);
+    client->fsaccess->local2path(&name, &securename);
+    path += securename;
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if (!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+        path.insert(0, "\\\\?\\");
+#endif
+
+    transfer->setPath(path.c_str());
+    downloadFolderNode(node, &path);
+}
+
+void MegaFolderDownloadController::downloadFolderNode(Node *node, string *path)
+{
+    recursive++;
+
+    string localpath;
+    client->fsaccess->path2local(path, &localpath);
+    FileAccess *da = client->fsaccess->newfileaccess();
+    if (!da->fopen(&localpath, true, false))
+    {
+        client->fsaccess->mkdirlocal(&localpath);
+    }
+    else if (da->type != FILENODE)
+    {
+        LOG_debug << "Already existing folder detected: " << *path;
+    }
+    else
+    {
+        delete da;
+        LOG_err << "Local file detected where there should be a folder: " << *path;
+
+        recursive--;
+        checkCompletion();
+
+        return;
+    }
+    delete da;
+
+    localpath.append(client->fsaccess->localseparator);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
+    {
+        Node *child = (*it);
+        int l = localpath.size();
+
+        string name;
+        attr_map::iterator ait = child->attrs.map.find('n');
+        if (ait == child->attrs.map.end())
+        {
+            name = "CRYPTO_ERROR";
+        }
+        else if (!ait->second.size())
+        {
+            name = "BLANK";
+        }
+        else
+        {
+            name = ait->second;
+        }
+
+        client->fsaccess->name2local(&name);
+        localpath.append(name);
+
+        string utf8path;
+        client->fsaccess->local2path(&localpath, &utf8path);
+
+        if (child->type == FILENODE)
+        {
+            pendingTransfers++;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if (fa->fopen(&localpath, true, false) && fa->type == FILENODE)
+            {
+                FileFingerprint fp;
+                fp.genfingerprint(fa);
+                if ((fp.isvalid && child->isvalid && fp == *(FileFingerprint *)child)
+                        || (!child->isvalid && fa->size == child->size && fa->mtime == child->mtime))
+                {
+                    LOG_debug << "Already downloaded file detected: " << utf8path;
+                    int nextTag = client->nextreqtag();
+                    MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, this);
+
+                    t->setPath(utf8path.data());
+                    t->setNodeHandle(child->nodehandle);
+
+                    t->setTag(nextTag);
+                    t->setFolderTransferTag(tag);
+                    t->setTotalBytes(child->size);
+                    megaApi->transferMap[nextTag] = t;
+                    megaApi->fireOnTransferStart(t);
+
+                    t->setTransferredBytes(child->size);
+                    t->setDeltaSize(child->size);
+                    megaApi->fireOnTransferFinish(t, MegaError(API_OK));
+                    localpath.resize(l);
+                    delete fa;
+                    continue;
+                }
+            }
+            delete fa;
+
+            MegaNode *megaChild = MegaNodePrivate::fromNode(child);
+            megaApi->startDownload(megaChild, utf8path.c_str(), 0, 0, tag, this);
+            delete megaChild;
+        }
+        else
+        {
+            downloadFolderNode(child, &utf8path);
+        }
+
+        localpath.resize(l);
+    }
+
+    recursive--;
+    checkCompletion();
+}
+
+void MegaFolderDownloadController::checkCompletion()
+{
+    if (!recursive && !pendingTransfers)
+    {
+        LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        delete this;
+    }
+}
+
+void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
+{
+    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
+    transfer->setUpdateTime(Waiter::ds);
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+{
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
+{
+    pendingTransfers--;
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+
+    if (t->getSpeed())
     {
         transfer->setSpeed(t->getSpeed());
     }

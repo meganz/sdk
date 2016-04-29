@@ -2049,6 +2049,11 @@ MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recurs
     return pImpl->search(n, searchString, recursive);
 }
 
+MegaNodeList *MegaApi::search(const char *searchString)
+{
+    return pImpl->search(searchString);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
