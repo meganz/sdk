@@ -183,6 +183,12 @@ struct MEGA_API MegaApp
     // validation of password
     virtual void validatepassword_result(error) {}
 
+    // get change email link result
+    virtual void getemaillink_result(error) {}
+
+    // confirm change email link result
+    virtual void confirmemaillink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

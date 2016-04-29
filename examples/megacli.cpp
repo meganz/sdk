@@ -53,6 +53,9 @@ static bool hasMasterKey;
 // master key for password recovery
 static byte masterkey[SymmCipher::KEYLENGTH];
 
+// change email link to be confirmed
+static string changeemail, changecode;
+
 // local console
 Console* console;
 
@@ -1596,6 +1599,10 @@ static void process_line(char* l)
             {
                 client->validatepwd(pwkey);
             }
+            else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
+            {
+                client->validatepwd(pwkey);
+            }
             else
             {
                 client->login(login.c_str(), pwkey);
@@ -1679,7 +1686,7 @@ static void process_line(char* l)
             return;
 
         case MASTERKEY:
-            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key...";
+            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key..." << endl;
 
             Base64::atob(l, masterkey, sizeof masterkey);
             client->getprivatekey(recoverycode.c_str());
@@ -1800,6 +1807,7 @@ static void process_line(char* l)
                 cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
                 cout << "      recover recoverylink" << endl;
                 cout << "      cancel [cancellink]" << endl;
+                cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -3041,6 +3049,48 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "email")
+                    {
+                        if (words.size() == 1)
+                        {
+                            User *u = client->finduser(client->me);
+                            if (u)
+                            {
+                                cout << "Your current email address is " << u->email << endl;
+                            }
+                            else
+                            {
+                                cout << "Please, login first" << endl;
+                            }
+                        }
+                        else if (words.size() == 2)
+                        {
+                            if (words[1].find("@") != words[1].npos)    // get change email link
+                            {
+                                client->getemaillink(words[1].c_str());
+                            }
+                            else    // confirm change email link
+                            {
+                                string link = words[1];
+
+                                size_t pos = link.find("#verify");
+                                if (pos == link.npos)
+                                {
+                                    cout << "Invalid email change link." << endl;
+                                    return;
+                                }
+
+                                changecode.assign(link.substr(pos+strlen("#verify")));
+                                client->queryrecoverylink(changecode.c_str());
+                            }
+                        }
+                        else
+                        {
+                            cout << "      email [newemail|emaillink]" << endl;
+                        }
+
+                        return;
+                    }
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatf")
                     {
@@ -3543,7 +3593,7 @@ static void process_line(char* l)
                         {
                             string link = words[1];
 
-                            int pos = link.find("#cancel");
+                            size_t pos = link.find("#cancel");
                             if (pos == link.npos)
                             {
                                 cout << "Invalid cancellation link." << endl;
@@ -3552,13 +3602,12 @@ static void process_line(char* l)
 
                             recoverycode.assign(link.substr(pos+strlen("#cancel")));
                             setprompt(LOGINPASSWORD);
-                            return;
                         }
                         else
                         {
                             cout << "       cancel [link]" << endl;
-                            return;
                         }
+                        return;
                     }
                     break;
 
@@ -3588,7 +3637,7 @@ static void process_line(char* l)
                         {
                             string link = words[1];
 
-                            int pos = link.find("#recover");
+                            size_t pos = link.find("#recover");
                             if (pos == link.npos)
                             {
                                 cout << "Invalid recovery link." << endl;
@@ -3906,31 +3955,38 @@ void DemoApp::getrecoverylink_result(error e)
 
 void DemoApp::queryrecoverylink_result(error e)
 {
-    cout << "Recovery link is invalid (" << errorstring(e) << ")." << endl;
+        cout << "The link is invalid (" << errorstring(e) << ")." << endl;
 }
 
 void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
 {
     recoveryemail = email ? email : "";
-    hasMasterKey = (type == 9);
+    hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
 
-    cout << "Recovery link is valid";
+    cout << "The link is valid";
 
-    if (type == 9)
+    if (type == RECOVER_WITH_MASTERKEY)
     {
-        cout <<  " for " << email << " with masterkey." << endl;
+        cout <<  " to reset the password for " << email << " with masterkey." << endl;
 
         setprompt(MASTERKEY);
     }
-    else if (type == 10)
+    else if (type == RECOVER_WITHOUT_MASTERKEY)
     {
-        cout <<  " for " << email << " without masterkey." << endl;
+        cout <<  " to reset the password for " << email << " without masterkey." << endl;
 
         setprompt(NEWPASSWORD);
     }
-    else if (type == 21)
+    else if (type == CANCEL_ACCOUNT)
     {
-        cout << " for " << email << " to cancel the account." << endl;
+        cout << " to cancel the account for " << email << "." << endl;
+    }
+    else if (type == CHANGE_EMAIL)
+    {
+        cout << " to change the email from " << client->finduser(client->me)->email << " to " << email << "." << endl;
+
+        changeemail = email ? email : "";
+        setprompt(LOGINPASSWORD);
     }
 }
 
@@ -3976,13 +4032,50 @@ void DemoApp::validatepassword_result(error e)
     if (e)
     {
         cout << "Wrong password (" << errorstring(e) << ")" << endl;
+        setprompt(LOGINPASSWORD);
     }
     else
     {
-        cout << "Password is correct, cancelling account..." << endl;
-        client->confirmcancellink(recoverycode.c_str());
+        if (recoverycode.size())
+        {
+            cout << "Password is correct, cancelling account..." << endl;
+
+            client->confirmcancellink(recoverycode.c_str());
+            recoverycode.clear();
+        }
+        else if (changecode.size())
+        {
+            cout << "Password is correct, changing email..." << endl;
+
+            client->confirmemaillink(changecode.c_str(), changeemail.c_str(), pwkey);
+            changecode.clear();
+            changeemail.clear();
+        }
     }
-    recoverycode.clear();
+}
+
+void DemoApp::getemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command \"email\" followed by the link." << endl;
+    }
+}
+
+void DemoApp::confirmemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to change the email address (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Email address changed successfully to " << changeemail << "." << endl;
+    }
 }
 
 void DemoApp::ephemeral_result(handle uh, const byte* pw)

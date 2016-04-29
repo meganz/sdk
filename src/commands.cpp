@@ -3580,7 +3580,7 @@ void CommandGetRecoveryLink::procresult()
     {
         client->app->getrecoverylink_result((error)client->json.getint());
     }
-    else
+    else    // error
     {
         client->json.storeobject();
         client->app->getrecoverylink_result(API_EINTERNAL);
@@ -3721,7 +3721,14 @@ void CommandConfirmCancelLink::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->confirmcancellink_result((error)client->json.getint());
+        error e = (error)client->json.getint();
+
+        if (!e)
+        {
+            client->locallogout();
+        }
+
+        return client->app->confirmcancellink_result(e);
     }
     else   // error
     {
@@ -3751,6 +3758,87 @@ void CommandValidatePassword::procresult()
         return client->app->validatepassword_result((error)API_OK);
     }
 }
+
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+{
+    cmd("se");
+
+    if (add)
+    {
+        arg("aa", "a");     // add
+    }
+    else
+    {
+        arg("aa", "r");     // remove
+    }
+    arg("e", email);    
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandGetEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getemaillink_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        return client->app->getemaillink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, uint64_t newLoginHash, bool replace)
+{
+    this->email = email;
+    this->replace = replace;
+
+    cmd("sec");
+
+    arg("c", code);
+    arg("e", email);
+    arg("uh", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (replace)
+    {
+        arg("r", 1);    // replace the current email address by this one
+    }
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+
+        if (!e)
+        {
+            User *u = client->finduser(client->me);
+
+            if (replace)
+            {
+                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
+
+                client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+                u->changed.email = true;
+                client->notifyuser(u);
+            }
+            // TODO: once we manage multiple emails, add the new email to the list of emails
+        }
+
+        return client->app->confirmemaillink_result(e);
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmemaillink_result((error)API_EINTERNAL);
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)

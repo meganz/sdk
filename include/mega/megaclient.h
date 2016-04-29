@@ -887,6 +887,12 @@ public:
     // confirm a link to cancel the account
     void confirmcancellink(const char *code);
 
+    // get a link to change the email address
+    void getemaillink(const char *email);
+
+    // confirm a link to change the email address
+    void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

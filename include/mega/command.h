@@ -649,6 +649,23 @@ public:
     CommandValidatePassword(MegaClient*, const char*, uint64_t);
 };
 
+class MEGA_API CommandGetEmailLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetEmailLink(MegaClient*, const char*, int);
+};
+
+class MEGA_API CommandConfirmEmailLink : public Command
+{
+    string email;
+    bool replace;
+public:
+    void procresult();
+
+    CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
+};
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command

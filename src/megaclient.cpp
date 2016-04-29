@@ -618,6 +618,21 @@ void MegaClient::confirmcancellink(const char *code)
     reqs.add(new CommandConfirmCancelLink(this, code));
 }
 
+void MegaClient::getemaillink(const char *email)
+{
+    reqs.add(new CommandGetEmailLink(this, email, 1));
+}
+
+void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
+{
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

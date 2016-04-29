@@ -102,6 +102,8 @@ struct DemoApp : public MegaApp
     virtual void confirmrecoverylink_result(error);
     virtual void confirmcancellink_result(error);
     virtual void validatepassword_result(error);
+    virtual void getemaillink_result(error);
+    virtual void confirmemaillink_result(error);
 
     void users_updated(User**, int);
     void nodes_updated(Node**, int);
