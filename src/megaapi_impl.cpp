@@ -6279,8 +6279,9 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     request->setText(ip);       // not specified in MegaApi documentation
     request->setNodeHandle(uh); // not specified in MegaApi documentation
 
-    string link = request->getLink();
-    const char *code;
+    const char *link = request->getLink();
+    const char* code;
+
     byte pwkey[SymmCipher::KEYLENGTH];
     const char *mk64;
 
@@ -6291,14 +6292,15 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
     {
-        size_t pos = link.find("#recover");
-        if (pos == link.npos)
+        if (code = strstr(link, "#recover"))
+        {
+            code += strlen("#recover");
+        }
+        else
         {
             fireOnRequestFinish(request, MegaError(API_EARGS));
             return;
         }
-
-        code = link.substr(pos+strlen("#recover")).c_str();
 
         switch (type)
         {
@@ -6339,14 +6341,15 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             return;
         }
 
-        size_t pos = link.find("#verify");
-        if (pos == link.npos)
+        if (code = strstr(link, "#verify"))
+        {
+            code += strlen("#verify");
+        }
+        else
         {
             fireOnRequestFinish(request, MegaError(API_EARGS));
             return;
-        }
-
-        code = link.substr(pos+strlen("#verify")).c_str();
+        };
 
         client->pw_key(request->getPassword(), pwkey);
         client->validatepwd(pwkey);
@@ -6365,14 +6368,17 @@ void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
         return;
     }
 
-    string link = request->getLink();
-    size_t pos = link.find("#recover");
-    if (pos == link.npos)
+    const char *link = request->getLink();
+    const char* code;
+    if (code = strstr(link, "#recover"))
+    {
+        code += strlen("#recover");
+    }
+    else
     {
         fireOnRequestFinish(request, MegaError(API_EARGS));
         return;
     }
-    const char *code = link.substr(pos+strlen("#recover")).c_str();
 
     byte pwkey[SymmCipher::KEYLENGTH];
     client->pw_key(request->getPassword(), pwkey);

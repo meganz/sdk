@@ -3644,11 +3644,11 @@ void CommandQueryRecoveryLink::procresult()
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
 }
 
-CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *link)
+CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
 {
     cmd("erx");
     arg("r", "gk");
-    arg("c", link);
+    arg("c", code);
 
     tag = client->reqtag;
 }
