@@ -42,6 +42,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     progresscompleted = 0;
     finished = false;
+    starttime = time(NULL);
 
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
@@ -116,6 +117,7 @@ bool Transfer::serialize(string *d)
     d->append(fp.data(), ll);
 
     d->append((const char*)&size, sizeof(size));
+    d->append((const char*)&starttime, sizeof(starttime));
 
     if (slot)
     {
@@ -205,7 +207,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
-    if (ptr + ll + sizeof(m_off_t) + sizeof(unsigned short) > end)
+    if (ptr + ll + sizeof(m_off_t) + sizeof(m_time_t) + sizeof(unsigned short) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
@@ -221,6 +223,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
+
+    t->starttime = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
 
     *(FileFingerprint*)t = *(FileFingerprint*)fp;
     t->size = size;
