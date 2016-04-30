@@ -2412,8 +2412,7 @@ void MegaClient::locallogout()
     delete sctable;
     sctable = NULL;
 
-    delete tctable;
-    tctable = NULL;
+    closetc();
 
     me = UNDEF;
 
@@ -7265,6 +7264,23 @@ bool MegaClient::fetchsc(DbTable* sctable)
     return true;
 }
 
+void MegaClient::closetc()
+{
+    delete tctable;
+    tctable = NULL;
+
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        while (cachedtransfers[d].size())
+        {
+            transfer_map::iterator it = cachedtransfers[d].begin();
+            delete it->first;
+            delete it->second;
+            cachedtransfers[d].erase(it);
+        }
+    }
+}
+
 void MegaClient::enabletransferresumption(const char *loggedoutid)
 {
     if (!dbaccess)
@@ -7298,7 +7314,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    delete tctable;
+    closetc();
     tctable = dbaccess->open(fsaccess, &dbname);
     if (!tctable)
     {
@@ -7339,16 +7355,6 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         app->transfer_resume(&cachedfiles.at(i));
     }
 
-    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-    {
-        while (cachedtransfers[d].size())
-        {
-            transfer_map::iterator it = cachedtransfers[d].begin();
-            delete it->first;
-            delete it->second;
-            cachedtransfers[d].erase(it);
-        }
-    }
 }
 
 void MegaClient::disabletransferresumption(const char *loggedoutid)
@@ -7361,8 +7367,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     if (tctable)
     {
         tctable->remove();
-        delete tctable;
-        tctable = NULL;
+        closetc();
     }
 
     string dbname;
@@ -7388,8 +7393,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
 
     tctable->remove();
-    delete tctable;
-    tctable = NULL;
+    closetc();
 }
 
 void MegaClient::fetchnodes()

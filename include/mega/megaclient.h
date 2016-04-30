@@ -408,6 +408,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // close the local transfer cache
+    void closetc();
+
     // server-client command processing
     void sc_updatenode();
     Node* sc_deltree();
