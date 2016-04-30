@@ -6539,6 +6539,7 @@ void MegaClient::transfercacheadd(Transfer *transfer)
 {
     if (tctable)
     {
+        LOG_debug << "Caching transfer";
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
     }
 }
@@ -6547,6 +6548,7 @@ void MegaClient::transfercachedel(Transfer *transfer)
 {
     if (tctable)
     {
+        LOG_debug << "Removing cached transfer";
         tctable->del(transfer->dbid);
     }
 }
@@ -6555,6 +6557,7 @@ void MegaClient::filecacheadd(File *file)
 {
     if (tctable && !file->syncxfer)
     {
+        LOG_debug << "Caching file";
         tctable->put(MegaClient::CACHEDFILE, file, &tckey);
     }
 }
@@ -6563,6 +6566,7 @@ void MegaClient::filecachedel(File *file)
 {
     if (tctable && !file->syncxfer)
     {
+        LOG_debug << "Removing cached file";
         tctable->del(file->dbid);
     }
 }
@@ -7315,6 +7319,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             case CACHEDTRANSFER:
                 if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                 {
+                    LOG_debug << "Cached transfer loaded";
                     t->dbid = id;
                 }
                 else
