@@ -1275,8 +1275,8 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
-        void enableTransferResumption(const char* loggedOutKey);
-        void disableTransferResumption(const char* loggedOutKey);
+        void enableTransferResumption(const char* loggedOutId);
+        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);

@@ -4134,17 +4134,17 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
-void MegaApiImpl::enableTransferResumption(const char *loggedOutKey)
+void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
 {
     sdkMutex.lock();
-    client->enabletransferresumption(loggedOutKey);
+    client->enabletransferresumption(loggedOutId);
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::disableTransferResumption(const char *loggedOutKey)
+void MegaApiImpl::disableTransferResumption(const char *loggedOutId)
 {
     sdkMutex.lock();
-    client->disabletransferresumption(loggedOutKey);
+    client->disabletransferresumption(loggedOutId);
     sdkMutex.unlock();
 }
 
