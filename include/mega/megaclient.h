@@ -472,8 +472,8 @@ private:
     static const char PAYMENT_PUBKEY[];
 
 public:
-    void enabletransferresumption(const char *loggedoutid);
-    void disabletransferresumption(const char *loggedoutid);
+    void enabletransferresumption(const char *loggedoutid = NULL);
+    void disabletransferresumption(const char *loggedoutid = NULL);
 
     // application callbacks
     struct MegaApp* app;

@@ -1177,6 +1177,8 @@ void CommandLogout::procresult()
             }
         }
 #endif
+
+        client->disabletransferresumption();
         client->locallogout();
     }
     app->logout_result(e);
