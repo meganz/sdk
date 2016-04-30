@@ -9168,6 +9168,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     delete it->second;
                 }
 
+                delete fa;
                 delete it->first;
                 cachedtransfers[d].erase(it);
             }
