@@ -7348,6 +7348,8 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 break;
         }
     }
+
+    tctable->begin();
     tctable->truncate();
 
     for (unsigned int i = 0; i < cachedfiles.size(); i++)
@@ -7355,6 +7357,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         app->transfer_resume(&cachedfiles.at(i));
     }
 
+    tctable->commit();
 }
 
 void MegaClient::disabletransferresumption(const char *loggedoutid)
@@ -9191,6 +9194,8 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
         f->file_it = t->files.insert(t->files.begin(), f);
         f->transfer = t;
+
+        transfercacheadd(t);
         filecacheadd(f);
     }
 
