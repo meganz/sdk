@@ -6545,7 +6545,7 @@ void MegaClient::transfercacheadd(Transfer *transfer)
 
 void MegaClient::transfercachedel(Transfer *transfer)
 {
-    if (tctable)
+    if (tctable && transfer->dbid)
     {
         LOG_debug << "Removing cached transfer";
         tctable->del(transfer->dbid);
@@ -7336,7 +7336,6 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                 {
                     LOG_debug << "Cached transfer loaded";
-                    t->dbid = id;
                 }
                 else
                 {
