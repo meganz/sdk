@@ -2412,6 +2412,9 @@ void MegaClient::locallogout()
     delete sctable;
     sctable = NULL;
 
+    delete tctable;
+    tctable = NULL;
+
     me = UNDEF;
 
     cachedscsn = UNDEF;
@@ -6536,7 +6539,7 @@ void MegaClient::transfercacheadd(Transfer *transfer)
 {
     if (tctable)
     {
-        tctable->put(MegaClient::CACHEDTRANSFER, transfer, &loggedOutKey);
+        tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
     }
 }
 
@@ -6552,7 +6555,7 @@ void MegaClient::filecacheadd(File *file)
 {
     if (tctable && !file->syncxfer)
     {
-        tctable->put(MegaClient::CACHEDFILE, file, &loggedOutKey);
+        tctable->put(MegaClient::CACHEDFILE, file, &tckey);
     }
 }
 
@@ -7265,23 +7268,33 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         return;
     }
 
-    if (!loggedoutid)
+    string dbname;
+    if (loggedin())
     {
-        return;
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+
+        tckey = key;
+    }
+    else
+    {
+        if (!loggedoutid)
+        {
+            loggedoutid = "default";
+        }
+
+        dbname = loggedoutid;
+
+        string lok;
+        Hash hash;
+        hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
+        hash.get(&lok);
+        tckey.setkey((const byte*)lok.data());
     }
 
-    string lok;
-    Hash hash;
-    hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
-    hash.get(&lok);
-    loggedOutKey.setkey((const byte*)lok.data());
+    dbname.insert(0, "transfers_");
 
-    string dbname = "transfercache_";
-    dbname.append(loggedoutid);
-    if (tctable)
-    {
-        delete tctable;
-    }
+    delete tctable;
     tctable = dbaccess->open(fsaccess, &dbname);
     if (!tctable)
     {
@@ -7295,7 +7308,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
-    while (tctable->next(&id, &data, &loggedOutKey))
+    while (tctable->next(&id, &data, &tckey))
     {
         switch (id & 15)
         {
@@ -7347,20 +7360,31 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         tctable = NULL;
     }
 
-    if (loggedoutid)
+    string dbname;
+    if (loggedin())
     {
-        string dbname = "transfercache_";
-        dbname.append(loggedoutid);
-        tctable = dbaccess->open(fsaccess, &dbname);
-        if (!tctable)
-        {
-            return;
-        }
-
-        tctable->remove();
-        delete tctable;
-        tctable = NULL;
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
     }
+    else
+    {
+        if (!loggedoutid)
+        {
+            loggedoutid = "default";
+        }
+        dbname = loggedoutid;
+    }
+    dbname.insert(0, "transfers_");
+
+    tctable = dbaccess->open(fsaccess, &dbname);
+    if (!tctable)
+    {
+        return;
+    }
+
+    tctable->remove();
+    delete tctable;
+    tctable = NULL;
 }
 
 void MegaClient::fetchnodes()

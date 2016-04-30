@@ -828,7 +828,7 @@ public:
     SymmCipher key;
 
     // dummy key to obfuscate non protected cache
-    SymmCipher loggedOutKey;
+    SymmCipher tckey;
 
     // account access (full account): RSA key
     AsymmCipher asymkey;
