@@ -7280,6 +7280,16 @@ void MegaClient::closetc()
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
+            Transfer *transfer = it->second;
+            m_time_t t = time(NULL) - transfer->starttime;
+
+            if ((transfer->type == PUT && t >= 86400)
+                    || (t >= 864000))
+            {
+                // remove not resumed transfers from the cache
+                transfer->finished = true;
+            }
+
             delete it->first;
             delete it->second;
             cachedtransfers[d].erase(it);
@@ -7350,12 +7360,26 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 break;
             case CACHEDFILE:
                 cachedfiles.push_back(data);
+                LOG_debug << "Cached file loaded";
                 break;
         }
     }
 
     tctable->begin();
     tctable->truncate();
+
+    // add cached transfers to the database
+    // to be able to remove them if the resumption fails
+    // or preserve them if the app is closed before the resumption
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        transfer_map::iterator it = cachedtransfers[d].begin();
+        while (it != cachedtransfers[d].end())
+        {
+            transfercacheadd(it->second);
+            it++;
+        }
+    }
 
     for (unsigned int i = 0; i < cachedfiles.size(); i++)
     {
@@ -9163,14 +9187,24 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 FileAccess* fa = fsaccess->newfileaccess();
-                if (fa->fopen(&it->second->localfilename) || d == PUT)
+                if (fa->fopen(&it->second->localfilename)
+                        && ((d == GET) || (d == PUT && (time(NULL) - it->second->starttime) < 86400)))
                 {
                     LOG_debug << "Resuming transfer";
                     t = it->second;
                 }
                 else
                 {
-                    LOG_warn << "Temporary file not found";
+                    if (d == GET)
+                    {
+                        LOG_warn << "Temporary file not found";
+                    }
+                    else
+                    {
+                        LOG_debug << "Cached upload too old";
+                    }
+
+                    it->second->finished = true;
                     delete it->second;
                 }
 
