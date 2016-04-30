@@ -88,11 +88,6 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d)
 {
-    if (!slot)
-    {
-        return false;
-    }
-
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
@@ -122,9 +117,18 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&size, sizeof(size));
 
-    ll = slot->tempurl.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(slot->tempurl.data(), ll);
+    if (slot)
+    {
+        ll = slot->tempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(slot->tempurl.data(), ll);
+    }
+    else
+    {
+        ll = cachedtempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(cachedtempurl.data(), ll);
+    }
 
     d->append("\0\0\0\0\0\0\0", 8);
 
