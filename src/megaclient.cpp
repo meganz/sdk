@@ -2169,6 +2169,12 @@ bool MegaClient::dispatch(direction_t d)
                     }
                 }
 
+                if (nextit->second->progresscompleted > nextit->second->size)
+                {
+                    nextit->second->pos = nextit->second->size;
+                    nextit->second->progresscompleted = nextit->second->size;
+                }
+
                 if (d == PUT)
                 {
                     nextit->second->size = ts->fa->size;

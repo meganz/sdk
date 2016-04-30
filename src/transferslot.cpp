@@ -175,6 +175,19 @@ void TransferSlot::doio(MegaClient* client)
         return transfer->failed(API_EFAILED);
     }
 
+    if (transfer->type == GET && transfer->progresscompleted == transfer->size)
+    {
+        // verify meta MAC
+        if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
+        {
+            return transfer->complete();
+        }
+        else
+        {
+            return transfer->failed(API_EKEY);
+        }
+    }
+
     for (int i = connections; i--; )
     {
         if (reqs[i])
