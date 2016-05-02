@@ -282,6 +282,10 @@ void TransferSlot::doio(MegaClient* client)
 
                         return transfer->failed(API_EOVERQUOTA, backoff);
                     }
+                    else if (reqs[i]->httpstatus == 403)
+                    {
+                        return transfer->failed(API_EAGAIN);
+                    }
                     else
                     {
                         if (!failure)
