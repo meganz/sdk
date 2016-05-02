@@ -348,6 +348,7 @@ void Transfer::complete()
                 {
                     badfp = fingerprint;
                     delete fa;
+                    chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE);
                 }

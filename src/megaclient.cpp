@@ -2152,6 +2152,7 @@ bool MegaClient::dispatch(direction_t d)
                 const char *pubauth = NULL;
 
                 nextit->second->pos = 0;
+                nextit->second->progresscompleted = 0;
 
                 // resume at the end of the last contiguous completed block
                 for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();

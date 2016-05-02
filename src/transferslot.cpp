@@ -253,6 +253,7 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                                 else
                                 {
+                                    transfer->chunkmacs.clear();
                                     transfer->progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
                                 }
