@@ -2154,26 +2154,33 @@ bool MegaClient::dispatch(direction_t d)
                 nextit->second->pos = 0;
                 nextit->second->progresscompleted = 0;
 
-                // resume at the end of the last contiguous completed block
-                for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
-                     it != nextit->second->chunkmacs.end(); it++)
+                if (d == GET || nextit->second->cachedtempurl.size())
                 {
-                    if (nextit->second->pos != it->first || !it->second.finished)
+                    // resume at the end of the last contiguous completed block
+                    for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
+                         it != nextit->second->chunkmacs.end(); it++)
                     {
-                        break;
+                        if (nextit->second->pos != it->first || !it->second.finished)
+                        {
+                            break;
+                        }
+
+                        if (nextit->second->size)
+                        {
+                            nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
+                            nextit->second->progresscompleted = nextit->second->pos;
+                        }
                     }
 
-                    if (nextit->second->size)
+                    if (nextit->second->progresscompleted > nextit->second->size)
                     {
-                        nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
-                        nextit->second->progresscompleted = nextit->second->pos;
+                        nextit->second->pos = nextit->second->size;
+                        nextit->second->progresscompleted = nextit->second->size;
                     }
                 }
-
-                if (nextit->second->progresscompleted > nextit->second->size)
+                else
                 {
-                    nextit->second->pos = nextit->second->size;
-                    nextit->second->progresscompleted = nextit->second->size;
+                    nextit->second->chunkmacs.clear();
                 }
 
                 if (d == PUT)
