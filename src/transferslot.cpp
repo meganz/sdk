@@ -138,8 +138,6 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
         transfer->key.ecb_encrypt(mac);
     }
 
-    macs->clear();
-
     uint32_t* m = (uint32_t*)mac;
 
     m[0] ^= m[1];
@@ -151,7 +149,7 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
-    if (!fa)
+    if (!fa || transfer->progresscompleted == transfer->size)
     {
         // this is a pending completion, retry every 200 ms by default
         retrybt.backoff(2);
@@ -173,19 +171,6 @@ void TransferSlot::doio(MegaClient* client)
     if (errorcount > 4)
     {
         return transfer->failed(API_EFAILED);
-    }
-
-    if (transfer->type == GET && transfer->progresscompleted == transfer->size)
-    {
-        // verify meta MAC
-        if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
-        {
-            return transfer->complete();
-        }
-        else
-        {
-            return transfer->failed(API_EKEY);
-        }
     }
 
     for (int i = connections; i--; )
@@ -249,6 +234,7 @@ void TransferSlot::doio(MegaClient* client)
                                 // verify meta MAC
                                 if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
                                 {
+                                    client->transfercacheadd(transfer);
                                     return transfer->complete();
                                 }
                                 else
