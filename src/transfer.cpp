@@ -118,6 +118,7 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&starttime, sizeof(starttime));
+    d->append((const char*)ultoken, sizeof(ultoken));
 
     if (slot)
     {
@@ -207,7 +208,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
-    if (ptr + ll + sizeof(m_off_t) + sizeof(m_time_t) + sizeof(unsigned short) > end)
+    if (ptr + ll + sizeof(m_off_t) + sizeof(m_time_t) + sizeof(t->ultoken) + sizeof(unsigned short) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
@@ -226,6 +227,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     t->starttime = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
+
+    memcpy(t->ultoken, ptr, sizeof(t->ultoken));
+    ptr += sizeof(t->ultoken);
 
     *(FileFingerprint*)t = *(FileFingerprint*)fp;
     t->size = size;

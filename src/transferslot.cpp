@@ -209,6 +209,7 @@ void TransferSlot::doio(MegaClient* client)
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
 
+                                    client->transfercacheadd(transfer);
                                     return transfer->complete();
                                 }
                             }
