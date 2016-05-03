@@ -8434,11 +8434,93 @@ bool MegaApiImpl::isFilesystemAvailable()
     return result;
 }
 
+int naturalsorting_compare (const char *i, const char *j)
+{
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ( (char_i = *i) && (char_j = *j) )
+            {
+                bool char_i_isDigit = (char_i >= '0' && char_i <= '9');
+                bool char_j_isDigit = (char_j >= '0' && char_j <= '9');
+
+                if (char_i_isDigit && char_j_isDigit)
+                {
+                    stringMode = false;
+                    break;
+                }
+
+                if(char_i_isDigit)
+                {
+                    return -1;
+                }
+
+                if(char_j_isDigit)
+                {
+                    return 1;
+                }
+
+                int difference = char_i - char_j;
+                if (difference)
+                {
+                    return difference;
+                }
+
+                ++i;
+                ++j;
+            }
+        }
+        else    // we are comparing numbers on both strings
+        {
+            char char_i, char_j;
+
+            u_int64_t number_i = 0;
+            while ((char_i = *i) && (char_i >= '0' && char_i <= '9'))
+            {
+                number_i = number_i * 10 + *i - '0';//48; // '0' ASCII code is 48
+                ++i;
+            }
+
+            u_int64_t number_j = 0;
+            while ((char_j = *j) && (char_j >= '0' && char_j <= '9'))
+            {
+                number_j = number_j * 10 + *j - '0';//48;
+                ++j;
+            }
+
+            int difference = number_i - number_j;
+            if (difference)
+            {
+                return difference;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if(*j)
+    {
+        return -1;
+    }
+
+    if(*i)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
 bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
 {
     if(i->type < j->type) return 0;
     if(i->type > j->type) return 1;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 1;
+
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 1;
 	return 0;
 }
 
@@ -8446,8 +8528,8 @@ bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
 {
     if(i->type < j->type) return 1;
     if(i->type > j->type) return 0;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 0;
-	return 1;
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 0;
+    return 1;
 }
 
 bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
