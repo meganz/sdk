@@ -42,7 +42,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     progresscompleted = 0;
     finished = false;
-    starttime = time(NULL);
+    lastaccesstime = time(NULL);
 
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
@@ -117,7 +117,7 @@ bool Transfer::serialize(string *d)
     d->append(fp.data(), ll);
 
     d->append((const char*)&size, sizeof(size));
-    d->append((const char*)&starttime, sizeof(starttime));
+    d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
     d->append((const char*)ultoken, sizeof(ultoken));
 
     if (slot)
@@ -225,7 +225,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
 
-    t->starttime = MemAccess::get<m_time_t>(ptr);
+    t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
     memcpy(t->ultoken, ptr, sizeof(t->ultoken));

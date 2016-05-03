@@ -7289,7 +7289,7 @@ void MegaClient::closetc()
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            m_time_t t = time(NULL) - transfer->starttime;
+            m_time_t t = time(NULL) - transfer->lastaccesstime;
 
             if ((transfer->type == PUT && t >= 86400)
                     || (t >= 864000))
@@ -9196,7 +9196,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 LOG_debug << "Resumable transfer detected";
                 FileAccess* fa = fsaccess->newfileaccess();
                 if (fa->fopen(&it->second->localfilename)
-                        && ((d == GET) || (d == PUT && (time(NULL) - it->second->starttime) < 86400)))
+                        && ((d == GET) || (d == PUT && (time(NULL) - it->second->lastaccesstime) < 86400)))
                 {
                     LOG_debug << "Resuming transfer";
                     t = it->second;

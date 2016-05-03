@@ -185,7 +185,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_SUCCESS:
                     lastdata = Waiter::ds;
-
+                    transfer->lastaccesstime = time(NULL);
                     transfer->progresscompleted += reqs[i]->size;
 
                     if (transfer->type == PUT)

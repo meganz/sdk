@@ -106,7 +106,7 @@ struct MEGA_API Transfer : public FileFingerprint
     string cachedtempurl;
    
     // timestamp of the start of the transfer
-    m_time_t starttime;
+    m_time_t lastaccesstime;
 
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
