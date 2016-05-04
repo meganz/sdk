@@ -5393,7 +5393,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString)
     Node *node;
 
     // rootnodes
-    for (int i = 0; i < sizeof client->rootnodes; i++)
+    for (int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
