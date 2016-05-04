@@ -409,7 +409,7 @@ private:
     bool fetchsc(DbTable*);
 
     // close the local transfer cache
-    void closetc();
+    void closetc(bool remove = false);
 
     // server-client command processing
     void sc_updatenode();

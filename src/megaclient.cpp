@@ -7278,11 +7278,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     return true;
 }
 
-void MegaClient::closetc()
+void MegaClient::closetc(bool remove)
 {
-    delete tctable;
-    tctable = NULL;
-
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
         while (cachedtransfers[d].size())
@@ -7291,7 +7288,7 @@ void MegaClient::closetc()
             Transfer *transfer = it->second;
             m_time_t t = time(NULL) - transfer->lastaccesstime;
 
-            if ((transfer->type == PUT && t >= 86400)
+            if (remove || (transfer->type == PUT && t >= 86400)
                     || (t >= 864000))
             {
                 // remove not resumed transfers from the cache
@@ -7303,6 +7300,13 @@ void MegaClient::closetc()
             cachedtransfers[d].erase(it);
         }
     }
+
+    if (remove)
+    {
+        tctable->remove();
+    }
+    delete tctable;
+    tctable = NULL;
 }
 
 void MegaClient::enabletransferresumption(const char *loggedoutid)
@@ -7402,12 +7406,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     {
         return;
     }
-
-    if (tctable)
-    {
-        tctable->remove();
-        closetc();
-    }
+    closetc(true);
 
     string dbname;
     if (loggedin())
@@ -7431,8 +7430,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         return;
     }
 
-    tctable->remove();
-    closetc();
+    closetc(true);
 }
 
 void MegaClient::fetchnodes()
