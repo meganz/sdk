@@ -627,6 +627,7 @@ void MegaClient::init()
     btcs.reset();
     btsc.reset();
     btpfa.reset();
+    btbadhost.reset();
 
     jsonsc.pos = NULL;
     insca = false;
@@ -784,6 +785,7 @@ void MegaClient::exec()
                 (*it)->errorcount++;
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;
+                LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
             }
         }
     }
@@ -1227,9 +1229,18 @@ void MegaClient::exec()
 
         if (badhostcs)
         {
-            if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
+            if (badhostcs->status == REQ_SUCCESS)
             {
-                httpio->success = true;
+                LOG_debug << "Successful badhost report";
+                btbadhost.reset();
+                delete badhostcs;
+                badhostcs = NULL;
+            }
+            else if(badhostcs->status == REQ_FAILURE)
+            {
+                LOG_debug << "Failed badhost report. Retrying...";
+                btbadhost.backoff();
+                badhosts = badhostcs->outbuf;
                 delete badhostcs;
                 badhostcs = NULL;
             }
@@ -1778,19 +1789,20 @@ void MegaClient::exec()
 #endif
 
         notifypurge();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
 
-    if (!badhostcs && badhosts.size())
-    {
-        // report hosts affected by failed requests
-        badhostcs = new HttpReq();
-        badhostcs->posturl = APIURL;
-        badhostcs->posturl.append("pf?h");
-        badhostcs->outbuf = badhosts;
-        badhostcs->type = REQ_JSON;
-        badhostcs->post(this);
-        badhosts.clear();
-    }
+        if (!badhostcs && badhosts.size() && btbadhost.armed())
+        {
+            // report hosts affected by failed requests
+            LOG_debug << "Sending badhost report: " << badhosts;
+            badhostcs = new HttpReq();
+            badhostcs->posturl = APIURL;
+            badhostcs->posturl.append("pf?h");
+            badhostcs->outbuf = badhosts;
+            badhostcs->type = REQ_JSON;
+            badhostcs->post(this);
+            badhosts.clear();
+        }
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -1853,6 +1865,12 @@ int MegaClient::preparewait()
         if (!pendingsc && *scsn)
         {
             btsc.update(&nds);
+        }
+
+        // retry failed badhost requests
+        if (!badhostcs)
+        {
+            btbadhost.update(&nds);
         }
 
         // retry failed file attribute puts
@@ -2000,6 +2018,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btcs.arm())
+    {
+        r = true;
+    }
+
+    if (btbadhost.arm())
     {
         r = true;
     }
@@ -2232,6 +2255,7 @@ bool MegaClient::dispatch(direction_t d)
                           : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
                 }
 
+                LOG_debug << "Activating transfer";
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
                 // notify the app about the starting transfer
@@ -2383,6 +2407,11 @@ void MegaClient::disconnect()
     for (fafc_map::iterator it = fafcs.begin(); it != fafcs.end(); it++)
     {
         it->second->req.disconnect();
+    }
+
+    for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+    {
+        (*it)->errorcount = 0;
     }
 
     httpio->lastdata = NEVER;
@@ -9344,6 +9373,7 @@ void MegaClient::setchunkfailed(string* url)
 {
     if (!chunkfailed && url->size() > 19)
     {
+        LOG_debug << "Adding badhost report for URL " << *url;
         chunkfailed = true;
         httpio->success = false;
 
@@ -9362,6 +9392,7 @@ void MegaClient::setchunkfailed(string* url)
         }
         
         badhosts.append(ptr+6,7);
+        btbadhost.reset();
     }
 }
 

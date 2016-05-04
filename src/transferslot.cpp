@@ -289,6 +289,7 @@ void TransferSlot::doio(MegaClient* client)
                     }
                     else
                     {
+                        LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
                         if (!failure)
                         {
                             failure = true;
@@ -407,6 +408,7 @@ void TransferSlot::doio(MegaClient* client)
 
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
+        LOG_warn << "Failed chunk due to a timeout";
         failure = true;
         bool changeport = false;
 
