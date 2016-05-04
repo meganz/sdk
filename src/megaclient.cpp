@@ -7307,7 +7307,7 @@ void MegaClient::closetc()
 
 void MegaClient::enabletransferresumption(const char *loggedoutid)
 {
-    if (!dbaccess)
+    if (!dbaccess || tctable)
     {
         return;
     }
@@ -7338,7 +7338,6 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    closetc();
     tctable = dbaccess->open(fsaccess, &dbname);
     if (!tctable)
     {
