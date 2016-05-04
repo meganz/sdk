@@ -7354,6 +7354,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     vector<string> cachedfiles;
 
     LOG_info << "Loading transfers from local cache";
+    tctable->begin();
     tctable->rewind();
     while (tctable->next(&id, &data, &tckey))
     {
@@ -7362,33 +7363,20 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             case CACHEDTRANSFER:
                 if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                 {
+                    t->dbid = id;
                     LOG_debug << "Cached transfer loaded";
                 }
                 else
                 {
+                    tctable->del(id);
                     LOG_err << "Failed - transfer record read error";
                 }
                 break;
             case CACHEDFILE:
+                tctable->del(id);
                 cachedfiles.push_back(data);
                 LOG_debug << "Cached file loaded";
                 break;
-        }
-    }
-
-    tctable->begin();
-    tctable->truncate();
-
-    // add cached transfers to the database
-    // to be able to remove them if the resumption fails
-    // or preserve them if the app is closed before the resumption
-    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-    {
-        transfer_map::iterator it = cachedtransfers[d].begin();
-        while (it != cachedtransfers[d].end())
-        {
-            transfercacheadd(it->second);
-            it++;
         }
     }
 
