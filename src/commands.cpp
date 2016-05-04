@@ -1443,13 +1443,13 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
     // Only for inviting non-contacts
-    if (personal_representation)
+    if (personal_representation && personal_representation[0])
     {
         this->personal_representation = personal_representation;
         arg("e", personal_representation);
     }
 
-    if (msg)
+    if (msg && msg[0])
     {
         this->msg = msg;
         arg("msg", msg);
