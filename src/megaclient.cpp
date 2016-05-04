@@ -9196,7 +9196,9 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 LOG_debug << "Resumable transfer detected";
                 FileAccess* fa = fsaccess->newfileaccess();
                 if (fa->fopen(&it->second->localfilename)
-                        && ((d == GET) || (d == PUT && (time(NULL) - it->second->lastaccesstime) < 86400)))
+                        && ((d == GET) ||
+                            (d == PUT && (time(NULL) - it->second->lastaccesstime) < 86400
+                                      && !it->second->genfingerprint(fa))))
                 {
                     LOG_debug << "Resuming transfer";
                     t = it->second;
@@ -9209,7 +9211,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                     else
                     {
-                        LOG_debug << "Cached upload too old";
+                        LOG_debug << "Cached upload too old or local file changed";
                     }
 
                     it->second->finished = true;
