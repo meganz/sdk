@@ -188,6 +188,9 @@ void TransferSlot::doio(MegaClient* client)
                     transfer->lastaccesstime = time(NULL);
                     transfer->progresscompleted += reqs[i]->size;
 
+                    LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
+                              << " Completed: " << transfer->progresscompleted << " of " << transfer->size;
+
                     if (transfer->type == PUT)
                     {
                         errorcount = 0;
@@ -214,6 +217,7 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
+                            LOG_debug << "Invalid upload token: " << reqs[i]->in;
                             transfer->progresscompleted -= reqs[i]->size;
                             transfer->chunkmacs[reqs[i]->pos].finished = false;
 
@@ -240,6 +244,7 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                                 else
                                 {
+                                    LOG_warn << "MAC verification failed";
                                     transfer->chunkmacs.clear();
                                     transfer->progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
@@ -248,6 +253,7 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
+                            LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             transfer->progresscompleted -= reqs[i]->size;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
@@ -260,6 +266,7 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_FAILURE:
+                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)
@@ -289,7 +296,6 @@ void TransferSlot::doio(MegaClient* client)
                     }
                     else
                     {
-                        LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
                         if (!failure)
                         {
                             failure = true;
