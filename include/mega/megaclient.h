@@ -376,6 +376,9 @@ private:
     // auth URI component for API requests
     string auth;
 
+    // public handle being used
+    handle publichandle;
+
     // API response JSON object
     JSON response;
 

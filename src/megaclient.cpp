@@ -432,6 +432,7 @@ void MegaClient::setrootnode(handle h)
 
     auth = "&n=";
     auth.append(buf);
+    publichandle = h;
 
     if (accountauth.size())
     {
@@ -639,6 +640,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     sctable = NULL;
     tctable = NULL;
     me = UNDEF;
+    publichandle = UNDEF;
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
@@ -2428,7 +2430,7 @@ void MegaClient::locallogout()
     closetc();
 
     me = UNDEF;
-
+    publichandle = UNDEF;
     cachedscsn = UNDEF;
 
     freeq(GET);
@@ -2476,6 +2478,7 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
+    sid.clear();
 
     init();
 
@@ -5887,10 +5890,21 @@ void MegaClient::opensctable()
     {
         string dbname;
 
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        if (sid.size() >= SIDLEN)
+        {
+            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        }
+        else if (publichandle != UNDEF)
+        {
+            dbname.resize(NODEHANDLE * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
 
-        sctable = dbaccess->open(fsaccess, &dbname);
+        if (dbname.size())
+        {
+            sctable = dbaccess->open(fsaccess, &dbname);
+        }
     }
 }
 
@@ -7315,10 +7329,18 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     }
 
     string dbname;
-    if (loggedin())
+    if (sid.size() >= SIDLEN || publichandle != UNDEF)
     {
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        if (sid.size() >= SIDLEN)
+        {
+            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        }
+        else
+        {
+            dbname.resize(NODEHANDLE * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
 
         tckey = key;
     }
@@ -7395,10 +7417,18 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 
     string dbname;
-    if (loggedin())
+    if (sid.size() >= SIDLEN || publichandle != UNDEF)
     {
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        if (sid.size() >= SIDLEN)
+        {
+            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        }
+        else
+        {
+            dbname.resize(NODEHANDLE * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
     }
     else
     {
