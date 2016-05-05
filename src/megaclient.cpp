@@ -7295,8 +7295,7 @@ void MegaClient::closetc(bool remove)
                 transfer->finished = true;
             }
 
-            delete it->first;
-            delete it->second;
+            delete transfer;
             cachedtransfers[d].erase(it);
         }
     }
@@ -9179,14 +9178,15 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";
+                Transfer *transfer = it->second;
                 FileAccess* fa = fsaccess->newfileaccess();
-                if (fa->fopen(&it->second->localfilename)
+                if (fa->fopen(&transfer->localfilename)
                         && ((d == GET) ||
-                            (d == PUT && (time(NULL) - it->second->lastaccesstime) < 86400
-                                      && !it->second->genfingerprint(fa))))
+                            (d == PUT && (time(NULL) - transfer->lastaccesstime) < 86400
+                                      && !transfer->genfingerprint(fa))))
                 {
                     LOG_debug << "Resuming transfer";
-                    t = it->second;
+                    t = transfer;
                 }
                 else
                 {
@@ -9199,12 +9199,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                         LOG_debug << "Cached upload too old or local file changed";
                     }
 
-                    it->second->finished = true;
-                    delete it->second;
+                    transfer->finished = true;
+                    delete transfer;
                 }
 
                 delete fa;
-                delete it->first;
                 cachedtransfers[d].erase(it);
             }
 

@@ -219,8 +219,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     fingerprint.assign(ptr, ll);
     ptr += ll;
 
-    FileFingerprint *fp = new FileFingerprint();
-    fp->unserializefingerprint(&fingerprint);
+    t->unserializefingerprint(&fingerprint);
 
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
@@ -231,10 +230,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->ultoken, ptr, sizeof(t->ultoken));
     ptr += sizeof(t->ultoken);
 
-    *(FileFingerprint*)t = *(FileFingerprint*)fp;
     t->size = size;
-    fp->size = size;
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(fp, t));
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
 
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
