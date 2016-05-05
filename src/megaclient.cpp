@@ -7329,7 +7329,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     }
 
     string dbname;
-    if (sid.size() >= SIDLEN))
+    if (sid.size() >= SIDLEN)
     {
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
