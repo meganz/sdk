@@ -900,6 +900,23 @@ void CommandPutNodes::procresult()
 #endif
     }
 
+    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
+    if (it != client->pendingtcids.end())
+    {
+        if (client->tctable)
+        {
+            vector<uint32_t> &ids = it->second;
+            for (unsigned int i = 0; i< ids.size(); i++)
+            {
+                if (ids[i])
+                {
+                    client->tctable->del(ids[i]);
+                }
+            }
+        }
+        client->pendingtcids.erase(it);
+    }
+
     e = API_EINTERNAL;
 
     for (;;)

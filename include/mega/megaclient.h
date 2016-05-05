@@ -580,6 +580,10 @@ public:
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];
 
+    // database IDs of cached files and transfers
+    // waiting for the completion of a putnodes
+    pendingdbid_map pendingtcids;
+
     // transfer tslots
     transferslot_list tslots;
 

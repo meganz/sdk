@@ -643,14 +643,16 @@ void Transfer::complete()
 void Transfer::completefiles()
 {
     // notify all files and give them an opportunity to self-destruct
+    vector<uint32_t> &ids = client->pendingtcids[tag];
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
         // prevent deletion of associated Transfer object in completed()
-        client->filecachedel(*it);
+        ids.push_back((*it)->dbid);
         (*it)->transfer = NULL;
         (*it)->completed(this, NULL);
         files.erase(it++);
     }
+    ids.push_back(dbid);
 }
 
 m_off_t Transfer::nextpos()

@@ -2318,8 +2318,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         LOG_warn << "NULL file attribute handle";
     }
 
-    LOG_debug << "Transfer finished, sending callbacks - " << th;
-    t->finished = true;
+    LOG_debug << "Transfer finished, sending callbacks - " << th;    
     t->completefiles();
     app->transfer_complete(t);
     delete t;

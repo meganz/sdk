@@ -261,6 +261,9 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
+// map a request tag with pending dbids of transfers and files
+typedef map<int, vector<uint32_t> > pendingdbid_map;
+
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
 
