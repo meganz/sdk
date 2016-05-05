@@ -8495,11 +8495,123 @@ bool MegaApiImpl::isFilesystemAvailable()
     return result;
 }
 
+bool isDigit(const char *c)
+{
+    return (*c >= '0' && *c <= '9');
+}
+
+// returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+int naturalsorting_compare (const char *i, const char *j)
+{
+    static u_int64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ( (char_i = *i) && (char_j = *j) )
+            {
+                bool char_i_isDigit = isDigit(i);
+                bool char_j_isDigit = isDigit(j);;
+
+                if (char_i_isDigit && char_j_isDigit)
+                {
+                    stringMode = false;
+                    break;
+                }
+
+                if(char_i_isDigit)
+                {
+                    return -1;
+                }
+
+                if(char_j_isDigit)
+                {
+                    return 1;
+                }
+
+                int difference = char_i - char_j;
+                if (difference)
+                {
+                    return difference;
+                }
+
+                ++i;
+                ++j;
+            }
+        }
+        else    // we are comparing numbers on both strings
+        {
+            char char_i, char_j;
+
+            u_int64_t number_i = 0;
+            unsigned int i_overflow_count = 0;
+            while (*i && isDigit(i))
+            {
+                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                ++i;
+
+                // check the number won't overflow upon addition of next char
+                if (number_i >= maxNumber)
+                {
+                    number_i -= maxNumber;
+                    i_overflow_count++;
+                }
+            }
+
+            u_int64_t number_j = 0;
+            unsigned int j_overflow_count = 0;
+            while (*j && isDigit(j))
+            {
+                number_j = number_j * 10 + (*j - 48);
+                ++j;
+
+                // check the number won't overflow upon addition of next char
+                if (number_j >= maxNumber)
+                {
+                    number_j -= maxNumber;
+                    j_overflow_count++;
+                }
+            }
+
+            int difference = i_overflow_count - j_overflow_count;
+            if (difference)
+            {
+                return difference;
+            }
+
+            difference = number_i - number_j;
+            if (difference)
+            {
+                return difference;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if(*j)
+    {
+        return -1;
+    }
+
+    if(*i)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
 bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
 {
     if(i->type < j->type) return 0;
     if(i->type > j->type) return 1;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 1;
+
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 1;
 	return 0;
 }
 
@@ -8507,8 +8619,8 @@ bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
 {
     if(i->type < j->type) return 1;
     if(i->type > j->type) return 0;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 0;
-	return 1;
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 0;
+    return 1;
 }
 
 bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
