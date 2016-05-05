@@ -7329,29 +7329,21 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     }
 
     string dbname;
-    if (sid.size() >= SIDLEN || publichandle != UNDEF)
+    if (sid.size() >= SIDLEN))
     {
-        if (sid.size() >= SIDLEN)
-        {
-            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
-        }
-        else
-        {
-            dbname.resize(NODEHANDLE * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
-        }
-
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        tckey = key;
+    }
+    else if (publichandle != UNDEF)
+    {
+        dbname.resize(NODEHANDLE * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
         tckey = key;
     }
     else
     {
-        if (!loggedoutid)
-        {
-            loggedoutid = "default";
-        }
-
-        dbname = loggedoutid;
+        dbname = loggedoutid ? loggedoutid : "default";
 
         string lok;
         Hash hash;
@@ -7430,10 +7422,6 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     else
     {
-        if (!loggedoutid)
-        {
-            loggedoutid = "default";
-        }
         dbname = loggedoutid ? loggedoutid : "default";
     }
     dbname.insert(0, "transfers_");
