@@ -5577,11 +5577,17 @@ class MegaApi
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Enable the resumption of transfers
+         * @brief Enable the resumption of transfers 
          *
-         * A call to this function causes the resumption of previous unfinished
-         * transfers and starts caching transfers so they can be resumed later.
-         *
+         * This function enables the cache of transfers, so they can be resumed later.
+         * Additionally, if a previous cache already exists (from previous executions),
+         * then this function also resumes the existing cached transfers.
+         * 
+         * @note Cached downloads expire after 10 days since the last time they were active.
+         * @note Cached uploads expire after 24 hours since the last time they were active.
+         * @note Cached transfers related to files that have been modified since they were
+         * added to the cache are discarded, since the file has changed.
+         * 
          * A log in or a log out automatically disables this feature.
          *
          * When the MegaApi object is logged in, the cache of transfers is identified
