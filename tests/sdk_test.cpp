@@ -69,9 +69,7 @@ void SdkTest::TearDown()
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            MegaUser *u = ul->get(i);            
-            if (u->getEmail() != email) // Trying to remove your own user throws API_EARGS
-                megaApi->removeContact(u);
+            megaApi->removeContact(ul->get(i));
         }
 
         // Remove pending contact requests
@@ -1254,7 +1252,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Check firstname of a contact
 
-    MegaUser *u = megaApi->getContact(email.c_str());
+    MegaUser *u = megaApi->getMyUser();
 
     bool null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1279,7 +1277,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Get avatar of a contact ---
 
-    u = megaApi->getContact(email.c_str());
+    u = megaApi->getMyUser();
 
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1310,7 +1308,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Get non-existing avatar of a contact ---
 
-    u = megaApi->getContact(email.c_str());
+    u = megaApi->getMyUser();
 
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1660,7 +1658,7 @@ TEST_F(SdkTest, SdkTestChat)
     handle h;
     bool group;
 
-    h = megaApiAux->getContact(emailaux.c_str())->getHandle();
+    h = megaApiAux->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_RW);
     group = true;
