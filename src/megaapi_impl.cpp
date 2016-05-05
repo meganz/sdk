@@ -320,6 +320,8 @@ bool MegaNodePrivate::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(publicAuth.data(), ll);
 
+    d->append("\0\0\0\0\0\0\0", 8);
+
     return true;
 }
 
@@ -415,7 +417,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
 
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
-    if (ptr + ll > end)
+    if (ptr + ll + 8 > end)
     {
         LOG_err << "MegaNode unserialization failed - auth too long";
         return NULL;
@@ -424,6 +426,15 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string pubauth;
     privauth.assign(ptr, ll);
     ptr += ll;
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaNodePrivate unserialization failed - invalid version";
+        return NULL;
+    }
+    ptr += 8;
+
+    d->erase(0, ptr - d->data());
 
     return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring,
@@ -1253,6 +1264,7 @@ bool MegaTransferPrivate::serialize(string *d)
     ll = path ? strlen(path) + 1 : 0;
     d->append((char*)&ll, sizeof(ll));
     d->append(path, ll);
+    d->append("\0\0\0\0\0\0\0", 8);
 
     MegaNodePrivate *node = dynamic_cast<MegaNodePrivate *>(publicNode);
     bool isPublic = (node != NULL);
@@ -1289,7 +1301,7 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     unsigned short pathlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(unsigned short);
 
-    if (ptr + pathlen + sizeof(bool) > end)
+    if (ptr + pathlen + 8 + sizeof(bool) > end)
     {
         LOG_err << "MegaTransfer unserialization failed - path too long";
         return NULL;
@@ -1303,14 +1315,22 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     }
     ptr += pathlen;
 
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaTransfer unserialization failed - invalid version";
+        delete transfer;
+        return NULL;
+    }
+    ptr += 8;
+
     bool isPublic = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
+    d->erase(0, ptr - d->data());
+
     if (isPublic)
     {
-        string sn;
-        sn.assign(ptr, end - ptr);
-        MegaNodePrivate *publicNode = MegaNodePrivate::unserialize(&sn);
+        MegaNodePrivate *publicNode = MegaNodePrivate::unserialize(d);
         transfer->setPublicNode(publicNode);
         delete publicNode;
     }
@@ -2567,7 +2587,14 @@ bool MegaFile::serialize(string *d)
         return false;
     }
 
-    return megaTransfer->serialize(d);
+    if (!megaTransfer->serialize(d))
+    {
+        return false;
+    }
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
 }
 
 MegaFile *MegaFile::unserialize(string *d)
@@ -2589,6 +2616,27 @@ MegaFile *MegaFile::unserialize(string *d)
         delete megaFile;
         return NULL;
     }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + 8 > end)
+    {
+        LOG_err << "MegaFile unserialization failed - data too short";
+        delete megaFile;
+        delete transfer;
+        return NULL;
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFile unserialization failed - invalid version";
+        delete megaFile;
+        delete transfer;
+        return NULL;
+    }
+    ptr += 8;
+
+    d->erase(0, ptr - d->data());
 
     megaFile->setTransfer(transfer);
     return megaFile;
@@ -2657,12 +2705,48 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     }
 }
 
+bool MegaFileGet::serialize(string *d)
+{
+    if (!MegaFile::serialize(d))
+    {
+        return false;
+    }
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
 MegaFileGet *MegaFileGet::unserialize(string *d)
 {
     MegaFile *file = MegaFile::unserialize(d);
     if (!file)
     {
         LOG_err << "Error unserializing MegaFileGet: Unable to unserialize MegaFile";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + 8 > end)
+    {
+        LOG_err << "MegaFileGet unserialization failed - data too short";
+        delete file;
+        return NULL;
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFileGet unserialization failed - invalid version";
+        delete file;
+        return NULL;
+    }
+
+    ptr += 8;
+    if (ptr != end)
+    {
+        LOG_err << "MegaFileGet unserialization failed - wrong size";
+        delete file;
         return NULL;
     }
 
@@ -2753,12 +2837,48 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
     customMtime = mtime;
 }
 
+bool MegaFilePut::serialize(string *d)
+{
+    if (!MegaFile::serialize(d))
+    {
+        return false;
+    }
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
 MegaFilePut *MegaFilePut::unserialize(string *d)
 {
     MegaFile *file = MegaFile::unserialize(d);
     if (!file)
     {
         LOG_err << "Error unserializing MegaFilePut: Unable to unserialize MegaFile";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + 8 > end)
+    {
+        LOG_err << "MegaFilePut unserialization failed - data too short";
+        delete file;
+        return NULL;
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFilePut unserialization failed - invalid version";
+        delete file;
+        return NULL;
+    }
+
+    ptr += 8;
+    if (ptr != end)
+    {
+        LOG_err << "MegaFilePut unserialization failed - wrong size";
+        delete file;
         return NULL;
     }
 

@@ -1002,6 +1002,7 @@ struct MegaFileGet : public MegaFile
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
     ~MegaFileGet() {}
 
+    virtual bool serialize(string*);
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -1015,6 +1016,7 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
     ~MegaFilePut() {}
 
+    virtual bool serialize(string*);
     static MegaFilePut* unserialize(string*);
 
 protected:
