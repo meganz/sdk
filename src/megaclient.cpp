@@ -7313,6 +7313,8 @@ void MegaClient::closetc(bool remove)
         }
     }
 
+    pendingtcids.clear();
+
     if (remove)
     {
         tctable->remove();
