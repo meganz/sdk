@@ -199,7 +199,7 @@ public:
     virtual void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e);
 };
 
-class MegaNodePrivate : public MegaNode
+class MegaNodePrivate : public MegaNode, public Cachable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -256,6 +256,9 @@ class MegaNodePrivate : public MegaNode
 
         static MegaNode *fromNode(Node *node);
         virtual MegaNode *copy();
+
+        virtual bool serialize(string*);
+        static MegaNodePrivate* unserialize(string*);
 
     protected:
         MegaNodePrivate(Node *node);
@@ -336,7 +339,7 @@ class MegaSharePrivate : public MegaShare
 		int64_t ts;
 };
 
-class MegaTransferPrivate : public MegaTransfer
+class MegaTransferPrivate : public MegaTransfer, public Cachable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
@@ -404,6 +407,9 @@ class MegaTransferPrivate : public MegaTransfer
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
+
+        virtual bool serialize(string*);
+        static MegaTransferPrivate* unserialize(string*);
 
 	protected:		
 		int type;
@@ -974,6 +980,15 @@ struct MegaFile : public File
     static int nextseqno;
     bool failed(error e);
     MegaFile();
+
+    void setTransfer(MegaTransferPrivate *transfer);
+    MegaTransferPrivate *getTransfer();
+    virtual bool serialize(string*);
+
+    static MegaFile* unserialize(string*);
+
+protected:
+    MegaTransferPrivate *megaTransfer;
 };
 
 struct MegaFileGet : public MegaFile
@@ -985,7 +1000,12 @@ struct MegaFileGet : public MegaFile
     void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
-	~MegaFileGet() {}
+    ~MegaFileGet() {}
+
+    static MegaFileGet* unserialize(string*);
+
+private:
+    MegaFileGet() {}
 };
 
 struct MegaFilePut : public MegaFile
@@ -995,8 +1015,13 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
     ~MegaFilePut() {}
 
+    static MegaFilePut* unserialize(string*);
+
 protected:
     int64_t customMtime;
+
+private:
+    MegaFilePut() {}
 };
 
 class TreeProcessor
@@ -1250,6 +1275,8 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
+        void enableTransferResumption(const char* loggedOutId);
+        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
@@ -1647,6 +1674,7 @@ protected:
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
         virtual void transfer_complete(Transfer*);
+        virtual void transfer_resume(string*);
 
         virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);

@@ -184,6 +184,7 @@ struct MEGA_API MegaApp
     virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
+    virtual void transfer_resume(string*) { }
 
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }

@@ -554,6 +554,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 
             LOG_info << "Updated proxy URL: " << httpio->proxyip;
 
+            httpio->inetstatus(true);
+
             httpio->send_pending_requests();
         }
         else if (!httpio->proxyinflight)
@@ -602,6 +604,8 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
         LOG_verbose << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
+
+        httpio->inetstatus(true);
 
         // add to DNS cache
         CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
@@ -712,7 +716,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         {
             send_request(httpctx);
         }
-        else if(!httpctx->ares_pending)
+        else if (!httpctx->ares_pending)
         {
             httpio->pendingrequests.push(httpctx);
 
@@ -733,7 +737,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         }
     }
 
-    if(httpctx->ares_pending)
+    if (httpctx->ares_pending)
     {
         LOG_verbose << "Waiting for the completion of the c-ares request";
     }
@@ -1474,7 +1478,10 @@ bool CurlHttpIO::doio()
                              << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
-                success = true;
+                if (req->httpstatus)
+                {
+                    success = true;
+                }
             }
             else
             {
@@ -1555,7 +1562,7 @@ bool CurlHttpIO::doio()
 
         if (req)
         {
-            inetstatus(req->status);
+            inetstatus(req->httpstatus);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             if(httpctx)
