@@ -110,13 +110,12 @@ bool Transfer::serialize(string *d)
         d->append((char*)&it->second, sizeof(it->second));
     }
 
-    string fp;
-    serializefingerprint(&fp);
-    ll = fp.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(fp.data(), ll);
+    if (!FileFingerprint::serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize FileFingerprint";
+        return false;
+    }
 
-    d->append((const char*)&size, sizeof(size));
     d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
     d->append((const char*)ultoken, sizeof(ultoken));
 
@@ -205,24 +204,27 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         ptr += sizeof(ChunkMAC);
     }
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
+    d->erase(0, ptr - d->data());
 
-    if (ptr + ll + sizeof(m_off_t) + sizeof(m_time_t) + sizeof(t->ultoken) + sizeof(unsigned short) > end)
+    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    if (!fp)
+    {
+        LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
+        delete t;
+        return NULL;
+    }
+
+    *(FileFingerprint *)t = *(FileFingerprint *)fp;
+
+    ptr = d->data();
+    end = ptr + d->size();
+
+    if (ptr + sizeof(m_time_t) + sizeof(t->ultoken) + sizeof(unsigned short) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
         return NULL;
     }
-
-    string fingerprint;
-    fingerprint.assign(ptr, ll);
-    ptr += ll;
-
-    t->unserializefingerprint(&fingerprint);
-
-    m_off_t size = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof(m_off_t);
 
     t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
@@ -230,7 +232,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->ultoken, ptr, sizeof(t->ultoken));
     ptr += sizeof(t->ultoken);
 
-    t->size = size;
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
 
     ll = MemAccess::get<unsigned short>(ptr);
