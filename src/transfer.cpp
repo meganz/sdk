@@ -116,6 +116,12 @@ bool Transfer::serialize(string *d)
         return false;
     }
 
+    if (!badfp.serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize badfp";
+        return false;
+    }
+
     d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
     d->append((const char*)ultoken, sizeof(ultoken));
 
@@ -215,6 +221,11 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
 
     *(FileFingerprint *)t = *(FileFingerprint *)fp;
+    delete fp;
+
+    fp = FileFingerprint::unserialize(d);
+    t->badfp = *fp;
+    delete fp;
 
     ptr = d->data();
     end = ptr + d->size();

@@ -68,6 +68,10 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(localname.data(), ll);
 
+    ll = targetuser.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(targetuser.data(), ll);
+
     ll = privauth.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(privauth.data(), ll);
@@ -141,6 +145,17 @@ File *File::unserialize(string *d)
     const char *localname = ptr;
     ptr += localnamelen;
 
+    // read targetuser
+    unsigned short targetuserlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(targetuserlen);
+    if (ptr + targetuserlen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - targetuser too long";
+        return NULL;
+    }
+    const char *targetuser = ptr;
+    ptr += targetuserlen;
+
     // read private auth
     unsigned short privauthlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(privauthlen);
@@ -168,6 +183,7 @@ File *File::unserialize(string *d)
 
     file->name.assign(name, namelen);
     file->localname.assign(localname, localnamelen);
+    file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
