@@ -7295,6 +7295,15 @@ void MegaApiImpl::request_error(error e)
         request->setText(client->sslfakeissuer.c_str());
     }
 
+    if (e == API_ESID)
+    {
+        if (client->sctable)
+        {
+            client->sctable->remove();
+        }
+        client->locallogout();
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }
