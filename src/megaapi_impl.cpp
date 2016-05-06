@@ -5393,7 +5393,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString)
     Node *node;
 
     // rootnodes
-    for (int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
@@ -7336,7 +7336,7 @@ void MegaApiImpl::logout_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_LOGOUT)) return;
 
-    if(!e)
+    if(!e || e == API_ESID)
     {
         requestMap.erase(request->getTag());
 
@@ -8545,8 +8545,6 @@ int naturalsorting_compare (const char *i, const char *j)
         }
         else    // we are comparing numbers on both strings
         {
-            char char_i, char_j;
-
             u_int64_t number_i = 0;
             unsigned int i_overflow_count = 0;
             while (*i && isDigit(i))
