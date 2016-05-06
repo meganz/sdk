@@ -583,6 +583,10 @@ public:
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];
 
+    // cached files and their dbids
+    vector<string> cachedfiles;
+    vector<uint32_t> cachedfilesdbids;
+
     // database IDs of cached files and transfers
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;

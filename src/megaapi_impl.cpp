@@ -6601,6 +6601,24 @@ void MegaApiImpl::transfer_resume(string *d)
         break;
     case PUT:
         file = MegaFilePut::unserialize(d);
+        MegaTransferPrivate* transfer = file->getTransfer();
+        Node *parent = client->nodebyhandle(transfer->getParentHandle());
+        node_vector *nodes = client->nodesbyfingerprint(file);
+        const char *name = transfer->getFileName();
+        if (parent && nodes && name)
+        {
+            for (unsigned int i = 0; i < nodes->size(); i++)
+            {
+                Node* node = nodes->at(i);
+                if (node->parent == parent && !strcmp(node->displayname(), name))
+                {
+                    // don't resume the upload if the node already exist in the target folder
+                    file = NULL;
+                    break;
+                }
+            }
+        }
+        delete nodes;
         break;
     }
 
@@ -6609,8 +6627,7 @@ void MegaApiImpl::transfer_resume(string *d)
         return;
     }
 
-    MegaTransferPrivate* transfer = file->getTransfer();
-    currentTransfer = transfer;
+    currentTransfer = file->getTransfer();
     client->nextreqtag();
     client->startxfer((direction_t)type, file);
     waiter->notify();

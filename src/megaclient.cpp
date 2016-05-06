@@ -2544,9 +2544,22 @@ bool MegaClient::procsc()
                             }
                         }
 
-                        app->nodes_current();
                         statecurrent = true;
+                        app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
+
+                        if (tctable && cachedfiles.size())
+                        {
+                            tctable->begin();
+                            for (unsigned int i = 0; i < cachedfiles.size(); i++)
+                            {
+                                tctable->del(cachedfilesdbids.at(i));
+                                app->transfer_resume(&cachedfiles.at(i));
+                            }
+                            cachedfiles.clear();
+                            cachedfilesdbids.clear();
+                            tctable->commit();
+                        }
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
@@ -7314,6 +7327,8 @@ void MegaClient::closetc(bool remove)
     }
 
     pendingtcids.clear();
+    cachedfiles.clear();
+    cachedfilesdbids.clear();
 
     if (remove)
     {
@@ -7365,10 +7380,8 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     uint32_t id;
     string data;
     Transfer* t;
-    vector<string> cachedfiles;
 
     LOG_info << "Loading transfers from local cache";
-    tctable->begin();
     tctable->rewind();
     while (tctable->next(&id, &data, &tckey))
     {
@@ -7387,19 +7400,27 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 }
                 break;
             case CACHEDFILE:
-                tctable->del(id);
                 cachedfiles.push_back(data);
+                cachedfilesdbids.push_back(id);
                 LOG_debug << "Cached file loaded";
                 break;
         }
     }
 
-    for (unsigned int i = 0; i < cachedfiles.size(); i++)
+    // if we are logged in but the filesystem is not current yet
+    // postpone the resumption until the filesystem is updated
+    if ((!sid.size() && publichandle == UNDEF) || statecurrent)
     {
-        app->transfer_resume(&cachedfiles.at(i));
+        tctable->begin();
+        for (unsigned int i = 0; i < cachedfiles.size(); i++)
+        {
+            tctable->del(cachedfilesdbids.at(i));
+            app->transfer_resume(&cachedfiles.at(i));
+        }
+        cachedfiles.clear();
+        cachedfilesdbids.clear();
+        tctable->commit();
     }
-
-    tctable->commit();
 }
 
 void MegaClient::disabletransferresumption(const char *loggedoutid)
