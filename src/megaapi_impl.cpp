@@ -6613,6 +6613,8 @@ void MegaApiImpl::transfer_resume(string *d)
                 if (node->parent == parent && !strcmp(node->displayname(), name))
                 {
                     // don't resume the upload if the node already exist in the target folder
+                    delete file;
+                    delete transfer;
                     file = NULL;
                     break;
                 }
