@@ -2684,6 +2684,17 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
 	}
 	else finalPath = name;
 
+    const char *fingerprint = n->getFingerprint();
+    if (fingerprint)
+    {
+        FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
+        if (fp)
+        {
+            *(FileFingerprint *)this = *(FileFingerprint *)fp;
+            delete fp;
+        }
+    }
+
     size = n->getSize();
     mtime = n->getModificationTime();
 
@@ -6129,7 +6140,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
 
 MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
 {
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return new MegaNodeListPrivate();
@@ -6148,7 +6159,7 @@ MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, c
 {
     MegaNode *result = NULL;
 
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -6237,7 +6248,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
 char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 {    
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -9197,7 +9208,7 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 {
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -9214,7 +9225,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *parent)
 {
 
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
