@@ -407,6 +407,9 @@ void SdkTest::logout(int timeout)
         EXPECT_TRUE(logoutReceived) << "Logout failed after " << timeout  << " seconds";
     }
 
+    // if the connection was closed before the response of the request was received, the result is ESID
+    if (lastError == MegaError::API_ESID) lastError = MegaError::API_OK;
+
     EXPECT_EQ(MegaError::API_OK, lastError) << "Logout failed (error: " << lastError << ")";
 }
 
