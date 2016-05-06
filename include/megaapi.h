@@ -5321,6 +5321,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
          *
+         * Under certain circumstances, this request might return the error code
+         * MegaError::API_ESID. It should not be taken as an error, since the reason
+         * is that the logout action has been notified before the reception of the
+         * logout response itself.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
