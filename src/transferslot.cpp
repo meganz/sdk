@@ -61,6 +61,36 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    if (transfer->client->tctable && transfer->type == GET)
+    {
+        m_off_t p = 0;
+        for (int i = 0; i < connections; i++)
+        {
+            if (fa && reqs[i] && reqs[i]->status == REQ_INFLIGHT
+                    && reqs[i]->contentlength == reqs[i]->size
+                    && reqs[i]->bufpos >= SymmCipher::BLOCKSIZE)
+            {
+                m_off_t bufpos = reqs[i]->bufpos & -SymmCipher::BLOCKSIZE;
+                m_off_t dlpos = ((HttpReqDL *)reqs[i])->dlpos;
+                ChunkMAC &chunk = transfer->chunkmacs[reqs[i]->pos];
+
+                p += bufpos;
+                transfer->key.ctr_crypt(reqs[i]->buf, bufpos, dlpos, transfer->ctriv,
+                            chunk.mac, false, !chunk.finished && !chunk.offset);
+
+                fa->fwrite((const byte*)reqs[i]->buf, bufpos, dlpos);
+                chunk.offset += bufpos;
+            }
+        }
+
+        if (p)
+        {
+            transfer->client->transfercacheadd(transfer);
+            LOG_debug << "Completed: " << (transfer->progresscompleted + p)
+                      << " Partial: " << p;
+        }
+    }
+
     transfer->slot = NULL;
 
     if (slots_it != transfer->client->tslots.end())
@@ -366,7 +396,7 @@ void TransferSlot::doio(MegaClient* client)
                                          &transfer->chunkmacs, transfer->ctriv,
                                          transfer->pos, npos))
                     {
-                        reqs[i]->pos = transfer->pos;
+                        reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);
                         reqs[i]->status = REQ_PREPARED;
                         transfer->pos = npos;
                     }

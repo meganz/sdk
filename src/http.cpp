@@ -496,9 +496,9 @@ bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
                          uint64_t ctriv, m_off_t startpos, m_off_t endpos)
 {
-    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-
-    key->ctr_crypt(buf, bufpos, dlpos, ctriv, mac, 0);
+    ChunkMAC &chunkmac = (*macs)[pos];
+    key->ctr_crypt(buf, bufpos, dlpos, ctriv, chunkmac.mac, 0,
+            !chunkmac.finished && !chunkmac.offset);
 
     unsigned skip;
     unsigned prune;
@@ -531,8 +531,8 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
 
     fa->fwrite(buf + skip, bufpos - skip - prune, dlpos + skip);
 
-    memcpy((*macs)[dlpos].mac, mac, sizeof mac);
-    (*macs)[dlpos].finished = true;
+    chunkmac.finished = true;
+    chunkmac.offset = 0;
 }
 
 // prepare chunk for uploading: mac and encrypt

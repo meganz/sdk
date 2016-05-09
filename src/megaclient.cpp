@@ -2158,27 +2158,45 @@ bool MegaClient::dispatch(direction_t d)
 
                 if (d == GET || nextit->second->cachedtempurl.size())
                 {
+                    m_off_t p = 0;
+
                     // resume at the end of the last contiguous completed block
                     for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
                          it != nextit->second->chunkmacs.end(); it++)
                     {
-                        if (nextit->second->pos != it->first || !it->second.finished)
+                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
+                        if (chunkceil > nextit->second->size)
                         {
-                            break;
+                            chunkceil = nextit->second->size;
                         }
 
-                        if (nextit->second->size)
+                        if (nextit->second->pos == it->first && it->second.finished)
                         {
-                            nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
-                            nextit->second->progresscompleted = nextit->second->pos;
+                            nextit->second->pos = chunkceil;
+                            nextit->second->progresscompleted = chunkceil;
+                        }
+                        else if (it->second.finished)
+                        {
+                            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+                            nextit->second->progresscompleted += chunksize;
+                        }
+                        else
+                        {
+                            nextit->second->progresscompleted += it->second.offset;
+                            p += it->second.offset;
                         }
                     }
 
                     if (nextit->second->progresscompleted > nextit->second->size)
                     {
+                        LOG_err << "Invalid transfer progress!";
                         nextit->second->pos = nextit->second->size;
                         nextit->second->progresscompleted = nextit->second->size;
                     }
+
+                    LOG_debug << "Resuming transfer at " << nextit->second->pos
+                              << " Completed: " << nextit->second->progresscompleted
+                              << " Partial: " << p;
                 }
                 else
                 {
@@ -2422,12 +2440,8 @@ void MegaClient::locallogout()
 {
     int i;
 
-    disconnect();
-
     delete sctable;
     sctable = NULL;
-
-    closetc();
 
     me = UNDEF;
     publichandle = UNDEF;
@@ -2435,6 +2449,9 @@ void MegaClient::locallogout()
 
     freeq(GET);
     freeq(PUT);
+
+    disconnect();
+    closetc();
 
     purgenodesusersabortsc();
 

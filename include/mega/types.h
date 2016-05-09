@@ -116,7 +116,10 @@ typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
 // file chunk MAC
 struct ChunkMAC
 {
+    ChunkMAC() : offset(0), finished(false) { }
+
     byte mac[SymmCipher::BLOCKSIZE];
+    unsigned int offset;
     bool finished;
 };
 

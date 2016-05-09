@@ -669,12 +669,17 @@ void Transfer::completefiles()
 
 m_off_t Transfer::nextpos()
 {
-    while (chunkmacs.find(pos) != chunkmacs.end() && chunkmacs[pos].finished)
-    {
-        m_off_t chunkceil = ChunkedHash::chunkceil(pos);
-        m_off_t chunksize =  chunkceil - ChunkedHash::chunkfloor(pos);
-        progresscompleted += chunksize;
-        pos = chunkceil;
+    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end())
+    {    
+        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
+            break;
+        }
     }
 
     return pos;
