@@ -1948,16 +1948,16 @@ void CommandPurchaseCheckout::procresult()
     }
 }
 
-CommandUserRequest::CommandUserRequest(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
-    cmd("ur");
+    cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
 
     tag = client->reqtag;
 }
 
-void CommandUserRequest::procresult()
+void CommandRemoveContact::procresult()
 {
     error e;
 
@@ -1971,7 +1971,7 @@ void CommandUserRequest::procresult()
         e = API_OK;
     }
 
-    client->app->invite_result(e);
+    client->app->removecontact_result(e);
 }
 
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)

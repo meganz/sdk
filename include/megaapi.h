@@ -1600,7 +1600,7 @@ class MegaRequest
             TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
             TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
             TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-            TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+            TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
@@ -5250,14 +5250,7 @@ class MegaApi
         /**
          * @brief Add a new contact to the MEGA account
          *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_CONTACT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email of the contact
-         *
-         * @param email Email of the new contact
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated: This way to add contacts will be removed in future updates. Please use MegaApi::inviteContact.
+         * @obsolete: This way to add contacts is obsolete. Please use MegaApi::inviteContact.
          */
         void addContact(const char* email, MegaRequestListener* listener = NULL);
 
