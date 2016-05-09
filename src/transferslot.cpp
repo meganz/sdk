@@ -458,12 +458,12 @@ void TransferSlot::doio(MegaClient* client)
             changeport = true;
         }
 
-        client->app->transfer_failed(transfer, API_EFAILED);
-
+        bool chunkfailed = false;
         for (int i = connections; i--; )
         {
             if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
+                chunkfailed = true;
                 client->setchunkfailed(&reqs[i]->posturl);
                 reqs[i]->disconnect();
 
@@ -474,6 +474,17 @@ void TransferSlot::doio(MegaClient* client)
 
                 reqs[i]->status = REQ_PREPARED;
             }
+        }
+
+        if (!chunkfailed)
+        {
+            LOG_warn << "Transfer failed due to a timeout";
+            transfer->failed(API_EAGAIN);
+        }
+        else
+        {
+            LOG_warn << "Chunk failed due to a timeout";
+            client->app->transfer_failed(transfer, API_EFAILED);
         }
     }
 
