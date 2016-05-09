@@ -179,7 +179,7 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
-    if (!fa || transfer->progresscompleted == transfer->size)
+    if (!fa || (transfer->size && transfer->progresscompleted == transfer->size))
     {
         // this is a pending completion, retry every 200 ms by default
         retrybt.backoff(2);
@@ -362,6 +362,11 @@ void TransferSlot::doio(MegaClient* client)
                 if (npos > transfer->size)
                 {
                     npos = transfer->size;
+                }
+
+                if (!transfer->size)
+                {
+                    transfer->pos = 0;
                 }
 
                 if ((npos > transfer->pos) || !transfer->size)
