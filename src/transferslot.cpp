@@ -61,7 +61,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
-    if (transfer->client->tctable && transfer->type == GET)
+    if (transfer->client->tctable && transfer->type == GET && !transfer->finished)
     {
         m_off_t p = 0;
         for (int i = 0; i < connections; i++)
