@@ -2263,12 +2263,35 @@ bool MegaClient::dispatch(direction_t d)
 
                 return true;
             }
+            else
+            {
+                string utf8path;
+                fsaccess->local2path(&nextit->second->localfilename, &utf8path);
+                if (d == GET || !ts->fa->retry)
+                {
+                    if (d == GET)
+                    {
+                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                        nextit->second->failed(API_EWRITE);
+                    }
+                    else
+                    {
+                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                        nextit->second->failed(API_EREAD);
+                    }
+                }
+                else
+                {
+                    LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                    nextit->second->failed(API_EREAD);
+                }
+            }
         }
-
-        LOG_warn << "Error dispatching transfer";
-
-        // file didn't open - fail & defer
-        nextit->second->failed(API_EREAD);
+        else
+        {
+            LOG_err << "Error preparing transfer. No localfilename";
+            nextit->second->failed(API_EREAD);
+        }
     }
 }
 
