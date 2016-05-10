@@ -42,8 +42,8 @@ public:
     EdDSA(unsigned char* keySeed = NULL);
     ~EdDSA();
 
-    unsigned char* keySeed;
-    unsigned char* pubKey;
+    unsigned char keySeed[SEED_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
 
     /**
      * @brief Computes the signature of a message.
@@ -51,12 +51,11 @@ public:
      * @param msg The message to sign.
      * @param msglen Length of the message.
      * @param sig Buffer to take the signature.
-     * @param siglen Size of the buffer to take the signature.
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
     int sign(const unsigned char* msg, const unsigned long long msglen,
-             unsigned char* sig, unsigned long long siglen);
+             unsigned char* sig);
 
     /**
      * @brief Verifies the signature of a message.
@@ -70,20 +69,9 @@ public:
     static int verify(const unsigned char* msg, unsigned long long msglen,
                       const unsigned char* sig, const unsigned char* pubKey);
 
-    /**
-     * @brief Generates a new Ed25519 private key seed. The key seed is stored
-     * in the object and, optionally, in the pointer passed as parameter (if not NULL)
-     *
-     * @param privk Private key seed to return, unless NULL.
-     * @return 1 on success, 0 on failure.
-     */
-    int genKeySeed();
-
-    int genKeys();
-
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
-    unsigned char* privKey; // don't use it externally, use keySeed instead
+    unsigned char privKey[PRIVATE_KEY_LENGTH]; // don't use it externally, use keySeed instead
 };
 
 
@@ -100,18 +88,11 @@ public:
     // TLV key to access to the corresponding value in the TLV records
     static const string TLV_KEY;
 
-    unsigned char* privKey;
-    unsigned char* pubKey;
+    unsigned char privKey[PRIVATE_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
 
     ECDH(unsigned char * privKey = NULL);
     ~ECDH();
-
-    /**
-     * @brief genKeys Generate a new key pair
-     *
-     * @return 1 on success, 0 on failure.
-     */
-    int genKeys();
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -152,9 +133,6 @@ public:
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
                  const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
-
-private:
-    unsigned char * publicKey();    // used to derive pubKey from privKey
 };
 
 } // namespace
