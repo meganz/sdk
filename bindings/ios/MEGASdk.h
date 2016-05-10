@@ -201,6 +201,13 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 @property (readonly, nonatomic) NSString *userAgent;
 
+/**
+ * @brief MEGAUser of the currently open account
+ *
+ * If the MEGASdk object isn't logged in, this property is nil.
+ */
+@property (readonly, nonatomic) MEGAUser *myUser;
+
 #pragma mark - Init
 
 /**
@@ -354,6 +361,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return Base64-encoded node handle
  */
 + (NSString *)base64HandleForHandle:(uint64_t)handle;
+
+/**
+ * @brief Converts the handle of a user to a Base64-encoded string
+ *
+ * @param User handle to be converted
+ * @return Base64-encoded user handle
+ */
++ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
 
 /**
  * @brief Retry all pending requests.
@@ -605,6 +620,50 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param name Name of the user.
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name;
+
+
+/**
+ * @brief Initialize the creation of a new MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ *
+ * If this request succeed, a confirmation email will be sent to the users.
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param delegate Delegate to track this request.
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the creation of a new MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ *
+ * If this request succeed, a confirmation email will be sent to the users.
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname;
 
 /**
  * @brief Initialize the creation of a new MEGA account with precomputed keys
@@ -2656,6 +2715,17 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+/**
+ * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
+ *
+ * If the input stream is nil, has a negative size or can't be read, this function returns nil
+ *
+ * @param data NSData that provides the data to create the fingerprint
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a node.

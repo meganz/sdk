@@ -444,7 +444,15 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
     if (!r)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to move file. Error code: " << e;
+        if (SimpleLogger::logCurrentLevel >= logWarning)
+        {
+            string utf8oldname;
+            client->fsaccess->local2path(oldname, &utf8oldname);
+
+            string utf8newname;
+            client->fsaccess->local2path(newname, &utf8newname);
+            LOG_warn << "Unable to move file: " << utf8oldname.c_str() << " to " << utf8newname.c_str() << ". Error code: " << e;
+        }
         transient_error = istransientorexists(e);
     }
 

@@ -73,6 +73,7 @@
 #include "mega/db/sqlite.h"
 #include "mega/db/bdb.h"
 
+#include "mega/gfx/qt.h"
 #include "mega/gfx/freeimage.h"
 
 #endif

@@ -540,43 +540,53 @@ void MegaSDK::getUserDataById(String^ user)
 	megaApi->getUserData((user != nullptr) ? utf8user.c_str() : NULL);
 }
 
-void MegaSDK::createAccount(String^ email, String^ password, String^ name)
+void MegaSDK::createAccount(String^ email, String^ password, String^ firstname, String^ lastname)
 {
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
 
-	std::string utf8password;
-	if (password != nullptr)
-		MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
 
-	std::string utf8name;
-	if (name != nullptr)
-		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+    std::string utf8firstname;
+    if (firstname != nullptr)
+        MegaApi::utf16ToUtf8(firstname->Data(), firstname->Length(), &utf8firstname);
 
-	megaApi->createAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(password != nullptr) ? utf8password.c_str() : NULL,
-		(name != nullptr) ? utf8name.c_str() : NULL);
+    std::string utf8lastname;
+    if (lastname != nullptr)
+        MegaApi::utf16ToUtf8(lastname->Data(), lastname->Length(), &utf8lastname);
+
+    megaApi->createAccount((email != nullptr) ? utf8email.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        (firstname != nullptr) ? utf8firstname.c_str() : NULL,
+        (lastname != nullptr) ? utf8lastname.c_str() : NULL);
 }
 
-void MegaSDK::createAccount(String^ email, String^ password, String^ name, MRequestListenerInterface^ listener)
+void MegaSDK::createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener)
 {
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
 
-	std::string utf8password;
-	if (password != nullptr)
-		MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
 
-	std::string utf8name;
-	if (name != nullptr)
-		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+    std::string utf8firstname;
+    if (firstname != nullptr)
+        MegaApi::utf16ToUtf8(firstname->Data(), firstname->Length(), &utf8firstname);
 
-	megaApi->createAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(password != nullptr) ? utf8password.c_str() : NULL,
-		(name != nullptr) ? utf8name.c_str() : NULL,
-		createDelegateMRequestListener(listener));
+    std::string utf8lastname;
+    if (lastname != nullptr)
+        MegaApi::utf16ToUtf8(lastname->Data(), lastname->Length(), &utf8lastname);
+
+    megaApi->createAccount((email != nullptr) ? utf8email.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        (firstname != nullptr) ? utf8firstname.c_str() : NULL,
+        (lastname != nullptr) ? utf8lastname.c_str() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name)
@@ -729,6 +739,11 @@ String^ MegaSDK::getMyUserHandle()
     delete[] utf8userHandle;
 
     return ref new String((wchar_t *)utf16userHandle.c_str());
+}
+
+MUser^ MegaSDK::getMyUser()
+{
+    return ref new MUser(megaApi->getMyUser(), true);
 }
 
 void MegaSDK::setLogLevel(MLogLevel logLevel)
@@ -2094,6 +2109,11 @@ MNodeList^ MegaSDK::getInShares()
     return ref new MNodeList(megaApi->getInShares(), true);
 }
 
+MShareList^ MegaSDK::getInSharesList()
+{
+    return ref new MShareList(megaApi->getInSharesList(), true);
+}
+
 bool MegaSDK::isShared(MNode^ node)
 {
     return megaApi->isShared(node->getCPtr());
@@ -2132,6 +2152,11 @@ MShareList^ MegaSDK::getPendingOutShares()
 MShareList^ MegaSDK::getPendingOutShares(MNode^ megaNode)
 {
     return ref new MShareList(megaApi->getPendingOutShares((megaNode != nullptr) ? megaNode->getCPtr() : NULL), true);
+}
+
+MNodeList^ MegaSDK::getPublicLinks()
+{
+    return ref new MNodeList(megaApi->getPublicLinks(), true);
 }
 
 MContactRequestList^ MegaSDK::getIncomingContactRequests()
@@ -2233,6 +2258,42 @@ MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint, MNode^ parent)
     MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
 
     MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str(), parent->getCPtr());
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
+MNodeList^ MegaSDK::getNodesByFingerprint(String^ fingerprint)
+{
+    if (fingerprint == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    MegaNodeList *nodes = megaApi->getNodesByFingerprint(utf8fingerprint.c_str());
+    return nodes ? ref new MNodeList(nodes, true) : nullptr;
+}
+
+MNode^ MegaSDK::getExportableNodeByFingerprint(String^ fingerprint)
+{
+    if (fingerprint == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    MegaNode *node = megaApi->getExportableNodeByFingerprint(utf8fingerprint.c_str());
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
+MNode^ MegaSDK::getExportableNodeByFingerprint(String^ fingerprint, String^ name)
+{
+    if (fingerprint == nullptr || name == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    std::string utf8name;
+    MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    MegaNode *node = megaApi->getExportableNodeByFingerprint(utf8fingerprint.c_str(), utf8name.c_str());
     return node ? ref new MNode(node, true) : nullptr;
 }
 

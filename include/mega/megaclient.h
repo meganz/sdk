@@ -58,6 +58,10 @@ public:
     // wait for I/O or other events
     int wait();
 
+    // splitted implementation of wait() for a better thread management
+    int preparewait();
+    int dowait();
+
     // abort exponential backoff
     bool abortbackoff(bool = true);
 
@@ -336,7 +340,7 @@ public:
     // retry API_ESSL errors
     bool retryessl;
 
-    // time left for bandwidth overquota
+    // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
     // root URL for API requests
@@ -344,6 +348,9 @@ public:
 
     // root URL for load balancing requests
     static const char* const BALANCERURL;
+
+    // account auth for public folders
+    string accountauth;
 
 private:
     BackoffTimer btcs;
@@ -411,6 +418,7 @@ private:
     void sc_ipc();
     void sc_upc();
     void sc_ph();
+    void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
 #endif
@@ -575,6 +583,9 @@ public:
     // minimum number of bytes in transit for upload/download pipelining
     static const int MINPIPELINE = 65536;
 
+    // default number of seconds to wait after a bandwidth overquota
+    static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+
     // initial state load in progress?
     bool fetchingnodes;
     int fetchnodestag;
@@ -611,6 +622,7 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
 
     // generate & return upload handle
     handle getuploadhandle();

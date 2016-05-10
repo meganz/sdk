@@ -69,9 +69,7 @@ void SdkTest::TearDown()
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            MegaUser *u = ul->get(i);            
-            if (u->getEmail() != email) // Trying to remove your own user throws API_EARGS
-                megaApi->removeContact(u);
+            megaApi->removeContact(ul->get(i));
         }
 
         // Remove pending contact requests
@@ -235,6 +233,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 #endif
 
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        responseReceived = true;
+        break;
     }
 }
 
@@ -776,6 +777,23 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
+ * @brief TEST_F SdkTestCreateAccount
+ *
+ * It tests the creation of a new account for a random user.
+ */
+TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+{
+    responseReceived = false;
+    megaApi->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    waitForResponse(&responseReceived);
+
+    ASSERT_TRUE(responseReceived) << "Account creation has failed after " << maxTimeout << " seconds";
+
+    bool result = (lastError == MegaError::API_OK);
+    ASSERT_TRUE(result) << "Account creation failed (error: " << lastError << ")";
+}
+
+/**
  * @brief TEST_F SdkTestResumeSession
  *
  * It creates a local cache, logs out of the current session and tries to resume it later.
@@ -1234,7 +1252,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Check firstname of a contact
 
-    MegaUser *u = megaApi->getContact(email.c_str());
+    MegaUser *u = megaApi->getMyUser();
 
     bool null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1259,7 +1277,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Get avatar of a contact ---
 
-    u = megaApi->getContact(email.c_str());
+    u = megaApi->getMyUser();
 
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1290,7 +1308,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Get non-existing avatar of a contact ---
 
-    u = megaApi->getContact(email.c_str());
+    u = megaApi->getMyUser();
 
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
@@ -1640,7 +1658,7 @@ TEST_F(SdkTest, SdkTestChat)
     handle h;
     bool group;
 
-    h = megaApiAux->getContact(emailaux.c_str())->getHandle();
+    h = megaApiAux->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_RW);
     group = true;

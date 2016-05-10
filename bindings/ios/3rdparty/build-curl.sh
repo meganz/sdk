@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.46.0"
+CURL_VERSION="7.48.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]
 then
-curl -O "http://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
+curl -O "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}

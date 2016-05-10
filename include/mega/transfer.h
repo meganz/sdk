@@ -166,7 +166,7 @@ struct MEGA_API DirectReadNode
     dsdrn_map::iterator dsdrn_it;
 
     // API command result
-    void cmdresult(error);
+    void cmdresult(error, dstime = 0);
     
     // enqueue new read
     void enqueue(m_off_t, m_off_t, int, void*);
@@ -178,7 +178,7 @@ struct MEGA_API DirectReadNode
     void schedule(dstime);
 
     // report failure to app and abort or retry all reads
-    void retry(error);
+    void retry(error, dstime = 0);
 
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
     ~DirectReadNode();

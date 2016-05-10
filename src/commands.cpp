@@ -351,6 +351,7 @@ void CommandDirectRead::procresult()
     else
     {
         error e = API_EINTERNAL;
+        dstime tl = 0;
 
         for (;;)
         {
@@ -376,10 +377,20 @@ void CommandDirectRead::procresult()
                     e = (error)client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 'l'):
+                    tl = client->json.getint();
+                    break;
+
                 case EOO:
                     if (!canceled && drn)
                     {
-                        drn->cmdresult(e);
+                        if (e == API_EOVERQUOTA && !tl)
+                        {
+                            // default retry interval
+                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                        }
+
+                        drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
                     
                     return;
@@ -400,10 +411,10 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
 {
     cmd("g");
-    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
     if (client->usehttps)
@@ -411,16 +422,14 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
         arg("ssl", 2);
     }
 
-    if(auth)
+    if (privateauth)
     {
-        if(strlen(auth) == 8)
-        {
-            arg("en", auth);
-        }
-        else
-        {
-            arg("esid", auth);
-        }
+        arg("esid", privateauth);
+    }
+
+    if (publicauth)
+    {
+        arg("en", publicauth);
     }
 
     tslot = ctslot;
@@ -607,7 +616,13 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        return tslot->transfer->failed(e, tl * 10);
+                                        if (e == API_EOVERQUOTA && !tl)
+                                        {
+                                            // default retry interval
+                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                                        }
+
+                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
@@ -820,6 +835,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             {
                 switch (nn[i].source)
                 {
+                    case NEW_PUBLIC:
                     case NEW_NODE:
                         snk.add((NodeCore*)(nn + i), tn, 0);
                         break;
@@ -827,13 +843,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                     case NEW_UPLOAD:
                         snk.add((NodeCore*)(nn + i), tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
-
-                    case NEW_PUBLIC:
-                        break;
                 }
             }
 
-            snk.get(this);
+            snk.get(this, true);
         }
     }
 
@@ -871,7 +884,7 @@ void CommandPutNodes::procresult()
                 }
             }
 
-            return client->putnodes_sync_result(e, nn, 0);
+            return client->putnodes_sync_result(e, nn, nnsize);
         }
         else
 #endif
@@ -1430,13 +1443,13 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
     // Only for inviting non-contacts
-    if (personal_representation)
+    if (personal_representation && personal_representation[0])
     {
         this->personal_representation = personal_representation;
         arg("e", personal_representation);
     }
 
-    if (msg)
+    if (msg && msg[0])
     {
         this->msg = msg;
         arg("msg", msg);
@@ -1466,7 +1479,9 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     beginarray("s");
     beginobject();
 
-    arg("u", u ? u->uid.c_str() : MegaClient::EXPORTEDLINK);
+    arg("u", u ? ((u->show == VISIBLE) ? u->uid.c_str() : u->email.c_str()) : MegaClient::EXPORTEDLINK);
+    // if the email is registered, the pubk request has returned the userhandle -->
+    // sending the userhandle instead of the email makes the API to assume the user is already a contact
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -2599,7 +2614,7 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
 
 void CommandGetUserQuota::procresult()
 {
-    short td;
+    m_off_t td;
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
@@ -2638,10 +2653,10 @@ void CommandGetUserQuota::procresult()
         {
             case MAKENAMEID2('b', 't'):                  // age of transfer
                                                          // window start
-                td = (short)client->json.getint();
+                td = client->json.getint();
                 if (td != -1)
                 {
-                    details->transfer_hist_starttime = time(NULL) - (unsigned short)td;
+                    details->transfer_hist_starttime = time(NULL) - td;
                 }
                 break;
 
@@ -2654,7 +2669,7 @@ void CommandGetUserQuota::procresult()
                 {
                     m_off_t t;
 
-                    while ((t = client->json.getint()) >= 0)
+                    while (client->json.isnumeric() && (t = client->json.getint()) != -1)
                     {
                         details->transfer_hist.push_back(t);
                     }

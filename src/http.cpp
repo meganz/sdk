@@ -351,7 +351,7 @@ void HttpReq::init()
     sslcheckfailed = false;
     bufpos = 0;
     contentlength = 0;
-    timeleft = 0;
+    timeleft = -1;
     lastdata = 0;
 }
 

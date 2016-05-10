@@ -44,7 +44,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     }
     
     func setUserAvatar() {
-        let user = megaapi.contactForEmail(megaapi.myEmail)
+        let user = megaapi.myUser
         let avatarFilePath = Helper.pathForUser(user, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
         let fileExists = NSFileManager.defaultManager().fileExistsAtPath(avatarFilePath)
         

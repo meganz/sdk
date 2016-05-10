@@ -121,8 +121,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete [] val;
     return ret;
+}
+
+- (MEGAUser *)myUser {
+    MegaUser *user = self.megaApi->getMyUser();
+    return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
 #pragma mark - Init
@@ -301,7 +305,23 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
-    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+    const char *val = MegaApi::handleToBase64(handle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle {
+    const char *val = MegaApi::userHandleToBase64(userhandle);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)retryPendingConnections {
@@ -385,6 +405,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
@@ -964,6 +992,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
+    if (data == nil) return nil;
+    
+    MEGAInputStream mis = MEGAInputStream(data);
+    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (NSString *)fingerprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
@@ -1027,7 +1067,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 - (NSString *)CRCForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
-    return self.megaApi->getCRC([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getCRC([node getCPtr])] : nil;
+    const char *val = self.megaApi->getCRC([node getCPtr]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent {
@@ -1067,11 +1113,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)escapeFsIncompatible:(NSString *)name {
-    return (name != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])] : nil;
+    if (name == nil) return nil;
+    
+    const char *val = self.megaApi->escapeFsIncompatible([name UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (NSString *)unescapeFsIncompatible:(NSString *)localName {
-    return (localName != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])] : nil;
+    if (localName == nil) return nil;
+    
+    const char *val = self.megaApi->unescapeFsIncompatible([localName UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {

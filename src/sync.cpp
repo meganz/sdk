@@ -286,6 +286,13 @@ void Sync::changestate(syncstate_t newstate)
     {
         client->app->syncupdate_state(this, newstate);
 
+        if (newstate == SYNC_FAILED && statecachetable)
+        {
+            statecachetable->remove();
+            delete statecachetable;
+            statecachetable = NULL;
+        }
+
         state = newstate;
         fullscan = false;
     }

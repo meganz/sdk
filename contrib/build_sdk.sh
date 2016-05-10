@@ -41,16 +41,19 @@ disable_posix_threads=""
 enable_sodium=0
 enable_libuv=0
 android_build=0
+enable_cryptopp=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
 }
 
 on_exit_ok() {
-    if [ $configure_only -eq 0 ]; then
-        echo "Successfully compiled MEGA SDK!"
-    else
+    if [ $configure_only -eq 1 ]; then
         echo "Successfully configured MEGA SDK!"
+    elif [ $download_only -eq 1 ]; then
+        echo "Successfully downloaded MEGA SDK dependencies!"
+    else
+        echo "Successfully compiled MEGA SDK!"
     fi
 }
 
@@ -109,7 +112,14 @@ package_download() {
         rm -f $file || true
     fi
 
-    wget --no-check-certificate -c $url -O $file --progress=bar:force || exit 1
+	# use packages previously downloaded in obs server(linux). if not present, download from URL specified
+	cp /srv/dependencies_manually_downloaded/$3 $file || \
+	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || exit 1
+
+    
+    
+    
+    
 }
 
 package_extract() {
@@ -232,7 +242,7 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2e"
+    local openssl_ver="1.0.2g"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -304,6 +314,8 @@ cryptopp_pkg() {
         local file=$local_dir/$cryptopp_mobile_file
         unzip -o $file -d $cryptopp_dir || exit 1
     fi
+    #modify Makefile so that it does not use specific cpu architecture optimizations
+    sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
     package_build $name $cryptopp_dir static
     package_install $name $cryptopp_dir $install_dir
 }
@@ -630,7 +642,7 @@ build_sdk() {
     local freeimage_flags=""
     local megaapi_flags=""
     local openssl_flags=""
-    local sodium_flags=""
+    local sodium_flags="--without-sodium"
     local cwd=$(pwd)
 
     echo "Configuring MEGA SDK"
@@ -729,7 +741,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y]"
+    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y] [-q]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -752,6 +764,7 @@ display_help() {
     echo " -x [opts]: configure options"
     echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
+    echo " -q : Use Crypto++"
     echo ""
 }
 
@@ -764,7 +777,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdflm:no:p:rstuvyx:w" opt; do
+    while getopts ":hacdflm:no:p:rstuvyx:wq" opt; do
         case $opt in
             h)
                 display_help $0
@@ -783,7 +796,7 @@ main() {
                 debug="--enable-debug"
                 ;;
             f)
-                echo "* Disabling FreeImage"
+                echo "* Disabling external FreeImage"
                 disable_freeimage=1
                 ;;
             l)
@@ -807,6 +820,10 @@ main() {
                 install_dir=$(readlink -f $OPTARG)
                 echo "* Installing into $install_dir"
                 ;;
+            q)
+                echo "* Enabling external Crypto++"
+                enable_cryptopp=1
+                ;;
             r)
                 echo "* Building for Android"
                 android_build=1
@@ -820,11 +837,11 @@ main() {
                 ;;
             u)
                 enable_sodium=1
-                echo "* Enabling Sodium."
+                echo "* Enabling external Sodium."
                 ;;
             v)
                 enable_libuv=1
-                echo "* Enabling libuv."
+                echo "* Enabling external libuv."
                 ;;
             w)
                 download_only=1
@@ -890,7 +907,11 @@ main() {
             openssl_pkg $build_dir $install_dir
         fi
     fi
-    cryptopp_pkg $build_dir $install_dir
+    
+    if [ $enable_cryptopp -eq 1 ]; then
+        cryptopp_pkg $build_dir $install_dir
+    fi
+	
     if [ $enable_sodium -eq 1 ]; then
         sodium_pkg $build_dir $install_dir
     fi

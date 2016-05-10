@@ -263,15 +263,23 @@ void TransferSlot::doio(MegaClient* client)
                 case REQ_FAILURE:
                     if (reqs[i]->httpstatus == 509)
                     {
+                        if (reqs[i]->timeleft < 0)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99408, "Overquota without timeleft");
+                            client->reqtag = creqtag;
+                        }
+
                         LOG_warn << "Bandwidth overquota from storage server";
-                        if (reqs[i]->timeleft)
+                        if (reqs[i]->timeleft > 0)
                         {
                             backoff = reqs[i]->timeleft * 10;
                         }
                         else
                         {
-                            // fixed ten-minute retry intervals
-                            backoff = 6000;
+                            // default retry intervals
+                            backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
                         }
 
                         return transfer->failed(API_EOVERQUOTA, backoff);

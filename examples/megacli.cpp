@@ -2690,7 +2690,11 @@ static void process_line(char* l)
                             {
                                 cout << "\t" << it->second.email;
 
-                                if (it->second.show == VISIBLE)
+                                if (it->second.userhandle == client->me)
+                                {
+                                    cout << ", session user";
+                                }
+                                else if (it->second.show == VISIBLE)
                                 {
                                     cout << ", visible";
                                 }
@@ -2698,9 +2702,13 @@ static void process_line(char* l)
                                 {
                                     cout << ", hidden";
                                 }
-                                else if (it->second.show == ME)
+                                else if (it->second.show == INACTIVE)
                                 {
-                                    cout << ", session user";
+                                    cout << ", inactive";
+                                }
+                                else if (it->second.show == BLOCKED)
+                                {
+                                    cout << ", blocked";
                                 }
                                 else
                                 {
@@ -3713,7 +3721,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->logout();
+        client->locallogout();
         return;
     }
 

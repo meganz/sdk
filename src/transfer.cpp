@@ -77,13 +77,14 @@ void Transfer::failed(error e, dstime timeleft)
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (!timeleft)
+    if (!timeleft || e != API_EOVERQUOTA)
     {
         bt.backoff();
     }
     else
     {
         bt.backoff(timeleft);
+        LOG_debug << "backoff: " << timeleft;
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
@@ -190,7 +191,7 @@ void Transfer::complete()
             // set FileFingerprint on source node(s) if missing
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                if ((*it)->hprivate && (n = client->nodebyhandle((*it)->h)))
+                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
                     if (client->gfx && client->gfx->isgfx(&(*it)->localname))
                     {
@@ -519,7 +520,7 @@ void DirectReadNode::dispatch()
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e)
+void DirectReadNode::retry(error e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -545,12 +546,22 @@ void DirectReadNode::retry(error e)
 
         if (e)
         {
-            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
             if (retryds < minretryds)
             {
                 minretryds = retryds;
             }
+        }
+    }
+
+    if (e == API_EOVERQUOTA && timeleft)
+    {
+        // don't retry at least until the end of the overquota state
+        client->overquotauntil = Waiter::ds + timeleft;
+        if (minretryds < timeleft)
+        {
+            minretryds = timeleft;
         }
     }
 
@@ -577,7 +588,7 @@ void DirectReadNode::retry(error e)
     }
 }
 
-void DirectReadNode::cmdresult(error e)
+void DirectReadNode::cmdresult(error e, dstime timeleft)
 {
     pendingcmd = NULL;
 
@@ -594,7 +605,7 @@ void DirectReadNode::cmdresult(error e)
     }
     else
     {
-        retry(e);
+        retry(e, timeleft);
     }
 }
 
@@ -695,8 +706,36 @@ bool DirectReadSlot::doio()
     }
     else if (req->status == REQ_FAILURE)
     {
-        // a failure triggers a complete abort and retry of all pending reads for this node
-        dr->drn->retry(API_EREAD);
+        if (req->httpstatus == 509)
+        {
+            if (req->timeleft < 0)
+            {
+                int creqtag = dr->drn->client->reqtag;
+                dr->drn->client->reqtag = 0;
+                dr->drn->client->sendevent(99408, "Overquota without timeleft");
+                dr->drn->client->reqtag = creqtag;
+            }
+
+            dstime backoff;
+
+            LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
+            if (req->timeleft > 0)
+            {
+                backoff = req->timeleft * 10;
+            }
+            else
+            {
+                // default retry interval
+                backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+            }
+
+            dr->drn->retry(API_EOVERQUOTA, backoff);
+        }
+        else
+        {
+            // a failure triggers a complete abort and retry of all pending reads for this node
+            dr->drn->retry(API_EREAD);
+        }
         return true;
     }
 
