@@ -7301,6 +7301,16 @@ void MegaApiImpl::request_error(error e)
         {
             client->sctable->remove();
         }
+
+#ifdef ENABLE_SYNC
+        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+        {
+            if ((*it)->statecachetable)
+            {
+                (*it)->statecachetable->remove();
+            }
+        }
+#endif
         client->locallogout();
     }
 
