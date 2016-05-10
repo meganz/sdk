@@ -1161,7 +1161,7 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
-    if(!e || e == API_ESID)
+    if(!e)
     {
         if (client->sctable)
         {
