@@ -1812,7 +1812,6 @@ class MegaRequest
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
-         * - MegaApi::addContact - Returns the email of the contact
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
@@ -5246,13 +5245,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Add a new contact to the MEGA account
-         *
-         * @obsolete: This way to add contacts is obsolete. Please use MegaApi::inviteContact.
-         */
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Invite another person to be your MEGA contact
