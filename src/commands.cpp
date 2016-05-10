@@ -1163,20 +1163,7 @@ void CommandLogout::procresult()
     MegaApp *app = client->app;
     if(!e)
     {
-        if (client->sctable)
-        {
-            client->sctable->remove();
-        }
-
-#ifdef ENABLE_SYNC
-        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-        {
-            if((*it)->statecachetable)
-            {
-                (*it)->statecachetable->remove();
-            }
-        }
-#endif
+        client->removecaches();
         client->locallogout();
     }
     app->logout_result(e);
