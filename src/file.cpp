@@ -310,7 +310,7 @@ void File::terminated()
 }
 
 // do not retry crypto errors or administrative takedowns; retry other types of
-// failuresup to 16 times
+// failuresup to 16 times, except I/O errors (6 times)
 bool File::failed(error e)
 {
     return (e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16) &&

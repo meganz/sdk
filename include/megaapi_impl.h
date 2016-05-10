@@ -978,7 +978,6 @@ struct MegaFile : public File
     // app-internal sequence number for queue management
     int seqno;
     static int nextseqno;
-    bool failed(error e);
     MegaFile();
 
     void setTransfer(MegaTransferPrivate *transfer);
