@@ -1916,7 +1916,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_USER: return "GET_ATTR_USER";
         case TYPE_SET_ATTR_USER: return "SET_ATTR_USER";
         case TYPE_RETRY_PENDING_CONNECTIONS: return "RETRY_PENDING_CONNECTIONS";
-        case TYPE_ADD_CONTACT: return "ADD_CONTACT";
         case TYPE_REMOVE_CONTACT: return "REMOVE_CONTACT";
         case TYPE_CREATE_ACCOUNT: return "CREATE_ACCOUNT";
         case TYPE_CONFIRM_ACCOUNT: return "CONFIRM_ACCOUNT";
@@ -3777,14 +3776,6 @@ void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestList
 
     request->setParamType(type);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
-{
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
-	request->setEmail(email);
-	requestQueue.push(request);
     waiter->notify();
 }
 
@@ -7681,13 +7672,12 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::invite_result(error e)
+void MegaApiImpl::removecontact_result(error e)
 {
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_ADD_CONTACT) &&
-                    (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT))) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10356,26 +10346,7 @@ void MegaApiImpl::sendPendingRequests()
 
 			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
-		}
-		case MegaRequest::TYPE_ADD_CONTACT:
-		{
-            const char *email = request->getEmail();
-
-            if(client->loggedin() != FULLACCOUNT)
-            {
-                e = API_EACCESS;
-                break;
-            }
-
-            if(!email || !client->finduser(client->me)->email.compare(email))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-			e = client->invite(email, VISIBLE);
-			break;
-		}
+        }
         case MegaRequest::TYPE_INVITE_CONTACT:
         {
             const char *email = request->getEmail();
@@ -10415,7 +10386,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char *email = request->getEmail();
 			if(!email) { e = API_EARGS; break; }
-			e = client->invite(email, HIDDEN);
+            e = client->removecontact(email, HIDDEN);
 			break;
 		}
 		case MegaRequest::TYPE_CREATE_ACCOUNT:

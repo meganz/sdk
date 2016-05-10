@@ -771,9 +771,9 @@ class MegaApiPHP extends MegaApi
 		$this->megaApi->changePassword($oldPassword, $newPassword, $this->createDelegateRequestListener($listener));
 	}
 
-	function addContact($email, $listener = null) 
+	function inviteContact($user, $message, $action, $listener = null) 
 	{
-		$this->megaApi->addContact($email, $this->createDelegateRequestListener($listener));
+		$this->megaApi->inviteContact($user, $message, $action, $this->createDelegateRequestListener($listener));
 	}
 
 	function removeContact($user, $listener = null) 
