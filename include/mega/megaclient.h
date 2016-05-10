@@ -358,6 +358,7 @@ public:
 
 private:
     BackoffTimer btcs;
+    BackoffTimer btbadhost;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
