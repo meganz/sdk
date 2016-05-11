@@ -60,6 +60,7 @@ CurlHttpIO::CurlHttpIO()
     curlipv6 = data->features & CURL_VERSION_IPV6;
     LOG_debug << "IPv6 enabled: " << curlipv6;
 
+    dnsok = false;
     reset = false;
     statechange = false;
 
@@ -81,7 +82,7 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
     curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutms = -1;
+    curltimeoutreset = 0;
     arestimeoutds = -1;
 #endif
 
@@ -400,7 +401,7 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
     curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutms = -1;
+    curltimeoutreset = 0;
     arestimeoutds = -1;
 #endif
 
@@ -426,12 +427,14 @@ void CurlHttpIO::addevents(Waiter* w, int)
 {
     waiter = (WAIT_CLASS*)w;
 
+    long curltimeoutms;
+
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     int t;
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
-    long curltimeoutms, arestimeoutds;
+    long arestimeoutds;
     curl_multi_timeout(curlm, &curltimeoutms);
 
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
@@ -439,14 +442,34 @@ void CurlHttpIO::addevents(Waiter* w, int)
 #else
     addaresevents(waiter);
     addcurlevents(waiter);
+
+    if (curltimeoutreset)
+    {
+        m_time_t ds = curltimeoutreset - Waiter::ds;
+        if (ds <= 0)
+        {
+            curltimeoutms = 0;
+            curltimeoutreset = 0;
+            LOG_debug << "Disabling cURL timeout";
+        }
+        else
+        {
+            curltimeoutms = ds * 100;
+        }
+    }
+    else
+    {
+        curltimeoutms = -1;
+    }
+
 #endif
 
     if (curltimeoutms >= 0)
     {
         m_time_t timeoutds = curltimeoutms / 100;
-        if (curltimeoutms && !timeoutds)
+        if (curltimeoutms % 100)
         {
-            timeoutds = 1;
+            timeoutds++;
         }
 
         if ((unsigned long)timeoutds < waiter->maxds)
@@ -1170,7 +1193,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             LOG_info << "Using custom DNS servers: " << dnsservers;
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
-        else if (!dnscache.size())
+        else if (!dnsok)
         {
             getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
@@ -1470,6 +1493,7 @@ bool CurlHttpIO::doio()
 
                 if (req->status == REQ_SUCCESS)
                 {
+                    dnsok = true;
                     lastdata = Waiter::ds;
                 }
                 else
@@ -1771,11 +1795,17 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp)
 
     if (timeout_ms < 0)
     {
-        httpio->curltimeoutms = -1;
+        httpio->curltimeoutreset = 0;
     }
     else
     {
-        httpio->curltimeoutms = timeout_ms;
+        m_time_t timeoutds = timeout_ms / 100;
+        if (timeout_ms % 100)
+        {
+            timeoutds++;
+        }
+
+        httpio->curltimeoutreset = Waiter::ds + timeoutds;
     }
 
     LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";

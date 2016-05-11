@@ -9072,7 +9072,7 @@ bool isDigit(const char *c)
 // returns 0 if i==j, +1 if i goes first, -1 if j goes first.
 int naturalsorting_compare (const char *i, const char *j)
 {
-    static u_int64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
 
     bool stringMode = true;
 
@@ -9114,9 +9114,7 @@ int naturalsorting_compare (const char *i, const char *j)
         }
         else    // we are comparing numbers on both strings
         {
-            char char_i, char_j;
-
-            u_int64_t number_i = 0;
+            uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
             while (*i && isDigit(i))
             {
@@ -9131,7 +9129,7 @@ int naturalsorting_compare (const char *i, const char *j)
                 }
             }
 
-            u_int64_t number_j = 0;
+            uint64_t number_j = 0;
             unsigned int j_overflow_count = 0;
             while (*j && isDigit(j))
             {
@@ -9162,12 +9160,12 @@ int naturalsorting_compare (const char *i, const char *j)
         }
     }
 
-    if(*j)
+    if (*j)
     {
         return -1;
     }
 
-    if(*i)
+    if (*i)
     {
         return 1;
     }
