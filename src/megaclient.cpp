@@ -9333,7 +9333,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
         f->file_it = t->files.insert(t->files.begin(), f);
         f->transfer = t;
 
-        transfercacheadd(t);
         filecacheadd(f);
     }
 
