@@ -92,7 +92,7 @@ bool File::serialize(string *d)
     flag = syncxfer;
     d->append((const char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    d->append("\0\0\0\0\0\0\0\0\0", 10);
 
     return true;
 }
@@ -170,7 +170,7 @@ File *File::unserialize(string *d)
     unsigned short pubauthlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(pubauthlen);
     if (ptr + pubauthlen + sizeof(handle) + FILENODEKEYLENGTH + sizeof(bool)
-            + sizeof(bool) + sizeof(bool) + 8 > end)
+            + sizeof(bool) + sizeof(bool) + 10 > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
         return NULL;
@@ -202,13 +202,13 @@ File *File::unserialize(string *d)
     file->syncxfer = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 8;
+    ptr += 10;
 
     d->erase(0, ptr - d->data());
     return file;

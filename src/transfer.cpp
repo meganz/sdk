@@ -138,7 +138,7 @@ bool Transfer::serialize(string *d)
         d->append(cachedtempurl.data(), ll);
     }
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    d->append("\0\0\0\0\0\0\0\0\0", 10);
 
     return true;
 }
@@ -248,7 +248,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
-    if (ptr + ll + 8 > end)
+    if (ptr + ll + 10 > end)
     {
         LOG_err << "Transfer unserialization failed - temp URL too long";
         delete t;
@@ -258,12 +258,13 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->cachedtempurl.assign(ptr, ll);
     ptr += ll;
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
     {
         LOG_err << "Transfer unserialization failed - invalid version";
         delete t;
         return NULL;
     }
+    ptr += 10;
 
     return t;
 }
