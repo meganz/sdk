@@ -124,7 +124,7 @@ protected:
     void addcurlevents(WinWaiter *waiter);
     std::vector<SockInfo> aressockets;
     std::map<int, SockInfo> curlsockets;
-    m_time_t curltimeoutms;
+    m_time_t curltimeoutreset;
     m_time_t arestimeoutds;
 #endif
 
