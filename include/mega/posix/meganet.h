@@ -114,6 +114,7 @@ protected:
     bool curlipv6;
     bool reset;
     bool statechange;
+    bool dnsok;
     string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
