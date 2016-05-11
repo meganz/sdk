@@ -22,6 +22,7 @@ git clone --recursive https://github.com/meganz/sdk.git
 ```
 * Download the prebuilt libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!ft0h3QhL!c92gjsQsbHawjmgV_9f8xu0CujcvCdgYxla2kscDVNo).
 * Extract the content into `app/src/main`, keeping the folder structure.
+* Open the file `app/build.gradle` and comment the line `compileTask -> compileTask.dependsOn megaSDK` to skip the building of the SDK library and its bindings.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
 
 ### To build the library by yourself
