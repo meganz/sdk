@@ -4310,6 +4310,27 @@ public class MegaApiJava {
     }
 
     /**
+     * Search nodes containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * The search will consider every accessible node for the account:
+     *  - Cloud drive
+     *  - Inbox
+     *  - Rubbish bin
+     *  - Incoming shares from other users
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param searchString Search string. The search is case-insensitive
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> search(String searchString) {
+        return nodeListToArray(megaApi.search(searchString));
+    }
+
+    /**
      * Process a node tree using a MegaTreeProcessor implementation.
      * 
      * @param parent

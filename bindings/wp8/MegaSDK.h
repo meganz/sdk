@@ -89,8 +89,11 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_FIRSTNAME = 1,
-        USER_ATTR_LASTNAME = 2
+        USER_ATTR_AVATAR            = 0,
+        USER_ATTR_FIRSTNAME         = 1,
+        USER_ATTR_LASTNAME          = 2,
+        USER_ATTR_AUTHRING          = 3,
+        USER_ATTR_LAST_INTERACTION  = 4
     };
 
     public enum class MPaymentMethod {
@@ -399,6 +402,7 @@ namespace mega
         MNode^ getRubbishNode();
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
+        MNodeList^ globalSearch(String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
         

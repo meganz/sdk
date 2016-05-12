@@ -2374,6 +2374,15 @@ MNodeList^ MegaSDK::search(MNode^ node, String^ searchString)
     return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, true), true);
 }
 
+MNodeList^ MegaSDK::globalSearch(String^ searchString)
+{
+    std::string utf8search;
+    if (searchString != nullptr)
+        MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
+
+    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL), true);
+}
+
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive)
 {
     MegaTreeProcessor *delegateProcessor = createDelegateMTreeProcessor(processor);
