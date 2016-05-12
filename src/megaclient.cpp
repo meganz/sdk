@@ -926,9 +926,11 @@ void MegaClient::exec()
 
                         if (!fc->timeout.armed()) break;
 
+                        LOG_warn << "Timeout getting file attr";
                         // timeout! fall through...
                         fc->req.disconnect();
                     case REQ_FAILURE:
+                        LOG_warn << "Error getting file attr";
                         fc->failed(this);
                         fc->bt.backoff();
                         fc->urltime = 0;
@@ -943,12 +945,14 @@ void MegaClient::exec()
                     if (Waiter::ds - fc->urltime > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
+                        LOG_debug << "Getting fresh download URL";
                         reqs.add(new CommandGetFA(this, cit->first, fc->fahref, httpio->chunkedok));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
                     {
                         // redispatch cached URL if not older than one minute
+                        LOG_debug << "Using cached download URL";
                         fc->dispatch(this);
                     }
                 }
