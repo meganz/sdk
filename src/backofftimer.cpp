@@ -114,7 +114,6 @@ void BackoffTimer::update(dstime* waituntil)
         {
             *waituntil = 0;
             next = 1;
-            base = 1;
         }
         else if (next < *waituntil)
         {
