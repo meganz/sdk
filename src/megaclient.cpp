@@ -910,6 +910,7 @@ void MegaClient::exec()
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed(this);
                         fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
                         fc->timeout.reset();
                         fc->bt.reset();
                         break;
@@ -942,6 +943,7 @@ void MegaClient::exec()
                         fc->bt.backoff();
                         fc->urltime = 0;
                         fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
                     default:
                         ;
                 }

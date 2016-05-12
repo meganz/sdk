@@ -84,6 +84,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
     else
     {
         timeout.reset();
+        req.status = REQ_PREPARED;
     }
 }
 
