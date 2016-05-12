@@ -13,7 +13,7 @@ Such library is required to run Java applications using the MEGA SDK and must be
 
 2. Extract the content to `sdk/bindings/java/contrib/vs2010/`.
 
-3. Download the Java bindings files created by SWIG from this [link](https://mega.nz/#!cx0BjZhB!jJOEPllUXTjIyIWXuWDxI6PIVJzm0D9MuFxO3brTqWE).
+3. Download the Java bindings files created by SWIG from this [link](https://mega.nz/#!aoNUwISQ!QZavDE1m32yxSEEkjsmdcHrwm4TF8ldHBO02OUrRCH8).
 
 4. Extract the content to `sdk/bindings/java/`
 
