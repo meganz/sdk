@@ -85,7 +85,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->nodehandle = nodehandle;
     this->parenthandle = parentHandle;
     this->attrstring.assign(attrstring->data(), attrstring->size());
-    this->nodekey.assign(nodekey->data(),nodekey->size());
+    this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
     this->thumbnailAvailable = false;
     this->previewAvailable = false;
@@ -283,7 +283,177 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
 MegaNode *MegaNodePrivate::copy()
 {
-	return new MegaNodePrivate(this);
+    return new MegaNodePrivate(this);
+}
+
+bool MegaNodePrivate::serialize(string *d)
+{
+    unsigned short ll;
+    bool flag;
+
+    ll = name ? strlen(name) + 1 : 0;
+    d->append((char*)&ll, sizeof(ll));
+    d->append(name, ll);
+
+    ll = fingerprint ? strlen(fingerprint) + 1 : 0;
+    d->append((char*)&ll, sizeof(ll));
+    d->append(fingerprint, ll);
+
+    d->append((char*)&size, sizeof(size));
+    d->append((char*)&ctime, sizeof(ctime));
+    d->append((char*)&mtime, sizeof(mtime));
+    d->append((char*)&nodehandle, sizeof(nodehandle));
+    d->append((char*)&parenthandle, sizeof(parenthandle));
+
+    ll = attrstring.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(attrstring.data(), ll);
+
+    ll = nodekey.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(nodekey.data(), ll);
+
+    ll = privateAuth.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(privateAuth.data(), ll);
+
+    ll = publicAuth.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(publicAuth.data(), ll);
+
+    flag = isPublicNode;
+    d->append((char*)&flag, sizeof(flag));
+
+    flag = foreign;
+    d->append((char*)&flag, sizeof(flag));
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
+MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
+{
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - data too short";
+        return NULL;
+    }
+
+    unsigned short namelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(namelen);
+    if (ptr + namelen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - name too long";
+        return NULL;
+    }
+    string name;
+    if (namelen)
+    {
+        name.assign(ptr, namelen - 1);
+    }
+    ptr += namelen;
+
+    unsigned short fingerprintlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(fingerprintlen);
+    if (ptr + fingerprintlen + sizeof(unsigned short)
+            + sizeof(int64_t) + sizeof(int64_t)
+            + sizeof(int64_t) + sizeof(MegaHandle)
+            + sizeof(MegaHandle) + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - fingerprint too long";
+        return NULL;
+    }
+    string fingerprint;
+    if (fingerprintlen)
+    {
+        fingerprint.assign(ptr, fingerprintlen - 1);
+    }
+    ptr += fingerprintlen;
+
+    int64_t size = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    int64_t ctime = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    int64_t mtime = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    MegaHandle nodehandle = MemAccess::get<MegaHandle>(ptr);
+    ptr += sizeof(MegaHandle);
+
+    MegaHandle parenthandle = MemAccess::get<MegaHandle>(ptr);
+    ptr += sizeof(MegaHandle);
+
+    unsigned short ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+    if (ptr + ll + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - attrstring too long";
+        return NULL;
+    }
+    string attrstring;
+    attrstring.assign(ptr, ll);
+    ptr += ll;
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+    if (ptr + ll + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - nodekey too long";
+        return NULL;
+    }
+    string nodekey;
+    nodekey.assign(ptr, ll);
+    ptr += ll;
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+    if (ptr + ll + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaNode unserialization failed - auth too long";
+        return NULL;
+    }
+    string privauth;
+    privauth.assign(ptr, ll);
+    ptr += ll;
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+    if (ptr + ll + sizeof(bool) + sizeof(bool) + 8 > end)
+    {
+        LOG_err << "MegaNode unserialization failed - auth too long";
+        return NULL;
+    }
+
+    string pubauth;
+    privauth.assign(ptr, ll);
+    ptr += ll;
+
+    bool isPublicNode = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    bool foreign = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaNodePrivate unserialization failed - invalid version";
+        return NULL;
+    }
+    ptr += 8;
+
+    d->erase(0, ptr - d->data());
+
+    return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
+                               mtime, nodehandle, &nodekey, &attrstring,
+                               fingerprintlen ? fingerprint.c_str() : NULL,
+                               parenthandle, privauth.c_str(), pubauth.c_str(),
+                               isPublicNode, foreign);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -1096,6 +1266,148 @@ bool MegaTransferPrivate::isFolderTransfer() const
 int MegaTransferPrivate::getFolderTransferTag() const
 {
     return this->folderTransferTag;
+}
+
+bool MegaTransferPrivate::serialize(string *d)
+{
+    d->append((const char*)&type, sizeof(type));
+    d->append((const char*)&nodeHandle, sizeof(nodeHandle));
+    d->append((const char*)&parentHandle, sizeof(parentHandle));
+
+    unsigned short ll;
+    ll = path ? strlen(path) + 1 : 0;
+    d->append((char*)&ll, sizeof(ll));
+    d->append(path, ll);
+
+    ll = parentPath ? strlen(parentPath) + 1 : 0;
+    d->append((char*)&ll, sizeof(ll));
+    d->append(parentPath, ll);
+
+    ll = fileName ? strlen(fileName) + 1 : 0;
+    d->append((char*)&ll, sizeof(ll));
+    d->append(fileName, ll);
+
+    d->append((const char*)&folderTransferTag, sizeof(folderTransferTag));
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    MegaNodePrivate *node = dynamic_cast<MegaNodePrivate *>(publicNode);
+    bool isPublic = (node != NULL);
+    d->append((const char*)&isPublic, sizeof(bool));
+    if (isPublic)
+    {
+        node->serialize(d);
+    }
+    return true;
+}
+
+MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
+{
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(int) + sizeof(MegaHandle)
+            + sizeof(MegaHandle) + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaTransfer unserialization failed - data too short";
+        return NULL;
+    }
+
+    int type = MemAccess::get<int>(ptr);
+    ptr += sizeof(int);
+
+    MegaTransferPrivate *transfer = new MegaTransferPrivate(type);
+    transfer->nodeHandle = MemAccess::get<MegaHandle>(ptr);
+    ptr += sizeof(MegaHandle);
+
+    transfer->parentHandle = MemAccess::get<MegaHandle>(ptr);
+    ptr += sizeof(MegaHandle);
+
+    unsigned short pathlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(unsigned short);
+
+    if (ptr + pathlen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaTransfer unserialization failed - path too long";
+        delete transfer;
+        return NULL;
+    }
+
+    if (pathlen)
+    {
+        string path;
+        path.assign(ptr, pathlen - 1);
+        transfer->setPath(path.c_str());
+    }
+    ptr += pathlen;
+
+    unsigned short parentPathLen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(unsigned short);
+
+    if (ptr + parentPathLen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "MegaTransfer unserialization failed - parentpath too long";
+        delete transfer;
+        return NULL;
+    }
+
+    if (parentPathLen)
+    {
+        string path;
+        path.assign(ptr, parentPathLen - 1);
+        transfer->setParentPath(path.c_str());
+    }
+    ptr += parentPathLen;
+
+    unsigned short fileNameLen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(unsigned short);
+
+    if (ptr + fileNameLen + sizeof(int) + 8 + sizeof(bool) > end)
+    {
+        LOG_err << "MegaTransfer unserialization failed - filename too long";
+        delete transfer;
+        return NULL;
+    }
+
+    if (fileNameLen)
+    {
+        string path;
+        path.assign(ptr, fileNameLen - 1);
+        transfer->setFileName(path.c_str());
+    }
+    ptr += fileNameLen;
+
+    transfer->folderTransferTag = MemAccess::get<int>(ptr);
+    ptr += sizeof(int);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaTransfer unserialization failed - invalid version";
+        delete transfer;
+        return NULL;
+    }
+    ptr += 8;
+
+    bool isPublic = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    d->erase(0, ptr - d->data());
+
+    if (isPublic)
+    {
+        MegaNodePrivate *publicNode = MegaNodePrivate::unserialize(d);
+        if (!publicNode)
+        {
+            LOG_err << "MegaTransfer unserialization failed - unable to unserialize MegaNode";
+            delete transfer;
+            return NULL;
+        }
+
+        transfer->setPublicNode(publicNode);
+        delete publicNode;
+    }
+
+    return transfer;
 }
 
 void MegaTransferPrivate::setTag(int tag)
@@ -2314,14 +2626,87 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestL
 
 int MegaFile::nextseqno = 0;
 
-bool MegaFile::failed(error e)
-{
-    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16;
-}
-
 MegaFile::MegaFile() : File()
 {
     seqno = ++nextseqno;
+    megaTransfer = NULL;
+}
+
+void MegaFile::setTransfer(MegaTransferPrivate *transfer)
+{
+    this->megaTransfer = transfer;
+}
+
+MegaTransferPrivate *MegaFile::getTransfer()
+{
+    return megaTransfer;
+}
+
+bool MegaFile::serialize(string *d)
+{
+    if (!megaTransfer)
+    {
+        return false;
+    }
+
+    if (!File::serialize(d))
+    {
+        return false;
+    }
+
+    if (!megaTransfer->serialize(d))
+    {
+        return false;
+    }
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
+MegaFile *MegaFile::unserialize(string *d)
+{
+    File *file = File::unserialize(d);
+    if (!file)
+    {
+        LOG_err << "Error unserializing MegaFile: Unable to unserialize File";
+        return NULL;
+    }
+
+    MegaFile *megaFile = new MegaFile();
+    *(File *)megaFile = *(File *)file;
+    delete file;
+
+    MegaTransferPrivate *transfer = MegaTransferPrivate::unserialize(d);
+    if (!transfer)
+    {
+        delete megaFile;
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + 8 > end)
+    {
+        LOG_err << "MegaFile unserialization failed - data too short";
+        delete megaFile;
+        delete transfer;
+        return NULL;
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFile unserialization failed - invalid version";
+        delete megaFile;
+        delete transfer;
+        return NULL;
+    }
+    ptr += 8;
+
+    d->erase(0, ptr - d->data());
+
+    megaFile->setTransfer(transfer);
+    return megaFile;
 }
 
 MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile()
@@ -2366,6 +2751,17 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
 	}
 	else finalPath = name;
 
+    const char *fingerprint = n->getFingerprint();
+    if (fingerprint)
+    {
+        FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
+        if (fp)
+        {
+            *(FileFingerprint *)this = *(FileFingerprint *)fp;
+            delete fp;
+        }
+    }
+
     size = n->getSize();
     mtime = n->getModificationTime();
 
@@ -2385,6 +2781,58 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     {
         pubauth = *n->getPublicAuth();
     }
+}
+
+bool MegaFileGet::serialize(string *d)
+{
+    if (!MegaFile::serialize(d))
+    {
+        return false;
+    }
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
+MegaFileGet *MegaFileGet::unserialize(string *d)
+{
+    MegaFile *file = MegaFile::unserialize(d);
+    if (!file)
+    {
+        LOG_err << "Error unserializing MegaFileGet: Unable to unserialize MegaFile";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + 8 > end)
+    {
+        LOG_err << "MegaFileGet unserialization failed - data too short";
+        delete file;
+        return NULL;
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFileGet unserialization failed - invalid version";
+        delete file;
+        return NULL;
+    }
+
+    ptr += 8;
+    if (ptr != end)
+    {
+        LOG_err << "MegaFileGet unserialization failed - wrong size";
+        delete file;
+        return NULL;
+    }
+
+    MegaFileGet *megaFile = new MegaFileGet();
+    *(MegaFile *)megaFile = *(MegaFile *)file;
+    delete file;
+
+    return megaFile;
 }
 
 void MegaFileGet::prepare()
@@ -2465,6 +2913,63 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
     name = *filename;
 
     customMtime = mtime;
+}
+
+bool MegaFilePut::serialize(string *d)
+{
+    if (!MegaFile::serialize(d))
+    {
+        return false;
+    }
+
+    d->append((char*)&customMtime, sizeof(customMtime));
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
+MegaFilePut *MegaFilePut::unserialize(string *d)
+{
+    MegaFile *file = MegaFile::unserialize(d);
+    if (!file)
+    {
+        LOG_err << "Error unserializing MegaFilePut: Unable to unserialize MegaFile";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    if (ptr + sizeof(int64_t) + 8 > end)
+    {
+        LOG_err << "MegaFilePut unserialization failed - data too short";
+        delete file;
+        return NULL;
+    }
+
+    int64_t customMtime = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(customMtime);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "MegaFilePut unserialization failed - invalid version";
+        delete file;
+        return NULL;
+    }
+
+    ptr += 8;
+    if (ptr != end)
+    {
+        LOG_err << "MegaFilePut unserialization failed - wrong size";
+        delete file;
+        return NULL;
+    }
+
+    MegaFilePut *megaFile = new MegaFilePut();
+    *(MegaFile *)megaFile = *(MegaFile *)file;
+    delete file;
+
+    megaFile->customMtime = customMtime;
+    return megaFile;
 }
 
 void MegaFilePut::completed(Transfer* t, LocalNode*)
@@ -3832,6 +4337,20 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
+void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
+{
+    sdkMutex.lock();
+    client->enabletransferresumption(loggedOutId);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::disableTransferResumption(const char *loggedOutId)
+{
+    sdkMutex.lock();
+    client->disabletransferresumption(loggedOutId);
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
@@ -4150,8 +4669,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
             transfer->setPublicNode(node);
         }
     }
-	transfer->setStartPos(startPos);
-	transfer->setEndPos(endPos);
+
 	transfer->setMaxRetries(maxRetries);
 
     if (folderTransferTag)
@@ -5694,7 +6212,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
 
 MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
 {
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return new MegaNodeListPrivate();
@@ -5713,7 +6231,7 @@ MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, c
 {
     MegaNode *result = NULL;
 
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -5802,7 +6320,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
 char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 {    
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -6017,6 +6535,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
             if(!transfer->getStartTime())
             {
                 transfer->setStartTime(Waiter::ds);
+                transfer->setTransferredBytes(tr->slot->progressreported);
             }
 
             m_off_t deltaSize = tr->slot->progressreported - transfer->getTransferredBytes();
@@ -6136,6 +6655,56 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
             fireOnTransferUpdate(transfer);
         }
     }
+}
+
+void MegaApiImpl::transfer_resume(string *d)
+{
+    if (!d || d->size() < sizeof(char))
+    {
+        return;
+    }
+
+    MegaFile *file;
+    char type = MemAccess::get<char>(d->data());
+    switch (type)
+    {
+    case GET:
+        file = MegaFileGet::unserialize(d);
+        break;
+    case PUT:
+        file = MegaFilePut::unserialize(d);
+        MegaTransferPrivate* transfer = file->getTransfer();
+        Node *parent = client->nodebyhandle(transfer->getParentHandle());
+        node_vector *nodes = client->nodesbyfingerprint(file);
+        const char *name = transfer->getFileName();
+        if (parent && nodes && name)
+        {
+            for (unsigned int i = 0; i < nodes->size(); i++)
+            {
+                Node* node = nodes->at(i);
+                if (node->parent == parent && !strcmp(node->displayname(), name))
+                {
+                    // don't resume the upload if the node already exist in the target folder
+                    delete file;
+                    delete transfer;
+                    file = NULL;
+                    break;
+                }
+            }
+        }
+        delete nodes;
+        break;
+    }
+
+    if (!file)
+    {
+        return;
+    }
+
+    currentTransfer = file->getTransfer();
+    client->nextreqtag();
+    client->startxfer((direction_t)type, file);
+    waiter->notify();
 }
 
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)
@@ -6777,7 +7346,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
 }
 
 void MegaApiImpl::fetchnodes_result(error e)
-{
+{    
     MegaError megaError(e);
     MegaRequestPrivate* request;
     if (!client->restag)
@@ -8495,11 +9064,121 @@ bool MegaApiImpl::isFilesystemAvailable()
     return result;
 }
 
+bool isDigit(const char *c)
+{
+    return (*c >= '0' && *c <= '9');
+}
+
+// returns 0 if i==j, +1 if i goes first, -1 if j goes first.
+int naturalsorting_compare (const char *i, const char *j)
+{
+    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
+
+    bool stringMode = true;
+
+    while (*i && *j)
+    {
+        if (stringMode)
+        {
+            char char_i, char_j;
+            while ( (char_i = *i) && (char_j = *j) )
+            {
+                bool char_i_isDigit = isDigit(i);
+                bool char_j_isDigit = isDigit(j);;
+
+                if (char_i_isDigit && char_j_isDigit)
+                {
+                    stringMode = false;
+                    break;
+                }
+
+                if(char_i_isDigit)
+                {
+                    return -1;
+                }
+
+                if(char_j_isDigit)
+                {
+                    return 1;
+                }
+
+                int difference = char_i - char_j;
+                if (difference)
+                {
+                    return difference;
+                }
+
+                ++i;
+                ++j;
+            }
+        }
+        else    // we are comparing numbers on both strings
+        {
+            uint64_t number_i = 0;
+            unsigned int i_overflow_count = 0;
+            while (*i && isDigit(i))
+            {
+                number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
+                ++i;
+
+                // check the number won't overflow upon addition of next char
+                if (number_i >= maxNumber)
+                {
+                    number_i -= maxNumber;
+                    i_overflow_count++;
+                }
+            }
+
+            uint64_t number_j = 0;
+            unsigned int j_overflow_count = 0;
+            while (*j && isDigit(j))
+            {
+                number_j = number_j * 10 + (*j - 48);
+                ++j;
+
+                // check the number won't overflow upon addition of next char
+                if (number_j >= maxNumber)
+                {
+                    number_j -= maxNumber;
+                    j_overflow_count++;
+                }
+            }
+
+            int difference = i_overflow_count - j_overflow_count;
+            if (difference)
+            {
+                return difference;
+            }
+
+            difference = number_i - number_j;
+            if (difference)
+            {
+                return difference;
+            }
+
+            stringMode = true;
+        }
+    }
+
+    if (*j)
+    {
+        return -1;
+    }
+
+    if (*i)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
 bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
 {
     if(i->type < j->type) return 0;
     if(i->type > j->type) return 1;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 1;
+
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 1;
 	return 0;
 }
 
@@ -8507,8 +9186,8 @@ bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
 {
     if(i->type < j->type) return 1;
     if(i->type > j->type) return 0;
-    if(strcasecmp(i->displayname(), j->displayname())<=0) return 0;
-	return 1;
+    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 0;
+    return 1;
 }
 
 bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
@@ -8730,7 +9409,7 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 {
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -8747,7 +9426,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *parent)
 {
 
-    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
     if (!fp)
     {
         return NULL;
@@ -9178,7 +9857,7 @@ void MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
-
+                    f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, true);
                     if(!started)
                     {
@@ -9321,6 +10000,7 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
+                    f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
                     {

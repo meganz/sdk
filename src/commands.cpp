@@ -900,6 +900,23 @@ void CommandPutNodes::procresult()
 #endif
     }
 
+    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
+    if (it != client->pendingtcids.end())
+    {
+        if (client->tctable)
+        {
+            vector<uint32_t> &ids = it->second;
+            for (unsigned int i = 0; i< ids.size(); i++)
+            {
+                if (ids[i])
+                {
+                    client->tctable->del(ids[i]);
+                }
+            }
+        }
+        client->pendingtcids.erase(it);
+    }
+
     e = API_EINTERNAL;
 
     for (;;)
@@ -1177,6 +1194,8 @@ void CommandLogout::procresult()
             }
         }
 #endif
+
+        client->disabletransferresumption();
         client->locallogout();
     }
     app->logout_result(e);
@@ -1443,13 +1462,13 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
     // Only for inviting non-contacts
-    if (personal_representation)
+    if (personal_representation && personal_representation[0])
     {
         this->personal_representation = personal_representation;
         arg("e", personal_representation);
     }
 
-    if (msg)
+    if (msg && msg[0])
     {
         this->msg = msg;
         arg("msg", msg);

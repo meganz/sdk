@@ -63,7 +63,9 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
+    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL)
+            && dwWritten == len
+            && FlushFileBuffers(hFile);
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
