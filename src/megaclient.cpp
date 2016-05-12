@@ -909,10 +909,17 @@ void MegaClient::exec()
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed(this);
+                        fc->req.disconnect();
+                        fc->timeout.reset();
                         fc->bt.reset();
                         break;
 
                     case REQ_INFLIGHT:
+                        if (!fc->req.httpio)
+                        {
+                            break;
+                        }
+
                         if (fc->inbytes != fc->req.in.size())
                         {
                             httpio->lock();
@@ -928,12 +935,13 @@ void MegaClient::exec()
 
                         LOG_warn << "Timeout getting file attr";
                         // timeout! fall through...
-                        fc->req.disconnect();
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
                         fc->failed(this);
+                        fc->timeout.reset();
                         fc->bt.backoff();
                         fc->urltime = 0;
+                        fc->req.disconnect();
                     default:
                         ;
                 }
@@ -946,6 +954,7 @@ void MegaClient::exec()
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
                         LOG_debug << "Getting fresh download URL";
+                        fc->timeout.reset();
                         reqs.add(new CommandGetFA(this, cit->first, fc->fahref, httpio->chunkedok));
                         fc->req.status = REQ_INFLIGHT;
                     }
