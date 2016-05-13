@@ -4237,19 +4237,19 @@ class MegaApi
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get data about a contact
+         * @brief Get information about a MEGA user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the user,
          * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
-         * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
+         * - MegaRequest::getText - Returns the XMPP ID of the user
+         * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
-         * @param user Email or Base64 handle of the contact
+         * @param user Email or Base64 handle of the user
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
