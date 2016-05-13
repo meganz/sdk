@@ -253,7 +253,7 @@ SymmCipher& SymmCipher::operator=(const SymmCipher& ref)
 // encryption: data must be NUL-padded to BLOCKSIZE
 // decryption: data must be padded to BLOCKSIZE
 // len must be < 2^31
-void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt)
+void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt, bool initmac)
 {
     assert(!(pos & (KEYLENGTH - 1)));
 
@@ -262,7 +262,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     MemAccess::set<int64_t>(ctr,ctriv);
     setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
 
-    if (mac)
+    if (mac && initmac)
     {
         memcpy(mac, ctr, sizeof ctriv);
         memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);

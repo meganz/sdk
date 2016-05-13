@@ -1565,6 +1565,16 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
     pImpl->pauseTransfers(pause, direction, listener);
 }
 
+void MegaApi::enableTransferResumption(const char *loggedOutId)
+{
+    pImpl->enableTransferResumption(loggedOutId);
+}
+
+void MegaApi::disableTransferResumption(const char *loggedOutId)
+{
+    pImpl->disableTransferResumption(loggedOutId);
+}
+
 bool MegaApi::areTransfersPaused(int direction)
 {
     return pImpl->areTransfersPaused(direction);
