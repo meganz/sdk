@@ -5911,7 +5911,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString)
     Node *node;
 
     // rootnodes
-    for (int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
@@ -7864,6 +7864,12 @@ void MegaApiImpl::request_error(error e)
         request->setText(client->sslfakeissuer.c_str());
     }
 
+    if (e == API_ESID)
+    {
+        client->removecaches();
+        client->locallogout();
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7905,7 +7911,7 @@ void MegaApiImpl::logout_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_LOGOUT)) return;
 
-    if(!e)
+    if(!e || e == API_ESID)
     {
         requestMap.erase(request->getTag());
 

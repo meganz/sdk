@@ -237,6 +237,9 @@ public:
     // free all state information
     void locallogout();
 
+    // remove caches
+    void removecaches();
+
     // SDK version
     const char* version();
 

@@ -2476,20 +2476,7 @@ void MegaClient::logout()
 {
     if (loggedin() != FULLACCOUNT)
     {
-        if (sctable)
-        {
-            sctable->remove();
-        }
-
-#ifdef ENABLE_SYNC
-        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
-        {
-            if ((*it)->statecachetable)
-            {
-                (*it)->statecachetable->remove();
-            }
-        }
-#endif
+        removecaches();
         locallogout();
 
         restag = reqtag;
@@ -2571,6 +2558,26 @@ void MegaClient::locallogout()
 #ifdef ENABLE_SYNC
     syncadding = 0;
 #endif
+}
+
+void MegaClient::removecaches()
+{
+    if (sctable)
+    {
+        sctable->remove();
+    }
+
+#ifdef ENABLE_SYNC
+    for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+    {
+        if((*it)->statecachetable)
+        {
+            (*it)->statecachetable->remove();
+        }
+    }
+#endif
+
+    disabletransferresumption();
 }
 
 const char *MegaClient::version()
