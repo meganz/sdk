@@ -1868,6 +1868,34 @@ void MegaSDK::pauseTransfers(bool pause)
 	megaApi->pauseTransfers(pause);
 }
 
+void MegaSDK::enableTransferResumption(String^ loggedOutId)
+{
+    std::string utf8loggedOutId;
+    if (loggedOutId != nullptr)
+        MegaApi::utf16ToUtf8(loggedOutId->Data(), loggedOutId->Length(), &utf8loggedOutId);
+
+    megaApi->enableTransferResumption((loggedOutId != nullptr) ? utf8loggedOutId.c_str() : NULL);
+}
+
+void MegaSDK::enableTransferResumption()
+{
+    megaApi->enableTransferResumption();
+}
+
+void MegaSDK::disableTransferResumption(String^ loggedOutId)
+{
+    std::string utf8loggedOutId;
+    if (loggedOutId != nullptr)
+        MegaApi::utf16ToUtf8(loggedOutId->Data(), loggedOutId->Length(), &utf8loggedOutId);
+
+    megaApi->disableTransferResumption((loggedOutId != nullptr) ? utf8loggedOutId.c_str() : NULL);
+}
+
+void MegaSDK::disableTransferResumption()
+{
+    megaApi->disableTransferResumption();
+}
+
 bool MegaSDK::areTransfersPaused(int direction)
 {
     return megaApi->areTransfersPaused(direction);

@@ -315,6 +315,10 @@ namespace mega
         void cancelTransfers(int direction);
         void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
         void pauseTransfers(bool pause);
+        void enableTransferResumption(String^ loggedOutId);
+        void enableTransferResumption();
+        void disableTransferResumption(String^ loggedOutId);
+        void disableTransferResumption();
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
