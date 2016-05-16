@@ -7387,7 +7387,7 @@ void MegaClient::closetc(bool remove)
     cachedfiles.clear();
     cachedfilesdbids.clear();
 
-    if (remove)
+    if (remove && tctable)
     {
         tctable->remove();
     }
