@@ -432,6 +432,7 @@ void MegaClient::setrootnode(handle h)
 
     auth = "&n=";
     auth.append(buf);
+    publichandle = h;
 
     if (accountauth.size())
     {
@@ -627,6 +628,7 @@ void MegaClient::init()
     btcs.reset();
     btsc.reset();
     btpfa.reset();
+    btbadhost.reset();
 
     jsonsc.pos = NULL;
     insca = false;
@@ -637,7 +639,9 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
+    tctable = NULL;
     me = UNDEF;
+    publichandle = UNDEF;
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
@@ -745,6 +749,7 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete loadbalancingcs;
     delete sctable;
+    delete tctable;
     delete dbaccess;
 }
 
@@ -782,6 +787,7 @@ void MegaClient::exec()
                 (*it)->errorcount++;
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;
+                LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
             }
         }
     }
@@ -903,10 +909,18 @@ void MegaClient::exec()
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed(this);
+                        fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
+                        fc->timeout.reset();
                         fc->bt.reset();
                         break;
 
                     case REQ_INFLIGHT:
+                        if (!fc->req.httpio)
+                        {
+                            break;
+                        }
+
                         if (fc->inbytes != fc->req.in.size())
                         {
                             httpio->lock();
@@ -920,12 +934,16 @@ void MegaClient::exec()
 
                         if (!fc->timeout.armed()) break;
 
+                        LOG_warn << "Timeout getting file attr";
                         // timeout! fall through...
-                        fc->req.disconnect();
                     case REQ_FAILURE:
+                        LOG_warn << "Error getting file attr";
                         fc->failed(this);
+                        fc->timeout.reset();
                         fc->bt.backoff();
                         fc->urltime = 0;
+                        fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
                     default:
                         ;
                 }
@@ -937,12 +955,15 @@ void MegaClient::exec()
                     if (Waiter::ds - fc->urltime > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
+                        LOG_debug << "Getting fresh download URL";
+                        fc->timeout.reset();
                         reqs.add(new CommandGetFA(this, cit->first, fc->fahref, httpio->chunkedok));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
                     {
                         // redispatch cached URL if not older than one minute
+                        LOG_debug << "Using cached download URL";
                         fc->dispatch(this);
                     }
                 }
@@ -1225,9 +1246,18 @@ void MegaClient::exec()
 
         if (badhostcs)
         {
-            if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
+            if (badhostcs->status == REQ_SUCCESS)
             {
-                httpio->success = true;
+                LOG_debug << "Successful badhost report";
+                btbadhost.reset();
+                delete badhostcs;
+                badhostcs = NULL;
+            }
+            else if(badhostcs->status == REQ_FAILURE)
+            {
+                LOG_debug << "Failed badhost report. Retrying...";
+                btbadhost.backoff();
+                badhosts = badhostcs->outbuf;
                 delete badhostcs;
                 badhostcs = NULL;
             }
@@ -1776,19 +1806,20 @@ void MegaClient::exec()
 #endif
 
         notifypurge();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
 
-    if (!badhostcs && badhosts.size())
-    {
-        // report hosts affected by failed requests
-        badhostcs = new HttpReq();
-        badhostcs->posturl = APIURL;
-        badhostcs->posturl.append("pf?h");
-        badhostcs->outbuf = badhosts;
-        badhostcs->type = REQ_JSON;
-        badhostcs->post(this);
-        badhosts.clear();
-    }
+        if (!badhostcs && badhosts.size() && btbadhost.armed())
+        {
+            // report hosts affected by failed requests
+            LOG_debug << "Sending badhost report: " << badhosts;
+            badhostcs = new HttpReq();
+            badhostcs->posturl = APIURL;
+            badhostcs->posturl.append("pf?h");
+            badhostcs->outbuf = badhosts;
+            badhostcs->type = REQ_JSON;
+            badhostcs->post(this);
+            badhosts.clear();
+        }
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -1851,6 +1882,12 @@ int MegaClient::preparewait()
         if (!pendingsc && *scsn)
         {
             btsc.update(&nds);
+        }
+
+        // retry failed badhost requests
+        if (!badhostcs)
+        {
+            btbadhost.update(&nds);
         }
 
         // retry failed file attribute puts
@@ -1998,6 +2035,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btcs.arm())
+    {
+        r = true;
+    }
+
+    if (btbadhost.arm())
     {
         r = true;
     }
@@ -2150,12 +2192,58 @@ bool MegaClient::dispatch(direction_t d)
                 const char *pubauth = NULL;
 
                 nextit->second->pos = 0;
+                nextit->second->progresscompleted = 0;
 
-                // always (re)start upload from scratch
+                if (d == GET || nextit->second->cachedtempurl.size())
+                {
+                    m_off_t p = 0;
+
+                    // resume at the end of the last contiguous completed block
+                    for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
+                         it != nextit->second->chunkmacs.end(); it++)
+                    {
+                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
+                        if (chunkceil > nextit->second->size)
+                        {
+                            chunkceil = nextit->second->size;
+                        }
+
+                        if (nextit->second->pos == it->first && it->second.finished)
+                        {
+                            nextit->second->pos = chunkceil;
+                            nextit->second->progresscompleted = chunkceil;
+                        }
+                        else if (it->second.finished)
+                        {
+                            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+                            nextit->second->progresscompleted += chunksize;
+                        }
+                        else
+                        {
+                            nextit->second->progresscompleted += it->second.offset;
+                            p += it->second.offset;
+                        }
+                    }
+
+                    if (nextit->second->progresscompleted > nextit->second->size)
+                    {
+                        LOG_err << "Invalid transfer progress!";
+                        nextit->second->pos = nextit->second->size;
+                        nextit->second->progresscompleted = nextit->second->size;
+                    }
+
+                    LOG_debug << "Resuming transfer at " << nextit->second->pos
+                              << " Completed: " << nextit->second->progresscompleted
+                              << " Partial: " << p;
+                }
+                else
+                {
+                    nextit->second->chunkmacs.clear();
+                }
+
                 if (d == PUT)
                 {
                     nextit->second->size = ts->fa->size;
-                    nextit->second->chunkmacs.clear();
 
                     // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
                     if (gfx && nextit->second->localfilename.size() && !nextit->second->uploadhandle)
@@ -2171,21 +2259,6 @@ bool MegaClient::dispatch(direction_t d)
                 }
                 else
                 {
-                    // downloads resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
-                         it != nextit->second->chunkmacs.end(); it++)
-                    {
-                        if (nextit->second->pos != it->first)
-                        {
-                            break;
-                        }
-
-                        if (nextit->second->size)
-                        {
-                            nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
-                        }
-                    }
-
                     for (file_list::iterator it = nextit->second->files.begin();
                          it != nextit->second->files.end(); it++)
                     {
@@ -2205,10 +2278,19 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                reqs.add((ts->pendingcmd = (d == PUT)
+                if (nextit->second->cachedtempurl.size())
+                {
+                    ts->tempurl =  nextit->second->cachedtempurl;
+                    nextit->second->cachedtempurl.clear();
+                }
+                else
+                {
+                    reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                           : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
+                }
 
+                LOG_debug << "Activating transfer";
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
                 // notify the app about the starting transfer
@@ -2220,12 +2302,32 @@ bool MegaClient::dispatch(direction_t d)
 
                 return true;
             }
+            else
+            {
+                string utf8path;
+                fsaccess->local2path(&nextit->second->localfilename, &utf8path);
+                if (d == GET)
+                {
+                    LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                    nextit->second->failed(API_EWRITE);
+                }
+                else if (!ts->fa->retry)
+                {
+                    LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                    nextit->second->failed(API_EREAD);
+                }
+                else
+                {
+                    LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                    nextit->second->failed(API_EREAD);
+                }
+            }
         }
-
-        LOG_warn << "Error dispatching transfer";
-
-        // file didn't open - fail & defer
-        nextit->second->failed(API_EREAD);
+        else
+        {
+            LOG_err << "Error preparing transfer. No localfilename";
+            nextit->second->failed(API_EREAD);
+        }
     }
 }
 
@@ -2295,7 +2397,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         LOG_warn << "NULL file attribute handle";
     }
 
-    LOG_debug << "Transfer finished, sending callbacks - " << th;
+    LOG_debug << "Transfer finished, sending callbacks - " << th;    
     t->completefiles();
     app->transfer_complete(t);
     delete t;
@@ -2361,6 +2463,11 @@ void MegaClient::disconnect()
         it->second->req.disconnect();
     }
 
+    for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+    {
+        (*it)->errorcount = 0;
+    }
+
     httpio->lastdata = NEVER;
     httpio->disconnect();
 }
@@ -2370,6 +2477,7 @@ void MegaClient::logout()
     if (loggedin() != FULLACCOUNT)
     {
         removecaches();
+        disabletransferresumption();
         locallogout();
 
         restag = reqtag;
@@ -2384,17 +2492,18 @@ void MegaClient::locallogout()
 {
     int i;
 
-    disconnect();
-
     delete sctable;
     sctable = NULL;
 
     me = UNDEF;
-
+    publichandle = UNDEF;
     cachedscsn = UNDEF;
 
     freeq(GET);
     freeq(PUT);
+
+    disconnect();
+    closetc();
 
     purgenodesusersabortsc();
 
@@ -2438,6 +2547,7 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
+    sid.clear();
 
     init();
 
@@ -2521,9 +2631,22 @@ bool MegaClient::procsc()
                             }
                         }
 
-                        app->nodes_current();
                         statecurrent = true;
+                        app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
+
+                        if (tctable && cachedfiles.size())
+                        {
+                            tctable->begin();
+                            for (unsigned int i = 0; i < cachedfiles.size(); i++)
+                            {
+                                tctable->del(cachedfilesdbids.at(i));
+                                app->transfer_resume(&cachedfiles.at(i));
+                            }
+                            cachedfiles.clear();
+                            cachedfilesdbids.clear();
+                            tctable->commit();
+                        }
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
@@ -4466,9 +4589,9 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-// update node attributes - optional newattr is { name, value, name, value, ..., NULL }
+// update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
+error MegaClient::setattr(Node* n, const char *prevattr)
 {
     if (!checkaccess(n, FULL))
     {
@@ -4480,15 +4603,6 @@ error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
     if (!(cipher = n->nodecipher()))
     {
         return API_EKEY;
-    }
-
-    if (newattr)
-    {
-        while (*newattr)
-        {
-            n->attrs.map[nameid(*newattr)] = newattr[1];
-            newattr += 2;
-        }
     }
 
     n->changed.attrs = true;
@@ -5867,10 +5981,21 @@ void MegaClient::opensctable()
     {
         string dbname;
 
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        if (sid.size() >= SIDLEN)
+        {
+            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        }
+        else if (publichandle != UNDEF)
+        {
+            dbname.resize(NODEHANDLE * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
 
-        sctable = dbaccess->open(fsaccess, &dbname);
+        if (dbname.size())
+        {
+            sctable = dbaccess->open(fsaccess, &dbname);
+        }
     }
 }
 
@@ -6524,6 +6649,42 @@ void MegaClient::notifynode(Node* n)
     {
         n->notified = true;
         nodenotify.push_back(n);
+    }
+}
+
+void MegaClient::transfercacheadd(Transfer *transfer)
+{
+    if (tctable)
+    {
+        LOG_debug << "Caching transfer";
+        tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
+    }
+}
+
+void MegaClient::transfercachedel(Transfer *transfer)
+{
+    if (tctable && transfer->dbid)
+    {
+        LOG_debug << "Removing cached transfer";
+        tctable->del(transfer->dbid);
+    }
+}
+
+void MegaClient::filecacheadd(File *file)
+{
+    if (tctable && !file->syncxfer)
+    {
+        LOG_debug << "Caching file";
+        tctable->put(MegaClient::CACHEDFILE, file, &tckey);
+    }
+}
+
+void MegaClient::filecachedel(File *file)
+{
+    if (tctable && !file->syncxfer)
+    {
+        LOG_debug << "Removing cached file";
+        tctable->del(file->dbid);
     }
 }
 
@@ -7219,6 +7380,160 @@ bool MegaClient::fetchsc(DbTable* sctable)
     mergenewshares(0);
 
     return true;
+}
+
+void MegaClient::closetc(bool remove)
+{
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        while (cachedtransfers[d].size())
+        {
+            transfer_map::iterator it = cachedtransfers[d].begin();
+            Transfer *transfer = it->second;
+            m_time_t t = time(NULL) - transfer->lastaccesstime;
+
+            if (remove || (transfer->type == PUT && t >= 86400)
+                    || (t >= 864000))
+            {
+                // remove not resumed transfers from the cache
+                transfer->finished = true;
+            }
+
+            delete transfer;
+            cachedtransfers[d].erase(it);
+        }
+    }
+
+    pendingtcids.clear();
+    cachedfiles.clear();
+    cachedfilesdbids.clear();
+
+    if (remove && tctable)
+    {
+        tctable->remove();
+    }
+    delete tctable;
+    tctable = NULL;
+}
+
+void MegaClient::enabletransferresumption(const char *loggedoutid)
+{
+    if (!dbaccess || tctable)
+    {
+        return;
+    }
+
+    string dbname;
+    if (sid.size() >= SIDLEN)
+    {
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        tckey = key;
+    }
+    else if (publichandle != UNDEF)
+    {
+        dbname.resize(NODEHANDLE * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        tckey = key;
+    }
+    else
+    {
+        dbname = loggedoutid ? loggedoutid : "default";
+
+        string lok;
+        Hash hash;
+        hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
+        hash.get(&lok);
+        tckey.setkey((const byte*)lok.data());
+    }
+
+    dbname.insert(0, "transfers_");
+
+    tctable = dbaccess->open(fsaccess, &dbname);
+    if (!tctable)
+    {
+        return;
+    }
+
+    uint32_t id;
+    string data;
+    Transfer* t;
+
+    LOG_info << "Loading transfers from local cache";
+    tctable->rewind();
+    while (tctable->next(&id, &data, &tckey))
+    {
+        switch (id & 15)
+        {
+            case CACHEDTRANSFER:
+                if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
+                {
+                    t->dbid = id;
+                    LOG_debug << "Cached transfer loaded";
+                }
+                else
+                {
+                    tctable->del(id);
+                    LOG_err << "Failed - transfer record read error";
+                }
+                break;
+            case CACHEDFILE:
+                cachedfiles.push_back(data);
+                cachedfilesdbids.push_back(id);
+                LOG_debug << "Cached file loaded";
+                break;
+        }
+    }
+
+    // if we are logged in but the filesystem is not current yet
+    // postpone the resumption until the filesystem is updated
+    if ((!sid.size() && publichandle == UNDEF) || statecurrent)
+    {
+        tctable->begin();
+        for (unsigned int i = 0; i < cachedfiles.size(); i++)
+        {
+            tctable->del(cachedfilesdbids.at(i));
+            app->transfer_resume(&cachedfiles.at(i));
+        }
+        cachedfiles.clear();
+        cachedfilesdbids.clear();
+        tctable->commit();
+    }
+}
+
+void MegaClient::disabletransferresumption(const char *loggedoutid)
+{
+    if (!dbaccess)
+    {
+        return;
+    }
+    closetc(true);
+
+    string dbname;
+    if (sid.size() >= SIDLEN)
+    {
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+
+    }
+    else if (publichandle != UNDEF)
+    {
+        dbname.resize(NODEHANDLE * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+    }
+    else
+    {
+        dbname = loggedoutid ? loggedoutid : "default";
+    }
+    dbname.insert(0, "transfers_");
+
+    tctable = dbaccess->open(fsaccess, &dbname);
+    if (!tctable)
+    {
+        return;
+    }
+
+    closetc(true);
 }
 
 void MegaClient::fetchnodes()
@@ -8904,7 +9219,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
     syncactivity = true;
 }
 
-void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
+void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 {
     delete[] nn;
 
@@ -8950,7 +9265,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             }
         }
 
-        Transfer* t;
+        Transfer* t = NULL;
         transfer_map::iterator it = transfers[d].find(f);
 
         if (it != transfers[d].end())
@@ -8975,9 +9290,46 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
         }
         else
         {
-            t = new Transfer(this, d);
-            *(FileFingerprint*)t = *(FileFingerprint*)f;
-            t->size = f->size;
+            it = cachedtransfers[d].find(f);
+            if (it != cachedtransfers[d].end())
+            {
+                LOG_debug << "Resumable transfer detected";
+                Transfer *transfer = it->second;
+                FileAccess* fa = fsaccess->newfileaccess();
+                if (fa->fopen(&transfer->localfilename)
+                        && ((d == GET) ||
+                            (d == PUT && (time(NULL) - transfer->lastaccesstime) < 86400
+                                      && !transfer->genfingerprint(fa))))
+                {
+                    LOG_debug << "Resuming transfer";
+                    t = transfer;
+                }
+                else
+                {
+                    if (d == GET)
+                    {
+                        LOG_warn << "Temporary file not found";
+                    }
+                    else
+                    {
+                        LOG_debug << "Cached upload too old or local file changed";
+                    }
+
+                    transfer->finished = true;
+                    delete transfer;
+                }
+
+                delete fa;
+                cachedtransfers[d].erase(it);
+            }
+
+            if (!t)
+            {
+                t = new Transfer(this, d);
+                *(FileFingerprint*)t = *(FileFingerprint*)f;
+                t->size = f->size;
+            }
+
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);
@@ -8992,6 +9344,8 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
         f->file_it = t->files.insert(t->files.begin(), f);
         f->transfer = t;
+
+        filecacheadd(f);
     }
 
     return true;
@@ -9006,12 +9360,14 @@ void MegaClient::stopxfer(File* f)
 
         Transfer *transfer = f->transfer;
         transfer->files.erase(f->file_it);
+        filecachedel(f);
         f->transfer = NULL;
         f->terminated();
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            transfer->finished = true;
             app->transfer_removed(transfer);
             delete transfer;
         }
@@ -9089,6 +9445,7 @@ void MegaClient::setchunkfailed(string* url)
 {
     if (!chunkfailed && url->size() > 19)
     {
+        LOG_debug << "Adding badhost report for URL " << *url;
         chunkfailed = true;
         httpio->success = false;
 
@@ -9107,6 +9464,7 @@ void MegaClient::setchunkfailed(string* url)
         }
         
         badhosts.append(ptr+6,7);
+        btbadhost.reset();
     }
 }
 

@@ -73,18 +73,18 @@ bool PendingContactRequest::serialize(string *d)
 
     d->append((char*)&id, sizeof id);
 
-    l = originatoremail.size();
+    l = (unsigned char)originatoremail.size();
     d->append((char*)&l, sizeof l);
     d->append(originatoremail.c_str(), l);
 
-    l = targetemail.size();
+    l = (unsigned char)targetemail.size();
     d->append((char*)&l, sizeof l);
     d->append(targetemail.c_str(), l);
 
     d->append((char*)&ts, sizeof ts);
     d->append((char*)&uts, sizeof uts);
 
-    l = msg.size();
+    l = (unsigned char)msg.size();
     d->append((char*)&l, sizeof l);
     d->append(msg.c_str(), l);
 

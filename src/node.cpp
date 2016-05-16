@@ -966,7 +966,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->setattr(node, prevname.c_str());
                     sync->client->reqtag = creqtag;
                 }
             }
@@ -1449,7 +1449,7 @@ bool LocalNode::serialize(string* d)
 
     d->append((const char*)&h, MegaClient::NODEHANDLE);
 
-    unsigned short ll = localname.size();
+    unsigned short ll = (unsigned short)localname.size();
 
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);

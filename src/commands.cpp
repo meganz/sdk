@@ -900,6 +900,23 @@ void CommandPutNodes::procresult()
 #endif
     }
 
+    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
+    if (it != client->pendingtcids.end())
+    {
+        if (client->tctable)
+        {
+            vector<uint32_t> &ids = it->second;
+            for (unsigned int i = 0; i< ids.size(); i++)
+            {
+                if (ids[i])
+                {
+                    client->tctable->del(ids[i]);
+                }
+            }
+        }
+        client->pendingtcids.erase(it);
+    }
+
     e = API_EINTERNAL;
 
     for (;;)
@@ -1164,6 +1181,7 @@ void CommandLogout::procresult()
     if(!e)
     {
         client->removecaches();
+        client->disabletransferresumption();
         client->locallogout();
     }
     app->logout_result(e);
@@ -1375,7 +1393,7 @@ void CommandLogin::procresult()
     }
 }
 
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle sh, const char* uid, const byte* key, int len)
+CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
 {
     cmd("k");
     beginarray("sr");
@@ -1800,8 +1818,8 @@ void CommandEnumerateQuotaItems::procresult()
 
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
-                                               const char* currency, unsigned tax,
-                                               const char* country, const char* affiliate)
+                                               const char* currency, unsigned /*tax*/,
+                                               const char* /*country*/, const char* affiliate)
 {
     string sprice;
     sprice.resize(128);
@@ -2176,7 +2194,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, un
     endarray();
 }
 
-CommandKeyCR::CommandKeyCR(MegaClient* client, node_vector* rshares, node_vector* rnodes, const char* keys)
+CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
 {
     cmd("k");
     beginarray("cr");
@@ -2873,7 +2891,7 @@ void CommandCreateEphemeralSession::procresult()
     }
 }
 
-CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient* client, handle cuh, const byte* cpw, int ctag)
+CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
 

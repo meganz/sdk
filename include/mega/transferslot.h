@@ -43,7 +43,7 @@ struct MEGA_API TransferSlot
     // without data flow
     static const dstime XFERTIMEOUT = 600;
 
-    m_off_t progressreported, progresscompleted;
+    m_off_t progressreported;
 
     dstime starttime, lastdata;
 
