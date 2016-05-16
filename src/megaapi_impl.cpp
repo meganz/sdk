@@ -12040,9 +12040,9 @@ int MegaAccountDetailsPrivate::getNumBalances() const
 
 MegaAccountBalance *MegaAccountDetailsPrivate::getBalance(int i) const
 {
-    if (i < (int)details.balances.size())
+    if ((unsigned int)i < details.balances.size())
     {
-        return MegaAccountBalancePrivate::fromAccountBalance(&(details.balances[i]));
+        return MegaAccountBalancePrivate::fromAccountBalance(&(details.balances[(unsigned int)i]));
     }
     return NULL;
 }
@@ -12054,9 +12054,9 @@ int MegaAccountDetailsPrivate::getNumSessions() const
 
 MegaAccountSession *MegaAccountDetailsPrivate::getSession(int i) const
 {
-    if (i < (int)details.sessions.size())
+    if ((unsigned int)i < details.sessions.size())
     {
-        return MegaAccountSessionPrivate::fromAccountSession(&(details.sessions[i]));
+        return MegaAccountSessionPrivate::fromAccountSession(&(details.sessions[(unsigned int)i]));
     }
     return NULL;
 }
@@ -12068,9 +12068,9 @@ int MegaAccountDetailsPrivate::getNumPurchases() const
 
 MegaAccountPurchase *MegaAccountDetailsPrivate::getPurchase(int i) const
 {
-    if (i < (int)details.purchases.size())
+    if ((unsigned int)i < details.purchases.size())
     {
-        return MegaAccountPurchasePrivate::fromAccountPurchase(&(details.purchases[i]));
+        return MegaAccountPurchasePrivate::fromAccountPurchase(&(details.purchases[(unsigned int)i]));
     }
     return NULL;
 }
@@ -12082,9 +12082,9 @@ int MegaAccountDetailsPrivate::getNumTransactions() const
 
 MegaAccountTransaction *MegaAccountDetailsPrivate::getTransaction(int i) const
 {
-    if (i < (int)details.transactions.size())
+    if ((unsigned int)i < details.transactions.size())
     {
-        return MegaAccountTransactionPrivate::fromAccountTransaction(&(details.transactions[i]));
+        return MegaAccountTransactionPrivate::fromAccountTransaction(&(details.transactions[(unsigned int)i]));
     }
     return NULL;
 }
