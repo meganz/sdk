@@ -1407,7 +1407,7 @@ void CommandLogin::procresult()
     }
 }
 
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle sh, const char* uid, const byte* key, int len)
+CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
 {
     cmd("k");
     beginarray("sr");
@@ -1832,8 +1832,8 @@ void CommandEnumerateQuotaItems::procresult()
 
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
-                                               const char* currency, unsigned tax,
-                                               const char* country, const char* affiliate)
+                                               const char* currency, unsigned /*tax*/,
+                                               const char* /*country*/, const char* affiliate)
 {
     string sprice;
     sprice.resize(128);
@@ -2208,7 +2208,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, un
     endarray();
 }
 
-CommandKeyCR::CommandKeyCR(MegaClient* client, node_vector* rshares, node_vector* rnodes, const char* keys)
+CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
 {
     cmd("k");
     beginarray("cr");
@@ -2905,7 +2905,7 @@ void CommandCreateEphemeralSession::procresult()
     }
 }
 
-CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient* client, handle cuh, const byte* cpw, int ctag)
+CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
 

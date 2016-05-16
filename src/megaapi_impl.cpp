@@ -305,19 +305,19 @@ bool MegaNodePrivate::serialize(string *d)
     d->append((char*)&nodehandle, sizeof(nodehandle));
     d->append((char*)&parenthandle, sizeof(parenthandle));
 
-    ll = attrstring.size();
+    ll = (unsigned short)attrstring.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(attrstring.data(), ll);
 
-    ll = nodekey.size();
+    ll = (unsigned short)nodekey.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(nodekey.data(), ll);
 
-    ll = privateAuth.size();
+    ll = (unsigned short)privateAuth.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(privateAuth.data(), ll);
 
-    ll = publicAuth.size();
+    ll = (unsigned short)publicAuth.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(publicAuth.data(), ll);
 
@@ -2898,7 +2898,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime) : MegaFile()
+MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime) : MegaFile()
 {
     // full local path
     localname = *clocalname;
@@ -4643,7 +4643,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -6987,7 +6987,7 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *localNode, const char* path)
+void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, const char* path)
 {
     LOG_debug << "Sync - local folder addition detected: " << path;
     client->abortbackoff(false);
@@ -7019,7 +7019,7 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *localNode, const char* path)
+void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const char* path)
 {
     LOG_debug << "Sync - local file addition detected: " << path;
     client->abortbackoff(false);
@@ -7050,7 +7050,7 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *localNode, const char* path)
+void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const char* path)
 {
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
@@ -7095,7 +7095,7 @@ void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *localNode, const char *path)
+void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
 {
     LOG_debug << "Sync - sending file " << path;
 
@@ -7536,7 +7536,7 @@ void MegaApiImpl::updatepcr_result(error e, ipcactions_t action)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
+void MegaApiImpl::fa_complete(Node*, fatype, const char* data, uint32_t len)
 {
     int tag = client->restag;
     while(tag)
@@ -8478,7 +8478,7 @@ void MegaApiImpl::confirmsignuplink_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::setkeypair_result(error e)
+void MegaApiImpl::setkeypair_result(error)
 {
 
 }
@@ -10550,7 +10550,7 @@ void MegaApiImpl::sendPendingRequests()
 
 			if(!dstFilePath || !node) { e = API_EARGS; break; }
 
-			e = client->getfa(node, type);
+            e = client->getfa(node, (fatype)type);
             if(e == API_EEXIST)
             {
                 e = API_OK;
@@ -10787,7 +10787,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             delete f;
 
-            client->putfa(node->nodehandle, type, node->nodecipher(), attributedata);
+            client->putfa(node->nodehandle, (fatype)type, node->nodecipher(), attributedata);
             //attributedata is not deleted because putfa takes its ownership
             break;
         }
@@ -10835,7 +10835,7 @@ void MegaApiImpl::sendPendingRequests()
 
 			if (!node) { e = API_EARGS; break; }
 
-			e = client->getfa(node, type, 1);
+            e = client->getfa(node, (fatype)type, 1);
 			if (!e)
 			{
 				std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
@@ -12040,7 +12040,7 @@ int MegaAccountDetailsPrivate::getNumBalances() const
 
 MegaAccountBalance *MegaAccountDetailsPrivate::getBalance(int i) const
 {
-    if(i < details.balances.size())
+    if (i < (int)details.balances.size())
     {
         return MegaAccountBalancePrivate::fromAccountBalance(&(details.balances[i]));
     }
@@ -12054,7 +12054,7 @@ int MegaAccountDetailsPrivate::getNumSessions() const
 
 MegaAccountSession *MegaAccountDetailsPrivate::getSession(int i) const
 {
-    if(i < details.sessions.size())
+    if (i < (int)details.sessions.size())
     {
         return MegaAccountSessionPrivate::fromAccountSession(&(details.sessions[i]));
     }
@@ -12068,7 +12068,7 @@ int MegaAccountDetailsPrivate::getNumPurchases() const
 
 MegaAccountPurchase *MegaAccountDetailsPrivate::getPurchase(int i) const
 {
-    if(i < details.purchases.size())
+    if (i < (int)details.purchases.size())
     {
         return MegaAccountPurchasePrivate::fromAccountPurchase(&(details.purchases[i]));
     }
@@ -12082,7 +12082,7 @@ int MegaAccountDetailsPrivate::getNumTransactions() const
 
 MegaAccountTransaction *MegaAccountDetailsPrivate::getTransaction(int i) const
 {
-    if(i < details.transactions.size())
+    if (i < (int)details.transactions.size())
     {
         return MegaAccountTransactionPrivate::fromAccountTransaction(&(details.transactions[i]));
     }
@@ -12097,7 +12097,7 @@ int MegaAccountDetailsPrivate::getTemporalBandwidthInterval()
 long long MegaAccountDetailsPrivate::getTemporalBandwidth()
 {
     long long result = 0;
-    for (int i=0; i < details.transfer_hist.size(); i++)
+    for (unsigned int i = 0; i < details.transfer_hist.size(); i++)
     {
         result += details.transfer_hist[i];
     }
@@ -14579,7 +14579,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     }
 }
 
-void MegaHTTPContext::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
 {
     node = request->getPublicMegaNode();
     nodereceived = true;

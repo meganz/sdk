@@ -139,7 +139,7 @@ public:
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
     // update node attributes
-    error setattr(Node*, const char** = NULL, const char* prevattr = NULL);
+    error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;

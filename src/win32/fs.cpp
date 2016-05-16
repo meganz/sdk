@@ -1067,7 +1067,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 }
 
 // FIXME: implement followsymlinks
-bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
+bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/, nodetype_t* type)
 {
     for (;;)
     {

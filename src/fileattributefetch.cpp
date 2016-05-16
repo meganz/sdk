@@ -86,7 +86,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
 }
 
 // communicate received file attributes to the application
-void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
+void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool final)
 {
 #pragma pack(push,1)
     struct FaHeader

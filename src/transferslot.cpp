@@ -80,7 +80,7 @@ TransferSlot::~TransferSlot()
                             chunk.mac, false, !chunk.finished && !chunk.offset);
 
                 fa->fwrite((const byte*)reqs[i]->buf, bufpos, dlpos);
-                chunk.offset += bufpos;
+                chunk.offset += (unsigned int)bufpos;
             }
         }
 
