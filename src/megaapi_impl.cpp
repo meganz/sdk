@@ -7867,7 +7867,6 @@ void MegaApiImpl::request_error(error e)
     if (e == API_ESID)
     {
         client->removecaches();
-        client->disabletransferresumption();
         client->locallogout();
     }
 

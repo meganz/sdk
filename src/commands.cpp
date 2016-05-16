@@ -1181,7 +1181,6 @@ void CommandLogout::procresult()
     if(!e)
     {
         client->removecaches();
-        client->disabletransferresumption();
         client->locallogout();
     }
     app->logout_result(e);

@@ -2477,7 +2477,6 @@ void MegaClient::logout()
     if (loggedin() != FULLACCOUNT)
     {
         removecaches();
-        disabletransferresumption();
         locallogout();
 
         restag = reqtag;
@@ -2577,6 +2576,8 @@ void MegaClient::removecaches()
         }
     }
 #endif
+
+    disabletransferresumption();
 }
 
 const char *MegaClient::version()
