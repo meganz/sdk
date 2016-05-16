@@ -1330,23 +1330,23 @@ void MegaSDK::upgradeAccount(uint64 productHandle, int paymentMethod)
 	megaApi->upgradeAccount(productHandle, paymentMethod);
 }
 
-void MegaSDK::submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener)
+void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener)
 {
-	std::string utf8receipt;
-	if (receipt != nullptr)
-		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+    std::string utf8receipt;
+    if (receipt != nullptr)
+        MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
 
-	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::submitPurchaseReceipt(String^ receipt)
+void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt)
 {
-	std::string utf8receipt;
-	if (receipt != nullptr)
-		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+    std::string utf8receipt;
+    if (receipt != nullptr)
+        MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
 
-	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL);
+    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL);
 }
 
 void MegaSDK::creditCardStore(String^ address1, String^ address2, String^ city,

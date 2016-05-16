@@ -253,8 +253,8 @@ namespace mega
         void getPaymentId(uint64 productHandle);
         void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
         void upgradeAccount(uint64 productHandle, int paymentMethod);
-        void submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener);
-        void submitPurchaseReceipt(String^ receipt);
+        void submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener);
+        void submitPurchaseReceipt(int gateway, String^ receipt);
         void creditCardStore(String^ address1, String^ address2, String^ city,
             String^ province, String^ country, String^ postalcode,
             String^ firstname, String^ lastname, String^ creditcard,
