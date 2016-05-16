@@ -465,8 +465,8 @@ m_off_t HttpReq::transferred(MegaClient*)
 }
 
 // prepare file chunk download
-bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
-                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
+bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*key*/,
+                        chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
     char urlbuf[256];

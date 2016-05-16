@@ -93,7 +93,7 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
-    ll = localfilename.size();
+    ll = (unsigned short)localfilename.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(localfilename.data(), ll);
 
@@ -102,7 +102,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)key.key, sizeof (key.key));
 
-    ll = chunkmacs.size();
+    ll = (unsigned short)chunkmacs.size();
     d->append((char*)&ll, sizeof(ll));
     for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
     {
@@ -127,13 +127,13 @@ bool Transfer::serialize(string *d)
 
     if (slot)
     {
-        ll = slot->tempurl.size();
+        ll = (unsigned short)slot->tempurl.size();
         d->append((char*)&ll, sizeof(ll));
         d->append(slot->tempurl.data(), ll);
     }
     else
     {
-        ll = cachedtempurl.size();
+        ll = (unsigned short)cachedtempurl.size();
         d->append((char*)&ll, sizeof(ll));
         d->append(cachedtempurl.data(), ll);
     }

@@ -4583,9 +4583,9 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-// update node attributes - optional newattr is { name, value, name, value, ..., NULL }
+// update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
+error MegaClient::setattr(Node* n, const char *prevattr)
 {
     if (!checkaccess(n, FULL))
     {
@@ -4597,15 +4597,6 @@ error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
     if (!(cipher = n->nodecipher()))
     {
         return API_EKEY;
-    }
-
-    if (newattr)
-    {
-        while (*newattr)
-        {
-            n->attrs.map[nameid(*newattr)] = newattr[1];
-            newattr += 2;
-        }
     }
 
     n->changed.attrs = true;
@@ -7411,7 +7402,7 @@ void MegaClient::closetc(bool remove)
     cachedfiles.clear();
     cachedfilesdbids.clear();
 
-    if (remove)
+    if (remove && tctable)
     {
         tctable->remove();
     }
@@ -9222,7 +9213,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
     syncactivity = true;
 }
 
-void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
+void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 {
     delete[] nn;
 
