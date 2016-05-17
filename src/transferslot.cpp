@@ -266,6 +266,7 @@ void TransferSlot::doio(MegaClient* client)
                                 else
                                 {
                                     delete [] transfer->ultoken;
+                                    transfer->ultoken = NULL;
                                 }
                             }
 
