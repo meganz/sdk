@@ -5106,6 +5106,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         dp.push_back(n);
                     }
                 }
+
+                if (a && k && n->attrstring)
+                {
+                    LOG_warn << "Updating the key of a NO_KEY node";
+                    Node::copystring(n->attrstring, a);
+                    Node::copystring(&n->nodekey, k);
+                }
             }
             else
             {
