@@ -271,8 +271,6 @@ void TransferSlot::doio(MegaClient* client)
                             }
 
                             LOG_debug << "Invalid upload token: " << reqs[i]->in;
-                            transfer->progresscompleted -= reqs[i]->size;
-                            transfer->chunkmacs[reqs[i]->pos].finished = false;
 
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
@@ -309,7 +307,6 @@ void TransferSlot::doio(MegaClient* client)
                                 {
                                     LOG_warn << "MAC verification failed";
                                     transfer->chunkmacs.clear();
-                                    transfer->progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
                                 }
                             }

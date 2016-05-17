@@ -332,8 +332,15 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    if (type == PUT)
     {
+        chunkmacs.clear();
+        progresscompleted = 0;
+        pos = 0;
+    }
+
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    {        
         failcount++;
         delete slot;
 
