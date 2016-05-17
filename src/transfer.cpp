@@ -43,6 +43,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     progresscompleted = 0;
     finished = false;
     lastaccesstime = time(NULL);
+    ultoken = NULL;
 
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
@@ -75,6 +76,11 @@ Transfer::~Transfer()
     if (slot)
     {
         delete slot;
+    }
+
+    if (ultoken)
+    {
+        delete [] ultoken;
     }
 
     if (finished)
@@ -123,7 +129,19 @@ bool Transfer::serialize(string *d)
     }
 
     d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
-    d->append((const char*)ultoken, sizeof(ultoken));
+
+    char hasUltoken;
+    if (ultoken)
+    {
+        hasUltoken = 1;
+        d->append((const char*)&hasUltoken, sizeof(char));
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN + 1);
+    }
+    else
+    {
+        hasUltoken = 0;
+        d->append((const char*)&hasUltoken, sizeof(char));
+    }
 
     if (slot)
     {
@@ -230,7 +248,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ptr = d->data();
     end = ptr + d->size();
 
-    if (ptr + sizeof(m_time_t) + sizeof(t->ultoken) + sizeof(unsigned short) > end)
+    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
@@ -240,8 +258,24 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    memcpy(t->ultoken, ptr, sizeof(t->ultoken));
-    ptr += sizeof(t->ultoken);
+
+    bool hasUltoken = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    ll = hasUltoken ? NewNode::UPLOADTOKENLEN + 1 : 0;
+    if (ptr + ll + sizeof(unsigned short) > end)
+    {
+        LOG_err << "Transfer unserialization failed - ultoken too long";
+        delete t;
+        return NULL;
+    }
+
+    if (hasUltoken)
+    {
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
+        memcpy(t->ultoken, ptr, NewNode::UPLOADTOKENLEN + 1);
+        ptr += (NewNode::UPLOADTOKENLEN + 1);
+    }
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
 
