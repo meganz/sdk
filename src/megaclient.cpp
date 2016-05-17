@@ -3927,7 +3927,7 @@ void MegaClient::sc_opc()
 
                 pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
 
-                if (dts != 0)
+                if (dts != 0) // delete PCR
                 {
                     // this is a delete, find the existing object in state
                     if (pcr)
@@ -3936,48 +3936,29 @@ void MegaClient::sc_opc()
                         pcr->changed.deleted = true;
                     }
                 }
-                else if (pcr)
+                else if (!e || !m || ts == 0 || uts == 0)
                 {
-                    // reminder
-                    if (uts == 0)
-                    {
-                        LOG_err << "uts element not provided";
-                        break;
-                    }
+                    LOG_err << "Pending Contact Request is incomplete.";
+                    break;
+                }
+                else if (ts == uts) // add PCR
+                {
+                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                    mappcr(p, pcr);
+                }
+                else    // remind PCR
+                {
                     if (rts == 0)
                     {
-                        LOG_err << "rts element not provided";
-                        break;
-                    }
-                    pcr->uts = uts;
-                    pcr->changed.reminded = true;
-                }
-                else
-                {
-                    // new
-                    if (!e)
-                    {
-                        LOG_err << "e element not provided";
-                        break;
-                    }
-                    if (!m)
-                    {
-                        LOG_err << "m element not provided";
-                        break;
-                    }
-                    if (ts == 0)
-                    {
-                        LOG_err << "ts element not provided";
-                        break;
-                    }
-                    if (uts == 0)
-                    {
-                        LOG_err << "uts element not provided";
+                        LOG_err << "Pending Contact Request is incomplete (rts element).";
                         break;
                     }
 
-                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-                    mappcr(p, pcr);
+                    if (pcr)
+                    {
+                        pcr->uts = rts;
+                        pcr->changed.reminded = true;
+                    }
                 }
                 notifypcr(pcr);
 

@@ -1661,7 +1661,10 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    notself(client);
+    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    {
+        notself(client);
+    }
 
     tag = client->reqtag;
     this->action = action;
@@ -1675,7 +1678,7 @@ void CommandSetPendingContact::procresult()
         error e = (error)client->json.getint();
 
         handle pcrhandle = UNDEF;
-        if (!e) // delete & remind actions response
+        if (!e) // response for delete & remind actions is always numeric
         {
             // find the PCR by email
             PendingContactRequest *pcr;
@@ -1695,16 +1698,9 @@ void CommandSetPendingContact::procresult()
                 LOG_err << "Reminded/deleted PCR not found";
                 e = API_EINTERNAL;
             }
-            else
+            else if (action == OPCA_DELETE)
             {
-                if (action == OPCA_DELETE)
-                {
-                    pcr->changed.deleted = true;
-                }
-                else if (action == OPCA_REMIND)
-                {
-                    pcr->changed.reminded = true;
-                }
+                pcr->changed.deleted = true;
                 client->notifypcr(pcr);
             }
         }
@@ -1758,26 +1754,15 @@ void CommandSetPendingContact::procresult()
                     return;
                 }
 
-                switch (action)
+                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
                 {
-                    case OPCA_DELETE:
-                        // TODO: currently, API returns a numeric value for deletions
-                        break;
-                    case OPCA_REMIND:
-                        // TODO: currently, API returns a numeric value for reminders
-                        break;
-
-                    case OPCA_ADD:
-                        if (!e || !m || ts == 0 || uts == 0)
-                        {
-                            LOG_err << "Error creating a PCR: missing paramenters.";
-                            client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
-                            return;
-                        }
-                        pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-                        client->mappcr(p, pcr);
-                        break;
+                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
                 }
+
+                pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                client->mappcr(p, pcr);
 
                 client->notifypcr(pcr);
                 client->app->setpcr_result(p, API_OK, this->action);
