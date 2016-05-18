@@ -2280,6 +2280,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 if (nextit->second->cachedtempurl.size())
                 {
+                    app->transfer_prepare(nextit->second);
                     ts->tempurl =  nextit->second->cachedtempurl;
                     nextit->second->cachedtempurl.clear();
                 }
