@@ -261,6 +261,15 @@ void TransferSlot::doio(MegaClient* client)
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
 
                                     client->transfercacheadd(transfer);
+
+                                    if (transfer->progresscompleted != progressreported)
+                                    {
+                                        progressreported = transfer->progresscompleted;
+                                        lastdata = Waiter::ds;
+
+                                        progress();
+                                    }
+
                                     return transfer->complete();
                                 }
                                 else
@@ -301,6 +310,15 @@ void TransferSlot::doio(MegaClient* client)
                                 if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
                                 {
                                     client->transfercacheadd(transfer);
+
+                                    if (transfer->progresscompleted != progressreported)
+                                    {
+                                        progressreported = transfer->progresscompleted;
+                                        lastdata = Waiter::ds;
+
+                                        progress();
+                                    }
+
                                     return transfer->complete();
                                 }
                                 else
