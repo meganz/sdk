@@ -182,11 +182,23 @@ void TransferSlot::doio(MegaClient* client)
 {
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size))
     {
-        // this is a pending completion, retry every 200 ms by default
-        retrybt.backoff(2);
-        retrying = true;
+        if (transfer->type == GET || transfer->ultoken)
+        {
+            // this is a pending completion, retry every 200 ms by default
+            retrybt.backoff(2);
+            retrying = true;
 
-        return transfer->complete();
+            return transfer->complete();
+        }
+        else
+        {
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+            client->sendevent(99410, "No upload token available");
+            client->reqtag = creqtag;
+
+            return transfer->failed(API_EINTERNAL);
+        }
     }
 
     retrying = false;
@@ -235,6 +247,11 @@ void TransferSlot::doio(MegaClient* client)
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
                             {                                        
                                 LOG_debug << "Upload token received";
+                                if (!transfer->ultoken)
+                                {
+                                    transfer->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
+                                }
+
                                 if (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN + 1)
                                     == NewNode::UPLOADTOKENLEN)
                                 {
@@ -246,15 +263,28 @@ void TransferSlot::doio(MegaClient* client)
                                     client->transfercacheadd(transfer);
                                     return transfer->complete();
                                 }
+                                else
+                                {
+                                    delete [] transfer->ultoken;
+                                    transfer->ultoken = NULL;
+                                }
                             }
 
                             LOG_debug << "Invalid upload token: " << reqs[i]->in;
-                            transfer->progresscompleted -= reqs[i]->size;
-                            transfer->chunkmacs[reqs[i]->pos].finished = false;
 
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
-                        }                        
+                        }
+
+                        if (transfer->progresscompleted == transfer->size)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99409, "No upload token received");
+                            client->reqtag = creqtag;
+
+                            return transfer->failed(API_EINTERNAL);
+                        }
                     }
                     else
                     {
@@ -277,7 +307,6 @@ void TransferSlot::doio(MegaClient* client)
                                 {
                                     LOG_warn << "MAC verification failed";
                                     transfer->chunkmacs.clear();
-                                    transfer->progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
                                 }
                             }
