@@ -6967,7 +6967,7 @@ class MegaApi
          * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
          *
          * You can use MegaApi::startDownload with the resulting node with any instance
-         * if MegaApi, even if it's logged into another account, a public folder, or not
+         * of MegaApi, even if it's logged into another account, a public folder, or not
          * logged in.
          *
          * If the first parameter is a public node or an already authorized node, this

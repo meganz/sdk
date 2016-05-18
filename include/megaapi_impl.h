@@ -232,7 +232,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual char *getPublicLink();
         virtual bool isFile();
         virtual bool isFolder();
-        bool isRemoved();
+        virtual bool isRemoved();
         virtual bool hasChanged(int changeType);
         virtual int getChanges();
         virtual bool hasThumbnail();
@@ -244,8 +244,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isForeign();
         virtual std::string* getPrivateAuth();
         virtual void setPrivateAuth(const char *privateAuth);
-        virtual void setPublicAuth(const char *publicAuth);
-        virtual void setForeign(bool foreign);
+        void setPublicAuth(const char *publicAuth);
+        void setForeign(bool foreign);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
