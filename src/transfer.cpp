@@ -277,8 +277,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         ptr += (NewNode::UPLOADTOKENLEN + 1);
     }
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
-
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
@@ -300,6 +298,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr += 10;
 
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
 }
 
