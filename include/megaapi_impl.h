@@ -244,6 +244,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isForeign();
         virtual std::string* getPrivateAuth();
         virtual void setPrivateAuth(const char *privateAuth);
+        virtual void setPublicAuth(const char *publicAuth);
+        virtual void setForeign(bool foreign);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
@@ -1394,6 +1396,8 @@ class MegaApiImpl : public MegaApp
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
+
+        MegaNode *authorizeNode(MegaNode *node);
 
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 

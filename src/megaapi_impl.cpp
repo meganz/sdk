@@ -889,6 +889,23 @@ void MegaNodePrivate::setPrivateAuth(const char *privateAuth)
     }
 }
 
+void MegaNodePrivate::setPublicAuth(const char *publicAuth)
+{
+    if (!publicAuth || !publicAuth[0])
+    {
+        this->publicAuth.clear();
+    }
+    else
+    {
+        this->publicAuth = publicAuth;
+    }
+}
+
+void MegaNodePrivate::setForeign(bool foreign)
+{
+    this->foreign = foreign;
+}
+
 string *MegaNodePrivate::getPublicAuth()
 {
     return &publicAuth;
@@ -5962,6 +5979,40 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
                                privateauth, publicauth, false, true);
 }
 
+MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    if (node->isPublic() || node->isForeign())
+    {
+        return node->copy();
+    }
+
+    MegaNodePrivate *result = NULL;
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(node->getHandle());
+    if (n)
+    {
+        result = new MegaNodePrivate(node);
+        result->setForeign(true);
+        if (client->sid.size())
+        {
+            result->setPrivateAuth(client->sid.c_str());
+        }
+        else
+        {
+            char *h = MegaApi::handleToBase64(client->getrootpublicfolder());
+            result->setPublicAuth(h);
+            delete [] h;
+        }
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_BALANCING, listener);
@@ -9925,8 +9976,13 @@ void MegaApiImpl::sendPendingTransfers()
                     node = client->nodebyhandle(nodehandle);
                 }
 
-                if ((!node && !publicNode) ||
-                        (!transfer->isStreamingTransfer() && !parentPath && !fileName))
+                if (!node && !publicNode)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+
+                if (!transfer->isStreamingTransfer() && !parentPath && !fileName)
                 {
                     e = API_EARGS;
                     break;
