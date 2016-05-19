@@ -1232,13 +1232,36 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
 
-    requestFlags[0][MegaRequest::TYPE_UPLOAD] = false;
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
     megaApi->startUpload(PUBLICFILE.data(), megaApi->getNodeByHandle(hfolder1));
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_UPLOAD]);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 0);   // wait forever
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
     hfile1 = h;
 
+
+    // --- Download authorized node from another account ---
+
+    MegaNode *nNoAuth = megaApi->getNodeByHandle(hfile1);
+
+    transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApiAux->startDownload(nNoAuth, "unauthorized_node");
+    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
+
+    bool hasFailed = (lastError != API_OK);
+    ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
+
+    MegaNode *nAuth = megaApi->authorizeNode(nNoAuth);
+
+    transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApiAux->startDownload(nAuth, "authorized_node");
+    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot download authorized node (error: " << lastError << ")";
+
+    delete nNoAuth;
+    delete nAuth;
+    return;
 
     // Initialize a test scenario: create a new contact to share to
 
