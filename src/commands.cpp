@@ -66,6 +66,7 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 void HttpReqCommandPutFA::procresult()
 {
     error e;
+    client->looprequested = true;
 
     if (client->json.isnumeric())
     {
@@ -138,6 +139,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunke
 void CommandGetFA::procresult()
 {
     fafc_map::iterator it = client->fafcs.find(part);
+    client->looprequested = true;
 
     if (client->json.isnumeric())
     {
@@ -179,6 +181,15 @@ void CommandGetFA::procresult()
                     }
                     else
                     {
+                        faf_map::iterator fafsit;
+                        for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
+                        {
+                            // move from fresh to pending
+                            it->second->fafs[1][fafsit->first] = fafsit->second;
+                            it->second->fafs[0].erase(fafsit++);
+                        }
+
+                        it->second->e = API_EINTERNAL;
                         it->second->req.status = REQ_FAILURE;
                     }
                 }
@@ -188,6 +199,15 @@ void CommandGetFA::procresult()
             default:
                 if (!client->json.storeobject())
                 {
+                    faf_map::iterator fafsit;
+                    for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
+                    {
+                        // move from fresh to pending
+                        it->second->fafs[1][fafsit->first] = fafsit->second;
+                        it->second->fafs[0].erase(fafsit++);
+                    }
+
+                    it->second->e = API_EINTERNAL;
                     it->second->req.status = REQ_FAILURE;
                     return;
                 }
@@ -858,6 +878,23 @@ void CommandPutNodes::procresult()
 {
     error e;
 
+    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
+    if (it != client->pendingtcids.end())
+    {
+        if (client->tctable)
+        {
+            vector<uint32_t> &ids = it->second;
+            for (unsigned int i = 0; i< ids.size(); i++)
+            {
+                if (ids[i])
+                {
+                    client->tctable->del(ids[i]);
+                }
+            }
+        }
+        client->pendingtcids.erase(it);
+    }
+
     if (client->json.isnumeric())
     {
         e = (error)client->json.getint();
@@ -898,23 +935,6 @@ void CommandPutNodes::procresult()
             return client->putnodes_syncdebris_result(e, nn);
         }
 #endif
-    }
-
-    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
-    if (it != client->pendingtcids.end())
-    {
-        if (client->tctable)
-        {
-            vector<uint32_t> &ids = it->second;
-            for (unsigned int i = 0; i< ids.size(); i++)
-            {
-                if (ids[i])
-                {
-                    client->tctable->del(ids[i]);
-                }
-            }
-        }
-        client->pendingtcids.erase(it);
     }
 
     e = API_EINTERNAL;

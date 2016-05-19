@@ -1330,23 +1330,23 @@ void MegaSDK::upgradeAccount(uint64 productHandle, int paymentMethod)
 	megaApi->upgradeAccount(productHandle, paymentMethod);
 }
 
-void MegaSDK::submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener)
+void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener)
 {
-	std::string utf8receipt;
-	if (receipt != nullptr)
-		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+    std::string utf8receipt;
+    if (receipt != nullptr)
+        MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
 
-	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::submitPurchaseReceipt(String^ receipt)
+void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt)
 {
-	std::string utf8receipt;
-	if (receipt != nullptr)
-		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+    std::string utf8receipt;
+    if (receipt != nullptr)
+        MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
 
-	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL);
+    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL);
 }
 
 void MegaSDK::creditCardStore(String^ address1, String^ address2, String^ city,
@@ -1866,6 +1866,34 @@ void MegaSDK::pauseTransfers(bool pause, MRequestListenerInterface^ listener)
 void MegaSDK::pauseTransfers(bool pause)
 {
 	megaApi->pauseTransfers(pause);
+}
+
+void MegaSDK::enableTransferResumption(String^ loggedOutId)
+{
+    std::string utf8loggedOutId;
+    if (loggedOutId != nullptr)
+        MegaApi::utf16ToUtf8(loggedOutId->Data(), loggedOutId->Length(), &utf8loggedOutId);
+
+    megaApi->enableTransferResumption((loggedOutId != nullptr) ? utf8loggedOutId.c_str() : NULL);
+}
+
+void MegaSDK::enableTransferResumption()
+{
+    megaApi->enableTransferResumption();
+}
+
+void MegaSDK::disableTransferResumption(String^ loggedOutId)
+{
+    std::string utf8loggedOutId;
+    if (loggedOutId != nullptr)
+        MegaApi::utf16ToUtf8(loggedOutId->Data(), loggedOutId->Length(), &utf8loggedOutId);
+
+    megaApi->disableTransferResumption((loggedOutId != nullptr) ? utf8loggedOutId.c_str() : NULL);
+}
+
+void MegaSDK::disableTransferResumption()
+{
+    megaApi->disableTransferResumption();
 }
 
 bool MegaSDK::areTransfersPaused(int direction)
@@ -2391,6 +2419,15 @@ MNodeList^ MegaSDK::search(MNode^ node, String^ searchString)
         MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
     return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, true), true);
+}
+
+MNodeList^ MegaSDK::globalSearch(String^ searchString)
+{
+    std::string utf8search;
+    if (searchString != nullptr)
+        MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
+
+    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL), true);
 }
 
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive)

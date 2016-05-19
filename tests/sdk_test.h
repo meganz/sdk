@@ -52,49 +52,31 @@ class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener
 
 public:
     MegaApi *megaApi = NULL;
-    string email;
-    string pwd;
+    MegaApi *megaApiAux = NULL;
+    string email, emailaux, pwd;
 
     int lastError;
 
-    bool loggingReceived;
-    bool fetchnodesReceived;
-    bool logoutReceived;
-    bool responseReceived;
+    // flags to monitor the completion of requests/transfers
+    bool requestFlags[2][MegaRequest::TYPE_SET_PROXY];
+    bool transferFlags[2][MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
 
-    bool downloadFinished;
-    bool uploadFinished;
-    bool transfersCancelled;
-    bool transfersPaused;
-
+    // relevant values received in response of requests
     MegaHandle h;
-
-    MegaApi *megaApiAux = NULL;
-    string emailaux;
+    string link;
+    MegaNode *publicNode;
+    string attributeValue;
 
     MegaContactRequest *cr, *craux;
 
-    bool contactInvitationFinished;
-    bool contactReplyFinished;
-    bool contactRequestUpdated;
-    bool contactRequestUpdatedAux;
-    bool contactRemoved;
-
-    bool nodeUpdated;
-    bool nodeUpdatedAux;
-
-    bool userUpdated;
-    bool userUpdatedAux;
-    bool userAttributeReceived;
-    string attributeValue;
-
-    string link;
-    MegaNode *publicNode;
+    // flags to monitor the updates of nodes/users/PCRs due to actionpackets
+    bool nodeUpdated[2];
+    bool userUpdated[2];
+    bool contactRequestUpdated[2];
 
 #ifdef ENABLE_CHAT
-    bool chatUpdated;
-    bool chatUpdatedAux;
-    MegaTextChatList *chats;
+    bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
+    MegaTextChatList *chats;    // received in response of requests
 #endif
 
 private:

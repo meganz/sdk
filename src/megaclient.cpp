@@ -673,6 +673,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    looprequested = false;
 
     init();
 
@@ -793,6 +794,8 @@ void MegaClient::exec()
     }
 
     do {
+        looprequested = false;
+
         // file attribute puts (handled sequentially as a FIFO)
         if (curfa != newfa.end())
         {
@@ -894,7 +897,6 @@ void MegaClient::exec()
             // file attribute fetching (handled in parallel on a per-cluster basis)
             // cluster channels are never purged
             fafc_map::iterator cit;
-            faf_map::iterator it;
             FileAttributeFetchChannel* fc;
 
             for (cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -1819,7 +1821,7 @@ void MegaClient::exec()
             badhostcs->post(this);
             badhosts.clear();
         }
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -2280,6 +2282,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 if (nextit->second->cachedtempurl.size())
                 {
+                    app->transfer_prepare(nextit->second);
                     ts->tempurl =  nextit->second->cachedtempurl;
                     nextit->second->cachedtempurl.clear();
                 }
@@ -5105,6 +5108,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         n->parenthandle = ph;
                         dp.push_back(n);
                     }
+                }
+
+                if (a && k && n->attrstring)
+                {
+                    LOG_warn << "Updating the key of a NO_KEY node";
+                    Node::copystring(n->attrstring, a);
+                    Node::copystring(&n->nodekey, k);
                 }
             }
             else
