@@ -5981,7 +5981,7 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
 
 MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
 {
-    if (!node)
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
     {
         return NULL;
     }
@@ -5994,7 +5994,7 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
     MegaNodePrivate *result = NULL;
     sdkMutex.lock();
     Node *n = client->nodebyhandle(node->getHandle());
-    if (n)
+    if (n && n->type == FILENODE)
     {
         result = new MegaNodePrivate(node);
         result->setForeign(true);
