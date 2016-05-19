@@ -9161,7 +9161,7 @@ int naturalsorting_compare (const char *i, const char *j)
                     return 1;
                 }
 
-                int difference = char_i - char_j;
+                int difference = strncasecmp((char *)&char_i, (char *)&char_j, 1);
                 if (difference)
                 {
                     return difference;
