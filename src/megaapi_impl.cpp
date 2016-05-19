@@ -11350,6 +11350,8 @@ void MegaApiImpl::sendPendingRequests()
             while(it != client->syncs.end())
             {
                 Sync *sync = (*it);
+                it++;
+
                 int tag = sync->tag;
                 if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
                 {
@@ -11367,9 +11369,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     fireOnRequestFinish(request, MegaError(API_OK));
                     found = true;
-                    break;
                 }
-                it++;
             }
 
             if(!found) e = API_ENOENT;
