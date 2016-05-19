@@ -37,10 +37,15 @@ void SdkTest::SetUp()
 
     if (megaApi == NULL)
     {
+        sdklog.open("SDK.log", ios::out | ios::app);
+        sdklogaux.open("SDKaux.log", ios::out | ios::app);  // create if not exists
+        MegaApi::setLoggerObject(this);
+
         char path[1024];
         getcwd(path, sizeof path);
         megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
+        megaApi->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi->addListener(this);
 
         ASSERT_NO_FATAL_FAILURE( login() );
@@ -84,6 +89,10 @@ void SdkTest::TearDown()
             ASSERT_NO_FATAL_FAILURE( logout() );
 
         delete megaApi;
+
+        MegaApi::setLoggerObject(NULL);
+        sdklog.close();
+        sdklogaux.close();
     }
 }
 
@@ -541,6 +550,7 @@ void SdkTest::getMegaApiAux()
         getcwd(path, sizeof path);
         megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
+        megaApiAux->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApiAux->addListener(this);
 
         loggingReceived = false;
@@ -730,6 +740,12 @@ void SdkTest::getContactRequest(bool outgoing, int expectedSize)
     delete crl;
 }
 
+void SdkTest::log(const char *time, int loglevel, const char *source, const char *message)
+{
+    sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
+    sdklog << message << " (" << source << ")" << endl;
+}
+
 void SdkTest::setUserAttribute(int type, string value, int timeout)
 {
     responseReceived = false;
@@ -803,6 +819,8 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  */
 TEST_F(SdkTest, SdkTestResumeSession)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
+
     char *session = dumpSession();
     ASSERT_NO_FATAL_FAILURE( locallogout() );
 
@@ -830,6 +848,8 @@ TEST_F(SdkTest, SdkTestResumeSession)
  */
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
+
     // --- Create a new folder ---
 
     MegaNode *rootnode = megaApi->getRootNode();
@@ -965,6 +985,8 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
+
     MegaNode *rootnode = megaApi->getRootNode();
     string filename1 = UPFILE;
     createFile(filename1);
@@ -1091,7 +1113,10 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
+
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
 
     // --- Check my email and the email of the contact ---
@@ -1364,13 +1389,16 @@ TEST_F(SdkTest, SdkTestContacts)
  */
 TEST_F(SdkTest, SdkTestShares)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
+
     MegaShareList *sl;
     MegaShare *s;
     MegaNodeList *nl;
     MegaNode *n;
     MegaNode *n1;
 
-    getMegaApiAux();    // login + fetchnodes
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
 
     // Initialize a test scenario : create some folders/files to share
@@ -1619,7 +1647,10 @@ TEST_F(SdkTest, SdkTestShares)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
+
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
 
     // --- Send a new contact request ---
 

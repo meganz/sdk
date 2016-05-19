@@ -25,6 +25,9 @@
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 
+#include <iostream>
+#include <fstream>
+
 using namespace mega;
 using ::testing::Test;
 
@@ -45,7 +48,7 @@ static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
+class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
     MegaApi *megaApi = NULL;
@@ -95,7 +98,8 @@ public:
 #endif
 
 private:
-
+    ofstream sdklog;
+    ofstream sdklogaux;
 
 protected:
     virtual void SetUp();
@@ -162,4 +166,5 @@ public:
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
 
+    void log(const char *time, int loglevel, const char *source, const char *message);
 };
