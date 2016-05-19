@@ -5996,18 +5996,20 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
     Node *n = client->nodebyhandle(node->getHandle());
     if (n && n->type == FILENODE)
     {
+        char *h = NULL;
         result = new MegaNodePrivate(node);
         result->setForeign(true);
         if (client->sid.size())
         {
-            result->setPrivateAuth(client->sid.c_str());
+            h = getAccountAuth();
+            result->setPrivateAuth(h);
         }
         else
         {
-            char *h = MegaApi::handleToBase64(client->getrootpublicfolder());
-            result->setPublicAuth(h);
-            delete [] h;
+            h = MegaApi::handleToBase64(client->getrootpublicfolder());
+            result->setPublicAuth(h);            
         }
+        delete [] h;
     }
     sdkMutex.unlock();
     return result;
