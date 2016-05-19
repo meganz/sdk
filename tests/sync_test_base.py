@@ -100,8 +100,8 @@ def generate_unicode_name(first_symbol, i):
     else:
         s = get_exotic_str(strlen)
     #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
-	global cogen
-	cogen=cogen+1
+    global cogen
+    cogen=cogen+1
     return str(cogen)+"_"+s
 
 
