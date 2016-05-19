@@ -130,6 +130,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         h = FreeImage_GetHeight(dib);
     }
 
+    if (!w || !h)
+    {
+        return false;
+    }
+
     return true;
 }
 

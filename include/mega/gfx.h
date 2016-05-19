@@ -65,6 +65,7 @@ public:
     static const int dimensions[][2];
     
     MegaClient* client;
+    int w, h;
 
     GfxProc();
     virtual ~GfxProc() { }

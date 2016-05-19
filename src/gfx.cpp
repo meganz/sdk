@@ -126,7 +126,17 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
                 jpeg = new string;
             }
 
-            if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
+            int w = dimensions[i][0];
+            int h = dimensions[i][1];
+            if (i == (sizeof dimensions/sizeof dimensions[0] - 1)
+                    && this->w < w && this->h < h )
+            {
+                LOG_debug << "Skipping upsizing of preview";
+                w = this->w;
+                h = this->h;
+            }
+
+            if (missing & (1 << i) && resizebitmap(w, h, jpeg))
             {
                 // store the file attribute data - it will be attached to the file
                 // immediately if the upload has already completed; otherwise, once
