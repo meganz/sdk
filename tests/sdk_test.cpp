@@ -74,10 +74,7 @@ void SdkTest::TearDown()
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            if (ul->get(i)->getVisibility() == MegaUser::VISIBILITY_VISIBLE)
-            {
-                megaApi->removeContact(ul->get(i));
-            }
+            removeContact(ul->get(i)->getEmail());
         }
 
         // Remove pending contact requests
@@ -491,6 +488,13 @@ void SdkTest::removeContact(string email, int timeout)
     MegaUser *u = megaApi->getContact(email.data());
     bool null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the specified contact (" << email << ")";
+
+    if (u->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        userUpdated[0] = true;  // nothing to do
+        delete u;
+        return;
+    }
 
     requestFlags[0][MegaRequest::TYPE_REMOVE_CONTACT] = false;
     megaApi->removeContact(u);
