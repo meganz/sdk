@@ -37,9 +37,8 @@ void SdkTest::SetUp()
 
     if (megaApi == NULL)
     {
-        sdklog.open("SDK.log", ios::out | ios::app);
-        sdklogaux.open("SDKaux.log", ios::out | ios::app);  // create if not exists
-        MegaApi::setLoggerObject(this);
+        logger = new MegaLoggerSDK("SDK.log");
+        MegaApi::setLoggerObject(logger);
 
         char path[1024];
         getcwd(path, sizeof path);
@@ -95,8 +94,7 @@ void SdkTest::TearDown()
         delete megaApi;
 
         MegaApi::setLoggerObject(NULL);
-        sdklog.close();
-        sdklogaux.close();
+        delete logger;
     }
 }
 
@@ -600,7 +598,17 @@ void SdkTest::getContactRequest(bool outgoing, int expectedSize)
     delete crl;
 }
 
-void SdkTest::log(const char *time, int loglevel, const char *source, const char *message)
+MegaLoggerSDK::MegaLoggerSDK(const char *filename)
+{
+    sdklog.open(filename, ios::out | ios::app);
+}
+
+MegaLoggerSDK::~MegaLoggerSDK()
+{
+    sdklog.close();
+}
+
+void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, const char *message)
 {
     sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
     sdklog << message << " (" << source << ")" << endl;
