@@ -101,6 +101,10 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
 
     CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
                                                                        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    if (!imageOptions) {
+        return false;
+    }
+    
     CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
 
     imageSource = CGImageSourceCreateWithDataProvider(dataProvider, imageOptions);
@@ -124,6 +128,8 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         }
         CFRelease(imageProperties);
     }
+    CFRelease(imageOptions);
+    
     if (!(w && h)) { // trying to get fake size from thumbnail
         CGImageRef thumbnail = createThumbnailWithMaxSize(100);
         if (!thumbnail) {
