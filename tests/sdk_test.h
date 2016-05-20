@@ -25,6 +25,9 @@
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 
+#include <iostream>
+#include <fstream>
+
 using namespace mega;
 using ::testing::Test;
 
@@ -44,8 +47,21 @@ static const string DOWNFILE    = "file2.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
+class MegaLoggerSDK : public MegaLogger {
+
+public:
+    MegaLoggerSDK(const char *filename);
+    ~MegaLoggerSDK();
+
+private:
+    ofstream sdklog;
+
+protected:
+    void log(const char *time, int loglevel, const char *source, const char *message);
+};
+
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
+class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
     MegaApi *megaApi = NULL;
@@ -76,8 +92,7 @@ public:
     MegaTextChatList *chats;    // received in response of requests
 #endif
 
-private:
-
+    MegaLoggerSDK *logger;
 
 protected:
     virtual void SetUp();
@@ -143,5 +158,4 @@ public:
     void fetchChats(int timeout = maxTimeout);
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
-
 };
