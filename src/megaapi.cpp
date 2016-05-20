@@ -1948,6 +1948,11 @@ MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, 
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
 }
 
+MegaNode *MegaApi::authorizeNode(MegaNode *node)
+{
+    return pImpl->authorizeNode(node);
+}
+
 const char *MegaApi::getVersion()
 {
     return pImpl->getVersion();

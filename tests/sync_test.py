@@ -233,15 +233,24 @@ class SyncTest(SyncTestBase):
                 with open(fname_out, 'a') as f_out:
                     f_out.write(get_random_str(100))
 
-                self.app.sync()
+                for _ in range(50):
+                    self.app.sync()
+                    md5_in = "INPUT FILE NOT READABLE";
+                    md5_out = "OUTPUT FILE NOT READABLE";
 
-            md5_in = self.md5_for_file(fname_in)
-            md5_out = self.md5_for_file(fname_out)
+                    try:
+                        md5_in = self.md5_for_file(fname_in)
+                        md5_out = self.md5_for_file(fname_out)
+                    except IOError:
+                        pass;
 
-            logging.debug("File %s md5: %s" % (fname_in, md5_in))
-            logging.debug("File %s md5: %s" % (fname_out, md5_out))
+                    if md5_in == md5_out:
+                        break
 
-            self.assertEqual(md5_in, md5_out, "Files do not match")
+                logging.debug("File %s md5: %s" % (fname_in, md5_in))
+                logging.debug("File %s md5: %s" % (fname_out, md5_out))
+
+                self.assertEqual(md5_in, md5_out, "Files do not match")
 
     def test_local_operations(self):
         """

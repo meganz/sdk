@@ -37,10 +37,15 @@ void SdkTest::SetUp()
 
     if (megaApi == NULL)
     {
+        sdklog.open("SDK.log", ios::out | ios::app);
+        sdklogaux.open("SDKaux.log", ios::out | ios::app);  // create if not exists
+        MegaApi::setLoggerObject(this);
+
         char path[1024];
         getcwd(path, sizeof path);
         megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
+        megaApi->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi->addListener(this);
 
         ASSERT_NO_FATAL_FAILURE( login() );
@@ -63,13 +68,17 @@ void SdkTest::TearDown()
     {
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi->getRootNode());
-        megaApi->cleanRubbishBin();
+        purgeTree(megaApi->getRubbishNode());
+//        megaApi->cleanRubbishBin();
 
         // Remove auxiliar contact
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            megaApi->removeContact(ul->get(i));
+            if (ul->get(i)->getVisibility() == MegaUser::VISIBILITY_VISIBLE)
+            {
+                megaApi->removeContact(ul->get(i));
+            }
         }
 
         // Remove pending contact requests
@@ -84,6 +93,10 @@ void SdkTest::TearDown()
             ASSERT_NO_FATAL_FAILURE( logout() );
 
         delete megaApi;
+
+        MegaApi::setLoggerObject(NULL);
+        sdklog.close();
+        sdklogaux.close();
     }
 }
 
@@ -413,6 +426,7 @@ void SdkTest::getMegaApiAux()
         getcwd(path, sizeof path);
         megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
+        megaApiAux->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApiAux->addListener(this);
 
         requestFlags[1][MegaRequest::TYPE_LOGIN] = false;
@@ -438,7 +452,7 @@ void SdkTest::releaseMegaApiAux()
         {
             requestFlags[1][MegaRequest::TYPE_LOGOUT] = false;
             megaApiAux->logout();
-            waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGOUT], 5);
+            waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGOUT]);
         }
 
         delete megaApiAux;
@@ -586,6 +600,12 @@ void SdkTest::getContactRequest(bool outgoing, int expectedSize)
     delete crl;
 }
 
+void SdkTest::log(const char *time, int loglevel, const char *source, const char *message)
+{
+    sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
+    sdklog << message << " (" << source << ")" << endl;
+}
+
 void SdkTest::setUserAttribute(int type, string value, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER] = false;
@@ -659,6 +679,8 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  */
 TEST_F(SdkTest, SdkTestResumeSession)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
+
     char *session = dumpSession();
     ASSERT_NO_FATAL_FAILURE( locallogout() );
 
@@ -686,6 +708,8 @@ TEST_F(SdkTest, SdkTestResumeSession)
  */
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
+
     // --- Create a new folder ---
 
     MegaNode *rootnode = megaApi->getRootNode();
@@ -821,6 +845,8 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
+
     MegaNode *rootnode = megaApi->getRootNode();
     string filename1 = UPFILE;
     createFile(filename1);
@@ -947,7 +973,10 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
+
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
 
     // --- Check my email and the email of the contact ---
@@ -1187,13 +1216,16 @@ TEST_F(SdkTest, SdkTestContacts)
  */
 TEST_F(SdkTest, SdkTestShares)
 {
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
+
     MegaShareList *sl;
     MegaShare *s;
     MegaNodeList *nl;
     MegaNode *n;
     MegaNode *n1;
 
-    getMegaApiAux();    // login + fetchnodes
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
 
     // Initialize a test scenario : create some folders/files to share
@@ -1228,13 +1260,36 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
 
-    requestFlags[0][MegaRequest::TYPE_UPLOAD] = false;
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
     megaApi->startUpload(PUBLICFILE.data(), megaApi->getNodeByHandle(hfolder1));
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_UPLOAD]);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 0);   // wait forever
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
     hfile1 = h;
 
+
+    // --- Download authorized node from another account ---
+
+    MegaNode *nNoAuth = megaApi->getNodeByHandle(hfile1);
+
+    transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApiAux->startDownload(nNoAuth, "unauthorized_node");
+    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
+
+    bool hasFailed = (lastError != API_OK);
+    ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
+
+    MegaNode *nAuth = megaApi->authorizeNode(nNoAuth);
+
+    transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApiAux->startDownload(nAuth, "authorized_node");
+    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot download authorized node (error: " << lastError << ")";
+
+    delete nNoAuth;
+    delete nAuth;
+    return;
 
     // Initialize a test scenario: create a new contact to share to
 
@@ -1427,7 +1482,10 @@ TEST_F(SdkTest, SdkTestShares)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
+
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
+    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
 
     // --- Send a new contact request ---
 
