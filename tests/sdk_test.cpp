@@ -68,13 +68,17 @@ void SdkTest::TearDown()
     {
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi->getRootNode());
-        megaApi->cleanRubbishBin();
+        purgeTree(megaApi->getRubbishNode());
+//        megaApi->cleanRubbishBin();
 
         // Remove auxiliar contact
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            megaApi->removeContact(ul->get(i));
+            if (ul->get(i)->getVisibility() == MegaUser::VISIBILITY_VISIBLE)
+            {
+                megaApi->removeContact(ul->get(i));
+            }
         }
 
         // Remove pending contact requests
@@ -448,7 +452,7 @@ void SdkTest::releaseMegaApiAux()
         {
             requestFlags[1][MegaRequest::TYPE_LOGOUT] = false;
             megaApiAux->logout();
-            waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGOUT], 5);
+            waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGOUT]);
         }
 
         delete megaApiAux;
