@@ -93,6 +93,7 @@ def generate_unicode_name(first_symbol, i):
     """
     strlen = random.randint(10, 30)
     c = random.choice(['short-utf', 'utf', 'exotic'])
+    c = random.choice(['short-utf']);
     if c == 'short-utf':
         s = get_unicode_str(strlen, 0xFF)
     elif c == 'utf':
@@ -104,6 +105,14 @@ def generate_unicode_name(first_symbol, i):
     cogen=cogen+1
     return str(cogen)+"_"+s
 
+def escapefsincompatible(name):
+    """
+    Escape file system incompatible characters
+    """
+    import urllib
+    for i in "\\/:?\"<>|*":
+        name=name.replace(i,urllib.quote(i).lower())
+    return name
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -223,10 +232,11 @@ class SyncTestBase(unittest.TestCase):
             return None
 
         # small files < 1k
-        res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
-        if not res:
-            return None
-
+        if self.app.only_empty_files is None or not self.app.only_empty_files:
+            res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
+            if not res:
+                return None
+    
         if self.app.use_large_files:
             # medium files < 1mb
             res = self.files_create_size("m", 1024*1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
@@ -254,10 +264,13 @@ class SyncTestBase(unittest.TestCase):
         for f in l_files:
             dd_out = os.path.join(self.app.local_folder_out, dir_name)
             ffname = os.path.join(dd_out, f["name"])
-
+            #when saving mega alters some characters (we will look for 
+            #destiny file having that in mind)
+            ffname=escapefsincompatible(ffname)
+            
             dd_in = os.path.join(self.app.local_folder_in, dir_name)
             ffname_in = os.path.join(dd_in, f["name"])
-
+            
             success = False
 
             logging.debug("Comparing %s and %s" % (ffname_in, ffname))
@@ -348,6 +361,10 @@ class SyncTestBase(unittest.TestCase):
 
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_out, d["name"])
+            ##when saving mega alters some characters (we will look for 
+            #destiny file having that in mind)
+            dname=escapefsincompatible(dname)
+                
             dname_in = os.path.join(self.app.local_folder_in, d["name"])
             success = False
 

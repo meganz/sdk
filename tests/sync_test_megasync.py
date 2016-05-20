@@ -194,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
     parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
+    parser.add_argument("-f", "--files", type=int,help="Number of files")
     parser.add_argument("work_dir", help="local work directory")
     parser.add_argument("sync_dir", help="remote directory for synchronization")
     args = parser.parse_args()
@@ -213,6 +214,7 @@ if __name__ == "__main__":
     # logging stuff, output to stdout
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
+
 
     with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, args.nodelete, args.large) as app:
         suite = unittest.TestSuite()
@@ -239,7 +241,9 @@ if __name__ == "__main__":
             suite.addTest(SyncTest("test_update_mtime", app))
 
         if args.test8:
-            suite.addTest(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
-
+            app.only_empty_files=True
+            st=SyncTest("test_create_rename_delete_unicode_files_dirs", app)
+            if args.files is not None: st.nr_files=args.files
+            suite.addTest(st)
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)
