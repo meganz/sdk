@@ -960,10 +960,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     string message = "Hi contact. This is a testing message";
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
 
     // --- Check the sent contact request ---
@@ -1010,9 +1009,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     message = "I don't wanna be your contact anymore";
 
-    contactRequestUpdated[0] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE) );
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    waitForResponse(&contactRequestUpdated[1]);    // only at auxiliar account, where the deletion is checked
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
     delete craux;   craux = NULL;
@@ -1022,19 +1021,18 @@ TEST_F(SdkTest, SdkTestContacts)
     
     // --- Remind a contact invitation (cannot until 2 weeks after invitation/last reminder) ---
 
-//    contactRequestReceived = false;
+//    contactRequestUpdated[1] = false;
 //    megaApi->inviteContact(emailaux.data(), message.data(), MegaContactRequest::INVITE_ACTION_REMIND);
-//    waitForResponse(&contactRequestReceived, 30); // at the target side (auxiliar account)
+//    waitForResponse(&contactRequestUpdated[1]);    // only at auxiliar account, where the deletion is checked
 
-//    ASSERT_TRUE(contactRequestReceived) << "Contact invitation reminder not received after " << timeout  << " seconds";
+//    ASSERT_TRUE(contactRequestUpdated[1]) << "Contact invitation reminder not received after " << timeout  << " seconds";
 
 
     // --- Invite a new contact (again) ---
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
 
     // --- Deny a contact invitation ---
@@ -1042,8 +1040,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
-    replyContact(craux, MegaContactRequest::REPLY_ACTION_DENY);
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_DENY) );
+    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete craux;   craux = NULL;
@@ -1057,18 +1055,16 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Invite a new contact (again) ---
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     // --- Accept a contact invitation ---
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[0] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete craux;   craux = NULL;
@@ -1244,19 +1240,17 @@ TEST_F(SdkTest, SdkTestShares)
 
     string message = "Hi contact. Let's share some stuff";
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
 
     MegaContactRequestList *crlaux = megaApiAux->getIncomingContactRequests();
     ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
     MegaContactRequest *craux = crlaux->get(0);
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[0] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete crlaux;
@@ -1439,20 +1433,18 @@ TEST_F(SdkTest, SdkTestChat)
 
     string message = "Hi contact. This is a testing message";
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
 
     // --- Accept a contact invitation ---
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
     waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete craux;   craux = NULL;
 
