@@ -257,7 +257,6 @@ if __name__ == "__main__":
             if args.files is not None: st.nr_files=args.files
             if args.folders is not None: st.nr_dirs=args.folders
             
-            print " adding test8: files=",st.nr_files,"folders=",st.nr_dirs
             suite.addTest(st)
             
             
