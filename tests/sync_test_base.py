@@ -71,7 +71,7 @@ def generate_ascii_name(first_symbol, i):
     strlen = random.randint(0, 20)
     return first_symbol + get_random_str(size=strlen) + str(i)
 
-def generate_unicode_name(first_symbol, i):
+def generate_unicode_name_old(first_symbol, i):
     """
     generate random UTF string
     """
@@ -85,6 +85,25 @@ def generate_unicode_name(first_symbol, i):
         s = get_exotic_str(strlen)
     #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
     return s
+
+cogen=0
+def generate_unicode_name(first_symbol, i):
+    """
+    generate random UTF string
+    """
+    strlen = random.randint(10, 30)
+    c = random.choice(['short-utf', 'utf', 'exotic'])
+    if c == 'short-utf':
+        s = get_unicode_str(strlen, 0xFF)
+    elif c == 'utf':
+        s = get_unicode_str(strlen)
+    else:
+        s = get_exotic_str(strlen)
+    #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
+    global cogen
+    cogen=cogen+1
+    return str(cogen)+"_"+s
+
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -249,8 +268,9 @@ class SyncTestBase(unittest.TestCase):
                         pass
                     success = True
                     break
-                except IOError:
+                except IOError as ex:
                     # wait for a file
+                    logging.debug(" exception opening file: "+str(ex))
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     logging.debug("%s" % (ffname.encode("unicode-escape")))
                     self.app.sync()
