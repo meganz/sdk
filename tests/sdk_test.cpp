@@ -1036,9 +1036,10 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[1] = false;
+    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE) );
-    waitForResponse(&contactRequestUpdated[1]); // only at auxiliar account. Main account is not notified
+    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete craux;   craux = NULL;
 
@@ -1104,9 +1105,10 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[0] = false;
+    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    waitForResponse(&contactRequestUpdated[0]);     // at the source side (main account)
+    waitForResponse(&contactRequestUpdated[1]);     // at the target side (auxiliar account)
 
     delete craux;   craux = NULL;
 
@@ -1316,8 +1318,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
     MegaContactRequest *craux = crlaux->get(0);
 
-    contactRequestUpdated[0] = false;
+    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete crlaux;
@@ -1512,9 +1515,10 @@ TEST_F(SdkTest, SdkTestChat)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[1] = false;
+    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
 
     delete craux;   craux = NULL;
 
