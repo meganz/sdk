@@ -171,8 +171,18 @@ bool GfxProc::savefa(string *localfilepath, GfxProc::meta_t type, string *locald
         return false;
     }
 
+    int w = dimensions[type][0];
+    int h = dimensions[type][1];
+    if (type == (sizeof dimensions/sizeof dimensions[0] - 1)
+            && this->w < w && this->h < h )
+    {
+        LOG_debug << "Skipping upsizing of local preview";
+        w = this->w;
+        h = this->h;
+    }
+
     string jpeg;
-    bool success = resizebitmap(dimensions[type][0], dimensions[type][1], &jpeg);
+    bool success = resizebitmap(w, h, &jpeg);
     freebitmap();
 
     if (!success)
