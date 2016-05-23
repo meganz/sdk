@@ -34,9 +34,8 @@ using namespace mega;
 GfxProcCG::GfxProcCG()
     : GfxProc()
     , imageSource(NULL)
-    , w(0)
-    , h(0)
 {
+    w = h = 0;
     thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
                                                 &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue);
