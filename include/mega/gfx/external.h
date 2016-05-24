@@ -33,7 +33,6 @@ namespace mega {
 class GfxProcExternal : public GfxProc
 {
     MegaGfxProcessor *processor;
-    int w, h;
 
     bool readbitmap(FileAccess*, string*, int);
     bool resizebitmap(int, int, string*);

@@ -208,6 +208,7 @@
 %newobject mega::MegaApi::getCRCFromFingerprint;
 %newobject mega::MegaApi::getSessionTransferURL;
 %newobject mega::MegaApi::getAccountAuth;
+%newobject mega::MegaApi::authorizeNode;
 
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;

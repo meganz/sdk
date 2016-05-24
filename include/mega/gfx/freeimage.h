@@ -30,7 +30,6 @@ namespace mega {
 class MEGA_API GfxProcFreeImage : public GfxProc
 {
     FIBITMAP* dib;
-    int w, h;
 
     bool readbitmap(FileAccess*, string*, int);
     bool resizebitmap(int, int, string*);

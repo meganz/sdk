@@ -21,6 +21,7 @@
 
 #include "mega/waiter.h"
 #include "mega/backofftimer.h"
+#include "mega/logging.h"
 
 namespace mega {
 // timer with capped exponential backoff
@@ -110,11 +111,16 @@ void BackoffTimer::update(dstime* waituntil)
 {
     if (next)
     {
+        assert(next != 1);
+        if (next == 1)
+        {
+            LOG_warn << "Possible wrong management of timer";
+        }
+
         if (next <= Waiter::ds)
         {
             *waituntil = 0;
             next = 1;
-            base = 1;
         }
         else if (next < *waituntil)
         {

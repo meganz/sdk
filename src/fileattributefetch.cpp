@@ -22,6 +22,7 @@
 #include "mega/fileattributefetch.h"
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
+#include "mega/logging.h"
 
 namespace mega {
 FileAttributeFetchChannel::FileAttributeFetchChannel()
@@ -71,6 +72,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
 
     if (req.outbuf.size())
     {
+        LOG_debug << "Getting file attribute";
         e = API_EFAILED;
         inbytes = 0;
         req.in.clear();
@@ -82,11 +84,12 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
     else
     {
         timeout.reset();
+        req.status = REQ_PREPARED;
     }
 }
 
 // communicate received file attributes to the application
-void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
+void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool final)
 {
 #pragma pack(push,1)
     struct FaHeader

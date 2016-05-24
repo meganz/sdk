@@ -31,7 +31,6 @@ class MEGA_API GfxProcCG : public mega::GfxProc
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
     CFMutableDictionaryRef thumbnailParams;
-    CGFloat w, h;
     CGImageRef createThumbnailWithMaxSize(int size);
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations

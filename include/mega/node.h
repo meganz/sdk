@@ -93,7 +93,7 @@ struct MEGA_API PublicLink
 };
 
 // filesystem node
-struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
+struct MEGA_API Node : public NodeCore, FileFingerprint
 {
     MegaClient* client;
 
@@ -219,7 +219,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 };
 
 #ifdef ENABLE_SYNC
-struct MEGA_API LocalNode : public File, Cachable
+struct MEGA_API LocalNode : public File
 {
     class Sync* sync;
 
