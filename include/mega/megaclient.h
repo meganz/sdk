@@ -212,7 +212,7 @@ public:
     void getua(User* u, const char* an = NULL);
 
     // add new contact (by e-mail address)
-    error invite(const char*, visibility_t = VISIBLE);
+    error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
