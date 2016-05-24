@@ -167,3 +167,13 @@ MAccountTransaction^ MAccountDetails::getTransaction(int i)
 {
     return accountDetails ? ref new MAccountTransaction(accountDetails->getTransaction(i), true) : nullptr;
 }
+
+int MAccountDetails::getTemporalBandwidthInterval()
+{
+    return accountDetails ? accountDetails->getTemporalBandwidthInterval() : 0;
+}
+
+uint64 MAccountDetails::getTemporalBandwidth()
+{
+    return accountDetails ? accountDetails->getTemporalBandwidth() : 0;
+}

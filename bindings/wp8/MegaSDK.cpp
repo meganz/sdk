@@ -2385,6 +2385,11 @@ MError^ MegaSDK::checkMove(MNode^ node, MNode^ target)
 	return ref new MError(megaApi->checkMove((node != nullptr) ? node->getCPtr() : NULL, (target != nullptr) ? target->getCPtr() : NULL).copy(), true);
 }
 
+bool MegaSDK::isFilesystemAvailable()
+{
+    return megaApi->isFilesystemAvailable();
+}
+
 MNode^ MegaSDK::getRootNode()
 {
 	MegaNode *node = megaApi->getRootNode();
@@ -2401,6 +2406,11 @@ MNode^ MegaSDK::getRubbishNode()
 {
 	MegaNode *node = megaApi->getRubbishNode();
 	return node ? ref new MNode(node, true) : nullptr;
+}
+
+uint64 MegaSDK::getBandwidthOverquotaDelay()
+{
+    return megaApi->getBandwidthOverquotaDelay();
 }
 
 MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
@@ -2444,6 +2454,96 @@ bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
     bool ret = megaApi->processMegaTree((node != nullptr) ? node->getCPtr() : NULL, delegateProcessor, true);
     delete delegateProcessor;
     return ret;
+}
+
+MNode^ MegaSDK::createForeignFileNode(MegaHandle handle, String^ key, String^ name, int64 size, int64 mtime,
+    MegaHandle parentHandle, String^ privateauth, String^ publicauth)
+{
+    if (handle == ::mega::INVALID_HANDLE || parentHandle == ::mega::INVALID_HANDLE) return nullptr;
+
+    std::string utf8key;
+    if (key != nullptr)
+        MegaApi::utf16ToUtf8(key->Data(), key->Length(), &utf8key);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8privateauth;
+    if (privateauth != nullptr)
+        MegaApi::utf16ToUtf8(privateauth->Data(), privateauth->Length(), &utf8privateauth);
+
+    std::string utf8publicauth;
+    if (publicauth != nullptr)
+        MegaApi::utf16ToUtf8(publicauth->Data(), publicauth->Length(), &utf8publicauth);
+
+    return ref new MNode(megaApi->createForeignFileNode(handle,
+        (key != nullptr) ? utf8key.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        size, mtime, parentHandle,
+        (privateauth != nullptr) ? utf8privateauth.c_str() : NULL,
+        (publicauth != nullptr) ? utf8publicauth.c_str() : NULL), true);
+}
+
+MNode^ MegaSDK::createForeignFolderNode(MegaHandle handle, String^ name, MegaHandle parentHandle,
+    String^ privateauth, String^ publicauth)
+{
+    if (handle == ::mega::INVALID_HANDLE || parentHandle == ::mega::INVALID_HANDLE) return nullptr;
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8privateauth;
+    if (privateauth != nullptr)
+        MegaApi::utf16ToUtf8(privateauth->Data(), privateauth->Length(), &utf8privateauth);
+
+    std::string utf8publicauth;
+    if (publicauth != nullptr)
+        MegaApi::utf16ToUtf8(publicauth->Data(), publicauth->Length(), &utf8publicauth);
+
+    return ref new MNode(megaApi->createForeignFolderNode(handle,        
+        (name != nullptr) ? utf8name.c_str() : NULL, parentHandle,
+        (privateauth != nullptr) ? utf8privateauth.c_str() : NULL,
+        (publicauth != nullptr) ? utf8publicauth.c_str() : NULL), true);
+}
+
+MNode^ MegaSDK::authorizeNode(MNode^ node)
+{
+    return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);
+}
+
+bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
+{
+    std::string utf8imagePath;
+    if (imagePath != nullptr)
+        MegaApi::utf16ToUtf8(imagePath->Data(), imagePath->Length(), &utf8imagePath);
+
+    std::string utf8dstPath;
+    if (dstPath != nullptr)
+        MegaApi::utf16ToUtf8(dstPath->Data(), dstPath->Length(), &utf8dstPath);
+
+    return megaApi->createThumbnail((imagePath != nullptr) ? utf8imagePath.c_str() : NULL,
+        (dstPath != nullptr) ? utf8dstPath.c_str() : NULL);
+}
+
+bool MegaSDK::createPreview(String^ imagePath, String^ dstPath)
+{
+    std::string utf8imagePath;
+    if (imagePath != nullptr)
+        MegaApi::utf16ToUtf8(imagePath->Data(), imagePath->Length(), &utf8imagePath);
+
+    std::string utf8dstPath;
+    if (dstPath != nullptr)
+        MegaApi::utf16ToUtf8(dstPath->Data(), dstPath->Length(), &utf8dstPath);
+
+    return megaApi->createPreview((imagePath != nullptr) ? utf8imagePath.c_str() : NULL,
+        (dstPath != nullptr) ? utf8dstPath.c_str() : NULL);
+}
+
+bool MegaSDK::isOnline()
+{
+    return megaApi->isOnline();
 }
 
 MegaRequestListener *MegaSDK::createDelegateMRequestListener(MRequestListenerInterface^ listener, bool singleListener)

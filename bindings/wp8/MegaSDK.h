@@ -403,15 +403,31 @@ namespace mega
         MError^ checkAccess(MNode^ node, int level);
         MError^ checkMove(MNode^ node, MNode^ target);
 
+        bool isFilesystemAvailable();
         MNode^ getRootNode();
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+
+        uint64 getBandwidthOverquotaDelay();
+
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
         MNodeList^ globalSearch(String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+
+        MNode^ createForeignFileNode(MegaHandle handle, String^ key, String^ name, int64 size, int64 mtime,
+            MegaHandle parentHandle, String^ privateauth, String^ publicauth);
+        MNode^ createForeignFolderNode(MegaHandle handle, String^ name, MegaHandle parentHandle,
+            String^ privateauth, String^ publicauth);
+
+        MNode^ authorizeNode(MNode^ node);
         
+        bool createThumbnail(String^ imagePath, String^ dstPath);
+        bool createPreview(String^ imagePath, String^ dstPath);
+
+        bool isOnline();
+
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;
         std::set<DelegateMTransferListener *> activeTransferListeners;
