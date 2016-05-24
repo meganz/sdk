@@ -422,6 +422,11 @@ void CurlHttpIO::disconnect()
     }
 }
 
+bool CurlHttpIO::isSpeedControlAvailable()
+{
+    return true;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {

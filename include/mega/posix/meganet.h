@@ -145,6 +145,8 @@ public:
     void setdnsservers(const char*);
     void disconnect();
 
+    virtual bool isSpeedControlAvailable();
+
     CurlHttpIO();
     ~CurlHttpIO();
 };

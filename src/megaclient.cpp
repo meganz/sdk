@@ -646,6 +646,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
+    maxdownloadspeed = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1821,7 +1822,15 @@ void MegaClient::exec()
             badhostcs->post(this);
             badhosts.clear();
         }
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+
+
+        httpio->updatedownloadspeed();
+        if (!maxdownloadspeed || httpio->downloadSpeed < maxdownloadspeed)
+        {
+            looprequested |= httpio->doio();
+        }
+
+    } while (execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -1980,10 +1989,20 @@ int MegaClient::preparewait()
 
     waiter->init(nds);
 
-    // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
-    waiter->wakeupby(httpio, Waiter::NEEDEXEC);
-    waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+    if (!maxdownloadspeed || maxdownloadspeed > httpio->downloadSpeed)
+    {
+        // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
+        waiter->wakeupby(httpio, Waiter::NEEDEXEC);
+    }
+    else
+    {
 
+        m_off_t excess = httpio->downloadSpeed - maxdownloadspeed;
+        nds = 10 * excess / maxdownloadspeed;
+        waiter->bumpmaxds(nds ? nds : 1);
+    }
+
+    waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
     return 0;
 }
 
@@ -2526,6 +2545,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     overquotauntil = 0;
+    maxdownloadspeed = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -9494,6 +9514,16 @@ void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
     reqs.add(new CommandReportEvent(this, event, details));
+}
+
+bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    if (httpio->isSpeedControlAvailable())
+    {
+        maxdownloadspeed = bpslimit;
+        return true;
+    }
+    return false;
 }
 
 void MegaClient::userfeedbackstore(const char *message)

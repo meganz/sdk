@@ -57,6 +57,9 @@ struct MEGA_API Waiter
     // add wakeup events
     void wakeupby(EventTrigger*, int);
 
+    // bump maxds if needed
+    void bumpmaxds(dstime newmaxds);
+
     // wait for all added wakeup criteria (plus the host app's own), up to the
     // specified number of deciseconds
     virtual int wait() = 0;

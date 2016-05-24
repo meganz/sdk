@@ -68,6 +68,8 @@ HttpIO::HttpIO()
     inetback = false;
     lastdata = NEVER;
     chunkedok = true;
+    downloadPartialBytes = 0;
+    downloadSpeed = 0;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -99,6 +101,32 @@ bool HttpIO::inetisback()
     }
 
     return false;
+}
+
+void HttpIO::updatedownloadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (downloadBytes.size())
+    {
+        dstime deltaTime = currentTime - downloadTimes[0];
+        if (deltaTime <= 50)
+        {
+            break;
+        }
+
+        downloadPartialBytes -= downloadBytes[0];
+        downloadBytes.erase(downloadBytes.begin());
+        downloadTimes.erase(downloadTimes.begin());
+    }
+
+    if (size)
+    {
+        downloadBytes.push_back(size);
+        downloadTimes.push_back(currentTime);
+        downloadPartialBytes += size;
+    }
+
+    downloadSpeed = (downloadPartialBytes * 10) / 50;
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -272,6 +300,11 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
+bool HttpIO::isSpeedControlAvailable()
+{
+    return false;
+}
+
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
     if (httpio)
@@ -368,6 +401,11 @@ void HttpReq::setreq(const char* u, contenttype_t t)
 // add data to fixed or variable buffer
 void HttpReq::put(void* data, unsigned len, bool purge)
 {
+    if (len && httpio)
+    {
+        httpio->updatedownloadspeed(len);
+    }
+
     if (buf)
     {
         if (bufpos + len > buflen)

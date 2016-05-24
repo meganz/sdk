@@ -5695,6 +5695,25 @@ class MegaApi
         void setUploadMethod(int method);
 
         /**
+         * @brief Set the maximum upload speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * @param bpslimit Download speed in bytes per second
+         * @return true if the network layer allows to control the download speed, otherwise false
+         */
+        bool setMaxDownloadSpeed(int bpslimit);
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentDownloadSpeed();
+
+        /**
          * @brief Get the active transfer method for downloads
          *
          * Valid values for the return parameter are:
