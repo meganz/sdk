@@ -988,7 +988,6 @@ TEST_F(SdkTest, SdkTestContacts)
     megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
-    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
 
     // --- Check my email and the email of the contact ---
@@ -1239,7 +1238,6 @@ TEST_F(SdkTest, SdkTestShares)
     MegaNode *n1;
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
-    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
 
     // Initialize a test scenario : create some folders/files to share
@@ -1500,7 +1498,6 @@ TEST_F(SdkTest, SdkTestChat)
     megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
-    megaApiAux->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
 
     // --- Send a new contact request ---
 
