@@ -78,6 +78,22 @@ void HttpReqCommandPutFA::procresult()
         }
         else
         {
+            if (e == API_EACCESS)
+            {
+                // create a custom attribute indicating thumbnail can't be restored from this account
+                Node *n = client->nodebyhandle(th);
+                if (n && n->attrs.map.find('f') == n->attrs.map.end() && client->checkaccess(n, FULL))
+                {
+                    char buf[12];
+                    Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, buf);
+
+                    LOG_debug << "Restoration of file attributes is not allowed for current user (" << buf << ").";
+
+                    n->attrs.map['f'] = buf;
+                    client->setattr(n);
+                }
+            }
+
             status = REQ_SUCCESS;
             return client->app->putfa_result(th, type, e);
         }
