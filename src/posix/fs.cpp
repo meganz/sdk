@@ -153,7 +153,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, defaultfilepermissions)) >= 0)
+    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY, defaultfilepermissions)) >= 0)
     {
         if (!fstat(fd, &statbuf))
         {

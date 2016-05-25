@@ -64,7 +64,7 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, error) { }
 
     // sessionid is undef if all sessions except the current were killed
-    virtual void sessions_killed(handle sessionid, error e) { }
+    virtual void sessions_killed(handle /*sessionid*/, error) { }
 
     // node attribute update failed (not invoked unless error != API_OK)
     virtual void setattr_result(handle, error) { }
@@ -184,6 +184,7 @@ struct MEGA_API MegaApp
     virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
+    virtual void transfer_resume(string*) { }
 
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }

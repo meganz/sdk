@@ -98,11 +98,11 @@ void AttrMap::serialize(string* d) const
 
     for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
-        if ((l = nameid2string(it->first, buf)))
+        if ((l = (unsigned char)nameid2string(it->first, buf)))
         {
             d->append((char*)&l, sizeof l);
             d->append(buf, l);
-            ll = it->second.size();
+            ll = (unsigned short)it->second.size();
             d->append((char*)&ll, sizeof ll);
             d->append(it->second.data(), ll);
         }

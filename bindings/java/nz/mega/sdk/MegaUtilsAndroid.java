@@ -65,13 +65,17 @@ public class MegaUtilsAndroid {
 
         if ((w == 0) || (h == 0))
             return false;
-        if (h > w) {
-            w = w * PREVIEW_SIZE / h;
-            h = PREVIEW_SIZE;
-        } else {
-            h = h * PREVIEW_SIZE / w;
-            w = PREVIEW_SIZE;
+        
+        if (w >= PREVIEW_SIZE || h >= PREVIEW_SIZE) {
+            if (h > w) {
+                w = w * PREVIEW_SIZE / h;
+                h = PREVIEW_SIZE;
+            } else {
+                h = h * PREVIEW_SIZE / w;
+                w = PREVIEW_SIZE;
+            }
         }
+        
         if ((w == 0) || (h == 0))
             return false;
 

@@ -63,7 +63,9 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
+    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL)
+            && dwWritten == len
+            && FlushFileBuffers(hFile);
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -1065,7 +1067,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 }
 
 // FIXME: implement followsymlinks
-bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
+bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/, nodetype_t* type)
 {
     for (;;)
     {

@@ -47,6 +47,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // representative local filename for this transfer
     string localfilename;
 
+    // progress completed
+    m_off_t progresscompleted;
+
     m_off_t pos;
 
     byte filekey[FILENODEKEYLENGTH];
@@ -75,7 +78,7 @@ struct MEGA_API Transfer : public FileFingerprint
     handletransfer_map::iterator faputcompletion_it;
     
     // upload result
-    byte ultoken[NewNode::UPLOADTOKENLEN + 1];
+    byte *ultoken;
 
     // backlink to base
     MegaClient* client;
@@ -90,11 +93,29 @@ struct MEGA_API Transfer : public FileFingerprint
     // execute completion
     void completefiles();
 
+    // next position to download/upload
+    m_off_t nextpos();
+
     // previous wrong fingerprint
     FileFingerprint badfp;
+
+    // transfer state
+    bool finished;
+
+    // cached temp URL for upload/download data
+    string cachedtempurl;
    
+    // timestamp of the start of the transfer
+    m_time_t lastaccesstime;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
+
+    // serialize the Transfer object
+    virtual bool serialize(string*);
+
+    // unserialize a Transfer and add it to the transfer map
+    static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 };
 
 struct MEGA_API DirectReadSlot
