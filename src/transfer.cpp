@@ -427,6 +427,7 @@ void Transfer::complete()
         int missingattr = 0;
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+        set<handle> nodes;
 
         if (!transient_error)
         {
@@ -435,8 +436,12 @@ void Transfer::complete()
             {
                 if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname))
+                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                            client->checkaccess(n, FULL))
                     {
+                        nodes.insert(n->nodehandle);
+
                         // check for missing imagery
                         if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
                         if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
