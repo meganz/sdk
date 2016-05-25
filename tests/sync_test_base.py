@@ -26,10 +26,12 @@ import hashlib
 import unittest
 import logging
 import platform
+import unicodedata
 
-def get_unicode_str(size=10, max_char=0xFFFF):
+def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexisting=False):
     '''
     generates valid (for current OS) Unicode file name
+    Notice: if includeUnexisting==True, it is possible that files don't get synchronized
     '''
     if platform.system() == "Windows":
         # Unicode characters 1 through 31, as well as quote ("), less than (<), greater than (>), pipe (|), backspace (\b), null (\0) and tab (\t).
@@ -39,11 +41,20 @@ def get_unicode_str(size=10, max_char=0xFFFF):
         #exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 1)])
         exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 32)])
 
+
     name = u""
     while len(name) < size:
         c = unichr(random.randint(0, max_char))
         if c not in exclude:
-            name = name + c
+            try:
+                if not includeUnexisting:
+                    unicodedata.name(c) #this will cause invalid unicode character to throw exception
+                if onlyNormalized:
+                    name = name + unicodedata.normalize('NFC',c) #only normalized chars
+                else:
+                    name = name + c
+            except ValueError:
+                pass
     return name
 
 def get_exotic_str(size=10):
@@ -93,8 +104,6 @@ def generate_unicode_name(first_symbol, i):
     """
     strlen = random.randint(10, 30)
     c = random.choice(['short-utf', 'utf', 'exotic'])
-    c = random.choice(['short-utf','utf']);
-    c = random.choice(['short-utf']);
     if c == 'short-utf':
         s = get_unicode_str(strlen, 0xFF)
     elif c == 'utf':
@@ -105,6 +114,11 @@ def generate_unicode_name(first_symbol, i):
     global cogen
     cogen=cogen+1
     return str(cogen)+"_"+s
+
+def normalizeandescape(name):
+    name=escapefsincompatible(name)
+    name=unicodedata.normalize('NFC',name)
+    return name
 
 def escapefsincompatible(name):
     """
@@ -267,7 +281,8 @@ class SyncTestBase(unittest.TestCase):
             ffname = os.path.join(dd_out, f["name"])
             #when saving mega alters some characters (we will look for 
             #destiny file having that in mind)
-            ffname=escapefsincompatible(ffname)
+            ffname=normalizeandescape(ffname)
+            
             
             dd_in = os.path.join(self.app.local_folder_in, dir_name)
             ffname_in = os.path.join(dd_in, f["name"])
@@ -365,7 +380,7 @@ class SyncTestBase(unittest.TestCase):
             dname = os.path.join(self.app.local_folder_out, d["name"])
             ##when saving mega alters some characters (we will look for 
             #destiny file having that in mind)
-            dname=escapefsincompatible(dname)
+            dname=normalizeandescape(dname)
                 
             dname_in = os.path.join(self.app.local_folder_in, d["name"])
             success = False
