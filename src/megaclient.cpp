@@ -9506,12 +9506,12 @@ void MegaClient::reportevent(const char* event, const char* details)
 
 bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
 {
-    return httpio->setmaxdownloadspeed(bpslimit);
+    return httpio->setmaxdownloadspeed(bpslimit >= 0 ? bpslimit : 0);
 }
 
 bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
 {
-    return httpio->setmaxuploadspeed(bpslimit);
+    return httpio->setmaxuploadspeed(bpslimit >= 0 ? bpslimit : 0);
 }
 
 void MegaClient::userfeedbackstore(const char *message)
