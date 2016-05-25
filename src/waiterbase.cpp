@@ -32,12 +32,4 @@ void Waiter::wakeupby(EventTrigger* et, int flags)
 {
     et->addevents(this, flags);
 }
-
-void Waiter::bumpmaxds(dstime newmaxds)
-{
-    if (newmaxds < maxds)
-    {
-        maxds = newmaxds;
-    }
-}
 } // namespace

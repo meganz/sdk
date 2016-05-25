@@ -515,8 +515,6 @@ void CurlHttpIO::addevents(Waiter* w, int d)
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
 #else
-
-
     addaresevents(waiter);
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -604,7 +602,6 @@ void CurlHttpIO::addevents(Waiter* w, int d)
             curltimeoutms = ms;
         }
     }
-
 #endif
 
     if (curltimeoutms >= 0)
