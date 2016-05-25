@@ -5797,7 +5797,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(!it->second->isoutgoing)
+        if(!it->second->isoutgoing && !it->second->changed.deleted)
         {
             vContactRequests.push_back(it->second);
         }
@@ -5815,7 +5815,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(it->second->isoutgoing)
+        if(it->second->isoutgoing && !it->second->changed.deleted)
         {
             vContactRequests.push_back(it->second);
         }
