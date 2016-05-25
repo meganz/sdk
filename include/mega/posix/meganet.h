@@ -66,7 +66,8 @@ class CurlHttpIO: public HttpIO
 {
 protected:
     string useragent;
-    CURLM* curlm;
+    CURLM* curlmdownload;
+    CURLM* curlmupload;
     CURLSH* curlsh;
     ares_channel ares;
     string proxyurl;
@@ -92,8 +93,11 @@ protected:
     static size_t check_header(void*, size_t, size_t, void*);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
-    static int timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 #endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
@@ -120,12 +124,22 @@ protected:
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
 
+    // download speed limit
+    m_off_t maxdownloadspeed;
+
+    // upload speed limit
+    m_off_t maxuploadspeed;
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     void addaresevents(WinWaiter *waiter);
-    void addcurlevents(WinWaiter *waiter);
+    void addcurlevents(WinWaiter *waiter, direction_t d);
+    void closecurlevents(direction_t d);
+    void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlsockets;
-    m_time_t curltimeoutreset;
+    std::map<int, SockInfo> curldownloadsockets;
+    std::map<int, SockInfo> curluploadsockets;
+    m_time_t curldownloadtimeoutreset;
+    m_time_t curluploadtimeoutreset;
     m_time_t arestimeoutds;
 #endif
 
@@ -137,6 +151,7 @@ public:
     m_off_t postpos(void*);
 
     bool doio(void);
+    bool multidoio(CURLM *curlm);
 
     void addevents(Waiter*, int);
 
@@ -145,7 +160,11 @@ public:
     void setdnsservers(const char*);
     void disconnect();
 
-    virtual bool isSpeedControlAvailable();
+    // set max download speed
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    virtual bool setmaxuploadspeed(m_off_t bpslimit);
 
     CurlHttpIO();
     ~CurlHttpIO();

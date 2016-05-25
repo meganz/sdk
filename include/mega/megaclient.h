@@ -329,6 +329,9 @@ public:
     // set max download speed
     bool setmaxdownloadspeed(m_off_t bpslimit);
 
+    // set max upload speed
+    bool setmaxuploadspeed(m_off_t bpslimit);
+
     // use HTTPS for all communications
     bool usehttps;
     
@@ -364,9 +367,6 @@ public:
 
     // account auth for public folders
     string accountauth;
-
-    // download speed limit
-    m_off_t maxdownloadspeed;
 
 private:
     BackoffTimer btcs;

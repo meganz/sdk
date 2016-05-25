@@ -23,6 +23,8 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
+#define SPEED_MEAN_INTERVAL_DS 50
+
 namespace mega {
 
 #ifdef _WIN32
@@ -70,6 +72,8 @@ HttpIO::HttpIO()
     chunkedok = true;
     downloadPartialBytes = 0;
     downloadSpeed = 0;
+    uploadPartialBytes = 0;
+    uploadSpeed = 0;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -109,7 +113,7 @@ void HttpIO::updatedownloadspeed(m_off_t size)
     while (downloadBytes.size())
     {
         dstime deltaTime = currentTime - downloadTimes[0];
-        if (deltaTime <= 50)
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
@@ -126,7 +130,33 @@ void HttpIO::updatedownloadspeed(m_off_t size)
         downloadPartialBytes += size;
     }
 
-    downloadSpeed = (downloadPartialBytes * 10) / 50;
+    downloadSpeed = (downloadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+}
+
+void HttpIO::updateuploadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (uploadBytes.size())
+    {
+        dstime deltaTime = currentTime - uploadTimes[0];
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        uploadPartialBytes -= uploadBytes[0];
+        uploadBytes.erase(uploadBytes.begin());
+        uploadTimes.erase(uploadTimes.begin());
+    }
+
+    if (size)
+    {
+        uploadBytes.push_back(size);
+        uploadTimes.push_back(currentTime);
+        uploadPartialBytes += size;
+    }
+
+    uploadSpeed = (uploadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -300,7 +330,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
-bool HttpIO::isSpeedControlAvailable()
+bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    return false;
+}
+
+bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
 {
     return false;
 }
@@ -401,11 +436,6 @@ void HttpReq::setreq(const char* u, contenttype_t t)
 // add data to fixed or variable buffer
 void HttpReq::put(void* data, unsigned len, bool purge)
 {
-    if (len && httpio)
-    {
-        httpio->updatedownloadspeed(len);
-    }
-
     if (buf)
     {
         if (bufpos + len > buflen)

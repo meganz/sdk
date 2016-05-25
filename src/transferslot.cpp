@@ -489,6 +489,16 @@ void TransferSlot::doio(MegaClient* client)
 
     if (p != progressreported)
     {
+        m_off_t diff = p - progressreported;
+        if (transfer->type == PUT)
+        {
+            client->httpio->updateuploadspeed(diff);
+        }
+        else
+        {
+            client->httpio->updatedownloadspeed(diff);
+        }
+
         progressreported = p;
         lastdata = Waiter::ds;
 
