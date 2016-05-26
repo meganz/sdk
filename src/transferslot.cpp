@@ -33,7 +33,7 @@ namespace mega {
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
-    progressreported = ctransfer->progresscompleted;
+    progressreported = 0;
     lastdata = Waiter::ds;
     errorcount = 0;
 

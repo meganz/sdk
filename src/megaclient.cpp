@@ -2243,6 +2243,8 @@ bool MegaClient::dispatch(direction_t d)
                     nextit->second->chunkmacs.clear();
                 }
 
+                ts->progressreported = nextit->second->progresscompleted;
+
                 if (d == PUT)
                 {
                     nextit->second->size = ts->fa->size;
