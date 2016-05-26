@@ -1038,10 +1038,11 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
-    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE) );
     waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    // waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    // Ignoring a PCR does not generate actionpackets for the main account
 
     delete craux;   craux = NULL;
 
