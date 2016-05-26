@@ -122,6 +122,7 @@ class SyncTestBase(unittest.TestCase):
         self.nr_retries = 200
         self.nr_files = 10
         self.nr_dirs = 5
+        self.nr_time_changes = 10
         self.local_obj_nr = 5
         self.force_syncing = False
 
