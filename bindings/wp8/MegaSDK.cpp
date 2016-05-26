@@ -2456,58 +2456,6 @@ bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
     return ret;
 }
 
-MNode^ MegaSDK::createForeignFileNode(MegaHandle handle, String^ key, String^ name, int64 size, int64 mtime,
-    MegaHandle parentHandle, String^ privateauth, String^ publicauth)
-{
-    if (handle == ::mega::INVALID_HANDLE || parentHandle == ::mega::INVALID_HANDLE) return nullptr;
-
-    std::string utf8key;
-    if (key != nullptr)
-        MegaApi::utf16ToUtf8(key->Data(), key->Length(), &utf8key);
-
-    std::string utf8name;
-    if (name != nullptr)
-        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
-
-    std::string utf8privateauth;
-    if (privateauth != nullptr)
-        MegaApi::utf16ToUtf8(privateauth->Data(), privateauth->Length(), &utf8privateauth);
-
-    std::string utf8publicauth;
-    if (publicauth != nullptr)
-        MegaApi::utf16ToUtf8(publicauth->Data(), publicauth->Length(), &utf8publicauth);
-
-    return ref new MNode(megaApi->createForeignFileNode(handle,
-        (key != nullptr) ? utf8key.c_str() : NULL,
-        (name != nullptr) ? utf8name.c_str() : NULL,
-        size, mtime, parentHandle,
-        (privateauth != nullptr) ? utf8privateauth.c_str() : NULL,
-        (publicauth != nullptr) ? utf8publicauth.c_str() : NULL), true);
-}
-
-MNode^ MegaSDK::createForeignFolderNode(MegaHandle handle, String^ name, MegaHandle parentHandle,
-    String^ privateauth, String^ publicauth)
-{
-    if (handle == ::mega::INVALID_HANDLE || parentHandle == ::mega::INVALID_HANDLE) return nullptr;
-
-    std::string utf8name;
-    if (name != nullptr)
-        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
-
-    std::string utf8privateauth;
-    if (privateauth != nullptr)
-        MegaApi::utf16ToUtf8(privateauth->Data(), privateauth->Length(), &utf8privateauth);
-
-    std::string utf8publicauth;
-    if (publicauth != nullptr)
-        MegaApi::utf16ToUtf8(publicauth->Data(), publicauth->Length(), &utf8publicauth);
-
-    return ref new MNode(megaApi->createForeignFolderNode(handle,        
-        (name != nullptr) ? utf8name.c_str() : NULL, parentHandle,
-        (privateauth != nullptr) ? utf8privateauth.c_str() : NULL,
-        (publicauth != nullptr) ? utf8publicauth.c_str() : NULL), true);
-}
-
 MNode^ MegaSDK::authorizeNode(MNode^ node)
 {
     return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);

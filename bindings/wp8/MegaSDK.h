@@ -416,11 +416,6 @@ namespace mega
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
 
-        MNode^ createForeignFileNode(MegaHandle handle, String^ key, String^ name, int64 size, int64 mtime,
-            MegaHandle parentHandle, String^ privateauth, String^ publicauth);
-        MNode^ createForeignFolderNode(MegaHandle handle, String^ name, MegaHandle parentHandle,
-            String^ privateauth, String^ publicauth);
-
         MNode^ authorizeNode(MNode^ node);
         
         bool createThumbnail(String^ imagePath, String^ dstPath);
