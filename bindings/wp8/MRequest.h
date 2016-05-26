@@ -81,7 +81,8 @@ namespace mega
         String^ getPrivateKey();
         int getAccess();
         String^ getFile();
-        MNode^ getPublicNode();
+        int getNumRetry();        
+        MNode^ getPublicMegaNode();
         int getParamType();
         String^ getText();
         uint64 getNumber();
@@ -89,6 +90,9 @@ namespace mega
         uint64 getTransferredBytes();
         uint64 getTotalBytes();
         MAccountDetails^ getMAccountDetails();
+        int getTransferTag();
+        int getNumDetails();
+        int getTag();
         MPricing^ getPricing();
 
     private:

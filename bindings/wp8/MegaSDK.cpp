@@ -2385,6 +2385,11 @@ MError^ MegaSDK::checkMove(MNode^ node, MNode^ target)
 	return ref new MError(megaApi->checkMove((node != nullptr) ? node->getCPtr() : NULL, (target != nullptr) ? target->getCPtr() : NULL).copy(), true);
 }
 
+bool MegaSDK::isFilesystemAvailable()
+{
+    return megaApi->isFilesystemAvailable();
+}
+
 MNode^ MegaSDK::getRootNode()
 {
 	MegaNode *node = megaApi->getRootNode();
@@ -2401,6 +2406,11 @@ MNode^ MegaSDK::getRubbishNode()
 {
 	MegaNode *node = megaApi->getRubbishNode();
 	return node ? ref new MNode(node, true) : nullptr;
+}
+
+uint64 MegaSDK::getBandwidthOverquotaDelay()
+{
+    return megaApi->getBandwidthOverquotaDelay();
 }
 
 MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
@@ -2444,6 +2454,44 @@ bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
     bool ret = megaApi->processMegaTree((node != nullptr) ? node->getCPtr() : NULL, delegateProcessor, true);
     delete delegateProcessor;
     return ret;
+}
+
+MNode^ MegaSDK::authorizeNode(MNode^ node)
+{
+    return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);
+}
+
+bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
+{
+    std::string utf8imagePath;
+    if (imagePath != nullptr)
+        MegaApi::utf16ToUtf8(imagePath->Data(), imagePath->Length(), &utf8imagePath);
+
+    std::string utf8dstPath;
+    if (dstPath != nullptr)
+        MegaApi::utf16ToUtf8(dstPath->Data(), dstPath->Length(), &utf8dstPath);
+
+    return megaApi->createThumbnail((imagePath != nullptr) ? utf8imagePath.c_str() : NULL,
+        (dstPath != nullptr) ? utf8dstPath.c_str() : NULL);
+}
+
+bool MegaSDK::createPreview(String^ imagePath, String^ dstPath)
+{
+    std::string utf8imagePath;
+    if (imagePath != nullptr)
+        MegaApi::utf16ToUtf8(imagePath->Data(), imagePath->Length(), &utf8imagePath);
+
+    std::string utf8dstPath;
+    if (dstPath != nullptr)
+        MegaApi::utf16ToUtf8(dstPath->Data(), dstPath->Length(), &utf8dstPath);
+
+    return megaApi->createPreview((imagePath != nullptr) ? utf8imagePath.c_str() : NULL,
+        (dstPath != nullptr) ? utf8dstPath.c_str() : NULL);
+}
+
+bool MegaSDK::isOnline()
+{
+    return megaApi->isOnline();
 }
 
 MegaRequestListener *MegaSDK::createDelegateMRequestListener(MRequestListenerInterface^ listener, bool singleListener)
