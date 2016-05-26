@@ -335,6 +335,7 @@ void Transfer::failed(error e, dstime timeleft)
     {
         chunkmacs.clear();
         progresscompleted = 0;
+        ultoken = NULL;
         pos = 0;
     }
 
@@ -342,6 +343,8 @@ void Transfer::failed(error e, dstime timeleft)
     {        
         failcount++;
         delete slot;
+        slot = NULL;
+        client->transfercacheadd(this);
 
         LOG_debug << "Deferring transfer " << failcount;
     }
