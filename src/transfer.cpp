@@ -335,7 +335,13 @@ void Transfer::failed(error e, dstime timeleft)
     {
         chunkmacs.clear();
         progresscompleted = 0;
-        ultoken = NULL;
+
+        if (ultoken)
+        {
+            delete [] ultoken;
+            ultoken = NULL;
+        }
+
         pos = 0;
     }
 
