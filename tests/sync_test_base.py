@@ -117,7 +117,7 @@ def generate_unicode_name(first_symbol, i):
 
 def normalizeandescape(name):
     name=escapefsincompatible(name)
-    name=unicodedata.normalize('NFC',name)
+    name=unicodedata.normalize('NFC',unicode(name))
     return name
 
 def escapefsincompatible(name):
