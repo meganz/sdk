@@ -247,7 +247,7 @@ class SyncTestBase(unittest.TestCase):
             return None
 
         # small files < 1k
-        if self.app.only_empty_files is None or not self.app.only_empty_files:
+        if not hasattr(self.app, 'only_empty_files') or not self.app.only_empty_files:
             res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
             if not res:
                 return None
