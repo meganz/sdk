@@ -19,13 +19,10 @@
  * program.
  */
 
-#define _POSIX_SOURCE
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
 #define _FILE_OFFSET_BITS 64
-
-#define __DARWIN_C_LEVEL 199506L
 
 #define USE_VARARGS
 #define PREFER_STDARG
