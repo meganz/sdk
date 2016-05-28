@@ -171,7 +171,7 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // without doing a FindFirstFile()?
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
-    WIN32_FILE_ATTRIBUTE_DATA fad;
+    WIN32_FIND_DATA fad;
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
@@ -189,13 +189,37 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
     else
     {
-        if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fad))
+        HANDLE  h = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
+                             FindExSearchNameMatch, NULL, FIND_FIRST_EX_CASE_SENSITIVE);
+
+        if (h == INVALID_HANDLE_VALUE)
         {
             DWORD e = GetLastError();
             LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
             retry = WinFileSystemAccess::istransient(e);
             name->resize(name->size() - added - 1);
             return false;
+        }
+        FindClose(h);
+
+        const char *filename = name->data() + name->size() - 1;
+        int filenamesize = 0;
+        do {
+            filename -= sizeof(wchar_t);
+            filenamesize += sizeof(wchar_t);
+        } while(filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
+
+        if (filename >= name->data() && filenamesize > sizeof(wchar_t))
+        {
+            filename += sizeof(wchar_t);
+            if (memcmp(filename, fad.cFileName, filenamesize < MAX_PATH ? filenamesize : MAX_PATH)
+                    && memcmp(filename, fad.cAlternateFileName, filenamesize < 14 ? filenamesize : 14))
+            {
+                LOG_warn << "fopen failed due to invalid case";
+                retry = false;
+                name->resize(name->size() - added - 1);
+                return false;
+            }
         }
 
         // ignore symlinks - they would otherwise be treated as moves
