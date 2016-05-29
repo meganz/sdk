@@ -200,39 +200,27 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
             name->resize(name->size() - added - 1);
             return false;
         }
+        FindClose(h);
 
         const char *filename = name->data() + name->size() - 1;
         int filenamesize = 0;
         do {
             filename -= sizeof(wchar_t);
             filenamesize += sizeof(wchar_t);
-        } while (filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
+        } while(filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
 
         if (filename >= name->data() && filenamesize > sizeof(wchar_t))
         {
             filename += sizeof(wchar_t);
-            bool found = false;
-
-            do
-            {
-                if (!memcmp(filename, fad.cFileName, filenamesize < MAX_PATH ? filenamesize : MAX_PATH)
-                        || !memcmp(filename, fad.cAlternateFileName, filenamesize < 14 ? filenamesize : 14))
-                {
-                    found = true;
-                    break;
-                }
-            } while (FindNextFileW(h, &fad));
-
-            if (!found)
+            if (memcmp(filename, fad.cFileName, filenamesize < MAX_PATH ? filenamesize : MAX_PATH)
+                    && memcmp(filename, fad.cAlternateFileName, filenamesize < 14 ? filenamesize : 14))
             {
                 LOG_warn << "fopen failed due to invalid case";
                 retry = false;
                 name->resize(name->size() - added - 1);
-                FindClose(h);
                 return false;
             }
         }
-        FindClose(h);
 
         // ignore symlinks - they would otherwise be treated as moves
         // also, ignore some other obscure filesystem object categories
@@ -264,18 +252,13 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                         read ? OPEN_EXISTING : OPEN_ALWAYS,
                         &ex);
 #else
-    DWORD flags = (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0;
-    if (read)
-    {
-        flags |= FILE_FLAG_POSIX_SEMANTICS;
-    }
-
     hFile = CreateFileW((LPCWSTR)name->data(),
                         read ? GENERIC_READ : GENERIC_WRITE,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         read ? OPEN_EXISTING : OPEN_ALWAYS,
-                        flags, NULL);
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
+                        NULL);
 #endif
 
     name->resize(name->size() - added - 1);
