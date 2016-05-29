@@ -207,13 +207,13 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         do {
             filename -= sizeof(wchar_t);
             filenamesize += sizeof(wchar_t);
-        } while(filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
+        } while (filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
 
         if (filename >= name->data() && filenamesize > sizeof(wchar_t))
         {
             filename += sizeof(wchar_t);
-            if (memcmp(filename, fad.cFileName, filenamesize < MAX_PATH ? filenamesize : MAX_PATH)
-                    && memcmp(filename, fad.cAlternateFileName, filenamesize < 14 ? filenamesize : 14))
+            if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
+                    && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize)))
             {
                 LOG_warn << "fopen failed due to invalid case";
                 retry = false;
