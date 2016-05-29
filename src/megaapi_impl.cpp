@@ -11321,7 +11321,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
             sync_list::iterator it = client->syncs.begin();
-            while(it != client->syncs.end())
+            while (it != client->syncs.end())
             {
                 Sync *sync = (*it);
                 int tag = sync->tag;
@@ -11329,7 +11329,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->delsync(sync);
 
-                if(syncMap.find(tag) == syncMap.end())
+                if (syncMap.find(tag) != syncMap.end())
                 {
                     MegaSyncPrivate *megaSync = syncMap.at(tag);
                     syncMap.erase(tag);
