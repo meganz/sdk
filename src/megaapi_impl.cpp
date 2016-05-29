@@ -11361,7 +11361,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->delsync(sync, request->getFlag());
 
-                    if (syncMap.find(tag) == syncMap.end())
+                    if (syncMap.find(tag) != syncMap.end())
                     {
                         MegaSyncPrivate *megaSync = syncMap.at(tag);
                         syncMap.erase(tag);
