@@ -11350,26 +11350,37 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
 
                 int tag = sync->tag;
-                if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+                if (!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
                 {
                     string path;
                     fsAccess->local2path(&sync->localroot.localname, &path);
-                    request->setFile(path.c_str());
+                    if (!request->getFile() || sync->localroot.node)
+                    {
+                        request->setFile(path.c_str());
+                    }
+
                     client->delsync(sync, request->getFlag());
 
-                    if(syncMap.find(tag) == syncMap.end())
+                    if (syncMap.find(tag) == syncMap.end())
                     {
                         MegaSyncPrivate *megaSync = syncMap.at(tag);
                         syncMap.erase(tag);
                         delete megaSync;
                     }
 
-                    fireOnRequestFinish(request, MegaError(API_OK));
                     found = true;
                 }
             }
 
-            if(!found) e = API_ENOENT;
+            if (found)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            else
+            {
+                e = API_ENOENT;
+            }
+
             break;
         }
 #endif
