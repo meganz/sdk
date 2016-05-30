@@ -69,6 +69,18 @@ public:
     static int verify(const unsigned char* msg, unsigned long long msglen,
                       const unsigned char* sig, const unsigned char* pubKey);
 
+    /**
+     * @brief Generates the fingerprint of the public key.
+     * @return The 20 bytes corresponding to the fingerprint.
+     */
+    const byte *genFingerprint();
+
+    /**
+     * @brief Generates the fingerprint of the public key in hexadecimal format.
+     * @return The fingerprint in hexadecimal format.
+     */
+    const char *genFingerprintHex();
+
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
     unsigned char privKey[PRIVATE_KEY_LENGTH]; // don't use it externally, use keySeed instead

@@ -84,6 +84,33 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
     return (result == 0) ? 1 : 0;
 }
 
+const byte *EdDSA::genFingerprint()
+{
+    HashSHA256 hash;
+    string binaryhash;
+    hash.add((byte*)&pubKey, PUBLIC_KEY_LENGTH);
+    hash.get(&binaryhash);
+
+    return (byte*) binaryhash.substr(0, 20).c_str();
+}
+
+const char *EdDSA::genFingerprintHex()
+{
+    const byte *fp = genFingerprint();
+
+    static const char hexchars[] = "0123456789abcdef";
+    ostringstream oss;
+    string fpHex;
+    for (size_t i = 0; i < 20; ++i)
+    {
+        oss.put(hexchars[(fp[i] >> 4) & 0x0F]);
+        oss.put(hexchars[fp[i] & 0x0F]);
+    }
+    fpHex = oss.str();
+
+    return fpHex.c_str();
+}
+
 const std::string ECDH::TLV_KEY= "prCu255";
 
 ECDH::ECDH(unsigned char *privKey)
