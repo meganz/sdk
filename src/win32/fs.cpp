@@ -189,8 +189,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
     else
     {
-        HANDLE  h = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
-                             FindExSearchNameMatch, NULL, 0);
+        HANDLE  h = name->size() > sizeof(wchar_t)
+                ? FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
+                             FindExSearchNameMatch, NULL, 0)
+                : INVALID_HANDLE_VALUE;
 
         if (h == INVALID_HANDLE_VALUE)
         {
@@ -204,14 +206,24 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
         const char *filename = name->data() + name->size() - 1;
         int filenamesize = 0;
+        bool separatorfound = false;
         do {
             filename -= sizeof(wchar_t);
             filenamesize += sizeof(wchar_t);
-        } while (filename >= name->data() && memcmp(L"\\", filename, sizeof(wchar_t)));
+            separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t));
+        } while (filename > name->data() && !separatorfound);
 
-        if (filename >= name->data() && filenamesize > sizeof(wchar_t))
+        if (filenamesize > sizeof(wchar_t) || !separatorfound)
         {
-            filename += sizeof(wchar_t);
+            if (separatorfound)
+            {
+                filename += sizeof(wchar_t);
+            }
+            else
+            {
+                filenamesize += sizeof(wchar_t);
+            }
+
             if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
                     && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize)))
             {
