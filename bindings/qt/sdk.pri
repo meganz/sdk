@@ -182,6 +182,7 @@ else {
 win32 {
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
@@ -239,6 +240,7 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lsodium
 }

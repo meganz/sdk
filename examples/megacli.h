@@ -38,7 +38,6 @@ struct AppFile : public File
     // app-internal sequence number for queue management
     int seqno;
 
-    bool failed(error);
     void progress();
 
     appfile_list::iterator appxfer_it;

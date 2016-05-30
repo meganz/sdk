@@ -668,7 +668,13 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     uint8_t utf8cp2;
     int32_t unicodecp;
 
-    byte res[srclen];
+    if (!srclen)
+    {
+        result->clear();
+        return true;
+    }
+
+    byte *res = new byte[srclen];
     unsigned rescount = 0;
 
     unsigned i = 0;
@@ -692,12 +698,15 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
             else
             {
                 // error: last byte indicates a two-bytes UTF-8 char, but only one left
+                delete [] res;
                 return false;
             }
         }
     }
 
     result->assign((const char*)res, rescount);
+    delete [] res;
+
     return true;
 }
 

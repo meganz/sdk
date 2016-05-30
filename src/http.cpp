@@ -471,7 +471,7 @@ bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 {
     char urlbuf[256];
 
-    snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos - 1);
+    snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
     setreq(urlbuf, REQ_BINARY);
 
     dlpos = pos;
@@ -496,9 +496,9 @@ bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
                          uint64_t ctriv, m_off_t startpos, m_off_t endpos)
 {
-    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-
-    key->ctr_crypt(buf, bufpos, dlpos, ctriv, mac, 0);
+    ChunkMAC &chunkmac = (*macs)[pos];
+    key->ctr_crypt(buf, bufpos, dlpos, ctriv, chunkmac.mac, 0,
+            !chunkmac.finished && !chunkmac.offset);
 
     unsigned skip;
     unsigned prune;
@@ -531,7 +531,8 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
 
     fa->fwrite(buf + skip, bufpos - skip - prune, dlpos + skip);
 
-    memcpy((*macs)[dlpos].mac, mac, sizeof mac);
+    chunkmac.finished = true;
+    chunkmac.offset = 0;
 }
 
 // prepare chunk for uploading: mac and encrypt
@@ -555,6 +556,7 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     key->ctr_crypt((byte*)out->data(), size, pos, ctriv, mac, 1);
 
     memcpy((*macs)[pos].mac, mac, sizeof mac);
+    (*macs)[pos].finished = false;
 
     // unpad for POSTing
     out->resize(size);

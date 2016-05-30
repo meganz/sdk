@@ -243,7 +243,7 @@ public:
      */
     void serializekeyforjs(string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 

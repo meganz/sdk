@@ -4237,19 +4237,19 @@ class MegaApi
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get data about a contact
+         * @brief Get information about a MEGA user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the user,
          * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
-         * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
+         * - MegaRequest::getText - Returns the XMPP ID of the user
+         * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
-         * @param user Email or Base64 handle of the contact
+         * @param user Email or Base64 handle of the user
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
@@ -5764,6 +5764,51 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Enable the resumption of transfers 
+         *
+         * This function enables the cache of transfers, so they can be resumed later.
+         * Additionally, if a previous cache already exists (from previous executions),
+         * then this function also resumes the existing cached transfers.
+         * 
+         * @note Cached downloads expire after 10 days since the last time they were active.
+         * @note Cached uploads expire after 24 hours since the last time they were active.
+         * @note Cached transfers related to files that have been modified since they were
+         * added to the cache are discarded, since the file has changed.
+         * 
+         * A log in or a log out automatically disables this feature.
+         *
+         * When the MegaApi object is logged in, the cache of transfers is identified
+         * and protected using the session and the master key, so transfers won't
+         * be resumable using a different session or a different account. The
+         * recommended way of using this function to resume transfers for an account
+         * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
+         *
+         * When the MegaApi object is not logged in, it's still possible to use this
+         * feature. However, since there isn't any available data to identify
+         * and protect the cache, a default identifier and key are used. To improve
+         * the protection of the transfer cache and allow the usage of this feature
+         * with several non logged in instances of MegaApi at once without clashes,
+         * it's possible to set a custom identifier for the transfer cache in the
+         * optional parameter of this function. If that parameter is used, the
+         * encryption key for the transfer cache will be derived from it.
+         *
+         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
+         * It doesn't have any effect if MegaApi is logged in.
+         */
+        void enableTransferResumption(const char* loggedOutId = NULL);
+
+        /**
+         * @brief Disable the resumption of transfers
+         *
+         * This function disables the resumption of transfers and also deletes
+         * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
+         *
+         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
+         * It doesn't have any effect if MegaApi is logged in.
+         */
+        void disableTransferResumption(const char* loggedOutId = NULL);
 
         /**
          * @brief Returns the state (paused/unpaused) of transfers
