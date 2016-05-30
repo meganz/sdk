@@ -31,7 +31,7 @@ import random
 import os
 import logging
 import time
-
+import math
 
 class SyncTest(SyncTestBase):
     """
@@ -277,35 +277,42 @@ class SyncTest(SyncTestBase):
         logging.info("Launching test_update_mtime test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
-        # temporary workaround
-        in_file = os.path.join(self.app.local_mount_in, "mtime_test")
-        out_file = os.path.join(self.app.local_mount_out, "mtime_test")
+        in_file = os.path.join(self.app.local_folder_in, "mtime_test")
+        out_file = os.path.join(self.app.local_folder_out, "mtime_test")
 
-        for _ in range(self.app.nr_retries):
+        for _ in range(self.nr_time_changes):
             logging.debug("Touching: %s" % in_file)
-            now = time.time()
+            now = math.floor(time.time()) #floor to get seconds
             with open(in_file, 'a'):
                 os.utime(in_file, (now, now))
 
-            with open(out_file, 'a'):
-                os.utime(in_file, (now, now))
+      #      with open(out_file, 'a'):
+      #          os.utime(in_file, (now, now))
+            
+            atime=0
+            mtime=0
+            for r in range(self.app.nr_retries):
+                self.app.sync()
+                try:
+                    mtime = os.path.getmtime(out_file)
+                except OSError:
+                    pass
 
-            self.app.sync()
-            '''
-            try:
-                mtime = os.path.getmtime(out_file)
-            except OSError:
-                pass
+                try:
+                    atime = os.path.getatime(out_file)
+                except OSError:
+                    pass
+            
+                logging.debug("Comparing time: %s. atime: %d = %d, mtime: %d = %d" % (out_file, now, atime, now, mtime))
+                
+                if (mtime==now): #all good
+                    break;
+                logging.debug("Comparing time for %s failed! Retrying [%d/%d] .." % (out_file, r + 1, self.nr_retries))
 
-            try:
-                atime = os.path.getatime(out_file)
-            except OSError:
-                pass
-
-            logging.debug("atime: %d = %d, mtime: %d = %d" % (now, atime, now, mtime))
-            self.assertEqual(atime, now, "atime values are different")
+            
+            #self.assertEqual(atime, now, "atime values are different")
             self.assertEqual(mtime, now, "mtime values are different")
-            '''
+            
             self.assertTrue(self.app.is_alive(), "Test application is not running")
 
     def test_create_rename_delete_unicode_files_dirs(self):
