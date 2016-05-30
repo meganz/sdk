@@ -146,6 +146,7 @@ class SyncTestBase(unittest.TestCase):
         self.nr_retries = 200
         self.nr_files = 10
         self.nr_dirs = 10
+        self.nr_time_changes = 10
         self.local_obj_nr = 5
         self.force_syncing = False
 
@@ -360,7 +361,7 @@ class SyncTestBase(unittest.TestCase):
             return None
 
         # create dirs with #nr_files files
-        if self.app.only_empty_folders is None or not self.app.only_empty_folders:
+        if not hasattr(self.app, 'only_empty_folders') or not self.app.only_empty_folders:
             res = self.dir_create_size("d", self.nr_dirs, self.nr_files, 1024, self.app.local_folder_in, dir_generate_name_func, l_dirs)
             if not res:
                 return None

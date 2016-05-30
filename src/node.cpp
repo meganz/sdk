@@ -1260,7 +1260,6 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
-#ifdef USE_INOTIFY
     if (sync->dirnotify)
     {
         // deactivate corresponding notifyq records
@@ -1275,7 +1274,6 @@ LocalNode::~LocalNode()
             }
         }
     }
-#endif
     
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
