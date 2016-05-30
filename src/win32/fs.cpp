@@ -190,7 +190,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     else
     {
         HANDLE  h = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
-                             FindExSearchNameMatch, NULL, FIND_FIRST_EX_CASE_SENSITIVE);
+                             FindExSearchNameMatch, NULL, 0);
 
         if (h == INVALID_HANDLE_VALUE)
         {
