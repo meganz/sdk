@@ -1260,7 +1260,7 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
-#ifdef USE_INOTIFY
+#ifdef ENABLE_SYNC
     if (sync->dirnotify)
     {
         // deactivate corresponding notifyq records
