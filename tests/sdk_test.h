@@ -64,11 +64,11 @@ protected:
 class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
-    MegaApi *megaApi = NULL;
-    MegaApi *megaApiAux = NULL;
-    string email, emailaux, pwd;
+    MegaApi* megaApi[2];
+    string email[2];
+    string pwd[2];
 
-    int lastError;
+    int lastError[2];
 
     // flags to monitor the completion of requests/transfers
     bool requestFlags[2][MegaRequest::TYPE_SET_PROXY];
@@ -80,7 +80,7 @@ public:
     MegaNode *publicNode;
     string attributeValue;
 
-    MegaContactRequest *cr, *craux;
+    MegaContactRequest* cr[2];
 
     // flags to monitor the updates of nodes/users/PCRs due to actionpackets
     bool nodeUpdated[2];
@@ -122,22 +122,22 @@ protected:
 #endif
 
 public:
-    void login(int timeout = maxTimeout);
-    void fetchnodes(int timeout = maxTimeout);
-    void logout(int timeout = maxTimeout);
+    void login(unsigned int apiIndex, int timeout = maxTimeout);
+    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
+    void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
     void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    void waitForResponse(bool *responseReceived, int timeout = maxTimeout);
+    bool waitForResponse(bool *responseReceived, int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
     void deleteFile(string filename);
 
     void getMegaApiAux();
-    void releaseMegaApiAux();
+    void releaseMegaApi(unsigned int apiIndex);
 
     void inviteContact(string email, string message, int action, int timeout = maxTimeout);
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
@@ -152,7 +152,9 @@ public:
     void getPublicNode(string link, int timeout = maxTimeout);
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
-    void getContactRequest(bool outgoing, int expectedSize = 1);
+    void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
+
+    void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
     void fetchChats(int timeout = maxTimeout);

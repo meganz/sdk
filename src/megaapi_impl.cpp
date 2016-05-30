@@ -5797,7 +5797,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(!it->second->isoutgoing && !it->second->changed.deleted)
+        if(!it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -5815,7 +5815,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(it->second->isoutgoing && !it->second->changed.deleted)
+        if(it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -7553,10 +7553,10 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
         switch (action)
         {
             case OPCA_DELETE:
-                LOG_debug << "Outgoing pending contact request reminded successfully";
+                LOG_debug << "Outgoing pending contact request deleted successfully";
                 break;
             case OPCA_REMIND:
-                LOG_debug << "Outgoing pending contact request deleted successfully";
+                LOG_debug << "Outgoing pending contact request reminded successfully";
                 break;
             case OPCA_ADD:
                 char buffer[12];

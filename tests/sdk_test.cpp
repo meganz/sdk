@@ -24,31 +24,32 @@
 void SdkTest::SetUp()
 {
     // do some initialization
+    megaApi[0] = megaApi[1] = NULL;
 
     char *buf = getenv("MEGA_EMAIL");
     if (buf)
-        email.assign(buf);
-    ASSERT_LT(0, email.length()) << "Set your username at the environment variable $MEGA_EMAIL";
+        email[0].assign(buf);
+    ASSERT_LT(0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
 
     buf = getenv("MEGA_PWD");
     if (buf)
-        pwd.assign(buf);
-    ASSERT_LT(0, pwd.length()) << "Set your password at the environment variable $MEGA_PWD";
+        pwd[0].assign(buf);
+    ASSERT_LT(0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
 
-    if (megaApi == NULL)
+    if (megaApi[0] == NULL)
     {
         logger = new MegaLoggerSDK("SDK.log");
         MegaApi::setLoggerObject(logger);
 
         char path[1024];
         getcwd(path, sizeof path);
-        megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
+        megaApi[0] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
-        megaApi->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
-        megaApi->addListener(this);
+        megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
+        megaApi[0]->addListener(this);
 
-        ASSERT_NO_FATAL_FAILURE( login() );
-        ASSERT_NO_FATAL_FAILURE( fetchnodes() );
+        ASSERT_NO_FATAL_FAILURE( login(0) );
+        ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
     }
 }
 
@@ -61,34 +62,31 @@ void SdkTest::TearDown()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
-    releaseMegaApiAux();
+    releaseMegaApi(1);
 
-    if (megaApi)
+    if (megaApi[0])
     {
         // Remove nodes in Cloud & Rubbish
-        purgeTree(megaApi->getRootNode());
-        purgeTree(megaApi->getRubbishNode());
-//        megaApi->cleanRubbishBin();
+        purgeTree(megaApi[0]->getRootNode());
+        purgeTree(megaApi[0]->getRubbishNode());
+//        megaApi[0]->cleanRubbishBin();
 
         // Remove auxiliar contact
-        MegaUserList *ul = megaApi->getContacts();
+        MegaUserList *ul = megaApi[0]->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
             removeContact(ul->get(i)->getEmail());
         }
 
         // Remove pending contact requests
-        MegaContactRequestList *crl = megaApi->getOutgoingContactRequests();
+        MegaContactRequestList *crl = megaApi[0]->getOutgoingContactRequests();
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
-            megaApi->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
         }
 
-        if (megaApi->isLoggedIn())
-            ASSERT_NO_FATAL_FAILURE( logout() );
-
-        delete megaApi;
+        releaseMegaApi(0);
 
         MegaApi::setLoggerObject(NULL);
         delete logger;
@@ -97,10 +95,23 @@ void SdkTest::TearDown()
 
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
-    requestFlags[apiIndex][request->getType()] = true;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
 
-    lastError = e->getErrorCode();
+    requestFlags[apiIndex][request->getType()] = true;
+    lastError[apiIndex] = e->getErrorCode();
 
     switch(request->getType())
     {
@@ -119,7 +130,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_GET_PUBLIC_NODE:
-        if (lastError == API_OK)
+        if (lastError[apiIndex] == API_OK)
             publicNode = request->getPublicMegaNode();
         break;
 
@@ -128,36 +139,36 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_GET_ATTR_USER:
-        if ( (lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+        if ( (lastError[apiIndex] == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
             attributeValue = request->getText();
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
-            if (lastError == API_OK)
+            if (lastError[apiIndex] == API_OK)
                 attributeValue = "Avatar changed";
 
-            if (lastError == API_ENOENT)
+            if (lastError[apiIndex] == API_ENOENT)
                 attributeValue = "Avatar not found";
         }
         break;
 
 #ifdef ENABLE_CHAT
     case MegaRequest::TYPE_CHAT_FETCH:
-        if (lastError == API_OK)
+        if (lastError[apiIndex] == API_OK)
         {
             chats = request->getMegaTextChatList()->copy();
         }
         break;
 
     case MegaRequest::TYPE_CHAT_CREATE:
-        if (lastError == API_OK)
+        if (lastError[apiIndex] == API_OK)
         {
             chats = request->getMegaTextChatList()->copy();
         }
         break;
 
     case MegaRequest::TYPE_CHAT_URL:
-        if (lastError == API_OK)
+        if (lastError[apiIndex] == API_OK)
         {
             link.assign(request->getLink());
         }
@@ -169,18 +180,44 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
     transferFlags[apiIndex][transfer->getType()] = true;
+    lastError[apiIndex] = e->getErrorCode();
 
-    lastError = e->getErrorCode();
-
-    if (lastError == MegaError::API_OK)
+    if (lastError[apiIndex] == MegaError::API_OK)
         h = transfer->getNodeHandle();
 }
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
 
     if (!users)
         return;
@@ -199,33 +236,76 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
         {
             // Contact is removed from main account
             requestFlags[apiIndex][MegaRequest::TYPE_REMOVE_CONTACT] = true;
+            userUpdated[apiIndex] = true;
         }
     }
 }
 
 void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
     nodeUpdated[apiIndex] = true;
 }
 
 void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
     contactRequestUpdated[apiIndex] = true;
 }
 
 #ifdef ENABLE_CHAT
 void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 {
-    unsigned int apiIndex = (api == megaApi) ? 0 : 1;
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
     chatUpdated[apiIndex] = true;
 }
 
 void SdkTest::fetchChats(int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_FETCH] = false;
-    megaApi->fetchChats();
+    megaApi[0]->fetchChats();
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
 
     if (timeout)
@@ -233,107 +313,88 @@ void SdkTest::fetchChats(int timeout)
         ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Fetching chats not finished after " << timeout  << " seconds";
     }
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Fetching list of chats failed (error: " << lastError << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Fetching list of chats failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
-    megaApi->createChat(group, peers);
+    megaApi[0]->createChat(group, peers);
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
     if (timeout)
     {
         ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Chat creation not finished after " << timeout  << " seconds";
     }
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Chat creation failed (error: " << lastError << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
 }
 
 #endif
 
-void SdkTest::login(int timeout)
+void SdkTest::login(unsigned int apiIndex, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_LOGIN] = false;
-    megaApi->login(email.data(), pwd.data());
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGIN], timeout);
+    requestFlags[apiIndex][MegaRequest::TYPE_LOGIN] = false;
+    megaApi[apiIndex]->login(email[apiIndex].data(), pwd[apiIndex].data());
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_LOGIN]) << "Logging failed after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed (error: " << lastError << ")";
-    ASSERT_TRUE(megaApi->isLoggedIn()) << "Not logged it";
+    ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_LOGIN], timeout) )
+            << "Logging failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Logging failed (error: " << lastError[apiIndex] << ")";
+    ASSERT_TRUE(megaApi[apiIndex]->isLoggedIn()) << "Not logged it";
 }
 
-void SdkTest::fetchnodes(int timeout)
+void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_FETCH_NODES] = false;
-    megaApi->fetchNodes();
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_FETCH_NODES], timeout);
+    requestFlags[apiIndex][MegaRequest::TYPE_FETCH_NODES] = false;
+    megaApi[apiIndex]->fetchNodes();
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_FETCH_NODES]) << "Fetchnodes failed after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_FETCH_NODES], timeout) )
+            << "Fetchnodes failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Fetchnodes failed (error: " << lastError[apiIndex] << ")";
 }
 
-void SdkTest::logout(int timeout)
+void SdkTest::logout(unsigned int apiIndex, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_LOGOUT] = false;
-    megaApi->logout(this);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGOUT], timeout);
+    requestFlags[apiIndex][MegaRequest::TYPE_LOGOUT] = false;
+    megaApi[apiIndex]->logout(this);
 
-    if (timeout)
-    {
-        EXPECT_TRUE(requestFlags[0][MegaRequest::TYPE_LOGOUT]) << "Logout failed after " << timeout  << " seconds";
-    }
+    EXPECT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_LOGOUT], timeout) )
+            << "Logout failed after " << timeout  << " seconds";
 
     // if the connection was closed before the response of the request was received, the result is ESID
-    if (lastError == MegaError::API_ESID) lastError = MegaError::API_OK;
+    if (lastError[apiIndex] == MegaError::API_ESID) lastError[apiIndex] = MegaError::API_OK;
 
-    EXPECT_EQ(MegaError::API_OK, lastError) << "Logout failed (error: " << lastError << ")";
+    EXPECT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Logout failed (error: " << lastError[apiIndex] << ")";
 }
 
 char* SdkTest::dumpSession()
 {
-    return megaApi->dumpSession();
+    return megaApi[0]->dumpSession();
 }
 
 void SdkTest::locallogout(int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_LOGOUT] = false;
-    megaApi->localLogout(this);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGOUT], timeout);
+    megaApi[0]->localLogout(this);
 
-    if (timeout)
-    {
-        EXPECT_TRUE(requestFlags[0][MegaRequest::TYPE_LOGOUT]) << "Local logout failed after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
+    EXPECT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGOUT], timeout) )
+            << "Local logout failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Local logout failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::resumeSession(char *session, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_LOGIN] = false;
-    megaApi->fastLogin(session, this);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGIN], timeout);
+    megaApi[0]->fastLogin(session, this);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_LOGIN]) << "Resume session failed after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Resume session failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_LOGIN], timeout) )
+            << "Resume session failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Resume session failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::purgeTree(MegaNode *p)
 {
     MegaNodeList *children;
-    children = megaApi->getChildren(p);
+    children = megaApi[0]->getChildren(p);
 
     for (int i = 0; i < children->size(); i++)
     {
@@ -341,11 +402,11 @@ void SdkTest::purgeTree(MegaNode *p)
         if (n->isFolder())
             purgeTree(n);
 
-        megaApi->remove(n);
+        megaApi[0]->remove(n);
     }
 }
 
-void SdkTest::waitForResponse(bool *responseReceived, int timeout)
+bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
 {
     timeout *= 1000000; // convert to micro-seconds
     int tWaited = 0;    // microseconds
@@ -358,10 +419,12 @@ void SdkTest::waitForResponse(bool *responseReceived, int timeout)
             tWaited += pollingT;
             if (tWaited >= timeout)
             {
-                break;
+                return false;   // timeout is expired
             }
         }
     }
+
+    return true;    // response is received
 }
 
 void SdkTest::createFile(string filename, bool largeFile)
@@ -402,90 +465,68 @@ void SdkTest::deleteFile(string filename)
 
 void SdkTest::getMegaApiAux()
 {
-    if (megaApiAux == NULL)
+    if (megaApi[1] == NULL)
     {
         char *buf;
-
         buf = getenv("MEGA_EMAIL_AUX");
         if (buf)
-            emailaux.assign(buf);
-        ASSERT_LT(0, emailaux.length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+            email[1].assign(buf);
+        ASSERT_LT(0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
 
-        string pwdaux;
         buf = getenv("MEGA_PWD_AUX");
         if (buf)
-            pwdaux.assign(buf);
-        ASSERT_LT(0, pwdaux.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+            pwd[1].assign(buf);
+        ASSERT_LT(0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
         getcwd(path, sizeof path);
-        megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
+        megaApi[1] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
-        megaApiAux->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
-        megaApiAux->addListener(this);
+        megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
+        megaApi[1]->addListener(this);
 
-        requestFlags[1][MegaRequest::TYPE_LOGIN] = false;
-        megaApiAux->login(emailaux.data(), pwdaux.data());
-        waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGIN]);
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed in the auxiliar account (error: " << lastError << ")";
-        ASSERT_TRUE(megaApiAux->isLoggedIn()) << "Login failed in the auxiliar account";
-
-        requestFlags[1][MegaRequest::TYPE_FETCH_NODES] = false;
-        megaApiAux->fetchNodes();
-        waitForResponse(&requestFlags[1][MegaRequest::TYPE_FETCH_NODES]);
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed in the auxiliar account (error: " << lastError << ")";
+        ASSERT_NO_FATAL_FAILURE( login(1) );
+        ASSERT_NO_FATAL_FAILURE( fetchnodes(1) );
     }
 }
 
-void SdkTest::releaseMegaApiAux()
+void SdkTest::releaseMegaApi(unsigned int apiIndex)
 {
-    if (megaApiAux)
+    if (megaApi[apiIndex])
     {
-        if (megaApiAux->isLoggedIn())
+        if (megaApi[apiIndex]->isLoggedIn())
         {
-            requestFlags[1][MegaRequest::TYPE_LOGOUT] = false;
-            megaApiAux->logout();
-            waitForResponse(&requestFlags[1][MegaRequest::TYPE_LOGOUT]);
+            ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
         }
 
-        delete megaApiAux;
-        megaApiAux = NULL;
+        delete megaApi[apiIndex];
+        megaApi[apiIndex] = NULL;
     }
 }
 
 void SdkTest::inviteContact(string email, string message, int action, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_INVITE_CONTACT] = false;
-    megaApi->inviteContact(email.data(), message.data(), action);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_INVITE_CONTACT], timeout);    // at the source side (main account)
+    megaApi[0]->inviteContact(email.data(), message.data(), action);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_INVITE_CONTACT]) << "Contact invitation not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact invitation failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_INVITE_CONTACT], timeout) )
+            << "Contact invitation not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Contact invitation failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout)
 {
     requestFlags[1][MegaRequest::TYPE_REPLY_CONTACT_REQUEST] = false;
-    megaApiAux->replyContactRequest(cr, action);
-    waitForResponse(&requestFlags[1][MegaRequest::TYPE_REPLY_CONTACT_REQUEST], timeout);      // at the target side (auxiliar account)
+    megaApi[1]->replyContactRequest(cr, action);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[1][MegaRequest::TYPE_REPLY_CONTACT_REQUEST]) << "Contact reply not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[1][MegaRequest::TYPE_REPLY_CONTACT_REQUEST], timeout) )
+            << "Contact reply not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[1]) << "Contact reply failed (error: " << lastError[1] << ")";
 }
 
 void SdkTest::removeContact(string email, int timeout)
 {
-    MegaUser *u = megaApi->getContact(email.data());
+    MegaUser *u = megaApi[0]->getContact(email.data());
     bool null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the specified contact (" << email << ")";
 
@@ -497,15 +538,11 @@ void SdkTest::removeContact(string email, int timeout)
     }
 
     requestFlags[0][MegaRequest::TYPE_REMOVE_CONTACT] = false;
-    megaApi->removeContact(u);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_REMOVE_CONTACT], timeout);      // at the target side (auxiliar account)
+    megaApi[0]->removeContact(u);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_REMOVE_CONTACT]) << "Contact deletion not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact deletion failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_REMOVE_CONTACT], timeout) )
+            << "Contact deletion not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Contact deletion failed (error: " << lastError[0] << ")";
 
     delete u;
 }
@@ -513,93 +550,83 @@ void SdkTest::removeContact(string email, int timeout)
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_SHARE] = false;
-    megaApi->share(n, email, action);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SHARE], timeout);
+    megaApi[0]->share(n, email, action);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_SHARE]) << "Folder sharing not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")" << endl << "User: " << email << " Action: " << action;
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SHARE], timeout) )
+            << "Folder sharing not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Folder sharing failed (error: " << lastError[0] << ")" << endl << "User: " << email << " Action: " << action;
 }
 
 void SdkTest::createPublicLink(MegaNode *n, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi->exportNode(n);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout);
+    megaApi[0]->exportNode(n);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_EXPORT]) << "Public link creation not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link creation failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
+            << "Public link creation not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_IMPORT_LINK] = false;
-    megaApi->importFileLink(link.data(), parent);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_IMPORT_LINK], timeout);
+    megaApi[0]->importFileLink(link.data(), parent);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_IMPORT_LINK]) << "Public link import not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link import failed (error: " << lastError << ")";
+    ASSERT_TRUE(waitForResponse(&requestFlags[0][MegaRequest::TYPE_IMPORT_LINK], timeout) )
+            << "Public link import not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link import failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::getPublicNode(string link, int timeout)
 {
     requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE] = false;
-    megaApiAux->getPublicNode(link.data());
-    waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE], timeout);
+    megaApi[1]->getPublicNode(link.data());
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE]) << "Public link retrieval not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link retrieval failed (error: " << lastError << ")";
+    ASSERT_TRUE(waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE], timeout) )
+            << "Public link retrieval not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[1]) << "Public link retrieval failed (error: " << lastError[1] << ")";
 }
 
 void SdkTest::removePublicLink(MegaNode *n, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi->disableExport(n);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout);
+    megaApi[0]->disableExport(n);
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_EXPORT]) << "Public link removal not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link removal failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
+            << "Public link removal not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link removal failed (error: " << lastError[0] << ")";
 }
 
-void SdkTest::getContactRequest(bool outgoing, int expectedSize)
+void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize)
 {
     MegaContactRequestList *crl;
 
     if (outgoing)
     {
-        crl = megaApi->getOutgoingContactRequests();
+        crl = megaApi[apiIndex]->getOutgoingContactRequests();
         ASSERT_EQ(expectedSize, crl->size()) << "Too many outgoing contact requests in main account";
         if (expectedSize)
-            cr = crl->get(0)->copy();
+            cr[apiIndex] = crl->get(0)->copy();
     }
     else
     {
-        crl = megaApiAux->getIncomingContactRequests();
+        crl = megaApi[apiIndex]->getIncomingContactRequests();
         ASSERT_EQ(expectedSize, crl->size()) << "Too many incoming contact requests in auxiliar account";
         if (expectedSize)
-            craux = crl->get(0)->copy();
+            cr[apiIndex] = crl->get(0)->copy();
     }
 
     delete crl;
+}
+
+void SdkTest::createFolder(unsigned int apiIndex, char *name, MegaNode *n, int timeout)
+{
+    requestFlags[apiIndex][MegaRequest::TYPE_CREATE_FOLDER] = false;
+    megaApi[apiIndex]->createFolder(name, n);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_CREATE_FOLDER], timeout) )
+            << "Folder creation failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Cannot create a folder (error: " << lastError[apiIndex] << ")";
 }
 
 MegaLoggerSDK::MegaLoggerSDK(const char *filename)
@@ -627,21 +654,16 @@ void SdkTest::setUserAttribute(int type, string value, int timeout)
 
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        megaApi->setAvatar(value.empty() ? NULL : value.c_str());
+        megaApi[0]->setAvatar(value.empty() ? NULL : value.c_str());
     }
     else
     {
-        megaApi->setUserAttribute(type, value.c_str());
+        megaApi[0]->setUserAttribute(type, value.c_str());
     }
 
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER], timeout);
-
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER]) << "User attribute setup not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "User attribute setup failed (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER], timeout) )
+            << "User attribute setup not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "User attribute setup failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
@@ -650,22 +672,18 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
 
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        megaApiAux->getUserAvatar(u, AVATARDST.data());
+        megaApi[1]->getUserAvatar(u, AVATARDST.data());
     }
     else
     {
-        megaApiAux->getUserAttribute(u, type);
+        megaApi[1]->getUserAttribute(u, type);
     }
 
-    waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER], timeout);
+    ASSERT_TRUE( waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
+            << "User attribute retrieval not finished after " << timeout  << " seconds";
 
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER]) << "User attribute retrieval not finished after " << timeout  << " seconds";
-    }
-
-    bool result = (lastError == MegaError::API_OK) || (lastError == MegaError::API_ENOENT);
-    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError << ")";
+    bool result = (lastError[1] == MegaError::API_OK) || (lastError[1] == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[1] << ")";
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
@@ -677,14 +695,14 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
+
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]);
+    megaApi[0]->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
+            << "Account creation has failed after " << maxTimeout << " seconds";
 
-    ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) << "Account creation has failed after " << maxTimeout << " seconds";
-
-    bool result = (lastError == MegaError::API_OK);
-    ASSERT_TRUE(result) << "Account creation failed (error: " << lastError << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
 }
 
 /**
@@ -694,11 +712,11 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  */
 TEST_F(SdkTest, SdkTestResumeSession)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
 
     char *session = dumpSession();
-    ASSERT_NO_FATAL_FAILURE( locallogout() );
 
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
 
     delete session;
@@ -723,30 +741,26 @@ TEST_F(SdkTest, SdkTestResumeSession)
  */
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
 
     // --- Create a new folder ---
 
-    MegaNode *rootnode = megaApi->getRootNode();
+    MegaNode *rootnode = megaApi[0]->getRootNode();
     char name1[64] = "New folder";
 
-    requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER] = false;
-    megaApi->createFolder(name1, rootnode);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+    ASSERT_NO_FATAL_FAILURE( createFolder(0, name1, rootnode) );
 
 
     // --- Rename a node ---
 
-    MegaNode *n1 = megaApi->getNodeByHandle(h);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(h);
     strcpy(name1, "Folder renamed");
 
     requestFlags[0][MegaRequest::TYPE_RENAME] = false;
-    megaApi->renameNode(n1, name1);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_RENAME]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot rename a node (error: " << lastError << ")";
+    megaApi[0]->renameNode(n1, name1);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_RENAME]) )
+            << "Rename operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot rename a node (error: " << lastError[0] << ")";
 
 
     // --- Copy a node ---
@@ -755,19 +769,19 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     char name2[64] = "Folder copy";
 
     requestFlags[0][MegaRequest::TYPE_COPY] = false;
-    megaApi->copyNode(n1, rootnode, name2);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_COPY]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a copy of a node (error: " << lastError << ")";
-    n2 = megaApi->getNodeByHandle(h);
+    megaApi[0]->copyNode(n1, rootnode, name2);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_COPY]) )
+            << "Copy operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot create a copy of a node (error: " << lastError[0] << ")";
+    n2 = megaApi[0]->getNodeByHandle(h);
 
 
     // --- Get child nodes ---
 
     MegaNodeList *children;
-    children = megaApi->getChildren(rootnode);
+    children = megaApi[0]->getChildren(rootnode);
 
-    EXPECT_EQ(megaApi->getNumChildren(rootnode), children->size()) << "Wrong number of child nodes";
+    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode), children->size()) << "Wrong number of child nodes";
     ASSERT_LE(2, children->size()) << "Wrong number of children nodes found";
     EXPECT_STREQ(name2, children->get(0)->getName()) << "Wrong name of child node"; // "Folder copy"
     EXPECT_STREQ(name1, children->get(1)->getName()) << "Wrong name of child node"; // "Folder rename"
@@ -778,7 +792,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     // --- Get child node by name ---
 
     MegaNode *n3;
-    n3 = megaApi->getChildNode(rootnode, name2);
+    n3 = megaApi[0]->getChildNode(rootnode, name2);
 
     bool null_pointer = (n3 == NULL);
     EXPECT_FALSE(null_pointer) << "Child node by name not found";
@@ -789,7 +803,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 
     char path[128] = "/Folder copy";
     MegaNode *n4;
-    n4 = megaApi->getNodeByPath(path);
+    n4 = megaApi[0]->getNodeByPath(path);
 
     null_pointer = (n4 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by path not found";
@@ -797,7 +811,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 
     // --- Search for a node ---
     MegaNodeList *nlist;
-    nlist = megaApi->search(rootnode, "copy");
+    nlist = megaApi[0]->search(rootnode, "copy");
 
     ASSERT_EQ(1, nlist->size());
     EXPECT_EQ(n4->getHandle(), nlist->get(0)->getHandle()) << "Search node by pattern failed";
@@ -808,16 +822,16 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     // --- Move a node ---
 
     requestFlags[0][MegaRequest::TYPE_MOVE] = false;
-    megaApi->moveNode(n1, n2);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_MOVE]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot move node (error: " << lastError << ")";
+    megaApi[0]->moveNode(n1, n2);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_MOVE]) )
+            << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot move node (error: " << lastError[0] << ")";
 
 
     // --- Get parent node ---
 
     MegaNode *n5;
-    n5 = megaApi->getParentNode(n1);
+    n5 = megaApi[0]->getParentNode(n1);
 
     ASSERT_EQ(n2->getHandle(), n5->getHandle()) << "Wrong parent node";
 
@@ -825,19 +839,19 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     // --- Send to Rubbish bin ---
 
     requestFlags[0][MegaRequest::TYPE_MOVE] = false;
-    megaApi->moveNode(n2, megaApi->getRubbishNode());
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_MOVE]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot move node to Rubbish bin (error: " << lastError << ")";
+    megaApi[0]->moveNode(n2, megaApi[0]->getRubbishNode());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_MOVE]) )
+            << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot move node to Rubbish bin (error: " << lastError[0] << ")";
 
 
     // --- Remove a node ---
 
     requestFlags[0][MegaRequest::TYPE_REMOVE] = false;
-    megaApi->remove(n2);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_REMOVE]);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot remove a node (error: " << lastError << ")";
+    megaApi[0]->remove(n2);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_REMOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot remove a node (error: " << lastError[0] << ")";
 
     delete rootnode;
     delete n1;
@@ -860,9 +874,9 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
 
-    MegaNode *rootnode = megaApi->getRootNode();
+    MegaNode *rootnode = megaApi[0]->getRootNode();
     string filename1 = UPFILE;
     createFile(filename1);
 
@@ -870,57 +884,58 @@ TEST_F(SdkTest, SdkTestTransfers)
     // --- Cancel a transfer ---
 
     requestFlags[0][MegaRequest::TYPE_CANCEL_TRANSFERS] = false;
-    megaApi->startUpload(filename1.data(), rootnode);
-    megaApi->cancelTransfers(MegaTransfer::TYPE_UPLOAD);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CANCEL_TRANSFERS]);
-
-    EXPECT_EQ(MegaError::API_OK, lastError) << "Transfer cancellation failed (error: " << lastError << ")";
+    megaApi[0]->startUpload(filename1.data(), rootnode);
+    megaApi[0]->cancelTransfers(MegaTransfer::TYPE_UPLOAD);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CANCEL_TRANSFERS]) )
+            << "Cancellation of transfers failed after " << maxTimeout << " seconds";
+    EXPECT_EQ(MegaError::API_OK, lastError[0]) << "Transfer cancellation failed (error: " << lastError[0] << ")";
 
 
     // --- Upload a file (part 1) ---
 
     transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
-    megaApi->startUpload(filename1.data(), rootnode);
+    megaApi[0]->startUpload(filename1.data(), rootnode);
     // do not wait yet for completion
 
 
     // --- Pause a transfer ---
 
     requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS] = false;
-    megaApi->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS]);
-
-    EXPECT_EQ(MegaError::API_OK, lastError) << "Cannot pause transfer (error: " << lastError << ")";
-    EXPECT_TRUE(megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not paused";
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS]) )
+            << "Pause of transfers failed after " << maxTimeout << " seconds";
+    EXPECT_EQ(MegaError::API_OK, lastError[0]) << "Cannot pause transfer (error: " << lastError[0] << ")";
+    EXPECT_TRUE(megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not paused";
 
 
     // --- Resume a transfer ---
 
     requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS] = false;
-    megaApi->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS]);
-
-    EXPECT_EQ(MegaError::API_OK, lastError) << "Cannot resume transfer (error: " << lastError << ")";
-    EXPECT_FALSE(megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not resumed";
+    megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_PAUSE_TRANSFERS]) )
+            << "Resumption of transfers after pause has failed after " << maxTimeout << " seconds";
+    EXPECT_EQ(MegaError::API_OK, lastError[0]) << "Cannot resume transfer (error: " << lastError[0] << ")";
+    EXPECT_FALSE(megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not resumed";
 
 
     // --- Upload a file (part 2) ---
 
-    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 600) )
+            << "Upload transfer failed after " << 600 << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload file (error: " << lastError[0] << ")";
 
-    MegaNode *n1 = megaApi->getNodeByHandle(h);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(h);
     bool null_pointer = (n1 == NULL);
 
-    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError << ")";
-    ASSERT_STREQ(filename1.data(), n1->getName()) << "Uploaded file with wrong name (error: " << lastError << ")";
+    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError[0] << ")";
+    ASSERT_STREQ(filename1.data(), n1->getName()) << "Uploaded file with wrong name (error: " << lastError[0] << ")";
 
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
-    char *fingerprint = megaApi->getFingerprint(n1);
-    MegaNode *n2 = megaApi->getNodeByFingerprint(fingerprint);
+    char *fingerprint = megaApi[0]->getFingerprint(n1);
+    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint);
 
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
@@ -932,7 +947,7 @@ TEST_F(SdkTest, SdkTestTransfers)
     // --- Get the size of a file ---
 
     int filesize = getFilesize(filename1);
-    int nodesize = megaApi->getSize(n2);
+    int nodesize = megaApi[0]->getSize(n2);
     EXPECT_EQ(filesize, nodesize) << "Wrong size of uploaded file";
 
 
@@ -941,16 +956,16 @@ TEST_F(SdkTest, SdkTestTransfers)
     string filename2 = "./" + DOWNFILE;
 
     transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi->startDownload(n2, filename2.c_str());
-    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD]);
+    megaApi[0]->startDownload(n2, filename2.c_str());
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot download the file (error: " << lastError << ")";
-
-    MegaNode *n3 = megaApi->getNodeByHandle(h);
+    MegaNode *n3 = megaApi[0]->getNodeByHandle(h);
     null_pointer = (n3 == NULL);
 
     ASSERT_FALSE(null_pointer) << "Cannot download node";
-    ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError << ")";
+    ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
 
     delete rootnode;
     delete n1;
@@ -988,87 +1003,92 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
 
 
     // --- Check my email and the email of the contact ---
 
-    EXPECT_STREQ(email.data(), megaApi->getMyEmail());
-    EXPECT_STREQ(emailaux.data(), megaApiAux->getMyEmail());
+    EXPECT_STREQ(email[0].data(), megaApi[0]->getMyEmail());
+    EXPECT_STREQ(email[1].data(), megaApi[1]->getMyEmail());
 
 
     // --- Send a new contact request ---
 
     string message = "Hi contact. This is a testing message";
 
-    contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    contactRequestUpdated[0] = contactRequestUpdated[1] = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
 
 
     // --- Check the sent contact request ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(true) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the source side (main account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    ASSERT_STREQ(message.data(), cr->getSourceMessage()) << "Message sent is corrupted";
-    ASSERT_STREQ(email.data(), cr->getSourceEmail()) << "Wrong source email";
-    ASSERT_STREQ(emailaux.data(), cr->getTargetEmail()) << "Wrong target email";
-    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr->getStatus()) << "Wrong contact request status";
-    ASSERT_TRUE(cr->isOutgoing()) << "Wrong direction of the contact request";
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true) );
 
-    delete cr;      cr = NULL;
+    ASSERT_STREQ(message.data(), cr[0]->getSourceMessage()) << "Message sent is corrupted";
+    ASSERT_STREQ(email[0].data(), cr[0]->getSourceEmail()) << "Wrong source email";
+    ASSERT_STREQ(email[1].data(), cr[0]->getTargetEmail()) << "Wrong target email";
+    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr[0]->getStatus()) << "Wrong contact request status";
+    ASSERT_TRUE(cr[0]->isOutgoing()) << "Wrong direction of the contact request";
+
+    delete cr[0];      cr[0] = NULL;
 
 
     // --- Check received contact request ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    ASSERT_STREQ(message.data(), craux->getSourceMessage()) << "Message received is corrupted";
-    ASSERT_STREQ(email.data(), craux->getSourceEmail()) << "Wrong source email";
-    ASSERT_STREQ(NULL, craux->getTargetEmail()) << "Wrong target email";    // NULL according to MegaApi documentation
-    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, craux->getStatus()) << "Wrong contact request status";
-    ASSERT_FALSE(craux->isOutgoing()) << "Wrong direction of the contact request";
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
-    delete craux;   craux = NULL;
+    ASSERT_STREQ(message.data(), cr[1]->getSourceMessage()) << "Message received is corrupted";
+    ASSERT_STREQ(email[0].data(), cr[1]->getSourceEmail()) << "Wrong source email";
+    ASSERT_STREQ(NULL, cr[1]->getTargetEmail()) << "Wrong target email";    // NULL according to MegaApi documentation
+    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr[1]->getStatus()) << "Wrong contact request status";
+    ASSERT_FALSE(cr[1]->isOutgoing()) << "Wrong direction of the contact request";
+
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Ignore received contact request ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE) );
-    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
-    // waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
-    // Ignoring a PCR does not generate actionpackets for the main account
+    ASSERT_NO_FATAL_FAILURE( replyContact(cr[1], MegaContactRequest::REPLY_ACTION_IGNORE) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    delete craux;   craux = NULL;
+    // Ignoring a PCR does not generate actionpackets for the account sending the invitation
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
-    delete craux;   craux = NULL;
+    delete cr[1];   cr[1] = NULL;
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false, 0) );
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Cancel the invitation ---
 
     message = "I don't wanna be your contact anymore";
 
-    contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE) );
-    waitForResponse(&contactRequestUpdated[1]);    // only at auxiliar account, where the deletion is checked
+    contactRequestUpdated[0] = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_DELETE) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the target side (auxiliar account), where the deletion is checked
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
-    delete craux;   craux = NULL;
-
-    // The target contact doesn't receive notification, since the invitation was ignored previously
-
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true, 0) );
+    delete cr[0];      cr[0] = NULL;
     
+
     // --- Remind a contact invitation (cannot until 2 weeks after invitation/last reminder) ---
 
 //    contactRequestUpdated[1] = false;
-//    megaApi->inviteContact(emailaux.data(), message.data(), MegaContactRequest::INVITE_ACTION_REMIND);
-//    waitForResponse(&contactRequestUpdated[1]);    // only at auxiliar account, where the deletion is checked
+//    megaApi->inviteContact(email[1].data(), message.data(), MegaContactRequest::INVITE_ACTION_REMIND);
+//    waitForResponse(&contactRequestUpdated[1], 0);    // only at auxiliar account, where the deletion is checked
 
 //    ASSERT_TRUE(contactRequestUpdated[1]) << "Contact invitation reminder not received after " << timeout  << " seconds";
 
@@ -1076,50 +1096,57 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Invite a new contact (again) ---
 
     contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
 
 
     // --- Deny a contact invitation ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_DENY) );
-    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    ASSERT_NO_FATAL_FAILURE( replyContact(cr[1], MegaContactRequest::REPLY_ACTION_DENY) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
 
-    delete craux;   craux = NULL;
+    delete cr[1];   cr[1] = NULL;
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(true, 0) );
-    delete cr;   cr = NULL;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true, 0) );
+    delete cr[0];   cr[0] = NULL;
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
-    delete craux;   craux = NULL;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false, 0) );
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Invite a new contact (again) ---
 
     contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+
 
     // --- Accept a contact invitation ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[0]);     // at the source side (main account)
-    waitForResponse(&contactRequestUpdated[1]);     // at the target side (auxiliar account)
+    ASSERT_NO_FATAL_FAILURE( replyContact(cr[1], MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the target side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
 
-    delete craux;   craux = NULL;
+    delete cr[1];   cr[1] = NULL;
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(true, 0) );
-    delete cr;   cr = NULL;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true, 0) );
+    delete cr[0];   cr[0] = NULL;
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
-    delete craux;   craux = NULL;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false, 0) );
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Modify firstname ---
@@ -1128,16 +1155,18 @@ TEST_F(SdkTest, SdkTestContacts)
 
     userUpdated[0] = userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
-    waitForResponse(&userUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&userUpdated[0]);    // at the source side (main account)
+    ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
 
 
     // --- Check firstname of a contact
 
-    MegaUser *u = megaApi->getMyUser();
+    MegaUser *u = megaApi[0]->getMyUser();
 
     bool null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email[0];
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
     ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
@@ -1148,16 +1177,18 @@ TEST_F(SdkTest, SdkTestContacts)
 
     userUpdated[0] = userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
-    waitForResponse(&userUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&userUpdated[0]);    // at the source side (main account)
+    ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
 
 
     // --- Get avatar of a contact ---
 
-    u = megaApi->getMyUser();
+    u = megaApi[0]->getMyUser();
 
     null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email[0];
 
     attributeValue = "";
 
@@ -1175,16 +1206,18 @@ TEST_F(SdkTest, SdkTestContacts)
 
     userUpdated[0] = userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
-    waitForResponse(&userUpdated[1]); // at the target side (auxiliar account)
-    waitForResponse(&userUpdated[0]);    // at the source side (main account)
+    ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
 
 
     // --- Get non-existing avatar of a contact ---
 
-    u = megaApi->getMyUser();
+    u = megaApi[0]->getMyUser();
 
     null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email[0];
 
     attributeValue = "";
 
@@ -1197,13 +1230,14 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Delete an existing contact ---
 
     userUpdated[0] = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(emailaux) );
-    waitForResponse(&userUpdated[0]);    // at the source side (main account)
+    ASSERT_NO_FATAL_FAILURE( removeContact(email[1]) );
+    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
+            << "User attribute update not received after " << maxTimeout << " seconds";
 
-    u = megaApi->getContact(emailaux.data());
+    u = megaApi[0]->getContact(email[1].data());
     null_pointer = (u == NULL);
 
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email[1];
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact is still visible";
 
     delete u;
@@ -1233,7 +1267,7 @@ TEST_F(SdkTest, SdkTestContacts)
  */
 TEST_F(SdkTest, SdkTestShares)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
     MegaShareList *sl;
     MegaShare *s;
@@ -1251,57 +1285,52 @@ TEST_F(SdkTest, SdkTestShares)
     //    |--subfolder
     //    |--file.txt
 
-    MegaNode *rootnode = megaApi->getRootNode();
+    MegaNode *rootnode = megaApi[0]->getRootNode();
     char foldername1[64] = "Shared-folder";
     MegaHandle hfolder1;
 
-    requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER] = false;
-    megaApi->createFolder(foldername1, rootnode);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER]);
+    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername1, rootnode) );
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
     hfolder1 = h;     // 'h' is set in 'onRequestFinish()'
-    n1 = megaApi->getNodeByHandle(hfolder1);
+    n1 = megaApi[0]->getNodeByHandle(hfolder1);
 
     char foldername2[64] = "subfolder";
     MegaHandle hfolder2;
 
-    requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER] = false;
-    megaApi->createFolder(foldername2, megaApi->getNodeByHandle(hfolder1));
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_FOLDER]);
+    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername2, megaApi[0]->getNodeByHandle(hfolder1)) );
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
     hfolder2 = h;
 
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
 
     transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
-    megaApi->startUpload(PUBLICFILE.data(), megaApi->getNodeByHandle(hfolder1));
+    megaApi[0]->startUpload(PUBLICFILE.data(), megaApi[0]->getNodeByHandle(hfolder1));
     waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 0);   // wait forever
 
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload file (error: " << lastError[0] << ")";
     hfile1 = h;
 
 
     // --- Download authorized node from another account ---
 
-    MegaNode *nNoAuth = megaApi->getNodeByHandle(hfile1);
+    MegaNode *nNoAuth = megaApi[0]->getNodeByHandle(hfile1);
 
     transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApiAux->startDownload(nNoAuth, "unauthorized_node");
-    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
+    megaApi[1]->startDownload(nNoAuth, "unauthorized_node");
+    ASSERT_TRUE( waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download transfer not finished after " << maxTimeout << " seconds";
 
-    bool hasFailed = (lastError != API_OK);
+    bool hasFailed = (lastError[1] != API_OK);
     ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
 
-    MegaNode *nAuth = megaApi->authorizeNode(nNoAuth);
+    MegaNode *nAuth = megaApi[0]->authorizeNode(nNoAuth);
 
     transferFlags[1][MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApiAux->startDownload(nAuth, "authorized_node");
-    waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 0);
-
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot download authorized node (error: " << lastError << ")";
+    megaApi[1]->startDownload(nAuth, "authorized_node");
+    ASSERT_TRUE( waitForResponse(&transferFlags[1][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download transfer not finished after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[1]) << "Cannot download authorized node (error: " << lastError[1] << ")";
 
     delete nNoAuth;
     delete nAuth;
@@ -1312,41 +1341,44 @@ TEST_F(SdkTest, SdkTestShares)
     string message = "Hi contact. Let's share some stuff";
 
     contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
 
 
-    MegaContactRequestList *crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
-    MegaContactRequest *craux = crlaux->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    ASSERT_NO_FATAL_FAILURE( replyContact(cr[1], MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
 
-    delete crlaux;
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Create a new outgoing share ---
 
     nodeUpdated[0] = nodeUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, emailaux.data(), MegaShare::ACCESS_READ) );
-    waitForResponse(&nodeUpdated[0]);
-    waitForResponse(&nodeUpdated[1]);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, email[1].data(), MegaShare::ACCESS_READ) );
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[0]) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[1]) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
 
 
     // --- Check the outgoing share ---
 
-    sl = megaApi->getOutShares();
+    sl = megaApi[0]->getOutShares();
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
     s = sl->get(0);
 
-    n1 = megaApi->getNodeByHandle(hfolder1);    // get an updated version of the node
+    n1 = megaApi[0]->getNodeByHandle(hfolder1);    // get an updated version of the node
 
     ASSERT_EQ(MegaShare::ACCESS_READ, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STREQ(emailaux.data(), s->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STREQ(email[1].data(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
@@ -1355,16 +1387,16 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Check the incoming share ---
 
-    sl = megaApiAux->getInSharesList();
+    sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
-    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    nl = megaApi[1]->getInShares(megaApi[1]->getContact(email[0].data()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -1374,15 +1406,17 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Modify the access level of an outgoing share ---
 
     nodeUpdated[0] = nodeUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi->getNodeByHandle(hfolder1), emailaux.data(), MegaShare::ACCESS_READWRITE) );
-    waitForResponse(&nodeUpdated[0]);
-    waitForResponse(&nodeUpdated[1]);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi[0]->getNodeByHandle(hfolder1), email[1].data(), MegaShare::ACCESS_READWRITE) );
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[0]) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[1]) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
 
-    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    nl = megaApi[1]->getInShares(megaApi[1]->getContact(email[0].data()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
-    ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
 
     delete nl;
 
@@ -1390,15 +1424,17 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Revoke access to an outgoing share ---
 
     nodeUpdated[0] = nodeUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, emailaux.data(), MegaShare::ACCESS_UNKNOWN) );
-    waitForResponse(&nodeUpdated[0]);
-    waitForResponse(&nodeUpdated[1]);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, email[1].data(), MegaShare::ACCESS_UNKNOWN) );
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[0]) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[1]) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
 
-    sl = megaApi->getOutShares();
+    sl = megaApi[0]->getOutShares();
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
     delete sl;
 
-    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    nl = megaApi[1]->getInShares(megaApi[1]->getContact(email[0].data()));
     ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
     delete nl;
 
@@ -1410,18 +1446,20 @@ TEST_F(SdkTest, SdkTestShares)
     sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
-    n = megaApi->getNodeByHandle(hfolder2);
+    n = megaApi[0]->getNodeByHandle(hfolder2);
 
     contactRequestUpdated[0] = false;
     nodeUpdated[0] = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(n, emailfake, MegaShare::ACCESS_FULL) );
-    waitForResponse(&nodeUpdated[0]);
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    ASSERT_TRUE( waitForResponse(&nodeUpdated[0]) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the target side (main account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    sl = megaApi->getPendingOutShares(n);   delete n;
+    sl = megaApi[0]->getPendingOutShares(n);   delete n;
     ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
     s = sl->get(0);
-    n = megaApi->getNodeByHandle(s->getNodeHandle());
+    n = megaApi[0]->getNodeByHandle(s->getNodeHandle());
 
 //    ASSERT_STREQ(emailfake, s->getUser()) << "Wrong email address of outgoing share"; User is not created yet
     ASSERT_FALSE(n->isShared()) << "Node is already shared, must be pending";
@@ -1434,20 +1472,20 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Create a public link ---
 
-    MegaNode *nfile1 = megaApi->getNodeByHandle(hfile1);
+    MegaNode *nfile1 = megaApi[0]->getNodeByHandle(hfile1);
 
     ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     // The created link is stored in this->link at onRequestFinish()
 
     // Get a fresh snapshot of the node and check it's actually exported
-    nfile1 = megaApi->getNodeByHandle(hfile1);
+    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
     ASSERT_TRUE(nfile1->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfile1->isTakenDown()) << "Public link is taken down, it mustn't";
 
     // Regenerate the same link should not trigger a new request
     string oldLink = link;
     link = "";
-    nfile1 = megaApi->getNodeByHandle(hfile1);
+    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
     ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
@@ -1456,7 +1494,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_NO_FATAL_FAILURE( importPublicLink(link, rootnode) );
 
-    MegaNode *nimported = megaApi->getNodeByHandle(h);
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(h);
 
     ASSERT_STREQ(nfile1->getName(), nimported->getName()) << "Imported file with wrong name";
     ASSERT_EQ(rootnode->getHandle(), nimported->getParentHandle()) << "Imported file in wrong path";
@@ -1474,7 +1512,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_NO_FATAL_FAILURE( removePublicLink(nfile1) );
 
     delete nfile1;
-    nfile1 = megaApi->getNodeByHandle(h);
+    nfile1 = megaApi[0]->getNodeByHandle(h);
     ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
 
     delete nimported;
@@ -1499,7 +1537,7 @@ TEST_F(SdkTest, SdkTestShares)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    megaApi->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
 
@@ -1508,20 +1546,22 @@ TEST_F(SdkTest, SdkTestChat)
     string message = "Hi contact. This is a testing message";
 
     contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    waitForResponse(&contactRequestUpdated[1]); // at the target side (auxiliar account)
-
+    ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
     // --- Accept a contact invitation ---
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    waitForResponse(&contactRequestUpdated[1]);    // at the target side (auxiliar account)
-    waitForResponse(&contactRequestUpdated[0]);    // at the source side (main account)
+    ASSERT_NO_FATAL_FAILURE( replyContact(cr[1], MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&contactRequestUpdated[0]) )   // at the target side (main account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
 
-    delete craux;   craux = NULL;
+    delete cr[1];   cr[1] = NULL;
 
 
     // --- Fetch list of available chats ---
@@ -1536,14 +1576,15 @@ TEST_F(SdkTest, SdkTestChat)
     handle h;
     bool group;
 
-    h = megaApiAux->getMyUser()->getHandle();
+    h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_RW);
     group = true;
 
     chatUpdated[1] = false;
-    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );
-    waitForResponse(&chatUpdated[1]);
+    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );    
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
+            << "Chat update not received after " << maxTimeout << " seconds";
 
     delete peers;
 
@@ -1559,32 +1600,34 @@ TEST_F(SdkTest, SdkTestChat)
 
     chatUpdated[0] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;
-    megaApi->removeFromChat(chatid, h);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]);
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Removal of chat peer failed (error: " << lastError << ")";
+    megaApi[0]->removeFromChat(chatid, h);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]) )
+            << "Chat remove failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Removal of chat peer failed (error: " << lastError[0] << ")";
 
-    waitForResponse(&chatUpdated[0]);
-    ASSERT_TRUE(chatUpdated[0]) << "Didn't receive notification of the peer removal";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[0]) )   // at the target side (auxiliar account)
+            << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
 
 
     // --- Invite a contact to a chat ---
 
     chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi->inviteToChat(chatid, h, PRIV_FULL);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]);
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Invitation of chat peer failed (error: " << lastError << ")";
-
-    waitForResponse(&chatUpdated[1]);
-    ASSERT_TRUE(chatUpdated[1]) << "The peer didn't receive notification of the invitation";
+    megaApi[0]->inviteToChat(chatid, h, PRIV_FULL);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]) )
+            << "Chat invitation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Invitation of chat peer failed (error: " << lastError[0] << ")";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
+            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
 
     // --- Get the user-specific URL for the chat ---
 
     requestFlags[0][MegaRequest::TYPE_CHAT_URL] = false;
-    megaApi->getUrlChat(chatid);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_URL]);
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Retrieval of chat URL failed (error: " << lastError << ")";
+    megaApi[0]->getUrlChat(chatid);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_URL]) )
+            << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Retrieval of chat URL failed (error: " << lastError[0] << ")";
 }
 
 #endif
