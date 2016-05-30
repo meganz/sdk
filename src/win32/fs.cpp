@@ -225,7 +225,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
             }
 
             if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
-                    && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize)))
+                    && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
+                    && !((filenamesize == 4 && !memcmp(filename, L".", 4))
+                         || (filenamesize == 6 && !memcmp(filename, L"..", 6))))
             {
                 LOG_warn << "fopen failed due to invalid case";
                 retry = false;
