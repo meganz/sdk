@@ -48,6 +48,8 @@ void SdkTest::SetUp()
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[0]->addListener(this);
 
+        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Initializing test (SetUp()) ___");
+
         ASSERT_NO_FATAL_FAILURE( login(0) );
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
     }
@@ -65,7 +67,9 @@ void SdkTest::TearDown()
     releaseMegaApi(1);
 
     if (megaApi[0])
-    {
+    {        
+        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Cleaning up test (TearDown()) ___");
+
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi[0]->getRootNode());
         purgeTree(megaApi[0]->getRubbishNode());
@@ -402,7 +406,14 @@ void SdkTest::purgeTree(MegaNode *p)
         if (n->isFolder())
             purgeTree(n);
 
+
+        requestFlags[0][MegaRequest::TYPE_REMOVE] = false;
+
         megaApi[0]->remove(n);
+
+        ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_REMOVE]) )
+                << "Remove node operation failed after " << maxTimeout  << " seconds";
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Remove node operation failed (error: " << lastError[0] << ")";
     }
 }
 
