@@ -6704,6 +6704,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         {
             fireOnTransferUpdate(transfer);
         }
+        transfer->setTransfer(NULL);
     }
 }
 
@@ -11214,6 +11215,11 @@ void MegaApiImpl::sendPendingRequests()
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
+                if (!transfer)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
 
                 #ifdef _WIN32
                     if(transfer->type==GET)
