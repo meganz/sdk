@@ -125,7 +125,7 @@ package_download() {
 	curl -k $url > $file || exit 1
 	
 	echo "Checking MD5SUM for $file"
-	if ! echo $md5sum $file | md5sum -c - ; then
+	if ! echo $md5sum \*$file | md5sum -c - ; then
 		echo "Downloading $3 again"
 		#rm /tmp/megasdkbuild/$3
 		rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
