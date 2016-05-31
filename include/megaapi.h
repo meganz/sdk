@@ -5510,6 +5510,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
          *
+         * Under certain circumstances, this request might return the error code
+         * MegaError::API_ESID. It should not be taken as an error, since the reason
+         * is that the logout action has been notified before the reception of the
+         * logout response itself.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
@@ -7146,6 +7151,34 @@ class MegaApi
          * @return MegaNode object
          */
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
+
+        /**
+         * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
+         *
+         * This function only allows to authorize file nodes.
+         *
+         * You can use MegaApi::startDownload with the resulting node with any instance
+         * of MegaApi, even if it's logged into another account, a public folder, or not
+         * logged in.
+         *
+         * If the first parameter is a public node or an already authorized node, this
+         * function returns a copy of the node, because it can be already downloaded
+         * with any MegaApi instance.
+         *
+         * If the node in the first parameter belongs to the account or public folder
+         * in which the current MegaApi object is logged in, this funtion returns an
+         * authorized node.
+         *
+         * If the first parameter is NULL or a node that is not a public node, is not
+         * already authorized and doesn't belong to the current MegaApi, this function
+         * returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node MegaNode to authorize
+         * @return Authorized node, or NULL if the node can't be authorized or is not a file
+         */
+        MegaNode *authorizeNode(MegaNode *node);
 
         /**
          * @brief Get the SDK version

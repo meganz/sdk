@@ -53,7 +53,7 @@ bool User::serialize(string* d)
     d->append((char*)&ts, sizeof ts);
     d->append((char*)&show, sizeof show);
 
-    l = email.size();
+    l = (unsigned char)email.size();
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
 

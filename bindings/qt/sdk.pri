@@ -84,6 +84,7 @@ win32 {
 
     # link winhttp anyway (required for automatic proxy detection)
     LIBS += -lwinhttp
+    DEFINES += _CRT_SECURE_NO_WARNINGS
 }
 
 

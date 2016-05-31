@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include "MStringList.h"
+
 #include <megaapi.h>
 
 namespace mega
@@ -46,7 +48,8 @@ namespace mega
         CHANGE_TYPE_INSHARE         = 0x20,
         CHANGE_TYPE_OUTSHARE        = 0x40,
         CHANGE_TYPE_PARENT          = 0x80,
-        CHANGE_TYPE_PENDINGSHARE    = 0x100
+        CHANGE_TYPE_PENDINGSHARE    = 0x100,
+        CHANGE_TYPE_PUBLIC_LINK     = 0x200
     };
 
     public ref class MNode sealed
@@ -55,6 +58,7 @@ namespace mega
         friend ref class MNodeList;
         friend ref class MTransfer;
         friend ref class MRequest;
+        friend ref class MStringList;
         friend class DelegateMTreeProcessor;
 
     public:
@@ -62,6 +66,10 @@ namespace mega
         MNode^ copy();
         MNodeType getType();
         String^ getName();
+        String^ getFingerprint();
+        bool hasCustomAttrs();
+        MStringList^ getCustomAttrNames();
+        String^ getCustomAttr(String^ attrName);
         String^ getBase64Handle();
         uint64 getSize();
         uint64 getCreationTime();
@@ -85,6 +93,10 @@ namespace mega
         bool isExported();
         bool isExpired();
         bool isTakenDown();
+        bool isForeign();        
+        bool isShared();
+        bool isOutShare();
+        bool isInShare();
 
     private:
         MNode(MegaNode *megaNode, bool cMemoryOwn);

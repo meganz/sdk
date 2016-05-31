@@ -60,23 +60,23 @@ bool File::serialize(string *d)
     unsigned short ll;
     bool flag;
 
-    ll = name.size();
+    ll = (unsigned short)name.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    ll = localname.size();
+    ll = (unsigned short)localname.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(localname.data(), ll);
 
-    ll = targetuser.size();
+    ll = (unsigned short)targetuser.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(targetuser.data(), ll);
 
-    ll = privauth.size();
+    ll = (unsigned short)privauth.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(privauth.data(), ll);
 
-    ll = pubauth.size();
+    ll = (unsigned short)pubauth.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(pubauth.data(), ll);
 
@@ -313,7 +313,7 @@ void File::terminated()
 // failuresup to 16 times, except I/O errors (6 times)
 bool File::failed(error e)
 {
-    return (e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16) &&
+    return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
             !((e == API_EREAD || API_EWRITE) && transfer->failcount > 6);
 }
 
@@ -470,7 +470,7 @@ void SyncFileGet::updatelocalname()
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer* t, LocalNode* n)
+void SyncFileGet::completed(Transfer*, LocalNode*)
 {
     sync->checkpath(NULL, &localname);
     delete this;

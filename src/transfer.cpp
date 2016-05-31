@@ -43,6 +43,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     progresscompleted = 0;
     finished = false;
     lastaccesstime = time(NULL);
+    ultoken = NULL;
 
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
@@ -77,6 +78,11 @@ Transfer::~Transfer()
         delete slot;
     }
 
+    if (ultoken)
+    {
+        delete [] ultoken;
+    }
+
     if (finished)
     {
         if(type == GET && localfilename.size())
@@ -93,7 +99,7 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
-    ll = localfilename.size();
+    ll = (unsigned short)localfilename.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(localfilename.data(), ll);
 
@@ -102,7 +108,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)key.key, sizeof (key.key));
 
-    ll = chunkmacs.size();
+    ll = (unsigned short)chunkmacs.size();
     d->append((char*)&ll, sizeof(ll));
     for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
     {
@@ -123,17 +129,29 @@ bool Transfer::serialize(string *d)
     }
 
     d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
-    d->append((const char*)ultoken, sizeof(ultoken));
+
+    char hasUltoken;
+    if (ultoken)
+    {
+        hasUltoken = 1;
+        d->append((const char*)&hasUltoken, sizeof(char));
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN + 1);
+    }
+    else
+    {
+        hasUltoken = 0;
+        d->append((const char*)&hasUltoken, sizeof(char));
+    }
 
     if (slot)
     {
-        ll = slot->tempurl.size();
+        ll = (unsigned short)slot->tempurl.size();
         d->append((char*)&ll, sizeof(ll));
         d->append(slot->tempurl.data(), ll);
     }
     else
     {
-        ll = cachedtempurl.size();
+        ll = (unsigned short)cachedtempurl.size();
         d->append((char*)&ll, sizeof(ll));
         d->append(cachedtempurl.data(), ll);
     }
@@ -230,7 +248,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ptr = d->data();
     end = ptr + d->size();
 
-    if (ptr + sizeof(m_time_t) + sizeof(t->ultoken) + sizeof(unsigned short) > end)
+    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
@@ -240,10 +258,24 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    memcpy(t->ultoken, ptr, sizeof(t->ultoken));
-    ptr += sizeof(t->ultoken);
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
+    bool hasUltoken = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    ll = hasUltoken ? NewNode::UPLOADTOKENLEN + 1 : 0;
+    if (ptr + ll + sizeof(unsigned short) > end)
+    {
+        LOG_err << "Transfer unserialization failed - ultoken too long";
+        delete t;
+        return NULL;
+    }
+
+    if (hasUltoken)
+    {
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
+        memcpy(t->ultoken, ptr, NewNode::UPLOADTOKENLEN + 1);
+        ptr += (NewNode::UPLOADTOKENLEN + 1);
+    }
 
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
@@ -266,6 +298,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr += 10;
 
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
 }
 
@@ -298,10 +331,26 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    if (type == PUT)
     {
+        chunkmacs.clear();
+        progresscompleted = 0;
+
+        if (ultoken)
+        {
+            delete [] ultoken;
+            ultoken = NULL;
+        }
+
+        pos = 0;
+    }
+
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    {        
         failcount++;
         delete slot;
+        slot = NULL;
+        client->transfercacheadd(this);
 
         LOG_debug << "Deferring transfer " << failcount;
     }

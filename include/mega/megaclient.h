@@ -130,7 +130,7 @@ public:
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
     // update node attributes
-    error setattr(Node*, const char** = NULL, const char* prevattr = NULL);
+    error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -232,6 +232,9 @@ public:
 
     // free all state information
     void locallogout();
+
+    // remove caches
+    void removecaches();
 
     // SDK version
     const char* version();
@@ -339,6 +342,9 @@ public:
 
     // retry API_ESSL errors
     bool retryessl;
+
+    // flag to request an extra loop of the SDK to finish something pending
+    bool looprequested;
 
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;

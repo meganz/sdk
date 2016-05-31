@@ -89,8 +89,11 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_FIRSTNAME = 1,
-        USER_ATTR_LASTNAME = 2
+        USER_ATTR_AVATAR            = 0,
+        USER_ATTR_FIRSTNAME         = 1,
+        USER_ATTR_LASTNAME          = 2,
+        USER_ATTR_AUTHRING          = 3,
+        USER_ATTR_LAST_INTERACTION  = 4
     };
 
     public enum class MPaymentMethod {
@@ -253,8 +256,8 @@ namespace mega
         void getPaymentId(uint64 productHandle);
         void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
         void upgradeAccount(uint64 productHandle, int paymentMethod);
-        void submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener);
-        void submitPurchaseReceipt(String^ receipt);
+        void submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener);
+        void submitPurchaseReceipt(int gateway, String^ receipt);
         void creditCardStore(String^ address1, String^ address2, String^ city,
             String^ province, String^ country, String^ postalcode,
             String^ firstname, String^ lastname, String^ creditcard,
@@ -315,6 +318,10 @@ namespace mega
         void cancelTransfers(int direction);
         void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
         void pauseTransfers(bool pause);
+        void enableTransferResumption(String^ loggedOutId);
+        void enableTransferResumption();
+        void disableTransferResumption(String^ loggedOutId);
+        void disableTransferResumption();
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
@@ -396,14 +403,26 @@ namespace mega
         MError^ checkAccess(MNode^ node, int level);
         MError^ checkMove(MNode^ node, MNode^ target);
 
+        bool isFilesystemAvailable();
         MNode^ getRootNode();
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+
+        uint64 getBandwidthOverquotaDelay();
+
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
+        MNodeList^ globalSearch(String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+
+        MNode^ authorizeNode(MNode^ node);
         
+        bool createThumbnail(String^ imagePath, String^ dstPath);
+        bool createPreview(String^ imagePath, String^ dstPath);
+
+        bool isOnline();
+
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;
         std::set<DelegateMTransferListener *> activeTransferListeners;

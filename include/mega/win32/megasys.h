@@ -75,7 +75,10 @@
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
+
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 // FIXME: move to auto-generated file
 #ifndef MEGA_MAJOR_VERSION

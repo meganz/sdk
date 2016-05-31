@@ -150,6 +150,11 @@ class SyncTestMegaSyncApp(SyncTestApp):
         for _ in range(0, 5):
             if self.megasync_ch_in:
                 self.megasync_ch_in.terminate()
+                self.megasync_ch_in.poll()
+                if (self.megasync_ch_in.poll() is not None):
+                    if self.megasync_ch_in.returncode is not None: logging.debug("IN process terminated due to signal "+ str(self.megasync_ch_in.returncode))
+                    break
+                logging.debug("waiting for IN process to end")
                 time.sleep(5)
             else:
                 break
@@ -157,6 +162,10 @@ class SyncTestMegaSyncApp(SyncTestApp):
         for _ in range(0, 5):
             if self.megasync_ch_out:
                 self.megasync_ch_out.terminate()
+                if (self.megasync_ch_out.poll() is not None):
+                    if self.megasync_ch_out.returncode is not None: logging.debug("OUT process terminated due to signal "+ str(self.megasync_ch_out.returncode))
+                    break
+                logging.debug("waiting for OUT process to end")
                 time.sleep(5)
             else:
                 break
@@ -194,6 +203,8 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
     parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
+    parser.add_argument("-f", "--files", type=int,help="Number of files")
+    parser.add_argument("-c", "--folders", type=int,help="Number of folders")
     parser.add_argument("work_dir", help="local work directory")
     parser.add_argument("sync_dir", help="remote directory for synchronization")
     args = parser.parse_args()
@@ -213,6 +224,7 @@ if __name__ == "__main__":
     # logging stuff, output to stdout
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
+
 
     with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, args.nodelete, args.large) as app:
         suite = unittest.TestSuite()
@@ -239,7 +251,14 @@ if __name__ == "__main__":
             suite.addTest(SyncTest("test_update_mtime", app))
 
         if args.test8:
-            suite.addTest(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
-
+            app.only_empty_files=False
+            app.only_empty_folders=False
+            st=SyncTest("test_create_rename_delete_unicode_files_dirs", app)
+            if args.files is not None: st.nr_files=args.files
+            if args.folders is not None: st.nr_dirs=args.folders
+            
+            suite.addTest(st)
+            
+            
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)
