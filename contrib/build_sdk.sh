@@ -133,7 +133,7 @@ package_download() {
 		curl -k $url > $file || exit 1
 		
 		echo "Checking (again) MD5SUM for $file"
-		if ! echo $md5sum $file | md5sum -c - ; then
+		if ! echo $md5sum \*$file | md5sum -c - ; then
 			echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
 			md5sum $file
 			exit 1
