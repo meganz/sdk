@@ -3329,6 +3329,25 @@ char *MegaApiImpl::getMyXMPPJid()
     return result;
 }
 
+char *MegaApiImpl::getMyFingerprint()
+{
+    sdkMutex.lock();
+    if (ISUNDEF(client->me))
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = NULL;
+    if (client->signkey)
+    {
+        result = MegaApi::strdup(client->signkey->genFingerprintHex());
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     if(!externalLogger)

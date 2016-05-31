@@ -1105,6 +1105,11 @@ char *MegaApi::getMyXMPPJid()
     return pImpl->getMyXMPPJid();
 }
 
+char *MegaApi::getMyFingerprint()
+{
+    return pImpl->getMyFingerprint();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);

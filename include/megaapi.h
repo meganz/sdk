@@ -4508,6 +4508,18 @@ class MegaApi
         char* getMyXMPPJid();
 
         /**
+         * @brief Returns the fingerprint of the signing key of the currently open account
+         *
+         * If the MegaApi object isn't logged in or there's no signing key available,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Fingerprint of the signing key of the current account
+         */
+        char* getMyFingerprint();
+
+        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. If you set a log listener using
