@@ -11049,8 +11049,14 @@ void MegaApiImpl::sendPendingRequests()
             char scope = MegaApiImpl::userAttributeToScope(type);
 
             User *user = email ? client->finduser(email, 0) : client->finduser(client->me, 0);
-            if ( !user ||
-                 attrname.empty() ||    // unknown attribute type
+
+            if (!user)  // email/handle not found among (ex)contacts
+            {
+                client->getua(email, attrname.c_str());
+                break;
+            }
+
+            if ( attrname.empty() ||    // unknown attribute type
                  (type == MegaApi::USER_ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;

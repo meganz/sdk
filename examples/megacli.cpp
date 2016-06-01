@@ -2851,7 +2851,8 @@ static void process_line(char* l)
                             // get other user's attribute
                             if (!(u = client->finduser(words[2].c_str())))
                             {
-                                cout << words[2] << ": Unknown user." << endl;
+                                cout << "Retrieving user attribute for unknown user: " << words[2] << endl;
+                                client->getua(words[2].c_str(), words[1].c_str());
                                 return;
                             }
                         }

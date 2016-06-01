@@ -6587,6 +6587,14 @@ void MegaClient::getua(User* u, const char* an, int ctag)
     }
 }
 
+void MegaClient::getua(const char *email_handle, const char *an, int ctag)
+{
+    if (email_handle && an)
+    {
+        reqs.add(new CommandGetUA(this, email_handle, an, (ctag != -1) ? ctag : reqtag));
+    }
+}
+
 #ifdef DEBUG
 void MegaClient::delua(const char *an)
 {

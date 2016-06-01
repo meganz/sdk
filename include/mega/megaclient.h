@@ -202,6 +202,9 @@ public:
     // queue a user attribute retrieval
     void getua(User* u, const char* an = NULL, int ctag = -1);
 
+    // queue a user attribute retrieval (for non-contacts)
+    void getua(const char* email_handle, const char* an = NULL, int ctag = -1);
+
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);

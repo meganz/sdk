@@ -2089,7 +2089,7 @@ void CommandGetUA::procresult()
 
 #ifdef ENABLE_CHAT
         // If keyring is not found, create keypairs and send them to MEGA
-        if ((e == API_ENOENT) && (u->userhandle == client->me))
+        if ((e == API_ENOENT) && u && (u->userhandle == client->me))
         {
             if (an == "*keyring")    // creation of keys, triggered internally by SDK
             {
@@ -2176,7 +2176,7 @@ void CommandGetUA::procresult()
                 case EOO:
                 {
                     // if there's no avatar, the value is "none" (not Base64 encoded)
-                    if (an == "+a" && !strncmp(ptr, "none", 4))
+                    if (u && an == "+a" && !strncmp(ptr, "none", 4))
                     {
                         u->setattr(&an, NULL, &v);
                         client->app->getua_result(API_ENOENT);
@@ -2193,6 +2193,18 @@ void CommandGetUA::procresult()
 
                     // handle the attribute data depending on the scope
                     char scope = an.at(0);
+                    if (!u) // retrieval of attributes without contact-relationship
+                    {
+                        if (scope == '*' || scope == '#')
+                        {
+                            LOG_warn << "Cannot retrieve private attributes from users other than yourself.";
+                            client->app->getua_result(API_EACCESS);
+                            return;
+                        }
+
+                        client->app->getua_result((byte*) av.data(), av.size());
+                        return;
+                    }
                     switch (scope)
                     {
                         case '*':   // private
