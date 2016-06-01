@@ -2403,8 +2403,9 @@ MegaStringList *MegaStringMapPrivate::getKeys() const
     char *buf;
     for (string_map::const_iterator it = strMap.begin(); it != strMap.end(); it++)
     {
-        buf = new char[it->first.length()];
-        strcpy(buf, it->first.data());
+        buf = new char[it->first.length()+1];
+        memcpy(buf, it->first.data(), it->first.length());
+        buf[it->first.length()] = 0;
 
         keys.push_back(buf);
     }
