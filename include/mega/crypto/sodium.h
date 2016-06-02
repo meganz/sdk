@@ -73,13 +73,13 @@ public:
      * @brief Generates the fingerprint of the public key.
      * @return The 20 bytes corresponding to the fingerprint.
      */
-    const byte *genFingerprint();
+    byte *genFingerprint(bool hexFormat);
 
     /**
      * @brief Generates the fingerprint of the public key in hexadecimal format.
      * @return The fingerprint in hexadecimal format.
      */
-    const char *genFingerprintHex();
+    char *genFingerprintHex();
 
     void signKey(const unsigned char* key, const unsigned long long keyLength, unsigned char *sigBuf);
 
