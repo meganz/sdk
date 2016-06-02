@@ -111,6 +111,28 @@ const char *EdDSA::genFingerprintHex()
     return fpHex.c_str();
 }
 
+void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, unsigned char *sigBuf)
+{
+    uint64_t ts = 1464808415;//1464804714;//(uint64_t) time(NULL);
+
+    string tsstr;
+    unsigned char digit;
+    for (int i = 0; i < 8; i++)
+    {
+        digit = ts & 0xFF;
+        tsstr.insert(0, 1, digit);
+        ts >>= 8;
+    }
+
+    string keyString = "keyauth";
+    keyString.append(tsstr);
+    keyString.append((char*)key, keyLength);
+
+    sign((unsigned char *)keyString.data(), keyString.size(), sigBuf+8);
+
+    memcpy(sigBuf, tsstr.data(), 8);
+}
+
 const std::string ECDH::TLV_KEY= "prCu255";
 
 ECDH::ECDH(unsigned char *privKey)

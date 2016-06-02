@@ -81,6 +81,8 @@ public:
      */
     const char *genFingerprintHex();
 
+    void signKey(const unsigned char* key, const unsigned long long keyLength, unsigned char *sigBuf);
+
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
     unsigned char privKey[PRIVATE_KEY_LENGTH]; // don't use it externally, use keySeed instead
