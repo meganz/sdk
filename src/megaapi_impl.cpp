@@ -6956,7 +6956,8 @@ void MegaApiImpl::getrecoverylink_result(error e)
 
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_RECOVERY_LINK)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_GET_CANCEL_LINK))) return;
 
     fireOnRequestFinish(request, megaError);
 }
