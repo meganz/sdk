@@ -352,6 +352,14 @@ public:
     void serializekey(string* d, int keytype);
 
     /**
+     * @brief Serialises a public key to a string, skiping headers
+     *
+     * @param d String to take the serialized key without size-headers
+     * @return Void.
+     */
+    void serializepubkey(string* d);
+
+    /**
      * @brief Generates an RSA key pair of a given key size.
      *
      * @param privk Private key.

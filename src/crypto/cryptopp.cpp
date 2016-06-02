@@ -445,6 +445,27 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
     return decodeintarray(key, numints, data, len);
 }
 
+void AsymmCipher::serializepubkey(string* d)
+{
+    unsigned size = 0;
+    char c;
+
+    size = key[0].ByteCount() + key[1].ByteCount();
+    d->reserve(d->size() + size);
+
+    for (int j = key[0].ByteCount(); j--;)
+    {
+        c = key[0].GetByte(j);
+        d->append(&c, sizeof c);
+    }
+
+    for (int j = 4; j--;)   // keep 4 bytes for exponent
+    {
+        c = key[1].GetByte(j);
+        d->append(&c, sizeof c);
+    }
+}
+
 void AsymmCipher::serializekey(string* d, int keytype)
 {
     serializeintarray(key, keytype, d);
