@@ -123,7 +123,7 @@ char *EdDSA::genFingerprintHex()
 
 void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, unsigned char *sigBuf)
 {
-    uint64_t ts = 1464808415;//1464804714;//(uint64_t) time(NULL);
+    uint64_t ts = (uint64_t) time(NULL);
 
     string tsstr;
     unsigned char digit;
