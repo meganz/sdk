@@ -2283,7 +2283,14 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
         case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
         case TYPE_SET_PROXY: return "SET_PROXY";
-	}
+        case TYPE_GET_RECOVERY_LINK: return "TYPE_GET_RECOVERY_LINK";
+        case TYPE_QUERY_RECOVERY_LINK: return "TYPE_QUERY_RECOVERY_LINK";
+        case TYPE_CONFIRM_RECOVERY_LINK: return "TYPE_CONFIRM_RECOVERY_LINK";
+        case TYPE_GET_CANCEL_LINK: return "TYPE_GET_CANCEL_LINK";
+        case TYPE_CONFIRM_CANCEL_LINK: return "TYPE_CONFIRM_CANCEL_LINK";
+        case TYPE_GET_CHANGE_EMAIL_LINK: return "TYPE_GET_CHANGE_EMAIL_LINK";
+        case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "TYPE_CONFIRM_CHANGE_EMAIL_LINK";
+    }
     return "UNKNOWN";
 }
 
