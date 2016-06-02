@@ -34,7 +34,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
     progressreported = 0;
-    progresscompleted = 0;
     lastdata = Waiter::ds;
     errorcount = 0;
 
@@ -62,6 +61,37 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    if (transfer->type == GET && !transfer->finished
+            && transfer->progresscompleted != transfer->size)
+    {
+        m_off_t p = 0;
+        for (int i = 0; i < connections; i++)
+        {
+            if (fa && reqs[i] && reqs[i]->status == REQ_INFLIGHT
+                    && reqs[i]->contentlength == reqs[i]->size
+                    && reqs[i]->bufpos >= SymmCipher::BLOCKSIZE)
+            {
+                m_off_t bufpos = reqs[i]->bufpos & -SymmCipher::BLOCKSIZE;
+                m_off_t dlpos = ((HttpReqDL *)reqs[i])->dlpos;
+                ChunkMAC &chunk = transfer->chunkmacs[reqs[i]->pos];
+
+                p += bufpos;
+                transfer->key.ctr_crypt(reqs[i]->buf, bufpos, dlpos, transfer->ctriv,
+                            chunk.mac, false, !chunk.finished && !chunk.offset);
+
+                fa->fwrite((const byte*)reqs[i]->buf, bufpos, dlpos);
+                chunk.offset += (unsigned int)bufpos;
+            }
+        }
+
+        if (p)
+        {
+            transfer->client->transfercacheadd(transfer);
+            LOG_debug << "Completed: " << (transfer->progresscompleted + p)
+                      << " Partial: " << p;
+        }
+    }
+
     transfer->slot = NULL;
 
     if (slots_it != transfer->client->tslots.end())
@@ -83,11 +113,6 @@ TransferSlot::~TransferSlot()
     if (fa)
     {
         delete fa;
-
-        if ((transfer->type == GET) && transfer->localfilename.size())
-        {
-            transfer->client->fsaccess->unlinklocal(&transfer->localfilename);
-        }
     }
 
     while (connections--)
@@ -144,8 +169,6 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
         transfer->key.ecb_encrypt(mac);
     }
 
-    macs->clear();
-
     uint32_t* m = (uint32_t*)mac;
 
     m[0] ^= m[1];
@@ -157,13 +180,25 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
-    if (!fa)
+    if (!fa || (transfer->size && transfer->progresscompleted == transfer->size))
     {
-        // this is a pending completion, retry every 200 ms by default
-        retrybt.backoff(2);
-        retrying = true;
+        if (transfer->type == GET || transfer->ultoken)
+        {
+            // this is a pending completion, retry every 200 ms by default
+            retrybt.backoff(2);
+            retrying = true;
 
-        return transfer->complete();
+            return transfer->complete();
+        }
+        else
+        {
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+            client->sendevent(99410, "No upload token available");
+            client->reqtag = creqtag;
+
+            return transfer->failed(API_EINTERNAL);
+        }
     }
 
     retrying = false;
@@ -193,20 +228,30 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_SUCCESS:
                     lastdata = Waiter::ds;
+                    transfer->lastaccesstime = time(NULL);
+                    transfer->progresscompleted += reqs[i]->size;
 
-                    progresscompleted += reqs[i]->size;
+                    LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
+                              << " Completed: " << transfer->progresscompleted << " of " << transfer->size;
 
                     if (transfer->type == PUT)
                     {
                         errorcount = 0;
                         transfer->failcount = 0;
+                        transfer->chunkmacs[reqs[i]->pos].finished = true;
 
                         // completed put transfers are signalled through the
                         // return of the upload token
                         if (reqs[i]->in.size())
                         {
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
-                            {
+                            {                                        
+                                LOG_debug << "Upload token received";
+                                if (!transfer->ultoken)
+                                {
+                                    transfer->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
+                                }
+
                                 if (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN + 1)
                                     == NewNode::UPLOADTOKENLEN)
                                 {
@@ -215,14 +260,39 @@ void TransferSlot::doio(MegaClient* client)
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
 
+                                    client->transfercacheadd(transfer);
+
+                                    if (transfer->progresscompleted != progressreported)
+                                    {
+                                        progressreported = transfer->progresscompleted;
+                                        lastdata = Waiter::ds;
+
+                                        progress();
+                                    }
+
                                     return transfer->complete();
+                                }
+                                else
+                                {
+                                    delete [] transfer->ultoken;
+                                    transfer->ultoken = NULL;
                                 }
                             }
 
-                            progresscompleted -= reqs[i]->size;
+                            LOG_debug << "Invalid upload token: " << reqs[i]->in;
 
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
+                        }
+
+                        if (transfer->progresscompleted == transfer->size)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99409, "No upload token received");
+                            client->reqtag = creqtag;
+
+                            return transfer->failed(API_EINTERNAL);
                         }
                     }
                     else
@@ -234,33 +304,47 @@ void TransferSlot::doio(MegaClient* client)
 
                             reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
 
-                            if (progresscompleted == transfer->size)
+                            if (transfer->progresscompleted == transfer->size)
                             {
                                 // verify meta MAC
-                                if (!progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
+                                if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
                                 {
+                                    client->transfercacheadd(transfer);
+
+                                    if (transfer->progresscompleted != progressreported)
+                                    {
+                                        progressreported = transfer->progresscompleted;
+                                        lastdata = Waiter::ds;
+
+                                        progress();
+                                    }
+
                                     return transfer->complete();
                                 }
                                 else
                                 {
-                                    progresscompleted -= reqs[i]->size;
+                                    LOG_warn << "MAC verification failed";
+                                    transfer->chunkmacs.clear();
                                     return transfer->failed(API_EKEY);
                                 }
                             }
                         }
                         else
                         {
-                            progresscompleted -= reqs[i]->size;
+                            LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
+                            transfer->progresscompleted -= reqs[i]->size;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
                         }
                     }
 
+                    client->transfercacheadd(transfer);
                     reqs[i]->status = REQ_READY;
                     break;
 
                 case REQ_FAILURE:
+                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)
@@ -283,6 +367,10 @@ void TransferSlot::doio(MegaClient* client)
                         }
 
                         return transfer->failed(API_EOVERQUOTA, backoff);
+                    }
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
+                    {
+                        return transfer->failed(API_EAGAIN);
                     }
                     else
                     {
@@ -324,11 +412,16 @@ void TransferSlot::doio(MegaClient* client)
         {
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
-                m_off_t npos = ChunkedHash::chunkceil(transfer->pos);
+                m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos());
 
                 if (npos > transfer->size)
                 {
                     npos = transfer->size;
+                }
+
+                if (!transfer->size)
+                {
+                    transfer->pos = 0;
                 }
 
                 if ((npos > transfer->pos) || !transfer->size)
@@ -363,6 +456,7 @@ void TransferSlot::doio(MegaClient* client)
                                          &transfer->chunkmacs, transfer->ctriv,
                                          transfer->pos, npos))
                     {
+                        reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);
                         reqs[i]->status = REQ_PREPARED;
                         transfer->pos = npos;
                     }
@@ -391,7 +485,7 @@ void TransferSlot::doio(MegaClient* client)
         }
     }
 
-    p += progresscompleted;
+    p += transfer->progresscompleted;
 
     if (p != progressreported)
     {
@@ -403,6 +497,7 @@ void TransferSlot::doio(MegaClient* client)
 
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
+        LOG_warn << "Failed chunk due to a timeout";
         failure = true;
         bool changeport = false;
 
@@ -419,12 +514,12 @@ void TransferSlot::doio(MegaClient* client)
             changeport = true;
         }
 
-        client->app->transfer_failed(transfer, API_EFAILED);
-
+        bool chunkfailed = false;
         for (int i = connections; i--; )
         {
             if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
+                chunkfailed = true;
                 client->setchunkfailed(&reqs[i]->posturl);
                 reqs[i]->disconnect();
 
@@ -435,6 +530,17 @@ void TransferSlot::doio(MegaClient* client)
 
                 reqs[i]->status = REQ_PREPARED;
             }
+        }
+
+        if (!chunkfailed)
+        {
+            LOG_warn << "Transfer failed due to a timeout";
+            transfer->failed(API_EAGAIN);
+        }
+        else
+        {
+            LOG_warn << "Chunk failed due to a timeout";
+            client->app->transfer_failed(transfer, API_EFAILED);
         }
     }
 

@@ -24,7 +24,7 @@
 namespace mega {
 int Serialize64::serialize(byte* b, uint64_t v)
 {
-    int p = 0;
+    byte p = 0;
 
     while (v)
     {

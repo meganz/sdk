@@ -142,7 +142,7 @@ public:
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
     // update node attributes
-    error setattr(Node*, const char** = NULL, const char* prevattr = NULL);
+    error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -239,6 +239,9 @@ public:
 
     // free all state information
     void locallogout();
+
+    // remove caches
+    void removecaches();
 
     // SDK version
     const char* version();
@@ -347,6 +350,9 @@ public:
     // retry API_ESSL errors
     bool retryessl;
 
+    // flag to request an extra loop of the SDK to finish something pending
+    bool looprequested;
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -361,6 +367,7 @@ public:
 
 private:
     BackoffTimer btcs;
+    BackoffTimer btbadhost;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -378,6 +385,9 @@ private:
 
     // auth URI component for API requests
     string auth;
+
+    // public handle being used
+    handle publichandle;
 
     // API response JSON object
     JSON response;
@@ -410,6 +420,9 @@ private:
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
+
+    // close the local transfer cache
+    void closetc(bool remove = false);
 
     // server-client command processing
     void sc_updatenode();
@@ -472,6 +485,9 @@ private:
     static const char PAYMENT_PUBKEY[];
 
 public:
+    void enabletransferresumption(const char *loggedoutid = NULL);
+    void disabletransferresumption(const char *loggedoutid = NULL);
+
     // application callbacks
     struct MegaApp* app;
 
@@ -493,6 +509,8 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // transfer cache table
+    DbTable* tctable;
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -511,7 +529,7 @@ public:
     HttpReq* pendingcs;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
 
     // initialize/update state cache referenced sctable
     void initsc();
@@ -572,6 +590,17 @@ public:
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
 
+    // cached transfers (PUT/GET)
+    transfer_map cachedtransfers[2];
+
+    // cached files and their dbids
+    vector<string> cachedfiles;
+    vector<uint32_t> cachedfilesdbids;
+
+    // database IDs of cached files and transfers
+    // waiting for the completion of a putnodes
+    pendingdbid_map pendingtcids;
+
     // transfer tslots
     transferslot_list tslots;
 
@@ -614,6 +643,18 @@ public:
 
     node_vector nodenotify;
     void notifynode(Node*);
+
+    // update transfer in the persistent cache
+    void transfercacheadd(Transfer*);
+
+    // remove a transfer from the persistent cache
+    void transfercachedel(Transfer*);
+
+    // add a file to the persistent cache
+    void filecacheadd(File*);
+
+    // remove a file from the persistent cache
+    void filecachedel(File*);
 
 #ifdef ENABLE_CHAT
     textchat_vector chatnotify;
@@ -809,6 +850,9 @@ public:
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
+
+    // dummy key to obfuscate non protected cache
+    SymmCipher tckey;
 
     // account access (full account): RSA key
     AsymmCipher asymkey;

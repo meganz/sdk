@@ -54,7 +54,7 @@ bool GfxProcExternal::isgfx(string* name)
     return ptr && ptr[ext.size()] == '.';
 }
 
-bool GfxProcExternal::readbitmap(FileAccess* fa, string* localname, int size)
+bool GfxProcExternal::readbitmap(FileAccess* /*fa*/, string* localname, int /*size*/)
 {
     if(!processor) return false;
 

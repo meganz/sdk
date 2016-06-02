@@ -100,6 +100,7 @@ package_download() {
     local name=$1
     local url=$2
     local file=$local_dir/$3
+    local md5sum=$4
 
     if [ $use_local -eq 1 ]; then
         echo "Using local file for $name"
@@ -112,14 +113,35 @@ package_download() {
         rm -f $file || true
     fi
 
-	# use packages previously downloaded in obs server(linux). if not present, download from URL specified
-	cp /srv/dependencies_manually_downloaded/$3 $file || \
-	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || exit 1
+	# use packages previously downloaded in /tmp/megasdkbuild folder
+	# if not present download from URL specified
+	# if wget fail, try curl
+	mkdir -p /tmp/megasdkbuild/
+	
+#	cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-    
-    
-    
-    
+	cp /tmp/megasdkbuild/$3 $file || \
+	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+	curl -k $url > $file || exit 1
+	
+	echo "Checking MD5SUM for $file"
+	if ! echo $md5sum \*$file | md5sum -c - ; then
+		echo "Downloading $3 again"
+		#rm /tmp/megasdkbuild/$3
+		rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
+		wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+		curl -k $url > $file || exit 1
+		
+		echo "Checking (again) MD5SUM for $file"
+		if ! echo $md5sum \*$file | md5sum -c - ; then
+			echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
+			md5sum $file
+			exit 1
+		fi
+	fi
+	
+	#copy to tmp download folder for next constructions
+	cp $file /tmp/megasdkbuild/$3
 }
 
 package_extract() {
@@ -244,12 +266,14 @@ openssl_pkg() {
     local name="OpenSSL"
     local openssl_ver="1.0.2g"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
+    local openssl_md5="f3c710c045cdee5fd114feb69feba7aa"
+
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
     local openssl_params="--openssldir=$install_dir no-shared shared"
     local loc_make_opts=$make_opts
 
-    package_download $name $openssl_url $openssl_file
+    package_download $name $openssl_url $openssl_file $openssl_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -296,14 +320,16 @@ cryptopp_pkg() {
     local name="Crypto++"
     local cryptopp_ver="562"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
+    local cryptopp_md5="7ed022585698df48e65ce9218f6c6a67"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
     local cryptopp_mobile_url="http://www.cryptopp.com/w/images/a/a0/Cryptopp-mobile.zip"
+    local cryptopp_mobile_md5="ecc91e85f8f9278a8b2a891c77969dcd"
     local cryptopp_mobile_file="Cryptopp-mobile.zip"
 
-    package_download $name $cryptopp_url $cryptopp_file
+    package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
     if [ $android_build -eq 1 ]; then
-        package_download $name $cryptopp_mobile_url $cryptopp_mobile_file
+        package_download $name $cryptopp_mobile_url $cryptopp_mobile_file $cryptopp_mobile_md5
     fi
     if [ $download_only -eq 1 ]; then
         return
@@ -326,6 +352,7 @@ sodium_pkg() {
     local name="Sodium"
     local sodium_ver="1.0.8"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
+    local sodium_md5="0a66b86fd3aab3fe4c858edcd2772760"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -334,7 +361,7 @@ sodium_pkg() {
         local sodium_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $sodium_url $sodium_file
+    package_download $name $sodium_url $sodium_file $sodium_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -351,6 +378,7 @@ libuv_pkg() {
     local name="libuv"
     local libuv_ver="v1.8.0"
     local libuv_url="http://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
+    local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
     local libuv_file="libuv-$libuv_ver.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -359,7 +387,7 @@ libuv_pkg() {
         local libuv_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $libuv_url $libuv_file
+    package_download $name $libuv_url $libuv_file $libuv_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -385,6 +413,7 @@ zlib_pkg() {
     local name="Zlib"
     local zlib_ver="1.2.8"
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
+    local zlib_md5="44d667c142d7cda120332623eab69f40"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
@@ -394,7 +423,7 @@ zlib_pkg() {
         local zlib_params="--static"
     fi
 
-    package_download $name $zlib_url $zlib_file
+    package_download $name $zlib_url $zlib_file $zlib_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -429,6 +458,7 @@ sqlite_pkg() {
     local name="SQLite"
     local sqlite_ver="3100100"
     local sqlite_url="http://www.sqlite.org/2016/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="f315a86cb3e8671fe473baa8d34746f6"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -437,7 +467,7 @@ sqlite_pkg() {
         local sqlite_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $sqlite_url $sqlite_file
+    package_download $name $sqlite_url $sqlite_file $sqlite_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -454,6 +484,7 @@ cares_pkg() {
     local name="c-ares"
     local cares_ver="1.10.0"
     local cares_url="http://c-ares.haxx.se/download/c-ares-$cares_ver.tar.gz"
+    local cares_md5="1196067641411a75d3cbebe074fd36d8"
     local cares_file="cares-$cares_ver.tar.gz"
     local cares_dir="c-ares-$cares_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -462,7 +493,7 @@ cares_pkg() {
         local cares_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $cares_url $cares_file
+    package_download $name $cares_url $cares_file $cares_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -479,6 +510,7 @@ curl_pkg() {
     local name="cURL"
     local curl_ver="7.46.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
+    local curl_md5="230e682d59bf8ab6eca36da1d39ebd75"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -502,7 +534,7 @@ curl_pkg() {
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
-    package_download $name $curl_url $curl_file
+    package_download $name $curl_url $curl_file $curl_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -519,6 +551,7 @@ readline_pkg() {
     local name="Readline"
     local readline_ver="6.3"
     local readline_url="ftp://ftp.cwru.edu/pub/bash/readline-$readline_ver.tar.gz"
+    local readline_md5="33c8fb279e981274f485fd91da77e94a"
     local readline_file="readline-$readline_ver.tar.gz"
     local readline_dir="readline-$readline_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -527,7 +560,7 @@ readline_pkg() {
         local readline_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $readline_url $readline_file
+    package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -544,6 +577,7 @@ termcap_pkg() {
     local name="Termcap"
     local termcap_ver="1.3.1"
     local termcap_url="http://ftp.gnu.org/gnu/termcap/termcap-$termcap_ver.tar.gz"
+    local termcap_md5="ffe6f86e63a3a29fa53ac645faaabdfa"
     local termcap_file="termcap-$termcap_ver.tar.gz"
     local termcap_dir="termcap-$termcap_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -552,7 +586,7 @@ termcap_pkg() {
         local termcap_params="--disable-shared --enable-static"
     fi
 
-    package_download $name $termcap_url $termcap_file
+    package_download $name $termcap_url $termcap_file $termcap_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -570,11 +604,12 @@ freeimage_pkg() {
     local name="FreeImage"
     local freeimage_ver="3170"
     local freeimage_url="http://downloads.sourceforge.net/freeimage/FreeImage$freeimage_ver.zip"
+    local freeimage_md5="459e15f0ec75d6efa3c7bd63277ead86"
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
 
-    package_download $name $freeimage_url $freeimage_file
+    package_download $name $freeimage_url $freeimage_file $freeimage_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
@@ -618,10 +653,11 @@ readline_win_pkg() {
     local name="Readline"
     local readline_ver="5.0"
     local readline_url="http://gnuwin32.sourceforge.net/downlinks/readline-bin-zip.php"
+    local readline_md5="33c8fb279e981274f485fd91da77e94a"
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
-    package_download $name $readline_url $readline_file
+    package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
         return
     fi

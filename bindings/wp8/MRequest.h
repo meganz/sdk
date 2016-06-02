@@ -52,7 +52,10 @@ namespace mega
         TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
         TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
         TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-        TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
+        TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
+        TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
+        TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
+        TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY
     };
 
     public ref class MRequest sealed
@@ -78,7 +81,8 @@ namespace mega
         String^ getPrivateKey();
         int getAccess();
         String^ getFile();
-        MNode^ getPublicNode();
+        int getNumRetry();        
+        MNode^ getPublicMegaNode();
         int getParamType();
         String^ getText();
         uint64 getNumber();
@@ -86,6 +90,9 @@ namespace mega
         uint64 getTransferredBytes();
         uint64 getTotalBytes();
         MAccountDetails^ getMAccountDetails();
+        int getTransferTag();
+        int getNumDetails();
+        int getTag();
         MPricing^ getPricing();
 
     private:

@@ -26,10 +26,12 @@ import hashlib
 import unittest
 import logging
 import platform
+import unicodedata
 
-def get_unicode_str(size=10, max_char=0xFFFF):
+def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexisting=False):
     '''
     generates valid (for current OS) Unicode file name
+    Notice: if includeUnexisting==True, it is possible that files don't get synchronized
     '''
     if platform.system() == "Windows":
         # Unicode characters 1 through 31, as well as quote ("), less than (<), greater than (>), pipe (|), backspace (\b), null (\0) and tab (\t).
@@ -39,11 +41,20 @@ def get_unicode_str(size=10, max_char=0xFFFF):
         #exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 1)])
         exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 32)])
 
+
     name = u""
     while len(name) < size:
         c = unichr(random.randint(0, max_char))
         if c not in exclude:
-            name = name + c
+            try:
+                if not includeUnexisting:
+                    unicodedata.name(c) #this will cause invalid unicode character to throw exception
+                if onlyNormalized:
+                    name = name + unicodedata.normalize('NFC',c) #only normalized chars
+                else:
+                    name = name + c
+            except ValueError:
+                pass
     return name
 
 def get_exotic_str(size=10):
@@ -71,7 +82,7 @@ def generate_ascii_name(first_symbol, i):
     strlen = random.randint(0, 20)
     return first_symbol + get_random_str(size=strlen) + str(i)
 
-def generate_unicode_name(first_symbol, i):
+def generate_unicode_name_old(first_symbol, i):
     """
     generate random UTF string
     """
@@ -85,6 +96,38 @@ def generate_unicode_name(first_symbol, i):
         s = get_exotic_str(strlen)
     #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
     return s
+
+cogen=0
+def generate_unicode_name(first_symbol, i):
+    """
+    generate random UTF string
+    """
+    strlen = random.randint(10, 30)
+    c = random.choice(['short-utf', 'utf', 'exotic'])
+    if c == 'short-utf':
+        s = get_unicode_str(strlen, 0xFF)
+    elif c == 'utf':
+        s = get_unicode_str(strlen)
+    else:
+        s = get_exotic_str(strlen)
+    #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
+    global cogen
+    cogen=cogen+1
+    return str(cogen)+"_"+s
+
+def normalizeandescape(name):
+    name=escapefsincompatible(name)
+    name=unicodedata.normalize('NFC',unicode(name))
+    return name
+
+def escapefsincompatible(name):
+    """
+    Escape file system incompatible characters
+    """
+    import urllib
+    for i in "\\/:?\"<>|*":
+        name=name.replace(i,urllib.quote(i).lower())
+    return name
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -102,7 +145,8 @@ class SyncTestBase(unittest.TestCase):
 
         self.nr_retries = 200
         self.nr_files = 10
-        self.nr_dirs = 5
+        self.nr_dirs = 10
+        self.nr_time_changes = 10
         self.local_obj_nr = 5
         self.force_syncing = False
 
@@ -204,10 +248,11 @@ class SyncTestBase(unittest.TestCase):
             return None
 
         # small files < 1k
-        res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
-        if not res:
-            return None
-
+        if not hasattr(self.app, 'only_empty_files') or not self.app.only_empty_files:
+            res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
+            if not res:
+                return None
+    
         if self.app.use_large_files:
             # medium files < 1mb
             res = self.files_create_size("m", 1024*1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
@@ -235,10 +280,14 @@ class SyncTestBase(unittest.TestCase):
         for f in l_files:
             dd_out = os.path.join(self.app.local_folder_out, dir_name)
             ffname = os.path.join(dd_out, f["name"])
-
+            #when saving mega alters some characters (we will look for 
+            #destiny file having that in mind)
+            ffname=normalizeandescape(ffname)
+            
+            
             dd_in = os.path.join(self.app.local_folder_in, dir_name)
             ffname_in = os.path.join(dd_in, f["name"])
-
+            
             success = False
 
             logging.debug("Comparing %s and %s" % (ffname_in, ffname))
@@ -249,8 +298,9 @@ class SyncTestBase(unittest.TestCase):
                         pass
                     success = True
                     break
-                except IOError:
+                except IOError as ex:
                     # wait for a file
+                    logging.debug(" exception opening file: "+str(ex))
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     logging.debug("%s" % (ffname.encode("unicode-escape")))
                     self.app.sync()
@@ -301,19 +351,20 @@ class SyncTestBase(unittest.TestCase):
         """
         create dirs
         """
-        logging.debug("Creating directories..")
+        logging.debug("Creating "+str(self.nr_dirs)+" directories..")
 
         l_dirs = []
 
         # create empty dirs
-        res = self.dir_create_size("z", 10, 0, 0, self.app.local_folder_in, dir_generate_name_func, l_dirs)
+        res = self.dir_create_size("z", self.nr_dirs, 0, 0, self.app.local_folder_in, dir_generate_name_func, l_dirs)
         if not res:
             return None
 
-        # create dirs with < 20 files
-        res = self.dir_create_size("d", 10, 10, 1024, self.app.local_folder_in, dir_generate_name_func, l_dirs)
-        if not res:
-            return None
+        # create dirs with #nr_files files
+        if not hasattr(self.app, 'only_empty_folders') or not self.app.only_empty_folders:
+            res = self.dir_create_size("d", self.nr_dirs, self.nr_files, 1024, self.app.local_folder_in, dir_generate_name_func, l_dirs)
+            if not res:
+                return None
 
         # randomize list
         random.shuffle(l_dirs)
@@ -328,6 +379,10 @@ class SyncTestBase(unittest.TestCase):
 
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_out, d["name"])
+            ##when saving mega alters some characters (we will look for 
+            #destiny file having that in mind)
+            dname=normalizeandescape(dname)
+                
             dname_in = os.path.join(self.app.local_folder_in, d["name"])
             success = False
 

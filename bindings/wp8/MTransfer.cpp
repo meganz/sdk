@@ -167,11 +167,8 @@ uint64 MTransfer::getUpdateTime()
 
 MNode^ MTransfer::getPublicMegaNode()
 {
-	if (!megaTransfer)
-	{
-		return nullptr;
-	}
-
+	if (!megaTransfer) return nullptr;
+    
 	MegaNode *node = megaTransfer->getPublicMegaNode();
 	return node ? ref new MNode(node, true) : nullptr;
 }
@@ -186,3 +183,12 @@ bool MTransfer::isStreamingTransfer()
 	return megaTransfer ? megaTransfer->isStreamingTransfer() : false;
 }
 
+bool MTransfer::isFolderTransfer()
+{
+    return megaTransfer ? megaTransfer->isFolderTransfer() : false;
+}
+
+int MTransfer::getFolderTransferTag()
+{
+    return megaTransfer ? megaTransfer->getFolderTransferTag() : 0;
+}
