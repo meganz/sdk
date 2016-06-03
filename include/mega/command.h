@@ -312,6 +312,7 @@ class MEGA_API CommandGetFile : public Command
 {
     TransferSlot* tslot;
     handle ph;
+    bool priv;
     byte filekey[FILENODEKEYLENGTH];
 
 public:

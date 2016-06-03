@@ -6584,6 +6584,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         {
             if(!transfer->getStartTime())
             {
+                transfer->setTotalBytes(tr->size);
                 transfer->setStartTime(Waiter::ds);
                 transfer->setTransferredBytes(tr->slot->progressreported);
             }

@@ -417,7 +417,10 @@ void Transfer::complete()
                 }
                 else
                 {
-                    fixfingerprint = true;
+                    if (fingerprint.size == this->size)
+                    {
+                        fixfingerprint = true;
+                    }
                 }
             }
         }
@@ -453,7 +456,8 @@ void Transfer::complete()
                         symmcipher = n->nodecipher();
                     }
 
-                    if (fingerprint.isvalid && (!n->isvalid || fixfingerprint))
+                    if (fingerprint.isvalid && (!n->isvalid || fixfingerprint)
+                            && fingerprint.size == n->size)
                     {
                         *(FileFingerprint*)n = fingerprint;
 
