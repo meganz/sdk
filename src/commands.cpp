@@ -632,6 +632,7 @@ void CommandGetFile::procresult()
                                     {
                                         if (s >= 0 && s != tslot->transfer->size)
                                         {
+                                            tslot->transfer->size = s;
                                             for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
                                             {
                                                 (*it)->size = s;
