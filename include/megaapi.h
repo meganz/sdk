@@ -4357,7 +4357,7 @@ class MegaApi
          *
          * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_RECOVERY_LINK
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getLink - Returns the recovery link
          * - MegaRequest::getPassword - Returns the new password
