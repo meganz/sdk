@@ -171,7 +171,7 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // without doing a FindFirstFile()?
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
-    WIN32_FIND_DATA fad;
+    WIN32_FIND_DATA fad = { 0 };
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
