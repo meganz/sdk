@@ -453,6 +453,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     }
 
     tslot = ctslot;
+    priv = p;
     ph = h;
 
     if (!tslot)
@@ -629,6 +630,29 @@ void CommandGetFile::procresult()
 
                                     if (tslot)
                                     {
+                                        if (s >= 0 && s != tslot->transfer->size)
+                                        {
+                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                            {
+                                                (*it)->size = s;
+                                            }
+
+                                            if (priv)
+                                            {
+                                                Node *n = client->nodebyhandle(ph);
+                                                if (n)
+                                                {
+                                                    n->size = s;
+                                                    client->notifynode(n);
+                                                }
+                                            }
+
+                                            int creqtag = client->reqtag;
+                                            client->reqtag = 0;
+                                            client->sendevent(99411, "Node size mismatch");
+                                            client->reqtag = creqtag;
+                                        }
+
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
                                         if (tslot->tempurl.size() && s >= 0)
