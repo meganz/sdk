@@ -81,7 +81,9 @@ public:
      */
     char *genFingerprintHex();
 
-    void signKey(const unsigned char* key, const unsigned long long keyLength, unsigned char *sigBuf);
+    void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf);
+    bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
+                   string *sig, const unsigned char* singingPubKey = NULL);
 
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;

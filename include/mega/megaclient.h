@@ -126,6 +126,10 @@ public:
     // load all trees: nodes, shares, contacts
     void fetchnodes();
 
+    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
+    void fetchkeys();    
+    void initializekeys();
+
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
@@ -850,14 +854,28 @@ public:
     // dummy key to obfuscate non protected cache
     SymmCipher tckey;
 
-    // account access (full account): RSA key
+    // account access (full account): RSA private key
     AsymmCipher asymkey;
+
+    // RSA public key
+    AsymmCipher pubk;
 
     // EdDSA signing key (Ed25519 private key seed).
     EdDSA *signkey;
 
     // ECDH key (x25519 private key).
     ECDH *chatkey;
+
+    // actual state of keys
+    bool fetchingkeys;
+
+    string prEd255;
+    string puEd255;
+    string prCu255;
+    string puCu255;
+    string sigCu255;
+    string sigPubk;
+    void clearKeys();
 
     // delete chatkey and signing key
     void resetKeyring();

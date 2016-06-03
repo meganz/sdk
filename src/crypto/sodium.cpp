@@ -121,7 +121,7 @@ char *EdDSA::genFingerprintHex()
     return result;
 }
 
-void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, unsigned char *sigBuf)
+void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result)
 {
     uint64_t ts = (uint64_t) time(NULL);
 
@@ -138,9 +138,28 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
     keyString.append(tsstr);
     keyString.append((char*)key, keyLength);
 
-    sign((unsigned char *)keyString.data(), keyString.size(), sigBuf+8);
+    byte sigBuf[crypto_sign_BYTES];
+    sign((unsigned char *)keyString.data(), keyString.size(), sigBuf);
 
-    memcpy(sigBuf, tsstr.data(), 8);
+    result->resize(crypto_sign_BYTES + sizeof(ts));  // 8 --> timestamp prefix
+    result->assign(tsstr.data(), sizeof(ts));
+    result->append((const char*)sigBuf, crypto_sign_BYTES);
+}
+
+bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, string *sig, const unsigned char* signingPubKey)
+{
+    uint64_t ts;
+    memcpy(&ts, sig->substr(0, 8).data(), sizeof(ts));
+
+    string message = "keyauth";
+    message.append(sig->data(), 8);
+    message.append((char*)pubk, pubkLen);
+
+    string signature = sig->substr(8);
+
+    return verify((unsigned char*) message.data(), message.length(),
+                  (unsigned char*) signature.data(),
+                  signingPubKey ? signingPubKey : pubKey);
 }
 
 const std::string ECDH::TLV_KEY= "prCu255";
