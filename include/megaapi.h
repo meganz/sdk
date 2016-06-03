@@ -4324,7 +4324,7 @@ class MegaApi
          *
          * If this request succeed, a recovery link will be sent to the user.
          * If no account is registered under the provided email, you will get the error code
-         * MegaError::API_EEXIST in onRequestFinish
+         * MegaError::API_ENOENT in onRequestFinish
          *
          * @param email Email used to register the account whose password wants to be reset.
          * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
