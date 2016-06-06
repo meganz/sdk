@@ -876,6 +876,40 @@ void PosixFileSystemAccess::osversion(string* u) const
     }
 }
 
+void PosixFileSystemAccess::statsid(string *id) const
+{
+#ifndef __MACH__
+    int fd = open("/etc/machine-id", O_RDONLY);
+    if (fd < 0)
+    {
+        fd = open("/var/lib/dbus/machine-id", O_RDONLY);
+        if (fd < 0)
+        {
+            return;
+        }
+    }
+
+    char buff[512];
+    int len = read(fd, buff, 512);
+    close(fd);
+
+    if (len <= 0)
+    {
+        return;
+    }
+
+    if (buff[len - 1] == '\n')
+    {
+        len--;
+    }
+
+    if (len > 0)
+    {
+        id->append(buff, len);
+    }
+#endif
+}
+
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifdef USE_INOTIFY
