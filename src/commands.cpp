@@ -2002,7 +2002,6 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
 {
     this->an = an;
     this->av.assign((const char*)av, avl);
-    this->u = client->ownuser();
 
     cmd("upv");
 
@@ -2018,7 +2017,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
             element(av, avl);
         }
 
-        const string *attrv = u->getattrversion(an);
+        const string *attrv = client->ownuser()->getattrversion(an);
         if (attrv)
         {
             element(attrv->c_str());
@@ -2054,13 +2053,14 @@ void CommandPutUA::procresult()
         }
         string v = string(ptr, (end-ptr));
 
-        if (an.empty() || v.empty() || (an != an))
+        if (an.empty() || v.empty() || (this->an != an))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
             client->app->putua_result(API_EINTERNAL);
         }
         else
         {
+            User *u = client->ownuser();
             u->setattr(&an, &av, &v);
             client->notifyuser(u);
             client->app->putua_result(API_OK);

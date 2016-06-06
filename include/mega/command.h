@@ -193,7 +193,6 @@ public:
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
-    User *u;
     string an;  // attribute name
     string av;  // attribute value
 
