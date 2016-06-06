@@ -3350,6 +3350,16 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 #endif
 }
 
+void MegaApiImpl::setStatsID(const char *id)
+{
+    if (!id || !*id || MegaClient::statsid)
+    {
+        return;
+    }
+
+    MegaClient::statsid = MegaApi::strdup(id);
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);

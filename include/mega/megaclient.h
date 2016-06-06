@@ -362,6 +362,9 @@ public:
     // account auth for public folders
     string accountauth;
 
+    // stats id
+    static char* statsid;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
