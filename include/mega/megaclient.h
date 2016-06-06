@@ -869,12 +869,7 @@ public:
     // actual state of keys
     bool fetchingkeys;
 
-    string prEd255;
-    string puEd255;
-    string prCu255;
-    string puCu255;
-    string sigCu255;
-    string sigPubk;
+    // invalidate received keys (when fail to load)
     void clearKeys();
 
     // delete chatkey and signing key

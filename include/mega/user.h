@@ -54,6 +54,8 @@ struct MEGA_API User : public Cachable
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
         bool puCu255 : 1;   // public key for Cu25519
+        bool sigPubk : 1;   // signature for RSA public key
+        bool sigCu255 : 1;  // signature for Cu255199 public key
         bool avatar : 1;    // avatar image
         bool firstname : 1;
         bool lastname : 1;

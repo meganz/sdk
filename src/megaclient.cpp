@@ -2641,11 +2641,6 @@ bool MegaClient::procsc()
                             {
                                 memset(&(it->second->changed), 0, sizeof it->second->changed);
                             }
-
-#ifdef ENABLE_CHAT
-                            // initialize keyrpairs
-                            getua(ownuser(), "*keyring", 0);
-#endif
                         }
 
                         statecurrent = true;
@@ -6254,12 +6249,13 @@ void MegaClient::procsr(JSON* j)
 
 void MegaClient::clearKeys()
 {
-    prEd255.clear();
-    prCu255.clear();
-    puEd255.clear();
-    puCu255.clear();
-    sigCu255.clear();
-    sigPubk.clear();
+    User *u = finduser(me);
+
+    u->invalidateattr("*keyring");
+    u->invalidateattr("+puEd255");
+    u->invalidateattr("+puCu255");
+    u->invalidateattr("+sigPubk");
+    u->invalidateattr("+sigCu255");
 }
 
 void MegaClient::resetKeyring()
@@ -7662,84 +7658,74 @@ void MegaClient::initializekeys()
 {
 #ifdef ENABLE_CHAT
 
-    // Initialize private Ed25519
-    if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+    User *u = finduser(me);
+
+    // Initialize private keys
+    const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
+    if (av)
     {
-        signkey = new EdDSA((unsigned char *) prEd255.data());
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
+
+        if (tlvRecords->find(EdDSA::TLV_KEY))
+        {
+            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+            {
+                signkey = new EdDSA((unsigned char *) prEd255.data());
+            }
+        }
+
+        if (tlvRecords->find(ECDH::TLV_KEY))
+        {
+            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            {
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+            }
+        }
+        delete tlvRecords;
     }
 
-    // Initialize private x25519
-    if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+    string puEd255 = (u->isattrvalid("+puEd255")) ? *u->getattr("+puEd255") : "";
+    string puCu255 = (u->isattrvalid("+puCu255")) ? *u->getattr("+puCu255") : "";
+    string sigCu255 = (u->isattrvalid("+sigCu255")) ? *u->getattr("+sigCu255") : "";
+    string sigPubk = (u->isattrvalid("+sigPubk")) ? *u->getattr("+sigPubk") : "";
+
+    if (chatkey && signkey)    // THERE ARE KEYS
     {
-        chatkey = new ECDH((unsigned char *) prCu255.data());
-    }
+        // Check Ed25519 public key against derived version
+        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(puEd255.data(), signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+        {
+            LOG_warn << "Public key for Ed25519 mismatch.";
 
-    // Check completenes of keyring
-    if ((signkey && !chatkey) || (chatkey && !signkey))
-    {
-        LOG_warn << "Keyring exists, but it's incomplete.";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99412, "Ed25519 public key mismatch");
+            reqtag = creqtag;
 
-        int creqtag = reqtag;
-        reqtag = 0;
-        sendevent(99405, "Incomplete keyring detected");
-        reqtag = creqtag;
+            fetchingkeys = false;
+            clearKeys();
+            resetKeyring();
+            return;
+        }
 
-        fetchingkeys = false;
-        resetKeyring();
-        clearKeys();
-        return;
-    }
+        // Check Cu25519 public key against derive version
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
+        {
+            LOG_warn << "Public key for Cu25519 mismatch.";
 
-    // Check completeness of keypairs
-    if (!signkey && !chatkey && (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size()))
-    {
-        LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99413, "Cu25519 public key mismatch");
+            reqtag = creqtag;
 
-        int creqtag = reqtag;
-        reqtag = 0;
-        sendevent(99406, "Incomplete keypair detected");
-        reqtag = creqtag;
+            fetchingkeys = false;
+            clearKeys();
+            resetKeyring();
+            return;
+        }
 
-        fetchingkeys = false;
-        clearKeys();
-        return;
-    }
-
-    // Check Ed25519 public key against derived version
-    if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(puEd255.data(), signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
-    {
-        LOG_warn << "Public key for Ed25519 mismatch.";
-
-        int creqtag = reqtag;
-        reqtag = 0;
-        sendevent(99412, "Ed25519 public key mismatch");
-        reqtag = creqtag;
-
-        fetchingkeys = false;
-        clearKeys();
-        resetKeyring();
-        return;
-    }
-
-    // Check Cu25519 public key against derive version
-    if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
-    {
-        LOG_warn << "Public key for Cu25519 mismatch.";
-
-        int creqtag = reqtag;
-        reqtag = 0;
-        sendevent(99413, "Cu25519 public key mismatch");
-        reqtag = creqtag;
-
-        fetchingkeys = false;
-        clearKeys();
-        resetKeyring();
-        return;
-    }
-
-    // Verify signatures
-    if (signkey)
-    {
+        // Verify signatures for Cu25519
         if (!sigCu255.size() ||
                 !signkey->verifyKey((unsigned char*) puCu255.data(),
                                     puCu255.size(),
@@ -7760,9 +7746,13 @@ void MegaClient::initializekeys()
         }
 
         // Verify signature for RSA public key
+        string sigPubk = (u->isattrvalid("+sigPubk")) ? *u->getattr("+sigPubk") : "";
         string pubkstr;
-        pubk.serializepubkey(&pubkstr);
-        if (!sigPubk.size() ||
+        if (pubk.isvalid())
+        {
+            pubk.serializepubkey(&pubkstr);
+        }
+        if (!pubkstr.size() || !sigPubk.size() ||
                 !signkey->verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
@@ -7780,45 +7770,72 @@ void MegaClient::initializekeys()
             resetKeyring();
             return;
         }
-        else
-        {
-            // Successfully checked keypairs and signatures. Store values
 
-            // TODO: if verification OK, assign to user the new attributes (public keys and signatures)
+        // if we reached this point, everything is OK
+        fetchingkeys = false;
+        return;
+    }
+    else if (!signkey && !chatkey)       // THERE ARE NO KEYS
+    {
+        // Check completeness of keypairs
+        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
+        {
+            LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99406, "Incomplete keypair detected");
+            reqtag = creqtag;
+
+            fetchingkeys = false;
+            clearKeys();
+            return;
+        }
+        else    // No keys were set --> generate keypairs and related attributes
+        {
+            // generate keypairs
+            signkey = new EdDSA();
+            chatkey = new ECDH();
+
+            // prepare the TLV for private keys
+            TLVstore tlvRecords;
+            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            string *tlvContainer = tlvRecords.tlvRecordsToContainer(&key);
+
+            // prepare signatures
+            string pubkStr;
+            pubk.serializepubkey(&pubkStr);
+            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
+
+            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
+            putua("*keyring", (byte *) tlvContainer->data(), tlvContainer->size(), 0);
+            putua("+puEd255", (byte *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
+            putua("+puCu255", (byte *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
+            putua("+sigPubk", (byte *) sigPubk.data(), sigPubk.size(), 0);
+            putua("+sigCu255", (byte *) sigCu255.data(), sigCu255.size(), 0);
+
+            delete tlvContainer;
+
+            fetchingkeys = false;
+            return;
         }
     }
-
-
-    if (!signkey && !chatkey && !puCu255.size() && !puEd255.size() && !sigCu255.size() && !sigPubk.size())
+    else    // there is chatkey but no signing key, or viceversa
     {
-        // generate keypairs
-        signkey = new EdDSA();
-        chatkey = new ECDH();
+        LOG_warn << "Keyring exists, but it's incomplete.";
 
-        // prepare the TLV for private keys
-        TLVstore tlvRecords;
-        tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-        tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-        string *tlvContainer = tlvRecords.tlvRecordsToContainer(&key);
+        int creqtag = reqtag;
+        reqtag = 0;
+        sendevent(99405, "Incomplete keyring detected");
+        reqtag = creqtag;
 
-        // prepare signatures
-        string pubkStr;
-        pubk.serializepubkey(&pubkStr);
-        signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
-        signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
-
-        // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-        putua("*keyring", (byte *) tlvContainer->data(), tlvContainer->size(), 0);
-        putua("+puEd255", (byte *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
-        putua("+puCu255", (byte *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
-        putua("+sigPubk", (byte *) sigPubk.data(), sigPubk.size(), 0);
-        putua("+sigCu255", (byte *) sigCu255.data(), sigCu255.size(), 0);
-
-        delete tlvContainer;
+        fetchingkeys = false;
+        resetKeyring();
+        clearKeys();
+        return;
     }
-
-    fetchingkeys = false;
-    clearKeys();
 
 #endif
 }

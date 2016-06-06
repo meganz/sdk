@@ -229,7 +229,7 @@ void User::invalidateattr(string an)
     attrsv.erase(an);
 }
 
-// returns the value if there is value AND version for it
+// returns the value if there is value (even if it's invalid by now)
 const string * User::getattr(string an)
 {
     string_map::const_iterator it = attrs.find(an);
@@ -278,6 +278,14 @@ bool User::setChanged(const char *an)
     else if (!strcmp(an, "+puEd255"))
     {
         changed.puEd255 = true;
+    }
+    else if (!strcmp(an, "+sigPubk"))
+    {
+        changed.sigPubk = true;
+    }
+    else if (!strcmp(an, "+sigCu255"))
+    {
+        changed.sigCu255 = true;
     }
     else if (!strcmp(an, "+a"))
     {

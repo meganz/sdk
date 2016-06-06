@@ -2164,24 +2164,7 @@ void CommandGetUA::procresult()
                                 client->app->getua_result(API_EINTERNAL);
                                 return;
                             }
-#ifdef ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me && an == "*keyring")
-                            {
-                                if (tlvRecords->find(EdDSA::TLV_KEY))
-                                {
-                                    client->prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                                }
 
-                                if (tlvRecords->find(ECDH::TLV_KEY))
-                                {
-                                    client->prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                                }
-
-                                client->app->getua_result(tlvRecords);
-                                delete tlvRecords;
-                                return;
-                            }
-#endif
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
                             u->setattr(&an, tlvString, &v);   // update version, needed for healing
@@ -2192,33 +2175,15 @@ void CommandGetUA::procresult()
                             break;
 
                         case '+':   // public
-#ifdef ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me)
-                            {
-                                if (an == "+puEd255")
-                                {
-                                    client->puEd255 = av;
-                                }
-                                else if (an == "+puCu255")
-                                {
-                                    client->puCu255 = av;
-                                }
-                                else if (an == "+sigCu255")
-                                {
-                                    client->sigCu255 = av;
-                                }
-                                else if (an == "+sigPubk")
-                                {
-                                    client->sigPubk = av;
-                                    client->initializekeys(); // we have now all the required data
-                                }
 
-                                client->app->getua_result((byte*) av.data(), av.size());
-                                return;
-                            }
-#endif
                             u->setattr(&an, &av, &v);
                             client->app->getua_result((byte*) av.data(), av.size());
+#ifdef  ENABLE_CHAT
+                            if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                            {
+                                client->initializekeys(); // we have now all the required data
+                            }
+#endif
                             break;
 
                         case '#':   // protected
@@ -2423,12 +2388,9 @@ void CommandPubKeyRequest::procresult()
                     client->mapuser(uh, u->email.c_str());
                 }
 
-                if (client->fetchingkeys &&
-                        u->userhandle == client->me &&
-                        len_pubk &&
-                        client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
+                if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                 {
-                    LOG_info << "RSA public fetched correctly";
+                    client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                     return;
                 }
 

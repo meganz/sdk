@@ -967,6 +967,14 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PUBKEY_ED255;
     }
+    if(user->changed.sigPubk)
+    {
+        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA;
+    }
+    if(user->changed.sigCu255)
+    {
+        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU25;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -3527,6 +3535,14 @@ string MegaApiImpl::userAttributeToString(int type)
             attrname = "+puCu255";
             break;
 
+        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
+            attrname = "+sigPubk";
+            break;
+
+        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
+            attrname = "+sigCu255";
+            break;
+
         case MegaApi::USER_ATTR_KEYRING:
             attrname = "*keyring";
             break;
@@ -3544,6 +3560,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_AVATAR:
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
             scope = '+';
             break;
 
@@ -8639,6 +8657,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             // byte arrays with possible nulls in the middle --> to Base64
             case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
             case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+            case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
+            case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
             default:
                 {
                     string str;

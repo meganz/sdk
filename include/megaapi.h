@@ -1011,7 +1011,9 @@ class MegaUser
             CHANGE_TYPE_COUNTRY         = 0x80,
             CHANGE_TYPE_BIRTHDAY        = 0x100,
             CHANGE_TYPE_PUBKEY_CU255    = 0x200,
-            CHANGE_TYPE_PUBKEY_ED255    = 0x400
+            CHANGE_TYPE_PUBKEY_ED255    = 0x400,
+            CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
+            CHANGE_TYPE_SIG_PUBKEY_CU25 = 0x1600
         };
 
         /**
@@ -1057,6 +1059,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x400
          * Check if the user has new or modified public key for signing
          *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
+         * Check if the user has new or modified signature for RSA public key
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * Check if the user has new or modified signature for Cu25519 public key
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1101,6 +1109,12 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x400
          * Check if the user has new or modified public key for signing
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
+         * Check if the user has new or modified signature for RSA public key
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * Check if the user has new or modified signature for Cu25519 public key
          */
         virtual int getChanges();
 };
@@ -3732,11 +3746,11 @@ class MegaApi
             USER_ATTR_LAST_INTERACTION = 4,     // private - byte array
             USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
             USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
-            USER_ATTR_KEYRING = 7               // private - byte array
+            USER_ATTR_KEYRING = 7,              // private - byte array
+            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,  // public - byte array
+            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9 // public - byte array
 //            USER_ATTR_AUTHRSA = 8,
-//            USER_ATTR_AUTHCU255 = 9,
-//            USER_ATTR_RSA_PUBLIC_KEY_SIGNATURE = 10,
-//            USER_ATTR_ED25519_PUBLIC_KEY_SIGNATURE = 11
+//            USER_ATTR_AUTHCU255 =
         };
 
         enum {
@@ -4941,6 +4955,10 @@ class MegaApi
          * Get the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4982,6 +5000,10 @@ class MegaApi
          * Get the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -5020,6 +5042,10 @@ class MegaApi
          * Get the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
