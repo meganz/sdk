@@ -872,27 +872,37 @@ void DemoApp::getua_result(byte* data, unsigned l)
 
 void DemoApp::getua_result(TLVstore *tlv)
 {
-    cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
-
-    vector<string> *keys = tlv->getKeys();
-    vector<string>::const_iterator it;
-    unsigned valuelen;
-    string value, key;
-    char *buf;
-    for (it=keys->begin(); it != keys->end(); it++)
+    if (!tlv)
     {
-        key = (*it).empty() ? "(no key)" : *it;
-        value = tlv->get(*it);
-        valuelen = value.length();
-
-        buf = new char[valuelen * 4 / 3 + 4];
-        Base64::btoa((const byte *) value.data(), valuelen, buf);
-
-        cout << "\t" << key << "\t" << buf << endl;
-
-        delete [] buf;
+        cout << "Error getting private user attribute" << endl;
     }
-    delete keys;
+    else
+    {
+        cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+
+        vector<string> *keys = tlv->getKeys();
+        vector<string>::const_iterator it;
+        unsigned valuelen;
+        string value, key;
+        char *buf;
+        for (it=keys->begin(); it != keys->end(); it++)
+        {
+            key = (*it).empty() ? "(no key)" : *it;
+            value = tlv->get(*it);
+            valuelen = value.length();
+
+            buf = new char[valuelen * 4 / 3 + 4];
+            Base64::btoa((const byte *) value.data(), valuelen, buf);
+
+            cout << "\t" << key << "\t" << buf << endl;
+
+            delete [] buf;
+        }
+        delete keys;
+    }
+}
+
+    }
 }
 
 #ifdef DEBUG
