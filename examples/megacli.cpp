@@ -902,9 +902,6 @@ void DemoApp::getua_result(TLVstore *tlv)
     }
 }
 
-    }
-}
-
 #ifdef DEBUG
 void DemoApp::delua_result(error e)
 {
