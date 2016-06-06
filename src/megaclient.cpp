@@ -7700,7 +7700,7 @@ void MegaClient::initializekeys()
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99412, "Ed25519 public key mismatch");
+            sendevent(99411, "Ed25519 public key mismatch");
             reqtag = creqtag;
 
             fetchingkeys = false;
@@ -7716,7 +7716,7 @@ void MegaClient::initializekeys()
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99413, "Cu25519 public key mismatch");
+            sendevent(99412, "Cu25519 public key mismatch");
             reqtag = creqtag;
 
             fetchingkeys = false;
@@ -7736,7 +7736,7 @@ void MegaClient::initializekeys()
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99414, "Signature of Cu25519 public key mismatch");
+            sendevent(99413, "Signature of Cu25519 public key mismatch");
             reqtag = creqtag;
 
             fetchingkeys = false;
@@ -7772,6 +7772,7 @@ void MegaClient::initializekeys()
         }
 
         // if we reached this point, everything is OK
+        LOG_info << "Keypairs and signatures loaded successfully";
         fetchingkeys = false;
         return;
     }
@@ -7784,7 +7785,7 @@ void MegaClient::initializekeys()
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99406, "Incomplete keypair detected");
+            sendevent(99415, "Incomplete keypair detected");
             reqtag = creqtag;
 
             fetchingkeys = false;
@@ -7818,6 +7819,7 @@ void MegaClient::initializekeys()
 
             delete tlvContainer;
 
+            LOG_info << "Creating new keypairs and signatures";
             fetchingkeys = false;
             return;
         }
@@ -7828,7 +7830,7 @@ void MegaClient::initializekeys()
 
         int creqtag = reqtag;
         reqtag = 0;
-        sendevent(99405, "Incomplete keyring detected");
+        sendevent(99416, "Incomplete keyring detected");
         reqtag = creqtag;
 
         fetchingkeys = false;
