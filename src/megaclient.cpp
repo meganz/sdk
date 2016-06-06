@@ -7778,7 +7778,7 @@ void MegaClient::initializekeys()
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
-        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
+        if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
         {
             LOG_warn << "Public keys and/or signatures found witout their respective private key.";
 
