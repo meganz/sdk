@@ -6571,7 +6571,7 @@ void MegaClient::getua(User* u, const char* an, int ctag)
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(an);
-        if (cachedav && u->isattrvalid(an))
+        if (!fetchingkeys && cachedav && u->isattrvalid(an))
         {
             if (*an == '*') // private attribute, TLV encoding
             {
