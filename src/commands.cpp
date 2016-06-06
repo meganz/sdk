@@ -2087,6 +2087,13 @@ void CommandGetUA::procresult()
     {
         error e = (error)client->json.getint();
         client->app->getua_result(e);
+
+#ifdef  ENABLE_CHAT
+        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+        {
+            client->initializekeys(); // we have now all the required data
+        }
+#endif
         return;
     }
     else
