@@ -32,6 +32,10 @@
 extern JavaVM *MEGAjvm;
 #endif
 
+#if defined(__MACH__) && !(TARGET_OS_IPHONE)
+#include <uuid/uuid.h>
+#endif
+
 namespace mega {
 PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
 {
@@ -997,7 +1001,18 @@ void PosixFileSystemAccess::statsid(string *id) const
         }
         catch (...) { }
     }
-#elif !defined(__MACH__)
+#elif defined(__MACH__) && !(TARGET_OS_IPHONE)
+    uuid_t uuid;
+    struct timespec wait = {1, 0};
+    if (gethostuuid(uuid, &wait))
+    {
+        return;
+    }
+
+    char uuid_str[37];
+    uuid_unparse(uuid, uuid_str);
+    id->append(uuid_str);
+#else
     int fd = open("/etc/machine-id", O_RDONLY);
     if (fd < 0)
     {
