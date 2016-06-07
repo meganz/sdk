@@ -28,6 +28,10 @@
 #include <readline/history.h>
 #include <iomanip>
 
+#ifdef __linux__
+#include <signal.h>
+#endif
+
 using namespace mega;
 
 //MegaClient* client;
@@ -921,111 +925,6 @@ static handle cwd = UNDEF;
 static MegaNode* rootNode = NULL;
 static char *session;
 
-
-void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
-    if (!request)
-    {
-        LOG_err << " onRequestStart for undefined request ";
-        return;
-    }
-
-    LOG_verbose << "onRequestStart request->getType(): " << request->getType();
-
-    switch(request->getType())
-    {
-        case MegaRequest::TYPE_LOGIN:
-            LOG_debug << "onRequestStart login email: " << request->getEmail();
-            break;
-        default:
-            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType();
-            break;
-    }
-}
-
-
-void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
-{
-    if (!request)
-    {
-        LOG_err << " onRequestFinish for undefined request ";
-        return;
-    }
-
-
-    LOG_verbose << "onRequestFinish request->getType(): " << request->getType();
-
-    switch(request->getType())
-    {
-        case MegaRequest::TYPE_LOGIN:
-            LOG_debug << "onRequestFinish login email: " << request->getEmail();
-            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
-            {
-                LOG_err << "onRequestFinish login failed: invalid email or password";
-            }
-            else //login success:
-            {
-                LOG_info << "Login correct. Fetching nodes ...";
-                session = megaApi->dumpSession();
-                api->fetchNodes(this);
-            }
-            break;
-
-        case MegaRequest::TYPE_LOGOUT:
-            LOG_debug << "onRequestFinish logout ..";
-            if (e->getErrorCode() == MegaError::API_OK) // failed to login
-            {
-                LOG_verbose << "onRequestFinish logout ok";
-                cwd = UNDEF;
-                delete rootNode;
-                delete session;
-                //rootNode = NULL;
-                //session = NULL;
-            }
-            else
-            {
-                LOG_err << "onRequestFinish failed to logout";
-            }
-        break;
-    case MegaRequest::TYPE_FETCH_NODES:
-            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
-            if (e->getErrorCode() == MegaError::API_OK)
-            {
-                LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok";
-                rootNode = api->getRootNode();
-                cwd = rootNode->getHandle();
-            }
-            else
-            {
-                LOG_err << " failed to fetch nodes at login. Error: " << MegaError::API_OK;
-            }
-        break;
-        default:
-            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
-            break;
-    }
-
-}
-
-void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
-
-}
-
-void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e){
-
-}
-
-
-MegaCmdListener::~MegaCmdListener(){
-
-}
-
-MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
-{
-    this->megaApi=megaApi;
-    this->listener=listener;
-}
-
-
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
 static const char* rootnodepaths[] =
@@ -1553,6 +1452,151 @@ static void setprompt(prompttype p)
     }
 }
 
+
+#ifdef __linux__
+void sigint_handler(int signum)
+{
+    rl_replace_line("", 0); //clean contents of actual command
+    rl_crlf(); //move to nextline
+
+    // reset position and print prompt
+    pw_buf_pos = 0;
+    cout << prompts[prompt] << flush;
+}
+#endif
+
+
+
+void clear_display(){
+    rl_forced_update_display();
+}
+
+#define CLEAN_fatal if (SimpleLogger::logCurrentLevel < logFatal) ;\
+    else \
+        clear_display();
+#define CLEAN_err if (SimpleLogger::logCurrentLevel < logError) ;\
+    else \
+        clear_display();
+#define CLEAN_info if (SimpleLogger::logCurrentLevel < logInfo) ;\
+    else \
+        clear_display();
+#define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
+    else \
+        clear_display();
+#define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        clear_display();
+
+
+void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
+    if (!request)
+    {
+        LOG_err << " onRequestStart for undefined request "; CLEAN_err;
+        return;
+    }
+
+    LOG_verbose << "onRequestStart request->getType(): " << request->getType(); CLEAN_verbose;
+
+    switch(request->getType())
+    {
+        case MegaRequest::TYPE_LOGIN:
+            LOG_debug << "onRequestStart login email: " << request->getEmail(); CLEAN_debug;
+            break;
+        default:
+            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType(); CLEAN_debug;
+            break;
+    }
+
+    //clear_display();
+
+}
+
+
+void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
+{
+    if (!request)
+    {
+        LOG_err << " onRequestFinish for undefined request "; CLEAN_err;
+        return;
+    }
+
+
+    LOG_verbose << "onRequestFinish request->getType(): " << request->getType(); CLEAN_verbose;
+
+    switch(request->getType())
+    {
+        case MegaRequest::TYPE_LOGIN:
+            LOG_debug << "onRequestFinish login email: " << request->getEmail(); CLEAN_debug;
+            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
+            {
+                LOG_err << "onRequestFinish login failed: invalid email or password"; CLEAN_err;
+            }
+            else //login success:
+            {
+                LOG_info << "Login correct. Fetching nodes ..."; CLEAN_info;
+                session = megaApi->dumpSession();
+                api->fetchNodes(this);
+            }
+            break;
+
+        case MegaRequest::TYPE_LOGOUT:
+            LOG_debug << "onRequestFinish logout .."; CLEAN_debug;
+            if (e->getErrorCode() == MegaError::API_OK) // failed to login
+            {
+                LOG_verbose << "onRequestFinish logout ok"; CLEAN_verbose;
+                cwd = UNDEF;
+                delete rootNode;
+                delete session;
+                //rootNode = NULL;
+                //session = NULL;
+            }
+            else
+            {
+                LOG_err << "onRequestFinish failed to logout"; CLEAN_err;
+            }
+        break;
+    case MegaRequest::TYPE_FETCH_NODES:
+            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: "; CLEAN_debug;
+            if (e->getErrorCode() == MegaError::API_OK)
+            {
+                LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
+                rootNode = api->getRootNode();
+                cwd = rootNode->getHandle();
+            }
+            else
+            {
+                LOG_err << " failed to fetch nodes at login. Error: " << MegaError::API_OK; CLEAN_err;
+            }
+        break;
+        default:
+            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType(); CLEAN_debug;
+            break;
+    }
+    //clear_display();
+}
+
+void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
+
+}
+
+void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e){
+
+}
+
+
+MegaCmdListener::~MegaCmdListener(){
+
+}
+
+MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
+{
+    this->megaApi=megaApi;
+    this->listener=listener;
+}
+
+
+
+
 //TreeProcCopy::TreeProcCopy()
 //{
 //    nn = NULL;
@@ -1948,7 +1992,7 @@ static void process_line(char* l)
                 case 2:
                     if (words[0] == "ls")
                     {
-                        if (!api->isLoggedIn()) { LOG_debug << "Not logged in"; return;}
+                        if (!api->isLoggedIn()) { LOG_err << "Not logged in"; CLEAN_err; return;}
                         int recursive = words.size() > 1 && words[1] == "-R";
 
                         if ((int) words.size() > recursive + 1)
@@ -1972,14 +2016,14 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "cd")
                     {
-                        if (!api->isLoggedIn()) { LOG_debug << "Not logged in"; return;}
+                        if (!api->isLoggedIn()) { LOG_err << "Not logged in";CLEAN_err; return; }
                         if (words.size() > 1)
                         {
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (n->getType() == MegaNode::TYPE_FILE)
                                 {
-                                    LOG_debug << words[1] << ": Not a directory";
+                                    LOG_err << words[1] << ": Not a directory"; CLEAN_err;
                                 }
                                 else
                                 {
@@ -1988,12 +2032,12 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                LOG_debug << words[1] << ": No such file or directory";
+                                LOG_err << words[1] << ": No such file or directory"; CLEAN_err;
                             }
                         }
                         else
                         {
-                            if (!rootNode) {LOG_err << "nodes not fetched"; return;}
+                            if (!rootNode) {LOG_err << "nodes not fetched"; CLEAN_err; return; }
                               cwd = rootNode->getHandle();
                         }
 
@@ -2656,7 +2700,7 @@ static void process_line(char* l)
                                         api->login(words[1].c_str(),words[2].c_str(),megaCmdListener); //pass listener once created
 //                                        client->pw_key(words[2].c_str(), pwkey);
 //                                        client->login(words[1].c_str(), pwkey);
-                                        cout << "Initiated login attempt..." << endl;
+//                                        cout << "Initiated login attempt..." << endl;
                                     }
                                     else
                                     {
@@ -4216,7 +4260,7 @@ void DemoApp::reload(const char* reason)
 // reload initiated
 void DemoApp::clearing()
 {
-    LOG_debug << "Clearing all nodes/users...";
+    LOG_debug << "Clearing all nodes/users..."; CLEAN_debug;
 }
 
 // nodes have been modified
@@ -4260,7 +4304,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 // nodes now (almost) current, i.e. no server-client notifications pending
 void DemoApp::nodes_current()
 {
-    LOG_debug << "Nodes current.";
+    LOG_debug << "Nodes current."; CLEAN_debug;
 }
 
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
@@ -4587,10 +4631,33 @@ void megacmd()
     }
 }
 
+
+class LoggerForApi: public MegaLogger{
+private:
+    int level;
+public:
+    LoggerForApi()
+    {
+        this->level=MegaApi::LOG_LEVEL_ERROR;
+    }
+
+    void log(const char *time, int loglevel, const char *source, const char *message)
+    {
+        if (loglevel<=level)
+        {
+            cout << "[" << loglevel << "]" << message;
+        }
+    }
+
+    void setLevel(int loglevel){
+        this->level=loglevel;
+    }
+};
+
 int main()
 {
     SimpleLogger::setAllOutputs(&std::cout);
-    SimpleLogger::setLogLevel(logInfo);
+
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
@@ -4612,12 +4679,28 @@ int main()
 //                            "." TOSTRING(MEGA_MINOR_VERSION)
 //                            "." TOSTRING(MEGA_MICRO_VERSION));
 
+
+
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+    LoggerForApi* apiLogger = new LoggerForApi();
+    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
+    api->setLoggerObject(apiLogger);
+//    api->setLogLevel(MegaApi::LOG_LEVEL_ERROR);
+
+    //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
     megaCmdListener = new MegaCmdListener(api,NULL);
-    //megaCmdListener = new MegaCmdListener();
+
+    SimpleLogger::setLogLevel(logInfo);
+    //    SimpleLogger::setLogLevel(logDebug);
+    //    SimpleLogger::setLogLevel(logFatal);
 
     console = new CONSOLE_CLASS;
+
+#ifdef __linux__
+    // prevent CTRL+C exit
+    signal(SIGINT, sigint_handler);
+#endif
 
     megacmd();
 }
