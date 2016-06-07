@@ -7,12 +7,13 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAcli
+TARGET = MEGAcmd
 TEMPLATE = app
 CONFIG += console
+CONFIG += USE_MEGAAPI
 
 win32 {
-    DEFINES += USE_READLINE_STATIC
+DEFINES += USE_READLINE_STATIC
 }
 
 LIBS += -lreadline
@@ -26,6 +27,6 @@ else {
     SOURCES += ../../../src/posix/consolewaiter.cpp
 }
 
-SOURCES += ../../../examples/megacli.cpp
-HEADERS += ../../../examples/megacli.h
+SOURCES += ../../../examples/megacmd.cpp
+HEADERS += ../../../examples/megacmd.h
 include(../../../bindings/qt/sdk.pri)

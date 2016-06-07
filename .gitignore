@@ -83,3 +83,24 @@ Release
 
 # Mega SDK runtime
 *.db-journal
+/contrib/QtCreator/MEGACli/MEGACli.pro.user
+/contrib/QtCreator/MEGACli/MEGAcli
+/contrib/QtCreator/MEGACli/MEGAcmd
+/contrib/QtCreator/MEGACli/Makefile
+/contrib/QtCreator/MEGACli/doc/Doxyfile
+/contrib/QtCreator/MEGACli/include/Makefile
+/contrib/QtCreator/MEGACli/include/mega/config.h
+/contrib/QtCreator/MEGAcmd/MEGACli.pro.user
+/contrib/QtCreator/MEGAcmd/MEGAcmd
+/contrib/QtCreator/MEGAcmd/MEGAcmd.pro.user
+/contrib/QtCreator/MEGAcmd/Makefile
+/contrib/QtCreator/MEGAcmd/doc/Doxyfile
+/contrib/QtCreator/MEGAcmd/include/Makefile
+/contrib/QtCreator/MEGAcmd/include/mega/config.h
+/contrib/QtCreator/MEGAcmd/moc_QTMegaGlobalListener.cpp
+/contrib/QtCreator/MEGAcmd/moc_QTMegaListener.cpp
+/contrib/QtCreator/MEGAcmd/moc_QTMegaRequestListener.cpp
+/contrib/QtCreator/MEGAcmd/moc_QTMegaSyncListener.cpp
+/contrib/QtCreator/MEGAcmd/moc_QTMegaTransferListener.cpp
+/contrib/QtCreator/build-MEGACli-Desktop-Debug/MEGAcli
+/contrib/QtCreator/build-MEGACli-Desktop-Debug/Makefile
