@@ -1,5 +1,5 @@
 /**
- * @file examples/megaclient.cpp
+ * @file examples/megacmd.cpp
  * @brief Sample application, interactive GNU Readline CLI
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -918,6 +918,8 @@ static char* line;
 static AccountDetails account;
 
 static handle cwd = UNDEF;
+static MegaNode* rootNode = NULL;
+static char *session;
 
 
 void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
@@ -947,6 +949,9 @@ void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaEr
         return;
     }
 
+
+    cout << "onRequestFinish request->getType(): " << request->getType() << endl;
+
     switch(request->getType())
     {
         case MegaRequest::TYPE_LOGIN:
@@ -957,11 +962,38 @@ void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaEr
             }
             else //login success:
             {
-                //TODO: do sth with session: const char *session = megaApi->dumpSession();
-                api->fetchNodes(); //TODO: lock untill sucessfully fetched first time??
-                //cwd = api->getRootNode()->getHandle();
+                session = megaApi->dumpSession();
+                api->fetchNodes(this);
             }
             break;
+        case MegaRequest::TYPE_LOGOUT:
+        cout << "onRequestFinish logout .." << endl;
+        if (e->getErrorCode() == MegaError::API_OK) // failed to login
+        {
+            cerr << "onRequestFinish logout ok" << endl;
+            cwd = UNDEF;
+            delete rootNode;
+            delete session;
+            //rootNode = NULL;
+            //session = NULL;
+        }
+        else
+        {
+            cerr << "onRequestFinish failed to logout" << endl;
+        }
+        break;
+    case MegaRequest::TYPE_FETCH_NODES:
+            cout << "onRequestFinish TYPE_FETCH_NODES: " << endl;
+            if (e->getErrorCode() == MegaError::API_OK)
+            {
+                rootNode = api->getRootNode();
+                cwd = rootNode->getHandle();
+            }
+            else
+            {
+                cerr << " failed to fetch nodes at login. Error: " << MegaError::API_OK << endl;
+            }
+        break;
         default:
             cerr << "onRequestFinish of unregistered type of request: " << request->getType() << endl;
             break;
@@ -1219,7 +1251,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
             else
             {
                 //TODO: modify using API //TODO: test & delete comments
-                n = api->getRootNode();
+                n = rootNode;
 //                n = client->nodebyhandle(client->rootnodes[0]);
 
                 l = 1;
@@ -1276,9 +1308,9 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
 
 static void listnodeshares(MegaNode* n)
 {
-    if(api->getOutShares(n))
+    MegaShareList* outShares=api->getOutShares(n);
+    if(outShares)
     {
-        MegaShareList* outShares=api->getOutShares(n);
         for (int i=0;i<outShares->size();i++)
 //        for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
@@ -1294,6 +1326,7 @@ static void listnodeshares(MegaNode* n)
                 cout << ", shared as exported folder link" << endl;
             }
         }
+        delete outShares;
     }
 }
 
@@ -1374,6 +1407,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                         }
                         cout << " folder link";
                     }
+                    delete outShares;
                 }
 
                 MegaShareList* pendingoutShares;
@@ -1382,11 +1416,12 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     for (int i=0;i<pendingoutShares->size();i++)
                     {
                         if (pendingoutShares->get(i))
-                    {
-                        cout << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
-                             << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
+                        {
+                            cout << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
+                                 << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
+                        }
                     }
-                }
+                    delete pendingoutShares;
                 }
 
                 if (n->isInShare())
@@ -1411,9 +1446,12 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
     {
         MegaNodeList* children= api->getChildren(n);
         if (children)
-        for (int i=0;i<children->size();i++)
         {
-            dumptree(children->get(i), recurse, depth + 1);
+            for (int i=0;i<children->size();i++)
+            {
+                dumptree(children->get(i), recurse, depth + 1);
+            }
+        delete children;
         }
     }
 }
@@ -1905,6 +1943,7 @@ static void process_line(char* l)
                 case 2:
                     if (words[0] == "ls")
                     {
+                        if (!api->isLoggedIn()) { cerr << "Not logged in" << endl; return;}
                         int recursive = words.size() > 1 && words[1] == "-R";
 
                         if ((int) words.size() > recursive + 1)
@@ -1928,13 +1967,14 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "cd")
                     {
+                        if (!api->isLoggedIn()) { cerr << "Not logged in" << endl; return;}
                         if (words.size() > 1)
                         {
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (n->getType() == MegaNode::TYPE_FILE)
                                 {
-                                    cout << words[1] << ": Not a directory" << endl;
+                                    cerr << words[1] << ": Not a directory" << endl;
                                 }
                                 else
                                 {
@@ -1943,14 +1983,13 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << words[1] << ": No such file or directory" << endl;
+                                cerr << words[1] << ": No such file or directory" << endl;
                             }
                         }
                         else
                         {
-                            //TODO: modify using API
-//                            cwd = client->rootnodes[0];
-                              cwd = api->getRootNode()->getHandle();
+                            if (!rootNode) {cerr << "nodes not fetched" << endl; return;}
+                              cwd = rootNode->getHandle();
                         }
 
                         return;
@@ -3606,11 +3645,7 @@ static void process_line(char* l)
                     else if (words[0] == "logout")
                     {
                         cout << "Logging off..." << endl;
-
-                        cwd = UNDEF;
-                        //TODO: modify using API
-//                        client->logout();
-
+                        api->logout(megaCmdListener);
                         return;
                     }
 #ifdef ENABLE_CHAT
