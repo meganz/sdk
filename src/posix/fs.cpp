@@ -27,6 +27,11 @@
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
 
+#ifdef __ANDROID__
+#include <jni.h>
+extern JavaVM *MEGAjvm;
+#endif
+
 namespace mega {
 PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
 {
@@ -878,7 +883,121 @@ void PosixFileSystemAccess::osversion(string* u) const
 
 void PosixFileSystemAccess::statsid(string *id) const
 {
-#ifndef __MACH__
+#ifdef __ANDROID__
+    if (!MEGAjvm)
+    {
+        LOG_err << "No JVM found";
+        return;
+    }
+
+    try
+    {
+        JNIEnv *env;
+        MEGAjvm->AttachCurrentThread(&env, NULL);
+        jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
+        if (!appGlobalsClass)
+        {
+            LOG_err << "Failed to get android/app/AppGlobals";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+        if (!getInitialApplicationMID)
+        {
+            LOG_err << "Failed to get getInitialApplication()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jobject context = env->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+        if (!context)
+        {
+            LOG_err << "Failed to get context";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jclass contextClass = env->GetObjectClass(context);
+        if (!contextClass)
+        {
+            LOG_err << "Failed to get context class";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getContentResolverMID = env->GetMethodID(contextClass, "getContentResolver", "()Landroid/content/ContentResolver;");
+        if (!getContentResolverMID)
+        {
+            LOG_err << "Failed to get getContentResolver()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jobject contentResolver = env->CallObjectMethod(context, getContentResolverMID);
+        if (!contentResolver)
+        {
+            LOG_err << "Failed to get ContentResolver";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jclass settingsSecureClass = env->FindClass("android/provider/Settings$Secure");
+        if (!settingsSecureClass)
+        {
+            LOG_err << "Failed to get Settings.Secure class";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getStringMID = env->GetStaticMethodID(settingsSecureClass, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
+        if (!getStringMID)
+        {
+            LOG_err << "Failed to get getString()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jstring idStr = (jstring) env->NewStringUTF("android_id");
+        if (!idStr)
+        {
+            LOG_err << "Failed to get idStr";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jstring androidId = (jstring) env->CallStaticObjectMethod(settingsSecureClass, getStringMID, contentResolver, idStr);
+        if (!androidId)
+        {
+            LOG_err << "Failed to get android_id";
+            env->DeleteLocalRef(idStr);
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        const char *androidIdString = env->GetStringUTFChars(androidId, NULL);
+        if (!androidIdString)
+        {
+            LOG_err << "Failed to get android_id bytes";
+            env->DeleteLocalRef(idStr);
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        id->append(androidIdString);
+        env->DeleteLocalRef(idStr);
+        env->ReleaseStringUTFChars(androidId, androidIdString);
+        MEGAjvm->DetachCurrentThread();
+    }
+    catch (...)
+    {
+        try
+        {
+            MEGAjvm->DetachCurrentThread();
+        }
+        catch (...) { }
+    }
+#elif !defined(__MACH__)
     int fd = open("/etc/machine-id", O_RDONLY);
     if (fd < 0)
     {
