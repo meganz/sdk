@@ -219,3 +219,8 @@ void GfxProcCG::freebitmap() {
     }
     w = h = 0;
 }
+
+void ios_statsid(string *id)
+{
+
+}

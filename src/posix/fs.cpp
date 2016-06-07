@@ -1001,7 +1001,9 @@ void PosixFileSystemAccess::statsid(string *id) const
         }
         catch (...) { }
     }
-#elif defined(__MACH__) && !(TARGET_OS_IPHONE)
+#elif TARGET_OS_IPHONE
+    ios_statsid(id);
+#elif defined(__MACH__)
     uuid_t uuid;
     struct timespec wait = {1, 0};
     if (gethostuuid(uuid, &wait))
