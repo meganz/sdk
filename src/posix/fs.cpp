@@ -1002,7 +1002,9 @@ void PosixFileSystemAccess::statsid(string *id) const
         catch (...) { }
     }
 #elif TARGET_OS_IPHONE
+#ifdef USE_IOS
     ios_statsid(id);
+#endif
 #elif defined(__MACH__)
     uuid_t uuid;
     struct timespec wait = {1, 0};

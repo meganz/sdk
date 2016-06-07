@@ -48,10 +48,6 @@
 #include <fcntl.h>
 #endif
 
-#if TARGET_OS_IPHONE
-#include "mega/gfx/GfxProcCG.h"
-#endif
-
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.

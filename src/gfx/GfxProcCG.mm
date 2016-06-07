@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
@@ -220,7 +221,7 @@ void GfxProcCG::freebitmap() {
     w = h = 0;
 }
 
-void ios_statsid(string *id)
+void ios_statsid(std::string *id)
 {
 
 }
