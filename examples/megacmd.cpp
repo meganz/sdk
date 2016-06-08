@@ -28,6 +28,7 @@
 #include <readline/history.h>
 #include <iomanip>
 
+
 #ifdef __linux__
 #include <signal.h>
 #endif
@@ -46,11 +47,11 @@ static string login;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
-// signup code being confirmed
+//// signup code being confirmed
 static string signupcode;
 
-// signup password challenge and encrypted master key
-static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
+//// signup password challenge and encrypted master key
+//static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
 
 // local console
 Console* console;
@@ -78,60 +79,60 @@ const char* getAccessLevelStr(int level){
     return "undefined";
 }
 
-const char* errorstring(error e)
-{
-    switch (e)
-    {
-        case API_OK:
-            return "No error";
-        case API_EINTERNAL:
-            return "Internal error";
-        case API_EARGS:
-            return "Invalid argument";
-        case API_EAGAIN:
-            return "Request failed, retrying";
-        case API_ERATELIMIT:
-            return "Rate limit exceeded";
-        case API_EFAILED:
-            return "Transfer failed";
-        case API_ETOOMANY:
-            return "Too many concurrent connections or transfers";
-        case API_ERANGE:
-            return "Out of range";
-        case API_EEXPIRED:
-            return "Expired";
-        case API_ENOENT:
-            return "Not found";
-        case API_ECIRCULAR:
-            return "Circular linkage detected";
-        case API_EACCESS:
-            return "Access denied";
-        case API_EEXIST:
-            return "Already exists";
-        case API_EINCOMPLETE:
-            return "Incomplete";
-        case API_EKEY:
-            return "Invalid key/integrity check failed";
-        case API_ESID:
-            return "Bad session ID";
-        case API_EBLOCKED:
-            return "Blocked";
-        case API_EOVERQUOTA:
-            return "Over quota";
-        case API_ETEMPUNAVAIL:
-            return "Temporarily not available";
-        case API_ETOOMANYCONNECTIONS:
-            return "Connection overflow";
-        case API_EWRITE:
-            return "Write error";
-        case API_EREAD:
-            return "Read error";
-        case API_EAPPKEY:
-            return "Invalid application key";
-        default:
-            return "Unknown error";
-    }
-}
+//const char* errorstring(error e)
+//{
+//    switch (e)
+//    {
+//        case API_OK:
+//            return "No error";
+//        case API_EINTERNAL:
+//            return "Internal error";
+//        case API_EARGS:
+//            return "Invalid argument";
+//        case API_EAGAIN:
+//            return "Request failed, retrying";
+//        case API_ERATELIMIT:
+//            return "Rate limit exceeded";
+//        case API_EFAILED:
+//            return "Transfer failed";
+//        case API_ETOOMANY:
+//            return "Too many concurrent connections or transfers";
+//        case API_ERANGE:
+//            return "Out of range";
+//        case API_EEXPIRED:
+//            return "Expired";
+//        case API_ENOENT:
+//            return "Not found";
+//        case API_ECIRCULAR:
+//            return "Circular linkage detected";
+//        case API_EACCESS:
+//            return "Access denied";
+//        case API_EEXIST:
+//            return "Already exists";
+//        case API_EINCOMPLETE:
+//            return "Incomplete";
+//        case API_EKEY:
+//            return "Invalid key/integrity check failed";
+//        case API_ESID:
+//            return "Bad session ID";
+//        case API_EBLOCKED:
+//            return "Blocked";
+//        case API_EOVERQUOTA:
+//            return "Over quota";
+//        case API_ETEMPUNAVAIL:
+//            return "Temporarily not available";
+//        case API_ETOOMANYCONNECTIONS:
+//            return "Connection overflow";
+//        case API_EWRITE:
+//            return "Write error";
+//        case API_EREAD:
+//            return "Read error";
+//        case API_EAPPKEY:
+//            return "Invalid application key";
+//        default:
+//            return "Unknown error";
+//    }
+//}
 
 //AppFile::AppFile()
 //{
@@ -1760,35 +1761,35 @@ static void process_line(char* l)
         //TODO: modify using API
 //            client->pw_key(l, pwkey);
 
-            if (signupcode.size())
-            {
-                // verify correctness of supplied signup password
-                SymmCipher pwcipher(pwkey);
-                pwcipher.ecb_decrypt(signuppwchallenge);
+//            if (signupcode.size())
+//            {
+//                // verify correctness of supplied signup password
+//                SymmCipher pwcipher(pwkey);
+//                pwcipher.ecb_decrypt(signuppwchallenge);
 
-                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
-                {
-                    cout << endl << "Incorrect password, please try again." << endl;
-                }
-                else
-                {
-                    // decrypt and set master key, then proceed with the confirmation
-                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-                    //TODO: modify using API
-//                    client->key.setkey(signupencryptedmasterkey);
+//                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
+//                {
+//                    cout << endl << "Incorrect password, please try again." << endl;
+//                }
+//                else
+//                {
+//                    // decrypt and set master key, then proceed with the confirmation
+//                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
+//                    //TODO: modify using API
+////                    client->key.setkey(signupencryptedmasterkey);
 
-//                    client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
-//                                              MegaClient::stringhash64(&signupemail, &pwcipher));
-                }
+////                    client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
+////                                              MegaClient::stringhash64(&signupemail, &pwcipher));
+//                }
 
-                signupcode.clear();
-            }
-            else
-            {
+//                signupcode.clear();
+//            }
+//            else
+//            {
                 //TODO: modify using API
 //                client->login(login.c_str(), pwkey);
-                cout << endl << "Logging in..." << endl;
-            }
+                  api->login(login.c_str(), l,megaCmdListener);
+//            }
 
             setprompt(COMMAND);
             return;
@@ -2697,7 +2698,7 @@ static void process_line(char* l)
                                     if (words.size() > 2)
                                     {
                                         //TODO: validate & delete
-                                        api->login(words[1].c_str(),words[2].c_str(),megaCmdListener); //pass listener once created
+                                        api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
 //                                        client->pw_key(words[2].c_str(), pwkey);
 //                                        client->login(words[1].c_str(), pwkey);
 //                                        cout << "Initiated login attempt..." << endl;
@@ -4682,16 +4683,16 @@ int main()
 
 
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
-    LoggerForApi* apiLogger = new LoggerForApi();
-    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
-    api->setLoggerObject(apiLogger);
-//    api->setLogLevel(MegaApi::LOG_LEVEL_ERROR);
+    LoggerForApi* apiLogger = new LoggerForApi(); //TODO: never deleted
+//    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
+//    api->setLoggerObject(apiLogger);
+    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
-    megaCmdListener = new MegaCmdListener(api,NULL);
+    megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted
 
-    SimpleLogger::setLogLevel(logInfo);
+//    SimpleLogger::setLogLevel(logInfo);
     //    SimpleLogger::setLogLevel(logDebug);
     //    SimpleLogger::setLogLevel(logFatal);
 
