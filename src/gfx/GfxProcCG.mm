@@ -221,7 +221,50 @@ void GfxProcCG::freebitmap() {
     w = h = 0;
 }
 
-void ios_statsid(std::string *id)
-{
+void ios_statsid(std::string *statsid) {
+    NSMutableDictionary *queryDictionary = [[NSMutableDictionary alloc] init];
+    [queryDictionary setObject:(__bridge id)kSecClassGenericPassword forKey:(__bridge id)kSecClass];
+    [queryDictionary setObject:@"statsid" forKey:(__bridge id)kSecAttrAccount];
+    [queryDictionary setObject:@"MEGA" forKey:(__bridge id)kSecAttrService];
+    [queryDictionary setObject:(__bridge id)(kSecAttrSynchronizableAny) forKey:(__bridge id)(kSecAttrSynchronizable)];
+    [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
+    [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
+    
+    CFTypeRef result = NULL;
+    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
+    
+    switch (status) {
+        case errSecSuccess: {
+            NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
+            statsid->append([uuidString UTF8String]);
+            break;
+        }
 
+        case errSecItemNotFound: {
+            NSString *uuidString = [[[NSUUID alloc] init] UUIDString];
+            
+            NSData *uuidData = [uuidString dataUsingEncoding:NSUTF8StringEncoding];
+            [queryDictionary setObject:uuidData forKey:(__bridge id)kSecValueData];
+            [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
+            [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
+            
+            status = SecItemAdd((__bridge CFDictionaryRef)queryDictionary, NULL);
+            
+            switch (status) {
+                case errSecSuccess: {
+                    statsid->append([uuidString UTF8String]);
+                    break;
+                }
+                default: {
+                    LOG_err << "SecItemAdd failed with error code " << status;
+                    break;
+                }
+            }
+            break;
+        }
+        default: {
+            LOG_err << "SecItemCopyMatching failed with error code " << status;
+            break;
+        }
+    }
 }

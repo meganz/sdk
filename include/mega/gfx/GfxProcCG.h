@@ -44,7 +44,7 @@ public:
     ~GfxProcCG();
 };
 
-void ios_statsid(std::string *id);
+void ios_statsid(std::string *statsid);
 
 #endif
 #endif
