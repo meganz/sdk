@@ -314,6 +314,8 @@ class Utils {
 public:
     /**
      * @brief Converts a character string from UTF-8 to Unicode
+     * This method is a workaround for a legacy bug where Webclient used to encode
+     * each byte of the array in UTF-8, resulting in a wider string of variable length.
      * @note The UTF-8 string should only contain characters encoded as 1 or 2 bytes.
      * @param src Characters string encoded in UTF-8
      * @param srclen Length of the string (in bytes)

@@ -692,8 +692,18 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
             {
                 utf8cp2 = src[i++];
 
-                unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                res[rescount++] = unicodecp & 0xFF;
+                // check codepoints are valid
+                if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
+                {
+                    unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
+                    res[rescount++] = unicodecp & 0xFF;
+                }
+                else
+                {
+                    // error: one of the two-bytes UTF-8 char is not a valid UTF-8 char
+                    delete [] res;
+                    return false;
+                }
             }
             else
             {
