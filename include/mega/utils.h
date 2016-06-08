@@ -193,7 +193,7 @@ public:
 // read/write multibyte words
 struct MEGA_API MemAccess
 {
-#ifdef NO_DIRECT_WORD_ACCESS
+#ifndef ALLOW_UNALIGNED_MEMORY_ACCESS
     template<typename T> static T get(const char* ptr)
     {
         T val;

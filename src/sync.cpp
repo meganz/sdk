@@ -913,11 +913,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
 // returns 0 if a parent node is missing, ~0 if control should be yielded, or the time
-// until a retry should be made (300 ms minimum latency).
+// until a retry should be made (500 ms minimum latency).
 dstime Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
-    dstime dsmin = Waiter::ds - 3;
+    dstime dsmin = Waiter::ds - 5;
     LocalNode* l;
 
     while (t--)

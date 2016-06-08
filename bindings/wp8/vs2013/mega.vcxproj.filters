@@ -270,6 +270,9 @@
     <ClInclude Include="..\MAccountTransaction.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MStringList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -474,6 +477,9 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\MAccountTransaction.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MStringList.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

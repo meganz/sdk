@@ -66,6 +66,7 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 void HttpReqCommandPutFA::procresult()
 {
     error e;
+    client->looprequested = true;
 
     if (client->json.isnumeric())
     {
@@ -138,6 +139,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunke
 void CommandGetFA::procresult()
 {
     fafc_map::iterator it = client->fafcs.find(part);
+    client->looprequested = true;
 
     if (client->json.isnumeric())
     {
@@ -179,6 +181,15 @@ void CommandGetFA::procresult()
                     }
                     else
                     {
+                        faf_map::iterator fafsit;
+                        for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
+                        {
+                            // move from fresh to pending
+                            it->second->fafs[1][fafsit->first] = fafsit->second;
+                            it->second->fafs[0].erase(fafsit++);
+                        }
+
+                        it->second->e = API_EINTERNAL;
                         it->second->req.status = REQ_FAILURE;
                     }
                 }
@@ -188,6 +199,15 @@ void CommandGetFA::procresult()
             default:
                 if (!client->json.storeobject())
                 {
+                    faf_map::iterator fafsit;
+                    for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
+                    {
+                        // move from fresh to pending
+                        it->second->fafs[1][fafsit->first] = fafsit->second;
+                        it->second->fafs[0].erase(fafsit++);
+                    }
+
+                    it->second->e = API_EINTERNAL;
                     it->second->req.status = REQ_FAILURE;
                     return;
                 }
@@ -433,6 +453,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     }
 
     tslot = ctslot;
+    priv = p;
     ph = h;
 
     if (!tslot)
@@ -609,6 +630,30 @@ void CommandGetFile::procresult()
 
                                     if (tslot)
                                     {
+                                        if (s >= 0 && s != tslot->transfer->size)
+                                        {
+                                            tslot->transfer->size = s;
+                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                            {
+                                                (*it)->size = s;
+                                            }
+
+                                            if (priv)
+                                            {
+                                                Node *n = client->nodebyhandle(ph);
+                                                if (n)
+                                                {
+                                                    n->size = s;
+                                                    client->notifynode(n);
+                                                }
+                                            }
+
+                                            int creqtag = client->reqtag;
+                                            client->reqtag = 0;
+                                            client->sendevent(99411, "Node size mismatch");
+                                            client->reqtag = creqtag;
+                                        }
+
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
                                         if (tslot->tempurl.size() && s >= 0)
@@ -857,6 +902,23 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 void CommandPutNodes::procresult()
 {
     error e;
+
+    pendingdbid_map::iterator it = client->pendingtcids.find(tag);
+    if (it != client->pendingtcids.end())
+    {
+        if (client->tctable)
+        {
+            vector<uint32_t> &ids = it->second;
+            for (unsigned int i = 0; i< ids.size(); i++)
+            {
+                if (ids[i])
+                {
+                    client->tctable->del(ids[i]);
+                }
+            }
+        }
+        client->pendingtcids.erase(it);
+    }
 
     if (client->json.isnumeric())
     {
@@ -1163,20 +1225,7 @@ void CommandLogout::procresult()
     MegaApp *app = client->app;
     if(!e)
     {
-        if (client->sctable)
-        {
-            client->sctable->remove();
-        }
-
-#ifdef ENABLE_SYNC
-        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-        {
-            if((*it)->statecachetable)
-            {
-                (*it)->statecachetable->remove();
-            }
-        }
-#endif
+        client->removecaches();
         client->locallogout();
     }
     app->logout_result(e);
@@ -1388,7 +1437,7 @@ void CommandLogin::procresult()
     }
 }
 
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle sh, const char* uid, const byte* key, int len)
+CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
 {
     cmd("k");
     beginarray("sr");
@@ -1443,13 +1492,13 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
     // Only for inviting non-contacts
-    if (personal_representation)
+    if (personal_representation && personal_representation[0])
     {
         this->personal_representation = personal_representation;
         arg("e", personal_representation);
     }
 
-    if (msg)
+    if (msg && msg[0])
     {
         this->msg = msg;
         arg("msg", msg);
@@ -1813,8 +1862,8 @@ void CommandEnumerateQuotaItems::procresult()
 
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
-                                               const char* currency, unsigned tax,
-                                               const char* country, const char* affiliate)
+                                               const char* currency, unsigned /*tax*/,
+                                               const char* /*country*/, const char* affiliate)
 {
     string sprice;
     sprice.resize(128);
@@ -2189,7 +2238,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, un
     endarray();
 }
 
-CommandKeyCR::CommandKeyCR(MegaClient* client, node_vector* rshares, node_vector* rnodes, const char* keys)
+CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
 {
     cmd("k");
     beginarray("cr");
@@ -2886,7 +2935,7 @@ void CommandCreateEphemeralSession::procresult()
     }
 }
 
-CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient* client, handle cuh, const byte* cpw, int ctag)
+CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
 

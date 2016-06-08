@@ -199,7 +199,7 @@ public:
     virtual void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e);
 };
 
-class MegaNodePrivate : public MegaNode
+class MegaNodePrivate : public MegaNode, public Cachable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -232,7 +232,7 @@ class MegaNodePrivate : public MegaNode
         virtual char *getPublicLink();
         virtual bool isFile();
         virtual bool isFolder();
-        bool isRemoved();
+        virtual bool isRemoved();
         virtual bool hasChanged(int changeType);
         virtual int getChanges();
         virtual bool hasThumbnail();
@@ -244,6 +244,8 @@ class MegaNodePrivate : public MegaNode
         virtual bool isForeign();
         virtual std::string* getPrivateAuth();
         virtual void setPrivateAuth(const char *privateAuth);
+        void setPublicAuth(const char *publicAuth);
+        void setForeign(bool foreign);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
@@ -256,6 +258,9 @@ class MegaNodePrivate : public MegaNode
 
         static MegaNode *fromNode(Node *node);
         virtual MegaNode *copy();
+
+        virtual bool serialize(string*);
+        static MegaNodePrivate* unserialize(string*);
 
     protected:
         MegaNodePrivate(Node *node);
@@ -336,7 +341,7 @@ class MegaSharePrivate : public MegaShare
 		int64_t ts;
 };
 
-class MegaTransferPrivate : public MegaTransfer
+class MegaTransferPrivate : public MegaTransfer, public Cachable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
@@ -404,6 +409,9 @@ class MegaTransferPrivate : public MegaTransfer
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
+
+        virtual bool serialize(string*);
+        static MegaTransferPrivate* unserialize(string*);
 
 	protected:		
 		int type;
@@ -972,8 +980,16 @@ struct MegaFile : public File
     // app-internal sequence number for queue management
     int seqno;
     static int nextseqno;
-    bool failed(error e);
     MegaFile();
+
+    void setTransfer(MegaTransferPrivate *transfer);
+    MegaTransferPrivate *getTransfer();
+    virtual bool serialize(string*);
+
+    static MegaFile* unserialize(string*);
+
+protected:
+    MegaTransferPrivate *megaTransfer;
 };
 
 struct MegaFileGet : public MegaFile
@@ -985,7 +1001,13 @@ struct MegaFileGet : public MegaFile
     void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
-	~MegaFileGet() {}
+    ~MegaFileGet() {}
+
+    virtual bool serialize(string*);
+    static MegaFileGet* unserialize(string*);
+
+private:
+    MegaFileGet() {}
 };
 
 struct MegaFilePut : public MegaFile
@@ -995,8 +1017,14 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
     ~MegaFilePut() {}
 
+    virtual bool serialize(string*);
+    static MegaFilePut* unserialize(string*);
+
 protected:
     int64_t customMtime;
+
+private:
+    MegaFilePut() {}
 };
 
 class TreeProcessor
@@ -1250,6 +1278,8 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
+        void enableTransferResumption(const char* loggedOutId);
+        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
@@ -1367,6 +1397,8 @@ class MegaApiImpl : public MegaApp
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
+        MegaNode *authorizeNode(MegaNode *node);
+
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
         const char *getVersion();
@@ -1445,6 +1477,7 @@ class MegaApiImpl : public MegaApp
         map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
+        static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -1647,6 +1680,7 @@ protected:
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
         virtual void transfer_complete(Transfer*);
+        virtual void transfer_resume(string*);
 
         virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
@@ -1712,7 +1746,6 @@ protected:
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
-        FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
