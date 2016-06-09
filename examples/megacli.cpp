@@ -470,6 +470,24 @@ void DemoApp::users_updated(User** u, int count)
     {
         cout << count << " users received or updated" << endl;
     }
+
+    if (u)
+    {
+        User* user;
+        for (int i = 0; i < count; i++)
+        {
+            user = u[i];
+            cout << "User " << user->email;
+            if (user->getTag()) // false if external change
+            {
+                cout << " has been changed by your own client" << endl;
+            }
+            else
+            {
+                cout << " has been changed externally" << endl;
+            }
+        }
+    }
 }
 
 #ifdef ENABLE_CHAT

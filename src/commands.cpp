@@ -2062,6 +2062,7 @@ void CommandPutUA::procresult()
         {
             User *u = client->ownuser();
             u->setattr(&an, &av, &v);
+            u->setTag(tag ? tag : -1);
             client->notifyuser(u);
             client->app->putua_result(API_OK);
         }
@@ -2131,6 +2132,7 @@ void CommandGetUA::procresult()
                     if (u && an == "+a" && !strncmp(ptr, "none", 4))
                     {
                         u->setattr(&an, NULL, &v);
+                        u->setTag(tag ? tag : -1);
                         client->app->getua_result(API_ENOENT);
                         client->notifyuser(u);
                         return;
@@ -2175,6 +2177,7 @@ void CommandGetUA::procresult()
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
                             u->setattr(&an, tlvString, &v);   // update version, needed for healing
+                            u->setTag(tag ? tag : -1);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
                             delete tlvRecords;
@@ -2184,6 +2187,7 @@ void CommandGetUA::procresult()
                         case '+':   // public
 
                             u->setattr(&an, &av, &v);
+                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
@@ -2196,6 +2200,7 @@ void CommandGetUA::procresult()
                         case '#':   // protected
 
                             u->setattr(&an, &av, &v);
+                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
                             break;
 
@@ -2213,6 +2218,7 @@ void CommandGetUA::procresult()
                             }
 
                             u->setattr(&an, &av, &v);
+                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
                             break;
                     }

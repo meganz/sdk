@@ -3756,6 +3756,7 @@ void MegaClient::sc_userattr()
                             resetKeyring();
                         }
                     }
+                    u->setTag(0);
                     notifyuser(u);
                 }
                 else
@@ -3775,6 +3776,7 @@ void MegaClient::sc_userattr()
                             }
                         }
                     }
+                    u->setTag(0);
                     notifyuser(u);
                 }
                 return;
@@ -4512,6 +4514,7 @@ void MegaClient::notifypurge(void)
             User *u = usernotify[i];
 
             u->notified = false;
+            u->resetTag();
             memset(&(u->changed), 0, sizeof(u->changed));
         }
 

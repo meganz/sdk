@@ -78,6 +78,9 @@ private:
     // version of each attribute
     string_map attrsv;
 
+    // source tag
+    int tag;
+
 public:
     void set(visibility_t, m_time_t);
 
@@ -92,6 +95,9 @@ public:
     bool isattrvalid(string an);
 
     bool setChanged(const char*);
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
 
     User(const char* = NULL);
 };
