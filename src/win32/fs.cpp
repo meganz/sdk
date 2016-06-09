@@ -171,7 +171,7 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // without doing a FindFirstFile()?
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
-    WIN32_FIND_DATA fad;
+    WIN32_FIND_DATA fad = { 0 };
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
@@ -179,6 +179,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     BY_HANDLE_FILE_INFORMATION bhfi;
 #endif
 
+    bool skipcasecheck = false;
     int added = WinFileSystemAccess::sanitizedriveletter(name);
     
     name->append("", 1);
@@ -194,45 +195,66 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                              FindExSearchNameMatch, NULL, 0)
                 : INVALID_HANDLE_VALUE;
 
-        if (h == INVALID_HANDLE_VALUE)
+        if (h != INVALID_HANDLE_VALUE)
         {
-            DWORD e = GetLastError();
-            LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
-            retry = WinFileSystemAccess::istransient(e);
-            name->resize(name->size() - added - 1);
-            return false;
+            FindClose(h);
         }
-        FindClose(h);
-
-        const char *filename = name->data() + name->size() - 1;
-        int filenamesize = 0;
-        bool separatorfound = false;
-        do {
-            filename -= sizeof(wchar_t);
-            filenamesize += sizeof(wchar_t);
-            separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t));
-        } while (filename > name->data() && !separatorfound);
-
-        if (filenamesize > sizeof(wchar_t) || !separatorfound)
+        else
         {
-            if (separatorfound)
+            WIN32_FILE_ATTRIBUTE_DATA fatd;
+            if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
             {
-                filename += sizeof(wchar_t);
+                DWORD e = GetLastError();
+                LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                retry = WinFileSystemAccess::istransient(e);
+                name->resize(name->size() - added - 1);
+                return false;
             }
             else
             {
-                filenamesize += sizeof(wchar_t);
+                LOG_debug << "Possible root of network share";
+                skipcasecheck = true;
+                fad.dwFileAttributes = fatd.dwFileAttributes;
+                fad.ftCreationTime = fatd.ftCreationTime;
+                fad.ftLastAccessTime = fatd.ftLastAccessTime;
+                fad.ftLastWriteTime = fatd.ftLastWriteTime;
+                fad.nFileSizeHigh = fatd.nFileSizeHigh;
+                fad.nFileSizeLow = fatd.nFileSizeLow;
             }
+        }
 
-            if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
-                    && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
-                    && !((filenamesize == 4 && !memcmp(filename, L".", 4))
-                         || (filenamesize == 6 && !memcmp(filename, L"..", 6))))
+        if (!skipcasecheck)
+        {
+            const char *filename = name->data() + name->size() - 1;
+            int filenamesize = 0;
+            bool separatorfound = false;
+            do {
+                filename -= sizeof(wchar_t);
+                filenamesize += sizeof(wchar_t);
+                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t));
+            } while (filename > name->data() && !separatorfound);
+
+            if (filenamesize > sizeof(wchar_t) || !separatorfound)
             {
-                LOG_warn << "fopen failed due to invalid case";
-                retry = false;
-                name->resize(name->size() - added - 1);
-                return false;
+                if (separatorfound)
+                {
+                    filename += sizeof(wchar_t);
+                }
+                else
+                {
+                    filenamesize += sizeof(wchar_t);
+                }
+
+                if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
+                        && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
+                        && !((filenamesize == 4 && !memcmp(filename, L".", 4))
+                             || (filenamesize == 6 && !memcmp(filename, L"..", 6))))
+                {
+                    LOG_warn << "fopen failed due to invalid case";
+                    retry = false;
+                    name->resize(name->size() - added - 1);
+                    return false;
+                }
             }
         }
 
