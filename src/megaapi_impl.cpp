@@ -11079,7 +11079,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (scope == '*' || scope == '#')
                 {
-                    LOG_warn << "Cannot retrieve private attributes from users other than yourself.";
+                    LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
                     client->app->getua_result(API_EACCESS);
                     return;
                 }

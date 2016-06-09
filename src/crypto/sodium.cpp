@@ -85,9 +85,7 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
         return 0;
     }
 
-    int result = crypto_sign_verify_detached(sig, msg, msglen, pubKey);
-
-    return (result == 0) ? 1 : 0;
+    return !crypto_sign_verify_detached(sig, msg, msglen, pubKey);
 }
 
 byte *EdDSA::genFingerprint(bool hexFormat)
@@ -204,18 +202,14 @@ int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
                   const unsigned long long msglen, const unsigned char *nonce,
                   const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box(encmsg, msg, msglen, nonce, pubKey, privKey);
-
-    return check ? 0 : 1;
+   return !crypto_box(encmsg, msg, msglen, nonce, pubKey, privKey);
 }
 
 int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
                   const unsigned long long encmsglen, const unsigned char *nonce,
                   const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box_open(msg, encmsg, encmsglen, nonce, pubKey, privKey);
-
-    return check ? 0 : 1;
+    return !crypto_box_open(msg, encmsg, encmsglen, nonce, pubKey, privKey);
 }
 
 } // namespace

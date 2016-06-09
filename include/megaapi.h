@@ -1488,7 +1488,7 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int);
+    virtual const char* get(int i);
 
     /**
      * @brief Returns the number of strings in the list
