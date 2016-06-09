@@ -6268,6 +6268,8 @@ void MegaClient::clearKeys()
     u->invalidateattr("+puCu255");
     u->invalidateattr("+sigPubk");
     u->invalidateattr("+sigCu255");
+
+    fetchingkeys = false;
 }
 
 void MegaClient::resetKeyring()
@@ -7721,7 +7723,6 @@ void MegaClient::initializekeys()
             sendevent(99411, "Ed25519 public key mismatch");
             reqtag = creqtag;
 
-            fetchingkeys = false;
             clearKeys();
             resetKeyring();
             return;
@@ -7737,7 +7738,6 @@ void MegaClient::initializekeys()
             sendevent(99412, "Cu25519 public key mismatch");
             reqtag = creqtag;
 
-            fetchingkeys = false;
             clearKeys();
             resetKeyring();
             return;
@@ -7757,7 +7757,6 @@ void MegaClient::initializekeys()
             sendevent(99413, "Signature of Cu25519 public key mismatch");
             reqtag = creqtag;
 
-            fetchingkeys = false;
             clearKeys();
             resetKeyring();
             return;
@@ -7783,7 +7782,6 @@ void MegaClient::initializekeys()
             sendevent(99414, "Signature of RSA public key mismatch");
             reqtag = creqtag;
 
-            fetchingkeys = false;
             clearKeys();
             resetKeyring();
             return;
@@ -7806,7 +7804,6 @@ void MegaClient::initializekeys()
             sendevent(99415, "Incomplete keypair detected");
             reqtag = creqtag;
 
-            fetchingkeys = false;
             clearKeys();
             return;
         }
@@ -7851,7 +7848,6 @@ void MegaClient::initializekeys()
         sendevent(99416, "Incomplete keyring detected");
         reqtag = creqtag;
 
-        fetchingkeys = false;
         resetKeyring();
         clearKeys();
         return;
