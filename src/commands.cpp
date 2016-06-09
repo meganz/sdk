@@ -2006,23 +2006,23 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
     cmd("upv");
 
     beginarray(an);
-    {
-        // if removing avatar, do not Base64 encode the attribute value
-        if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
-        {
-            element((const char*)av);
-        }
-        else
-        {
-            element(av, avl);
-        }
 
-        const string *attrv = client->ownuser()->getattrversion(an);
-        if (attrv)
-        {
-            element(attrv->c_str());
-        }
+    // if removing avatar, do not Base64 encode the attribute value
+    if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+    {
+        element((const char*)av);
     }
+    else
+    {
+        element(av, avl);
+    }
+
+    const string *attrv = client->ownuser()->getattrversion(an);
+    if (attrv)
+    {
+        element(attrv->c_str());
+    }
+
     endarray();
 
     tag = ctag;
@@ -2100,29 +2100,29 @@ void CommandGetUA::procresult()
     {
         const char* ptr;
         const char* end;
-        string v;
+        string value, version, buf;
         for (;;)
         {
             switch (client->json.getnameid())
             {
                 case MAKENAMEID2('a','v'):
+                {
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
                         return;
                     }
+                    buf.assign(ptr, (end-ptr));
                     break;
-
+                }
                 case 'v':
                 {
-                    const char* vptr;
-                    const char* vend;
-                    if (!(vptr = client->json.getvalue()) || !(vend = strchr(vptr, '"')))
+                    if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
                         return;
                     }
-                    v.assign(vptr, (vend-vptr));
+                    version.assign(ptr, (end-ptr));
                     break;
                 }
                 case EOO:
