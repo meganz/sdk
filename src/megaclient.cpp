@@ -7692,6 +7692,13 @@ void MegaClient::initializekeys()
             if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
                 signkey = new EdDSA((unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
+                {
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
+                }
             }
         }
 
@@ -7701,6 +7708,13 @@ void MegaClient::initializekeys()
             if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
                 chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
+                {
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
+                }
             }
         }
         delete tlvRecords;
@@ -7812,6 +7826,15 @@ void MegaClient::initializekeys()
             // generate keypairs
             signkey = new EdDSA();
             chatkey = new ECDH();
+
+            if (!chatkey->initializationOK || signkey->initializationOK)
+            {
+                LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+                clearKeys();
+                resetKeyring();
+                return;
+
+            }
 
             // prepare the TLV for private keys
             TLVstore tlvRecords;

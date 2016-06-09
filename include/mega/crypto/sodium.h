@@ -40,6 +40,7 @@ public:
 
     // TLV key to access to the corresponding value in the TLV records
     static const string TLV_KEY;
+    bool initializationOK;
 
     EdDSA(unsigned char* keySeed = NULL);
     ~EdDSA();
@@ -105,6 +106,7 @@ public:
 
     // TLV key to access to the corresponding value in the TLV records
     static const string TLV_KEY;
+    bool initializationOK;
 
     unsigned char privKey[PRIVATE_KEY_LENGTH];
     unsigned char pubKey[PUBLIC_KEY_LENGTH];

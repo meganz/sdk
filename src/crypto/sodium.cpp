@@ -31,6 +31,8 @@ const std::string EdDSA::TLV_KEY = "prEd255";
 
 EdDSA::EdDSA(unsigned char *keySeed)
 {
+    initializationOK = false;
+
     if (sodium_init() == -1)
     {
         LOG_err << "Cannot initialize sodium library.";
@@ -51,6 +53,8 @@ EdDSA::EdDSA(unsigned char *keySeed)
     {
         LOG_err << "Error generating an Ed25519 key pair.";
     }
+
+    initializationOK = true;
 }
 
 EdDSA::~EdDSA()
@@ -168,6 +172,8 @@ const std::string ECDH::TLV_KEY= "prCu255";
 
 ECDH::ECDH(unsigned char *privKey)
 {
+    initializationOK = false;
+
     if (sodium_init() == -1)
     {
         LOG_err << "Cannot initialize sodium library.";
@@ -186,6 +192,8 @@ ECDH::ECDH(unsigned char *privKey)
         // no private key specified: create a new key pair
         crypto_box_keypair(this->pubKey, this->privKey);
     }
+
+    initializationOK = true;
 }
 
 ECDH::~ECDH()
