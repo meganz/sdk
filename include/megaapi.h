@@ -4527,7 +4527,8 @@ class MegaApi
          * If the MegaApi object isn't logged in or there's no signing key available,
          * this function returns NULL
          *
-         * You take the ownership of the returned value
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
          *
          * @return Fingerprint of the signing key of the current account
          */
