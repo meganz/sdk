@@ -2147,13 +2147,6 @@ void CommandGetUA::procresult()
 
                     if (!u) // retrieval of attributes without contact-relationship
                     {
-                        if (scope == '*' || scope == '#')
-                        {
-                            LOG_warn << "Cannot retrieve private attributes from users other than yourself.";
-                            client->app->getua_result(API_EACCESS);
-                            return;
-                        }
-
                         client->app->getua_result((byte*) value.data(), value.size());
                         return;
                     }

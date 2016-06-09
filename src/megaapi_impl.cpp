@@ -11077,6 +11077,13 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!user)  // email/handle not found among (ex)contacts
             {
+                if (scope == '*' || scope == '#')
+                {
+                    LOG_warn << "Cannot retrieve private attributes from users other than yourself.";
+                    client->app->getua_result(API_EACCESS);
+                    return;
+                }
+
                 client->getua(email, attrname.c_str());
                 break;
             }
