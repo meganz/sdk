@@ -2177,7 +2177,6 @@ void CommandGetUA::procresult()
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
                             u->setattr(&an, tlvString, &v);   // update version, needed for healing
-                            u->setTag(tag ? tag : -1);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
                             delete tlvRecords;
@@ -2187,7 +2186,6 @@ void CommandGetUA::procresult()
                         case '+':   // public
 
                             u->setattr(&an, &av, &v);
-                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
@@ -2200,7 +2198,6 @@ void CommandGetUA::procresult()
                         case '#':   // protected
 
                             u->setattr(&an, &av, &v);
-                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
                             break;
 
@@ -2218,11 +2215,11 @@ void CommandGetUA::procresult()
                             }
 
                             u->setattr(&an, &av, &v);
-                            u->setTag(tag ? tag : -1);
                             client->app->getua_result((byte*) av.data(), av.size());
                             break;
                     }
 
+                    u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }

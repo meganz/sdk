@@ -311,6 +311,7 @@ class MegaUserPrivate : public MegaUser
         virtual int64_t getTimestamp();
         virtual bool hasChanged(int changeType);
         virtual int getChanges();
+        virtual int isOwnChange();
 
 	protected:
 		const char *email;
@@ -318,6 +319,7 @@ class MegaUserPrivate : public MegaUser
         int visibility;
         int64_t ctime;
         int changed;
+        int tag;
 };
 
 class MegaSharePrivate : public MegaShare
