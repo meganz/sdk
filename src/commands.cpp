@@ -2128,18 +2128,17 @@ void CommandGetUA::procresult()
                 case EOO:
                 {
                     // if there's no avatar, the value is "none" (not Base64 encoded)
-                    if (u && an == "+a" && !strncmp(ptr, "none", 4))
+                    if (u && an == "+a" && buf == "none")
                     {
-                        u->setattr(&an, NULL, &v);
+                        u->setattr(&an, NULL, &version);
                         client->app->getua_result(API_ENOENT);
                         client->notifyuser(u);
                         return;
                     }
 
                     // convert from ASCII to binary the received data
-                    string av;
-                    av.resize((end - ptr) / 4 * 3 + 3);
-                    av.resize(Base64::atob(ptr, (byte *)av.data(), av.size()));
+                    value.resize(buf.size() / 4 * 3 + 3);
+                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), value.size()));
 
                     // bool nonHistoric = (attributename.at(1) == '!');
 
@@ -2155,7 +2154,7 @@ void CommandGetUA::procresult()
                             return;
                         }
 
-                        client->app->getua_result((byte*) av.data(), av.size());
+                        client->app->getua_result((byte*) value.data(), value.size());
                         return;
                     }
 
@@ -2164,7 +2163,7 @@ void CommandGetUA::procresult()
                         case '*':   // private
                         {
                             // decrypt the data and build the TLV records
-                            TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&av, &client->key);
+                            TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
                             if (!tlvRecords)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute " << an;
@@ -2174,7 +2173,7 @@ void CommandGetUA::procresult()
 
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
-                            u->setattr(&an, tlvString, &v);   // update version, needed for healing
+                            u->setattr(&an, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
                             delete tlvRecords;
@@ -2183,8 +2182,8 @@ void CommandGetUA::procresult()
 
                         case '+':   // public
 
-                            u->setattr(&an, &av, &v);
-                            client->app->getua_result((byte*) av.data(), av.size());
+                            u->setattr(&an, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
                             {
@@ -2195,8 +2194,8 @@ void CommandGetUA::procresult()
 
                         case '#':   // protected
 
-                            u->setattr(&an, &av, &v);
-                            client->app->getua_result((byte*) av.data(), av.size());
+                            u->setattr(&an, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -2212,8 +2211,8 @@ void CommandGetUA::procresult()
                                 return;
                             }
 
-                            u->setattr(&an, &av, &v);
-                            client->app->getua_result((byte*) av.data(), av.size());
+                            u->setattr(&an, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
                             break;
                     }
 
