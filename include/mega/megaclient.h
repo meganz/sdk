@@ -126,9 +126,11 @@ public:
     // load all trees: nodes, shares, contacts
     void fetchnodes();
 
+#ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
     void fetchkeys();    
     void initializekeys();
+#endif
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
@@ -857,6 +859,7 @@ public:
     // account access (full account): RSA private key
     AsymmCipher asymkey;
 
+#ifdef ENABLE_CHAT
     // RSA public key
     AsymmCipher pubk;
 
@@ -874,6 +877,7 @@ public:
 
     // delete chatkey and signing key
     void resetKeyring();
+#endif
 
     // binary session ID
     string sid;

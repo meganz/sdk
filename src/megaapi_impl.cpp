@@ -3338,6 +3338,7 @@ char *MegaApiImpl::getMyXMPPJid()
     return result;
 }
 
+#ifdef ENABLE_CHAT
 char *MegaApiImpl::getMyFingerprint()
 {
     sdkMutex.lock();
@@ -3356,6 +3357,7 @@ char *MegaApiImpl::getMyFingerprint()
     sdkMutex.unlock();
     return result;
 }
+#endif
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
@@ -8573,10 +8575,12 @@ void MegaApiImpl::putua_result(error e)
 
         u->invalidateattr(an);
 
+#ifdef ENABLE_CHAT
         if (an == "*keyring")
         {
             client->resetKeyring();
         }
+#endif
 
         client->getua(u, an.c_str(), request->getTag());
         return;

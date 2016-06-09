@@ -4521,6 +4521,7 @@ class MegaApi
          */
         char* getMyXMPPJid();
 
+#ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account
          *
@@ -4533,7 +4534,7 @@ class MegaApi
          * @return Fingerprint of the signing key of the current account
          */
         char* getMyFingerprint();
-
+#endif
         /**
          * @brief Set the active log level
          *

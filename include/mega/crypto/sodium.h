@@ -22,6 +22,8 @@
 #ifndef SODIUM_H
 #define SODIUM_H 1
 
+#ifdef ENABLE_CHAT
+
 #include <sodium.h>
 
 namespace mega {
@@ -152,5 +154,7 @@ public:
 };
 
 } // namespace
+
+#endif  // ENABLE_CHAT
 
 #endif

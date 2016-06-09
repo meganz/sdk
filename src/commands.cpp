@@ -2254,11 +2254,12 @@ void CommandDelUA::procresult()
             User *u = client->ownuser();
             u->invalidateattr(an);
 
+#ifdef ENABLE_CHAT
             if (an == "*keyring")
             {
                 client->resetKeyring();
             }
-
+#endif
             client->notifyuser(u);
         }
 
@@ -2395,11 +2396,13 @@ void CommandPubKeyRequest::procresult()
                     client->mapuser(uh, u->email.c_str());
                 }
 
+#ifdef ENABLE_CHAT
                 if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                 {
                     client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                     return;
                 }
+#endif
 
                 if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                 {

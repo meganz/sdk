@@ -1105,10 +1105,12 @@ char *MegaApi::getMyXMPPJid()
     return pImpl->getMyXMPPJid();
 }
 
+#ifdef ENABLE_CHAT
 char *MegaApi::getMyFingerprint()
 {
     return pImpl->getMyFingerprint();
 }
+#endif
 
 void MegaApi::setLogLevel(int logLevel)
 {

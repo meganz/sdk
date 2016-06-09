@@ -624,7 +624,9 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
+#ifdef ENABLE_CHAT
     resetKeyring();
+#endif
 
     btcs.reset();
     btsc.reset();
@@ -659,7 +661,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
     
     fetchingnodes = false;
-    fetchingkeys = false;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -677,8 +678,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     overquotauntil = 0;
     looprequested = false;
 
+#ifdef ENABLE_CHAT
+    fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
+#endif
 
     init();
 
@@ -2532,7 +2536,6 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
-    fetchingkeys = false;
     overquotauntil = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -2568,6 +2571,10 @@ void MegaClient::locallogout()
 
 #ifdef ENABLE_SYNC
     syncadding = 0;
+#endif
+
+#ifdef ENABLE_CHAT
+    fetchingkeys = false;
 #endif
 }
 
@@ -3751,10 +3758,12 @@ void MegaClient::sc_userattr()
                     for (itua = ualist.begin(); itua != ualist.end(); itua++)
                     {
                         u->invalidateattr(*itua);
+#ifdef ENABLE_CHAT
                         if (*itua == "*keyring")
                         {
                             resetKeyring();
                         }
+#endif
                     }
                     notifyuser(u);
                 }
@@ -3769,10 +3778,12 @@ void MegaClient::sc_userattr()
                         if ((cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav))
                         {
                             u->invalidateattr(*itua);
+#ifdef ENABLE_CHAT
                             if (*itua == "*keyring")
                             {
                                 resetKeyring();
                             }
+#endif
                         }
                     }
                     notifyuser(u);
@@ -6247,6 +6258,7 @@ void MegaClient::procsr(JSON* j)
     j->leavearray();
 }
 
+#ifdef ENABLE_CHAT
 void MegaClient::clearKeys()
 {
     User *u = finduser(me);
@@ -6266,6 +6278,7 @@ void MegaClient::resetKeyring()
     delete chatkey;
     chatkey = NULL;
 }
+#endif
 
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
@@ -6571,7 +6584,12 @@ void MegaClient::getua(User* u, const char* an, int ctag)
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(an);
+
+#ifdef ENABLE_CHAT
         if (!fetchingkeys && cachedav && u->isattrvalid(an))
+#else
+        if (cachedav && u->isattrvalid(an))
+#endif
         {
             if (*an == '*') // private attribute, TLV encoding
             {
@@ -7626,15 +7644,19 @@ void MegaClient::fetchnodes()
             (*it)->changestate(SYNC_CANCELED);
         }
 #endif
-
-        fetchkeys();
+#ifdef ENABLE_CHAT
+        if (loggedin() == FULLACCOUNT)
+        {
+            fetchkeys();
+        }
+#endif
         reqs.add(new CommandFetchNodes(this));
     }
 }
 
+#ifdef ENABLE_CHAT
 void MegaClient::fetchkeys()
 {
-#ifdef ENABLE_CHAT
 
     fetchingkeys = true;
 
@@ -7650,14 +7672,10 @@ void MegaClient::fetchkeys()
     getua(u, "+puCu255", 0);
     getua(u, "+sigCu255", 0);
     getua(u, "+sigPubk", 0); // it triggers MegaClient::initializekeys()
-
-#endif
 }
 
 void MegaClient::initializekeys()
 {
-#ifdef ENABLE_CHAT
-
     User *u = finduser(me);
 
     // Initialize private keys
@@ -7838,9 +7856,8 @@ void MegaClient::initializekeys()
         clearKeys();
         return;
     }
-
-#endif
 }
+#endif  // ENABLE_CHAT
 
 void MegaClient::purgenodesusersabortsc()
 {
