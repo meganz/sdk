@@ -612,7 +612,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
     {
         return NULL;
     }
