@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "mega/thread/cppthread.h"
 
+#ifdef WINDOWS_PHONE
+
 namespace mega {
 
 //thread
@@ -84,6 +86,7 @@ CppSemaphore::CppSemaphore()
 {
     count = 0;
 }
+
 void CppSemaphore::release()
 {
     std::unique_lock<std::mutex> lock(mtx);
@@ -94,33 +97,26 @@ void CppSemaphore::release()
 void CppSemaphore::wait()
 {
     std::unique_lock<std::mutex> lock(mtx);
-
-    while(count == 0){
-        cv.wait(lock); // I believe this one releases the lock while waiting
-    }
+    cv.wait(lock, [this]{return count > 0;});
     count--;
 }
-
 
 int CppSemaphore::timedwait(int milliseconds)
 {
     std::unique_lock<std::mutex> lock(mtx);
-    int toret = -2;
-    while(count == 0){
-    std::cv_status status = cv.wait_for(lock,std::chrono::milliseconds(milliseconds));
+    while (count == 0)
+    {
+        std::cv_status status = cv.wait_for(
+                lock,
+                std::chrono::milliseconds(milliseconds));
         if (status == std::cv_status::timeout)
         {
-            toret = -1;
-            break; //we won't wait any longer
-        }
-        if(status == std::cv_status::no_timeout)
-        {
-            toret = 0;
+            return -1;
         }
     }
 
-    count--; //TODO: check consistency with the other implementations: will the sempahore be decreased in case of timeout?
-    return toret;
+    count--;
+    return 0;
 }
 
 CppSemaphore::~CppSemaphore()
@@ -128,3 +124,5 @@ CppSemaphore::~CppSemaphore()
 }
 
 } // namespace
+
+#endif

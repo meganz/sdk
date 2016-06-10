@@ -99,9 +99,7 @@ void QtSemaphore::wait()
 
 int QtSemaphore::timedwait(int milliseconds)
 {
-    bool success=semaphore->tryAcquire(1,milliseconds);
-    if (success) return 0;
-    else return -1;
+    return semaphore->tryAcquire(1, milliseconds) ? 0 : -1;
 }
 
 void QtSemaphore::release()

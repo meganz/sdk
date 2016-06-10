@@ -37,12 +37,8 @@ SOURCES += src/attrmap.cpp \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
-    src/thread/cppthread.cpp \
     src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp \
-    src/thread/posixthread.cpp
-
-
+    src/mega_utf8proc.cpp
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \

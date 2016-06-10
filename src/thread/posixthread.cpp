@@ -91,52 +91,91 @@ PosixMutex::~PosixMutex()
 }
 
 //PosixSemaphore
-PosixSemaphore::PosixSemaphore(){
+PosixSemaphore::PosixSemaphore()
+{
     semaphore = new sem_t;
+    if (sem_init(semaphore, 0, 0) == -1)
+    {
+        LOG_fatal << "Error creating semaphore: " << errno;
+    }
 }
 
-void PosixSemaphore::wait(){
-    sem_wait(semaphore);
+void PosixSemaphore::wait()
+{
+    while (sem_wait(&sem) == -1)
+    {
+        if (errno == EINTR)
+        {
+            continue;
+        }
+
+        LOG_fatal << "Error in sem_wait: " << errno;
+    }
 }
 
 static inline
 void timespec_add_msec(struct timespec *tv, int milliseconds)
 {
-  int seconds=milliseconds/1000;
-  int milliseconds_left=milliseconds%1000;
-  tv->tv_sec += seconds;
-  tv->tv_nsec += milliseconds_left*1000000l;
+    int seconds = milliseconds / 1000;
+    int milliseconds_left = milliseconds % 1000;
+
+    tv->tv_sec += seconds;
+    tv->tv_nsec += milliseconds_left * 1000000;
+
+    if (tv->tv_nsec >= 1000000000)
+    {
+        tv->tv_nsec -= 1000000000;
+        tv->tv_sec++;
+    }
 }
 
-
-int PosixSemaphore::timedwait(int milliseconds){
-    struct timespec ts;
+int PosixSemaphore::timedwait(int milliseconds)
+{
     int ret;
+    struct timespec ts;
+
     if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
     {
-       return -2; //failure
+        LOG_err << "Error in clock_gettime";
+        return -2;
     }
 
-    timespec_add_msec (&ts,milliseconds);
+    timespec_add_msec (&ts, milliseconds);
 
-    ret=sem_timedwait(semaphore, &ts);
-
-    if (ret == ETIMEDOUT)
+    while (true)
     {
-        return -1; //timed out
+        ret = sem_timedwait(semaphore, &ts);
+        if (!ret)
+        {
+            return 0;
+        }
+
+        if (errno == ETIMEDOUT)
+        {
+            return -1;
+        }
+
+        if (errno == EINTR)
+        {
+            continue;
+        }
+
+        LOG_err << "Error in sem_timedwait: " << errno;
+        return -2;
     }
-    else if (!ret) {
-        return 0;
-    }
-    else{
-        return -2; //TODO: define errors
-    }
-}
-void PosixSemaphore::release(){
-    sem_post(semaphore);
 }
 
-PosixSemaphore::~PosixSemaphore(){
+void PosixSemaphore::release()
+{
+    if (sem_post(semaphore) == -1)
+    {
+        LOG_fatal << "Error in sem_post: " << errno;
+    }
+}
+
+PosixSemaphore::~PosixSemaphore()
+{
+    sem_destroy(semaphore);
     delete semaphore;
 }
 

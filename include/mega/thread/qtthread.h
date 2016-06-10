@@ -23,6 +23,8 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS QtThread
+#define MUTEX_CLASS QtMutex
+#define SEMAPHORE_CLASS QtSemaphore
 
 #include "mega/thread.h"
 #include <QThread>

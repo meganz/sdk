@@ -41,23 +41,23 @@ void Win32Thread::start(void *(*start_routine)(void*), void *parameter)
     this->start_routine = start_routine;
     this->pointer = parameter;
 
-	hThread = CreateThread(NULL, 0, Win32Thread::run, this, 0, NULL);
+    hThread = CreateThread(NULL, 0, Win32Thread::run, this, 0, NULL);
 }
 
 void Win32Thread::join()
 {
-	WaitForSingleObject(hThread, INFINITE);
+    WaitForSingleObject(hThread, INFINITE);
 }
 
 Win32Thread::~Win32Thread()
 {
-	CloseHandle(hThread);
+    CloseHandle(hThread);
 }
 
 //Mutex
 Win32Mutex::Win32Mutex()
 {
-	InitializeCriticalSection(&mutex);
+    InitializeCriticalSection(&mutex);
 }
 
 void Win32Mutex::init(bool recursive)
@@ -67,52 +67,66 @@ void Win32Mutex::init(bool recursive)
 
 void Win32Mutex::lock()
 {
-	EnterCriticalSection(&mutex);
+    EnterCriticalSection(&mutex);
 }
 
 void Win32Mutex::unlock()
 {
-	LeaveCriticalSection(&mutex);
+    LeaveCriticalSection(&mutex);
 }
 
 Win32Mutex::~Win32Mutex()
 {
-	DeleteCriticalSection(&mutex);
+    DeleteCriticalSection(&mutex);
 }
 
 //Semaphore
 Win32Semaphore::Win32Semaphore()
 {
-    semaphore=CreateSemaphore(
-            NULL,           // default security attributes
-            0,  // initial count
-            INT_MAX,  // maximum count //TODO: may require <limits.h>
-            NULL);          // unnamed semaphore
+    semaphore = CreateSemaphore(NULL, 0, INT_MAX, NULL);
+    if (semaphore == NULL)
+    {
+        LOG_fatal << "Error creating semaphore: " << GetLastError();
+    }
 }
-void Win32Mutex::release()
+
+void Win32Semaphore::release()
 {
-    ReleaseSemaphore(semaphore,1,NULL);
+    if (!ReleaseSemaphore(semaphore, 1, NULL))
+    {
+        LOG_fatal << "Error in ReleaseSemaphore: " << GetLastError();
+    }
 }
-void Win32Mutex::wait()
+
+void Win32Semaphore::wait()
 {
-    WaitForSingleObject(semaphore, INFINITE);
+    DWORD ret = WaitForSingleObject(semaphore, INFINITE);
+    if (ret == WAIT_OBJECT_0)
+    {
+        return;
+    }
+
+    LOG_fatal << "Error in WaitForSingleObject: " << GetLastError();
 }
-int Win32Mutex::timedwait(int milliseconds)
+
+int Win32Semaphore::timedwait(int milliseconds)
 {
-    DWORD ret = WaitForSingleObject(semaphore,milliseconds);
+    DWORD ret = WaitForSingleObject(semaphore, milliseconds);
     if (ret == WAIT_OBJECT_0)
     {
         return 0;
     }
-    else if (ret == WAIT_TIMEOUT) {
-        return -1; //timed out
-    }
-    else
+
+    if (ret == WAIT_TIMEOUT)
     {
-        return -2; //undefined failure
+        return -1;
     }
+
+    LOG_err << "Error in WaitForSingleObject: " << GetLastError();
+    return -2;
 }
-Win32Mutex::~Win32Semaphore()
+
+Win32Semaphore::~Win32Semaphore()
 {
     CloseHandle(semaphore);
 }

@@ -23,6 +23,8 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS PosixThread
+#define MUTEX_CLASS PosixMutex
+#define SEMAPHORE_CLASS PosixSemaphore
 
 #include "mega/thread.h"
 #include <pthread.h>
@@ -59,7 +61,6 @@ class PosixSemaphore : public Semaphore
 {
 public:
     PosixSemaphore();
-//    virtual void init();
     virtual void release();
     virtual void wait();
     virtual int timedwait(int milliseconds);

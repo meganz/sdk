@@ -23,6 +23,8 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
+#define MUTEX_CLASS CppMutex
+#define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
 
@@ -73,7 +75,6 @@ protected:
     int count;
     std::condition_variable cv;
 };
-
 
 } // namespace
 
