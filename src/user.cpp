@@ -126,9 +126,18 @@ User* User::unserialize(MegaClient* client, string* d)
     l = *ptr++;
     if (l)
     {
+        if (ptr + l > end)
+        {
+            return NULL;
+        }
         m.assign(ptr, l);
     }
     ptr += l;
+
+    if (ptr + sizeof(char) > end)
+    {
+        return NULL;
+    }
 
     attrVersion = MemAccess::get<char>(ptr);
     ptr += sizeof(attrVersion);
@@ -153,21 +162,33 @@ User* User::unserialize(MegaClient* client, string* d)
     if (attrVersion == '\0')
     {
         AttrMap attrmap;
-        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr)))
+        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr, end)))
         {
+            client->users.erase(client->uhindex[uh]);
             return NULL;
         }
     }
     else if (attrVersion == '1')
     {
         string key;
-        while ((l = *ptr++))
+        while ((ptr < end) && (l = *ptr++))
         {
+            if (ptr + l + sizeof(ll) > end)
+            {
+                client->users.erase(client->uhindex[uh]);
+                return NULL;
+            }
             key.assign(ptr, l);
             ptr += l;
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
+
+            if (ptr + ll + sizeof(ll) > end)
+            {
+                client->users.erase(client->uhindex[uh]);
+                return NULL;
+            }
 
             u->attrs[key].assign(ptr, ll);
             ptr += ll;
@@ -177,6 +198,11 @@ User* User::unserialize(MegaClient* client, string* d)
 
             if (ll)
             {
+                if (ptr + ll > end)
+                {
+                    client->users.erase(client->uhindex[uh]);
+                    return NULL;
+                }
                 u->attrsv[key].assign(ptr,ll);
                 ptr += ll;
             }
@@ -205,6 +231,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
     {
+        client->users.erase(client->uhindex[uh]);
         return NULL;
     }
 

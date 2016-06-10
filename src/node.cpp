@@ -330,13 +330,19 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && --numshares);
     }
 
-    ptr = n->attrs.unserialize(ptr);
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
+    {
+        delete n;
+        return NULL;
+    }
 
     PublicLink *plink = NULL;
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
         {
+            delete n;
             return NULL;
         }
 
@@ -359,6 +365,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
     else
     {
+        delete n;
         return NULL;
     }
 }
