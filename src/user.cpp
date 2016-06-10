@@ -164,7 +164,7 @@ User* User::unserialize(MegaClient* client, string* d)
         AttrMap attrmap;
         if ((ptr < end) && !(ptr = attrmap.unserialize(ptr, end)))
         {
-            client->users.erase(client->uhindex[uh]);
+            client->discarduser(uh);
             return NULL;
         }
     }
@@ -175,7 +175,7 @@ User* User::unserialize(MegaClient* client, string* d)
         {
             if (ptr + l + sizeof(ll) > end)
             {
-                client->users.erase(client->uhindex[uh]);
+                client->discarduser(uh);
                 return NULL;
             }
             key.assign(ptr, l);
@@ -186,7 +186,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
             if (ptr + ll + sizeof(ll) > end)
             {
-                client->users.erase(client->uhindex[uh]);
+                client->discarduser(uh);
                 return NULL;
             }
 
@@ -200,7 +200,7 @@ User* User::unserialize(MegaClient* client, string* d)
             {
                 if (ptr + ll > end)
                 {
-                    client->users.erase(client->uhindex[uh]);
+                    client->discarduser(uh);
                     return NULL;
                 }
                 u->attrsv[key].assign(ptr,ll);
@@ -231,7 +231,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
     {
-        client->users.erase(client->uhindex[uh]);
+        client->discarduser(uh);
         return NULL;
     }
 

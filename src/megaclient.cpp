@@ -6201,6 +6201,32 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
+void MegaClient::discarduser(handle uh)
+{
+    User *u = finduser(uh);
+    if (!u)
+    {
+        return;
+    }
+
+    umindex.erase(u->email);
+    users.erase(uhindex[uh]);
+    uhindex.erase(uh);
+}
+
+void MegaClient::discarduser(const char *email)
+{
+    User *u = finduser(email);
+    if (!u)
+    {
+        return;
+    }
+
+    uhindex.erase(u->userhandle);
+    users.erase(umindex[email]);
+    umindex.erase(email);
+}
+
 PendingContactRequest* MegaClient::findpcr(handle p)
 {
     if (ISUNDEF(p))
