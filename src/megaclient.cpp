@@ -9115,13 +9115,13 @@ void MegaClient::execmovetosyncdebris()
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris
-    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)))
+    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
     {
         tn = n;
         target = SYNCDEL_DEBRIS;
 
         // locate //bin/SyncDebris/yyyy-mm-dd
-        if ((n = childnodebyname(tn, buf)))
+        if ((n = childnodebyname(tn, buf)) && n->type == FOLDERNODE)
         {
             tn = n;
             target = SYNCDEL_DEBRISDAY;
