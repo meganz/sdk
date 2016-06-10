@@ -2148,6 +2148,8 @@ void CommandGetUA::procresult()
                     value.resize(buf.size() / 4 * 3 + 3);
                     value.resize(Base64::atob(buf.data(), (byte *)value.data(), value.size()));
 
+                    // Some attributes don't keep historic records, ie. *!authring or *!lstint
+                    // (none of those attributes are used by the SDK yet)
                     // bool nonHistoric = (attributename.at(1) == '!');
 
                     // handle the attribute data depending on the scope
