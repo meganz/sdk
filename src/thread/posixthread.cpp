@@ -53,7 +53,7 @@ PosixMutex::PosixMutex()
     attr = NULL;
 }
 
-void PosixMutex::init(bool recursive = true)
+void PosixMutex::init(bool recursive)
 {
     if(recursive)
     {
@@ -82,6 +82,7 @@ void PosixMutex::unlock()
 
 PosixMutex::~PosixMutex()
 {
+    pthread_mutex_destroy(mutex);
     delete mutex;
     if (attr)
     {
@@ -102,7 +103,7 @@ PosixSemaphore::PosixSemaphore()
 
 void PosixSemaphore::wait()
 {
-    while (sem_wait(&sem) == -1)
+    while (sem_wait(&semaphore) == -1)
     {
         if (errno == EINTR)
         {
