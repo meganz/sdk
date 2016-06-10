@@ -1938,7 +1938,7 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
         delete this->stringMap;
     }
 
-    this->stringMap = stringMap->copy();
+    this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
 #ifdef ENABLE_SYNC
