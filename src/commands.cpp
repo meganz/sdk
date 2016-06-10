@@ -2110,6 +2110,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
+                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        {
+                            client->initializekeys(); // we have now all the required data
+                        }
                         return;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -2120,6 +2124,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
+                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        {
+                            client->initializekeys(); // we have now all the required data
+                        }
                         return;
                     }
                     version.assign(ptr, (end-ptr));
@@ -2218,6 +2226,10 @@ void CommandGetUA::procresult()
                     {
                         LOG_err << "Error in CommandPutUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
+                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        {
+                            client->initializekeys(); // we have now all the required data
+                        }
                         return;
                     }
             }
