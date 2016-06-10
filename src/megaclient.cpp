@@ -571,10 +571,11 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
-// returns the first matching child node by UTF-8 name (does not resolve name clashes)
+// returns the first matching child folder node by UTF-8 name (does not resolve name clashes)
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
+    Node *found = NULL;
 
     fsaccess->normalize(&nname);
 
@@ -582,11 +583,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            return *it;
+            if ((*it)->type == FOLDERNODE)
+            {
+                return *it;
+            }
+
+            found = *it;
         }
     }
 
-    return NULL;
+    return found;
 }
 
 void MegaClient::init()
