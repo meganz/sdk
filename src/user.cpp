@@ -262,7 +262,7 @@ const string * User::getattr(string an)
     string_map::const_iterator it = attrs.find(an);
     if (it != attrs.end())
     {
-        return &attrs[an];
+        return &(it->second);
     }
 
     return NULL;
@@ -270,7 +270,7 @@ const string * User::getattr(string an)
 
 bool User::isattrvalid(string an)
 {
-    return (attrsv.find(an) != attrsv.end());
+    return attrsv.count(an);
 }
 
 const string *User::getattrversion(string an)
@@ -278,7 +278,7 @@ const string *User::getattrversion(string an)
     string_map::iterator it = attrsv.find(an);
     if (it != attrsv.end())
     {
-        return &attrsv[an];
+        return &(it->second);
     }
 
     return NULL;
