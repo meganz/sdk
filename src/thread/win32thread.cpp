@@ -22,8 +22,9 @@
 #include "mega.h"
 #include "mega/thread/win32thread.h"
 
-namespace mega {
 
+namespace mega {
+//Thread
 Win32Thread::Win32Thread()
 {
 
@@ -53,7 +54,7 @@ Win32Thread::~Win32Thread()
 	CloseHandle(hThread);
 }
 
-
+//Mutex
 Win32Mutex::Win32Mutex()
 {
 	InitializeCriticalSection(&mutex);
@@ -77,6 +78,43 @@ void Win32Mutex::unlock()
 Win32Mutex::~Win32Mutex()
 {
 	DeleteCriticalSection(&mutex);
+}
+
+//Semaphore
+Win32Semaphore::Win32Semaphore()
+{
+    semaphore=CreateSemaphore(
+            NULL,           // default security attributes
+            0,  // initial count
+            INT_MAX,  // maximum count //TODO: may require <limits.h>
+            NULL);          // unnamed semaphore
+}
+void Win32Mutex::release()
+{
+    ReleaseSemaphore(semaphore,1,NULL);
+}
+void Win32Mutex::wait()
+{
+    WaitForSingleObject(semaphore, INFINITE);
+}
+int Win32Mutex::timedwait(int milliseconds)
+{
+    DWORD ret = WaitForSingleObject(semaphore,milliseconds);
+    if (ret == WAIT_OBJECT_0)
+    {
+        return 0;
+    }
+    else if (ret == WAIT_TIMEOUT) {
+        return -1; //timed out
+    }
+    else
+    {
+        return -2; //undefined failure
+    }
+}
+Win32Mutex::~Win32Semaphore()
+{
+    CloseHandle(semaphore);
 }
 
 } // namespace

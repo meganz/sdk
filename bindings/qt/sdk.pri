@@ -37,8 +37,12 @@ SOURCES += src/attrmap.cpp \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
+    src/thread/cppthread.cpp \
     src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp
+    src/mega_utf8proc.cpp \
+    src/thread/posixthread.cpp
+
+
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
@@ -134,10 +138,12 @@ HEADERS  += include/mega.h \
             include/mega/gfx/qt.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
+            include/mega/thread/cppthread.h \
             include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
-            include/mega/mega_utf8proc.h
+            include/mega/mega_utf8proc.h \
+            include/mega/thread/posixthread.h \
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \

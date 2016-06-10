@@ -74,15 +74,19 @@ namespace mega
 #ifdef USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+typedef QtSemaphore MegaSemaphore;
 #elif USE_PTHREAD
 typedef PosixThread MegaThread;
 typedef PosixMutex MegaMutex;
+typedef PosixSemaphore MegaSemaphore;
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
 typedef Win32Thread MegaThread;
 typedef Win32Mutex MegaMutex;
+typedef Win32Semaphore MegaSemaphore;
 #else
 typedef CppThread MegaThread;
 typedef CppMutex MegaMutex;
+typedef CppSemaphore MegaSemaphore;
 #endif
 
 #ifdef USE_QT

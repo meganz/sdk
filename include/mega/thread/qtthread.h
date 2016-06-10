@@ -27,6 +27,7 @@
 #include "mega/thread.h"
 #include <QThread>
 #include <QMutex>
+#include <QSemaphore>
 
 namespace mega {
 class QtThread : public QThread, public Thread
@@ -55,6 +56,20 @@ public:
 
 protected:
     QMutex *mutex;
+};
+
+
+class QtSemaphore : public Semaphore
+{
+public:
+    QtSemaphore();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual void release();
+    virtual ~QtSemaphore();
+
+protected:
+    QSemaphore *semaphore;
 };
 
 } // namespace

@@ -56,6 +56,21 @@ protected:
     CRITICAL_SECTION mutex;
 };
 
+class Win32Semaphore : public Semaphore
+{
+public:
+    Win32Semaphore();
+//    virtual void init();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~Win32Semaphore();
+
+protected:
+    HANDLE semaphore;
+};
+
+
 } // namespace
 
 #endif

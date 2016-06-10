@@ -28,6 +28,7 @@
 
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 namespace mega {
 
@@ -57,6 +58,22 @@ protected:
 	std::mutex *mutex;
 	std::recursive_mutex *rmutex;
 };
+
+class CppSemaphore : public Semaphore
+{
+public:
+    CppSemaphore();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~CppSemaphore();
+
+protected:
+    std::mutex mtx;
+    int count;
+    std::condition_variable cv;
+};
+
 
 } // namespace
 

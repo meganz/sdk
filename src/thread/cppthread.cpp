@@ -24,6 +24,7 @@
 
 namespace mega {
 
+//thread
 CppThread::CppThread()
 {
 	thread = NULL;
@@ -44,7 +45,7 @@ CppThread::~CppThread()
 	delete thread;
 }
 
-	
+//mutex
 CppMutex::CppMutex()
 {
 	mutex = NULL;
@@ -75,6 +76,55 @@ CppMutex::~CppMutex()
 {
 	delete mutex;
 	delete rmutex;
+}
+
+
+//semaphore
+CppSemaphore::CppSemaphore()
+{
+    count = 0;
+}
+void CppSemaphore::release()
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    count++;
+    cv.notify_one();
+}
+
+void CppSemaphore::wait()
+{
+    std::unique_lock<std::mutex> lock(mtx);
+
+    while(count == 0){
+        cv.wait(lock); // I believe this one releases the lock while waiting
+    }
+    count--;
+}
+
+
+int CppSemaphore::timedwait(int milliseconds)
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    int toret = -2;
+    while(count == 0){
+    std::cv_status status = cv.wait_for(lock,std::chrono::milliseconds(milliseconds));
+        if (status == std::cv_status::timeout)
+        {
+            toret = -1;
+            break; //we won't wait any longer
+        }
+        if(status == std::cv_status::no_timeout)
+        {
+            toret = 0;
+        }
+    }
+
+    count--; //TODO: check consistency with the other implementations: will the sempahore be decreased in case of timeout?
+    return toret;
+}
+
+CppSemaphore::~CppSemaphore()
+{
 }
 
 } // namespace

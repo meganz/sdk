@@ -56,7 +56,7 @@ QtThread::~QtThread()
 }
 
 
-
+//mutex
 QtMutex::QtMutex()
 {
     mutex = NULL;
@@ -83,6 +83,35 @@ void QtMutex::unlock()
 QtMutex::~QtMutex()
 {
     delete mutex;
+}
+
+
+//semaphore
+QtSemaphore::QtSemaphore()
+{
+    semaphore = new QSemaphore();
+}
+
+void QtSemaphore::wait()
+{
+    semaphore->acquire();
+}
+
+int QtSemaphore::timedwait(int milliseconds)
+{
+    bool success=semaphore->tryAcquire(1,milliseconds);
+    if (success) return 0;
+    else return -1;
+}
+
+void QtSemaphore::release()
+{
+    semaphore->release();
+}
+
+QtSemaphore::~QtSemaphore()
+{
+    delete semaphore;
 }
 
 } // namespace

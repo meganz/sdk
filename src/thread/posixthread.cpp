@@ -46,7 +46,7 @@ PosixThread::~PosixThread()
     delete thread;
 }
 
-
+//PosixMutex
 PosixMutex::PosixMutex()
 {
     mutex = NULL;
@@ -90,7 +90,56 @@ PosixMutex::~PosixMutex()
     }
 }
 
+//PosixSemaphore
+PosixSemaphore::PosixSemaphore(){
+    semaphore = new sem_t;
+}
 
-} // namespace
+void PosixSemaphore::wait(){
+    sem_wait(semaphore);
+}
+
+static inline
+void timespec_add_msec(struct timespec *tv, int milliseconds)
+{
+  int seconds=milliseconds/1000;
+  int milliseconds_left=milliseconds%1000;
+  tv->tv_sec += seconds;
+  tv->tv_nsec += milliseconds_left*1000000l;
+}
+
+
+int PosixSemaphore::timedwait(int milliseconds){
+    struct timespec ts;
+    int ret;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+    {
+       return -2; //failure
+    }
+
+    timespec_add_msec (&ts,milliseconds);
+
+    ret=sem_timedwait(semaphore, &ts);
+
+    if (ret == ETIMEDOUT)
+    {
+        return -1; //timed out
+    }
+    else if (!ret) {
+        return 0;
+    }
+    else{
+        return -2; //TODO: define errors
+    }
+}
+void PosixSemaphore::release(){
+    sem_post(semaphore);
+}
+
+PosixSemaphore::~PosixSemaphore(){
+    delete semaphore;
+}
+
+}// namespace
 
 #endif
