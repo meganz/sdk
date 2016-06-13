@@ -3975,6 +3975,7 @@ class MegaApi
          */
         static void addEntropy(char* data, unsigned int size);
 
+#ifdef WINDOWS_PHONE
         /**
          * @brief Set the ID for statistics
          *
@@ -3991,6 +3992,7 @@ class MegaApi
          * @param id ID for statistics
          */
         static void setStatsID(const char *id);
+#endif
 
         /**
          * @brief Retry all pending requests
