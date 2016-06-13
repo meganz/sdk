@@ -266,6 +266,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         arg("ssl", 2);
     }
 
+    arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }

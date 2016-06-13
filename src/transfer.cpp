@@ -133,9 +133,9 @@ bool Transfer::serialize(string *d)
     char hasUltoken;
     if (ultoken)
     {
-        hasUltoken = 1;
+        hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN + 1);
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -259,10 +259,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ptr += sizeof(m_time_t);
 
 
-    bool hasUltoken = MemAccess::get<char>(ptr);
+    char hasUltoken = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    ll = hasUltoken ? NewNode::UPLOADTOKENLEN + 1 : 0;
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
     if (ptr + ll + sizeof(unsigned short) > end)
     {
         LOG_err << "Transfer unserialization failed - ultoken too long";
@@ -272,9 +272,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
-        memcpy(t->ultoken, ptr, NewNode::UPLOADTOKENLEN + 1);
-        ptr += (NewNode::UPLOADTOKENLEN + 1);
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
+        memcpy(t->ultoken, ptr, ll);
+        ptr += ll;
     }
 
     ll = MemAccess::get<unsigned short>(ptr);
