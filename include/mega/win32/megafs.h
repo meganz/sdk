@@ -76,6 +76,7 @@ public:
     bool istransientorexists(DWORD);
 
     void osversion(string*) const;
+    void statsid(string*) const;
 
     static void emptydirlocal(string*, dev_t = 0);
 

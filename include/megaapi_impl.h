@@ -48,10 +48,6 @@
 #include <fcntl.h>
 #endif
 
-#if TARGET_OS_IPHONE
-#include "mega/gfx/GfxProcCG.h"
-#endif
-
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -1171,6 +1167,7 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
+        static void setStatsID(const char *id);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);

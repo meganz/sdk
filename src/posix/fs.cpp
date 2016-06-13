@@ -27,6 +27,15 @@
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
 
+#ifdef __ANDROID__
+#include <jni.h>
+extern JavaVM *MEGAjvm;
+#endif
+
+#if defined(__MACH__) && !(TARGET_OS_IPHONE)
+#include <uuid/uuid.h>
+#endif
+
 namespace mega {
 PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
 {
@@ -919,6 +928,169 @@ void PosixFileSystemAccess::osversion(string* u) const
         u->append(" ");
         u->append(uts.machine);
     }
+}
+
+void PosixFileSystemAccess::statsid(string *id) const
+{
+#ifdef __ANDROID__
+    if (!MEGAjvm)
+    {
+        LOG_err << "No JVM found";
+        return;
+    }
+
+    try
+    {
+        JNIEnv *env;
+        MEGAjvm->AttachCurrentThread(&env, NULL);
+        jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
+        if (!appGlobalsClass)
+        {
+            LOG_err << "Failed to get android/app/AppGlobals";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+        if (!getInitialApplicationMID)
+        {
+            LOG_err << "Failed to get getInitialApplication()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jobject context = env->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+        if (!context)
+        {
+            LOG_err << "Failed to get context";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jclass contextClass = env->GetObjectClass(context);
+        if (!contextClass)
+        {
+            LOG_err << "Failed to get context class";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getContentResolverMID = env->GetMethodID(contextClass, "getContentResolver", "()Landroid/content/ContentResolver;");
+        if (!getContentResolverMID)
+        {
+            LOG_err << "Failed to get getContentResolver()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jobject contentResolver = env->CallObjectMethod(context, getContentResolverMID);
+        if (!contentResolver)
+        {
+            LOG_err << "Failed to get ContentResolver";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jclass settingsSecureClass = env->FindClass("android/provider/Settings$Secure");
+        if (!settingsSecureClass)
+        {
+            LOG_err << "Failed to get Settings.Secure class";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jmethodID getStringMID = env->GetStaticMethodID(settingsSecureClass, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
+        if (!getStringMID)
+        {
+            LOG_err << "Failed to get getString()";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jstring idStr = (jstring) env->NewStringUTF("android_id");
+        if (!idStr)
+        {
+            LOG_err << "Failed to get idStr";
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        jstring androidId = (jstring) env->CallStaticObjectMethod(settingsSecureClass, getStringMID, contentResolver, idStr);
+        if (!androidId)
+        {
+            LOG_err << "Failed to get android_id";
+            env->DeleteLocalRef(idStr);
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        const char *androidIdString = env->GetStringUTFChars(androidId, NULL);
+        if (!androidIdString)
+        {
+            LOG_err << "Failed to get android_id bytes";
+            env->DeleteLocalRef(idStr);
+            MEGAjvm->DetachCurrentThread();
+            return;
+        }
+
+        id->append(androidIdString);
+        env->DeleteLocalRef(idStr);
+        env->ReleaseStringUTFChars(androidId, androidIdString);
+        MEGAjvm->DetachCurrentThread();
+    }
+    catch (...)
+    {
+        try
+        {
+            MEGAjvm->DetachCurrentThread();
+        }
+        catch (...) { }
+    }
+#elif TARGET_OS_IPHONE
+#ifdef USE_IOS
+    ios_statsid(id);
+#endif
+#elif defined(__MACH__)
+    uuid_t uuid;
+    struct timespec wait = {1, 0};
+    if (gethostuuid(uuid, &wait))
+    {
+        return;
+    }
+
+    char uuid_str[37];
+    uuid_unparse(uuid, uuid_str);
+    id->append(uuid_str);
+#else
+    int fd = open("/etc/machine-id", O_RDONLY);
+    if (fd < 0)
+    {
+        fd = open("/var/lib/dbus/machine-id", O_RDONLY);
+        if (fd < 0)
+        {
+            return;
+        }
+    }
+
+    char buff[512];
+    int len = read(fd, buff, 512);
+    close(fd);
+
+    if (len <= 0)
+    {
+        return;
+    }
+
+    if (buff[len - 1] == '\n')
+    {
+        len--;
+    }
+
+    if (len > 0)
+    {
+        id->append(buff, len);
+    }
+#endif
 }
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
