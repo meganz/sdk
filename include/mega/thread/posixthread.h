@@ -68,6 +68,8 @@ public:
 
 protected:
     sem_t* semaphore;
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
 };
 
 } // namespace

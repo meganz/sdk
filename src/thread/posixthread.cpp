@@ -103,6 +103,11 @@ PosixSemaphore::PosixSemaphore()
     {
         LOG_fatal << "Error creating semaphore: " << errno;
     }
+
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutex_init(&mtx,&attr);
+    pthread_mutexattr_destroy(&attr);
 }
 
 void PosixSemaphore::wait()
@@ -134,40 +139,78 @@ void timespec_add_msec(struct timespec *tv, int milliseconds)
     }
 }
 
+
+static inline
+void timeval_add_msec(struct timeval *tv, int milliseconds)
+{
+    int seconds = milliseconds / 1000;
+    int milliseconds_left = milliseconds % 1000;
+
+    tv->tv_sec += seconds;
+    tv->tv_usec += milliseconds_left * 1000;
+
+    if (tv->tv_usec >= 1000000)
+    {
+        tv->tv_usec -= 1000000;
+        tv->tv_sec++;
+    }
+}
+
 int PosixSemaphore::timedwait(int milliseconds)
 {
-    int ret;
     struct timespec ts;
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+    struct timeval now;
+    int ret = gettimeofday(&now, NULL); //not Y2K38 safe :-D
+    if (ret)
     {
-        LOG_err << "Error in clock_gettime";
+        LOG_err << "Error in gettimeofday: " << ret;
         return -2;
     }
+    ts.tv_sec = now.tv_sec;
+    ts.tv_nsec = now.tv_usec * 1000;
+
 
     timespec_add_msec (&ts, milliseconds);
 
+    pthread_mutex_lock(&mtx);
     while (true)
     {
-        ret = sem_timedwait(semaphore, &ts);
+        int ret = sem_trywait(semaphore);
         if (!ret)
         {
+            pthread_mutex_unlock(&mtx);
             return 0;
         }
-
-        if (errno == ETIMEDOUT)
+        else if (errno == EAGAIN)
         {
-            return -1;
+            //continue;
         }
-
-        if (errno == EINTR)
+        else if (errno == EINTR)
         {
             continue;
         }
+        else
+        {
+            LOG_err << "Error in sem_timedwait: " << ret;
+            pthread_mutex_unlock(&mtx);
+            return -2;
+        }
 
-        LOG_err << "Error in sem_timedwait: " << errno;
-        return -2;
+        int retcontimeout = pthread_cond_timedwait(&cv,&mtx,&ts);
+        if (retcontimeout == ETIMEDOUT)
+        {
+            pthread_mutex_unlock(&mtx);
+            return -1;
+        }
+        else if (retcontimeout)
+        {
+            LOG_fatal << "Unexpected error in pthread_cond_timedwait: " << errno;
+            pthread_mutex_unlock(&mtx);
+            return -2;
+        }
     }
+    pthread_mutex_unlock(&mtx);
 }
 
 void PosixSemaphore::release()
@@ -176,12 +219,15 @@ void PosixSemaphore::release()
     {
         LOG_fatal << "Error in sem_post: " << errno;
     }
+
+    pthread_cond_signal(&cv);
 }
 
 PosixSemaphore::~PosixSemaphore()
 {
     sem_destroy(semaphore);
     delete semaphore;
+    pthread_mutex_destroy(&mtx);
 }
 
 }// namespace
