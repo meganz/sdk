@@ -186,24 +186,26 @@ int PosixSemaphore::timedwait(int milliseconds)
             return -2;
         }
     }
+    count --;
     pthread_mutex_unlock(&mtx);
 }
 
 void PosixSemaphore::release()
 {
-    if (sem_post(semaphore) == -1)
+    pthread_mutex_lock(&mtx);
+    count++;
+    if (pthread_cond_signal(&cv))
     {
-        LOG_fatal << "Error in sem_post: " << errno;
+        LOG_fatal << "Unexpected error in pthread_cond_signal: " << errno;
     }
+    pthread_mutex_unlock(&mtx);
 
-    pthread_cond_signal(&cv);
 }
 
 PosixSemaphore::~PosixSemaphore()
 {
-    sem_destroy(semaphore);
-    delete semaphore;
     pthread_mutex_destroy(&mtx);
+    pthread_cond_destroy(&cv);
 }
 
 }// namespace
