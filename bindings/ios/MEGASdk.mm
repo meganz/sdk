@@ -689,14 +689,6 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
 }
 
-- (void)addContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)addContactWithEmail:(NSString *)email {
-    self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL);
-}
-
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

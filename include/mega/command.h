@@ -181,13 +181,13 @@ public:
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
 };
 
-// invite contact/set visibility
-class MEGA_API CommandUserRequest : public Command
+// set visibility
+class MEGA_API CommandRemoveContact : public Command
 {
 public:
     void procresult();
 
-    CommandUserRequest(MegaClient*, const char*, visibility_t);
+    CommandRemoveContact(MegaClient*, const char*, visibility_t);
 };
 
 // set user attributes

@@ -280,8 +280,6 @@ namespace mega
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
-        void addContact(String^ email, MRequestListenerInterface^ listener);
-        void addContact(String^ email);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);

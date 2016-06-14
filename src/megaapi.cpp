@@ -1525,11 +1525,6 @@ bool MegaApi::usingHttpsOnly()
     return pImpl->usingHttpsOnly();
 }
 
-void MegaApi::addContact(const char* email, MegaRequestListener* listener)
-{
-    pImpl->addContact(email, listener);
-}
-
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
     pImpl->inviteContact(email, message, action, listener);

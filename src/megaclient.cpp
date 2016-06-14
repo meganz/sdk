@@ -6465,15 +6465,15 @@ void MegaClient::getpaymentmethods()
     reqs.add(new CommandGetPaymentMethods(this));
 }
 
-// add new contact (by e-mail address)
-error MegaClient::invite(const char* email, visibility_t show)
+// delete or block an existing contact
+error MegaClient::removecontact(const char* email, visibility_t show)
 {
-    if (!strchr(email, '@'))
+    if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandUserRequest(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show));
 
     return API_OK;
 }

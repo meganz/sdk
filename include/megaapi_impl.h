@@ -1250,7 +1250,6 @@ class MegaApiImpl : public MegaApp
         char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();
@@ -1660,7 +1659,7 @@ protected:
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
 
         // user invites/attributes
-        virtual void invite_result(error);
+        virtual void removecontact_result(error);
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);

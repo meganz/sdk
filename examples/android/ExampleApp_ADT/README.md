@@ -11,7 +11,7 @@ To use a prebuilt library (the easy way), follow these steps:
 2. On Eclipse, click "New Project" -> "Android Project from Existing code"
 3. Select the folder `examples/android/ExampleApp_ADT`
 4. Check the "Copy project into workspace" option
-5. Download the prebuilt native libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!HlNBACRL!vwTpURcDKqhG0GO4volmrJiTy7PoN_y7ZX1NFlg8zbs).
+5. Download the prebuilt native libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!2wMG1B5L!AdTn_UViyIKdeach4VzXmmvTcQOFsnIFYKMw0G7NMeI).
 6. Extract the content into the root folder of the project, keeping the folder structure.
 You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so`, `[Eclipse workspace]/[MEGA project folder]/libs/x86/libmega.so` and all the auto-generated Java bindings under `[Eclipse workspace]/[MEGA project folder]/src/nz/mega/sdk/`.
 7. Copy the static Java bindings from the SDK folder (`[sdk folder]/bindings/java/nz/mega/sdk`) into the project source path (`[Eclipse workspace]/[MEGA project folder]/src/nz/mega/sdk`). Remove the unnecessary `MegaApiSwing.java` from the added sources.
