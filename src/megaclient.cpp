@@ -8987,7 +8987,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
             }
         }
 
-        if (e && nn[nni].localnode && nn[nni].localnode->sync)
+        if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
         {
             nn[nni].localnode->sync->errorcode = e;
             nn[nni].localnode->sync->changestate(SYNC_FAILED);

@@ -53,7 +53,8 @@ struct MEGA_API NodeCore
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int UPLOADTOKENLEN = 27;
+    static const int OLDUPLOADTOKENLEN = 27;
+    static const int UPLOADTOKENLEN = 36;
 
     newnodesource_t source;
 
