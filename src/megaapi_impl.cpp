@@ -8566,25 +8566,13 @@ void MegaApiImpl::putua_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
-    // if need to update value/version of attribute, retry
-    if (e == API_EEXPIRED)
-    {
-        User *u = client->ownuser();
-        int type = request->getParamType();
-        string an = MegaApiImpl::userAttributeToString(type);
-
-        u->invalidateattr(an);
-
 #ifdef ENABLE_CHAT
-        if (an == "*keyring")
-        {
-            client->resetKeyring();
-        }
-#endif
-
-        client->getua(u, an.c_str(), request->getTag());
-        return;
+    if (e && client->fetchingkeys)
+    {
+        client->clearKeys();
+        client->resetKeyring();
     }
+#endif
 
     fireOnRequestFinish(request, megaError);
 }
@@ -8604,135 +8592,72 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-    if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
+    int attrType = request->getParamType();
+    switch (attrType)
     {
-        int attrType = request->getParamType();
-
-        switch (attrType)
-        {
-            case MegaApi::USER_ATTR_AVATAR:
-                if (len)
-                {
-
-                    FileAccess *f = client->fsaccess->newfileaccess();
-                    string filePath(request->getFile());
-                    string localPath;
-                    fsAccess->path2local(&filePath, &localPath);
-
-                    totalDownloadedBytes += len;
-
-                    fsAccess->unlinklocal(&localPath);
-                    if(!f->fopen(&localPath, false, true))
-                    {
-                        delete f;
-                        fireOnRequestFinish(request, MegaError(API_EWRITE));
-                        return;
-                    }
-
-                    if(!f->fwrite((const byte*)data, len, 0))
-                    {
-                        delete f;
-                        fireOnRequestFinish(request, MegaError(API_EWRITE));
-                        return;
-                    }
-
-                    delete f;
-                }
-                else    // no data for the avatar
-                {
-                    fireOnRequestFinish(request, MegaError(API_ENOENT));
-                    return;
-                }
-
-                break;
-
-            // null-terminated char arrays
-            case MegaApi::USER_ATTR_FIRSTNAME:
-            case MegaApi::USER_ATTR_LASTNAME:
-                {
-                    string str((const char*)data,len);
-                    request->setText(str.c_str());
-                }
-                break;
-
-            // byte arrays with possible nulls in the middle --> to Base64
-            case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-            case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-            case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-            case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            default:
-                {
-                    string str;
-                    str.resize(len * 4 / 3 + 4);
-                    str.resize(Base64::btoa(data, len, (char*)str.data()));
-                    request->setText(str.c_str());
-                }
-                break;
-        }
-
-        fireOnRequestFinish(request, MegaError(API_OK));
-        return;
-    }
-    else    // type == TYPE_SET_ATTR_USER
-    {
-        // putua failed with API_EEXPIRED, this is the update of the value/version
-
-        // prepare the input data to retry putua()
-        const char* file = request->getFile();
-        const char* value = request->getText();
-        int type = request->getParamType();
-        string attrname = MegaApiImpl::userAttributeToString(type);
-
-        if (type == MegaApi::USER_ATTR_AVATAR)
-        {
-            // read the attribute value from file
-            if (file)
+        case MegaApi::USER_ATTR_AVATAR:
+            if (len)
             {
-                string path = file;
-                string localpath;
-                fsAccess->path2local(&path, &localpath);
 
-                FileAccess *f = fsAccess->newfileaccess();
-                if (!f->fopen(&localpath, 1, 0))
+                FileAccess *f = client->fsaccess->newfileaccess();
+                string filePath(request->getFile());
+                string localPath;
+                fsAccess->path2local(&filePath, &localPath);
+
+                totalDownloadedBytes += len;
+
+                fsAccess->unlinklocal(&localPath);
+                if(!f->fopen(&localPath, false, true))
                 {
                     delete f;
-                    fireOnRequestFinish(request, MegaError(API_EREAD));
+                    fireOnRequestFinish(request, MegaError(API_EWRITE));
                     return;
                 }
 
-                string attrvalue;
-                if (!f->fread(&attrvalue, f->size, 0, 0))
+                if(!f->fwrite((const byte*)data, len, 0))
                 {
                     delete f;
-                    fireOnRequestFinish(request, MegaError(API_EREAD));
+                    fireOnRequestFinish(request, MegaError(API_EWRITE));
                     return;
                 }
+
                 delete f;
-
-                client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size(), request->getTag());
-                return;
             }
-            else    // removing current attribute's value
+            else    // no data for the avatar
             {
-                client->putua(attrname.c_str(), NULL, 0, request->getTag());
-                return;
-            }
-        }
-        else    // any other type of attribute
-        {
-            if (!value)
-            {
-                fireOnRequestFinish(request, MegaError(API_EARGS));
+                fireOnRequestFinish(request, MegaError(API_ENOENT));
                 return;
             }
 
-            client->putua(attrname.c_str(), (byte *)value, strlen(value), request->getTag());
-            return;
-        }
+            break;
+
+        // null-terminated char arrays
+        case MegaApi::USER_ATTR_FIRSTNAME:
+        case MegaApi::USER_ATTR_LASTNAME:
+            {
+                string str((const char*)data,len);
+                request->setText(str.c_str());
+            }
+            break;
+
+        // byte arrays with possible nulls in the middle --> to Base64
+        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
+        default:
+            {
+                string str;
+                str.resize(len * 4 / 3 + 4);
+                str.resize(Base64::btoa(data, len, (char*)str.data()));
+                request->setText(str.c_str());
+            }
+            break;
     }
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 void MegaApiImpl::getua_result(TLVstore *tlv)
@@ -8761,8 +8686,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // putua failed with API_EEXPIRED, so this is the update of the value/version
 
         int type = request->getParamType();
-        string attrname = MegaApiImpl::userAttributeToString(type);
-
         MegaStringMap *stringMap = request->getMegaStringMap();
         if (!stringMap)
         {
@@ -8791,7 +8714,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
 
         // serialize and encrypt the TLV container
         string *container = tlv.tlvRecordsToContainer(&client->key);
-        client->putua(attrname.c_str(), (byte *)container->data(), container->size(), request->getTag());
+        client->putua((attr_t)type, (byte *)container->data(), container->size(), request->getTag());
         delete container;
     }
 }
@@ -8841,11 +8764,11 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
 
     if (request->getName())
     {
-        client->putua("firstname", (const byte*) request->getName(), strlen(request->getName()));
+        client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), strlen(request->getName()));
     }
     if (request->getText())
     {
-        client->putua("lastname", (const byte*) request->getText(), strlen(request->getText()));
+        client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
     }
 
     client->reqtag = creqtag;
@@ -11067,7 +10990,7 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_GET_ATTR_USER:
 		{
             const char* value = request->getFile();
-            int type = request->getParamType();
+            attr_t type = attr_t(request->getParamType());
             const char *email = request->getEmail();
 
             string attrname = MegaApiImpl::userAttributeToString(type);
@@ -11084,12 +11007,12 @@ void MegaApiImpl::sendPendingRequests()
                     return;
                 }
 
-                client->getua(email, attrname.c_str());
+                client->getua(email, type);
                 break;
             }
 
             if ( attrname.empty() ||    // unknown attribute type
-                 (type == MegaApi::USER_ATTR_AVATAR && !value) ) // no destination file for avatar
+                 (type == ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;
                 break;
@@ -11102,14 +11025,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->getua(user, attrname.c_str());
+            client->getua(user, type);
             break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
 		{
             const char* file = request->getFile();
             const char* value = request->getText();
-            int type = request->getParamType();
+            attr_t type = attr_t(request->getParamType());
             MegaStringMap *stringMap = request->getMegaStringMap();
 
             char scope = MegaApiImpl::userAttributeToScope(type);
@@ -11122,7 +11045,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string attrvalue;
 
-            if (type == MegaApi::USER_ATTR_AVATAR)
+            if (type == ATTR_AVATAR)
             {
                 // read the attribute value from file
                 if (file)
@@ -11147,12 +11070,12 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     delete f;
 
-                    client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size());
+                    client->putua(type, (byte *)attrvalue.data(), attrvalue.size());
                     break;
                 }
                 else    // removing current attribute's value
                 {
-                    client->putua(attrname.c_str());
+                    client->putua(type);
                     break;
                 }
             }
@@ -11186,7 +11109,7 @@ void MegaApiImpl::sendPendingRequests()
                 // serialize and encrypt the TLV container
                 string *container = tlv.tlvRecordsToContainer(&client->key);
 
-                client->putua(attrname.c_str(), (byte *)container->data(), container->size());
+                client->putua(type, (byte *)container->data(), container->size());
                 delete container;
 
                 break;
@@ -11199,7 +11122,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putua(attrname.c_str(), (byte *)value, strlen(value));
+                client->putua(type, (byte *)value, strlen(value));
                 break;
             }
 

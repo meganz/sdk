@@ -2859,7 +2859,7 @@ static void process_line(char* l)
                             if (!(u = client->finduser(words[2].c_str())))
                             {
                                 cout << "Retrieving user attribute for unknown user: " << words[2] << endl;
-                                client->getua(words[2].c_str(), words[1].c_str());
+                                client->getua(words[2].c_str(), User::string2attr(words[1].c_str()));
                                 return;
                             }
                         }
@@ -2879,52 +2879,62 @@ static void process_line(char* l)
                             }
                         }
 
-                        client->getua(u, words[1].c_str());
+                        client->getua(u, User::string2attr(words[1].c_str()));
 
                         return;
                     }
                     else if (words[0] == "putua")
                     {
-                        if (words.size() == 2)
+                        if (words.size() >= 2)
                         {
-                            // delete attribute
-                            client->putua(words[1].c_str());
-
-                            return;
-                        }
-                        else if (words.size() == 3)
-                        {
-                            if (words[2] == "del")
+                            attr_t attrtype = User::string2attr(words[1].c_str());
+                            if (attrtype == ATTR_UNKNOWN)
                             {
-                                client->putua(words[1].c_str());
+                                cout << "Attribute not recognized" << endl;
+                                return;
+                            }
+
+                            if (words.size() == 2)
+                            {
+                                // delete attribute
+                                client->putua(attrtype);
 
                                 return;
                             }
-                        }
-                        else if (words.size() == 4)
-                        {
-                            if (words[2] == "set")
+                            else if (words.size() == 3)
                             {
-                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
+                                if (words[2] == "del")
+                                {
+                                    client->putua(attrtype);
 
-                                return;
+                                    return;
+                                }
                             }
-                            else if (words[2] == "load")
+                            else if (words.size() == 4)
                             {
-                                string data, localpath;
-
-                                client->fsaccess->path2local(&words[3], &localpath);
-
-                                if (loadfile(&localpath, &data))
+                                if (words[2] == "set")
                                 {
-                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
-                                }
-                                else
-                                {
-                                    cout << "Cannot read " << words[3] << endl;
-                                }
+                                    client->putua(attrtype, (const byte*) words[3].c_str(), words[3].size());
 
-                                return;
+                                    return;
+                                }
+                                else if (words[2] == "load")
+                                {
+                                    string data, localpath;
+
+                                    client->fsaccess->path2local(&words[3], &localpath);
+
+                                    if (loadfile(&localpath, &data))
+                                    {
+                                        client->putua(attrtype, (const byte*) data.data(), data.size());
+                                    }
+                                    else
+                                    {
+                                        cout << "Cannot read " << words[3] << endl;
+                                    }
+
+                                    return;
+                                }
                             }
                         }
 

@@ -73,10 +73,10 @@ struct MEGA_API User : public Cachable
 
 private:
     // persistent attributes (keyring, firstname...)
-    string_map attrs;
+    userattr_map attrs;
 
     // version of each attribute
-    string_map attrsv;
+    userattr_map attrsv;
 
 public:
     void set(visibility_t, m_time_t);
@@ -85,13 +85,18 @@ public:
     static User* unserialize(class MegaClient *, string*);
 
     // attribute methods: set/get/invalidate...
-    void setattr(string *an, string *av, string *v);
-    const string *getattr(string an);
-    const string *getattrversion(string an);
-    void invalidateattr(string an);
-    bool isattrvalid(string an);
+    void setattr(attr_t at, string *av, string *v);
+    const string *getattr(attr_t at);
+    const string *getattrversion(attr_t at);
+    void invalidateattr(attr_t at);
+    bool isattrvalid(attr_t at);
 
-    bool setChanged(const char*);
+    static string attr2string(attr_t at);
+    static attr_t string2attr(const char *name);
+    static bool needversioning(attr_t at);
+    static char scope(attr_t at);
+
+    bool setChanged(attr_t at);
 
     User(const char* = NULL);
 };

@@ -1998,17 +1998,17 @@ void CommandUserRequest::procresult()
     client->app->invite_result(e);
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl, int ctag)
+CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
-    this->an = an;
+    this->at = at;
     this->av.assign((const char*)av, avl);
 
     cmd("upv");
 
-    beginarray(an);
+    beginarray(User::attr2string(at).c_str());
 
     // if removing avatar, do not Base64 encode the attribute value
-    if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+    if (at == ATTR_AVATAR && !strcmp((const char *)av, "none"))
     {
         element((const char*)av);
     }
@@ -2017,7 +2017,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
         element(av, avl);
     }
 
-    const string *attrv = client->ownuser()->getattrversion(an);
+    const string *attrv = client->ownuser()->getattrversion(at);
     if (attrv)
     {
         element(attrv->c_str());
@@ -2028,7 +2028,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
     tag = ctag;
 }
 
-void CommandPutUA::procresult()
+void CommandPutUAVer::procresult()
 {
     if (client->json.isnumeric())
     {
@@ -2044,7 +2044,7 @@ void CommandPutUA::procresult()
             client->app->putua_result(API_EINTERNAL);
             return;
         }
-        string an = string(ptr, (end-ptr));
+        attr_t at = User::string2attr(string(ptr, (end-ptr)).c_str());
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
@@ -2053,7 +2053,7 @@ void CommandPutUA::procresult()
         }
         string v = string(ptr, (end-ptr));
 
-        if (an.empty() || v.empty() || (this->an != an))
+        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
             client->app->putua_result(API_EINTERNAL);
@@ -2061,21 +2061,57 @@ void CommandPutUA::procresult()
         else
         {
             User *u = client->ownuser();
-            u->setattr(&an, &av, &v);
+            u->setattr(at, &av, &v);
             client->notifyuser(u);
             client->app->putua_result(API_OK);
         }
     }
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl)
+{
+    cmd("up");
+
+    string an = User::attr2string(at);
+
+    // if removing avatar, do not Base64 encode the attribute value
+    if (at == ATTR_AVATAR && !strcmp((const char *)av, "none"))
+    {
+        arg(an.c_str(),(const char *)av, avl);
+    }
+    else
+    {
+        arg(an.c_str(), av, avl);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandPutUA::procresult()
+{
+    error e;
+
+    if (client->json.isnumeric())
+    {
+        e = (error)client->json.getint();
+    }
+    else
+    {
+        client->json.storeobject();
+        e = API_OK;
+    }
+
+    client->app->putua_result(e);
+}
+
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, int ctag)
 {
     this->u = client->finduser((char*)uid);
-    this->an = an;
+    this->at = at;
 
     cmd("uga");
     arg("u", uid);
-    arg("ua", an);
+    arg("ua", User::attr2string(at).c_str());
     arg("v", 1);
 
     tag = ctag;
@@ -2089,7 +2125,7 @@ void CommandGetUA::procresult()
         client->app->getua_result(e);
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -2110,7 +2146,7 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2124,7 +2160,7 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2136,9 +2172,9 @@ void CommandGetUA::procresult()
                 case EOO:
                 {
                     // if there's no avatar, the value is "none" (not Base64 encoded)
-                    if (u && an == "+a" && buf == "none")
+                    if (u && at == ATTR_AVATAR && buf == "none")
                     {
-                        u->setattr(&an, NULL, &version);
+                        u->setattr(at, NULL, &version);
                         client->app->getua_result(API_ENOENT);
                         client->notifyuser(u);
                         return;
@@ -2153,7 +2189,7 @@ void CommandGetUA::procresult()
                     // bool nonHistoric = (attributename.at(1) == '!');
 
                     // handle the attribute data depending on the scope
-                    char scope = an.at(0);
+                    char scope = User::scope(at);
 
                     if (!u) // retrieval of attributes without contact-relationship
                     {
@@ -2169,14 +2205,14 @@ void CommandGetUA::procresult()
                             TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
                             if (!tlvRecords)
                             {
-                                LOG_err << "Cannot extract TLV records for private attribute " << an;
+                                LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);
                                 return;
                             }
 
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
-                            u->setattr(&an, tlvString, &version);
+                            u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
                             delete tlvRecords;
@@ -2185,10 +2221,10 @@ void CommandGetUA::procresult()
 
                         case '+':   // public
 
-                            u->setattr(&an, &value, &version);
+                            u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
 #ifdef  ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                            if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
@@ -2197,24 +2233,24 @@ void CommandGetUA::procresult()
 
                         case '#':   // protected
 
-                            u->setattr(&an, &value, &version);
+                            u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
                             break;
 
                         default:    // legacy attributes or unknown attribute
-                            if (an != "firstname"    &&      // protected
-                                    an != "lastname" &&      // protected
-                                    an != "country"  &&      // private
-                                    an != "birthday" &&      // private
-                                    an != "birthmonth" &&    // private
-                                    an != "birthyear")       // private
+                            if (at != ATTR_FIRSTNAME &&           // protected
+                                    at != ATTR_LASTNAME &&        // protected
+                                    at != ATTR_COUNTRY  &&        // private
+                                    at != ATTR_BIRTHDAY &&        // private
+                                    at != ATTR_BIRTHMONTH &&      // private
+                                    at != ATTR_BIRTHYEAR)         // private
                             {
-                                LOG_err << "Unknown received attribute: " << an;
+                                LOG_err << "Unknown received attribute: " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);
                                 return;
                             }
 
-                            u->setattr(&an, &value, &version);
+                            u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
                             break;
                     }
@@ -2228,7 +2264,7 @@ void CommandGetUA::procresult()
                     {
                         LOG_err << "Error in CommandPutUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-                        if (client->fetchingkeys && u->userhandle == client->me && an == "+sigPubk")
+                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2258,10 +2294,11 @@ void CommandDelUA::procresult()
         if (e == API_OK)
         {
             User *u = client->ownuser();
-            u->invalidateattr(an);
+            attr_t at = User::string2attr(an.c_str());
+            u->invalidateattr(at);
 
 #ifdef ENABLE_CHAT
-            if (an == "*keyring")
+            if (at == ATTR_KEYRING)
             {
                 client->resetKeyring();
             }

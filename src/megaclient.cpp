@@ -3757,9 +3757,10 @@ void MegaClient::sc_userattr()
                     // ...invalidate all of the notified user attributes
                     for (itua = ualist.begin(); itua != ualist.end(); itua++)
                     {
-                        u->invalidateattr(*itua);
+                        attr_t type = User::string2attr(itua->c_str());
+                        u->invalidateattr(type);
 #ifdef ENABLE_CHAT
-                        if (*itua == "*keyring")
+                        if (type == ATTR_KEYRING)
                         {
                             resetKeyring();
                         }
@@ -3775,11 +3776,12 @@ void MegaClient::sc_userattr()
                          itua != ualist.end();
                          itua++, ituav++)
                     {
-                        if ((cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav))
+                        attr_t type = User::string2attr(itua->c_str());
+                        if ((cacheduav = u->getattrversion(type)) && (*cacheduav != *ituav))
                         {
-                            u->invalidateattr(*itua);
+                            u->invalidateattr(type);
 #ifdef ENABLE_CHAT
-                            if (*itua == "*keyring")
+                            if (type == ATTR_KEYRING)
                             {
                                 resetKeyring();
                             }
@@ -6289,11 +6291,11 @@ void MegaClient::clearKeys()
 {
     User *u = finduser(me);
 
-    u->invalidateattr("*keyring");
-    u->invalidateattr("+puEd255");
-    u->invalidateattr("+puCu255");
-    u->invalidateattr("+sigPubk");
-    u->invalidateattr("+sigCu255");
+    u->invalidateattr(ATTR_KEYRING);
+    u->invalidateattr(ATTR_ED25519_PUBK);
+    u->invalidateattr(ATTR_CU25519_PUBK);
+    u->invalidateattr(ATTR_SIG_RSA_PUBK);
+    u->invalidateattr(ATTR_SIG_CU255_PUBK);
 
     fetchingkeys = false;
 }
@@ -6571,13 +6573,13 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::putua(const char* an, const byte* av, unsigned avl, int ctag)
+void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 {
     string data;
 
     if (!av)
     {
-        if (!strcmp(an, "+a"))  // remove avatar
+        if (at == ATTR_AVATAR)  // remove avatar
         {
             data = "none";
         }
@@ -6586,16 +6588,27 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int ctag)
         avl = data.size();
     }
 
-    // if the cached value is outdated, first get latest version
     User *u = ownuser();
-    if (u->getattr(an) && !u->isattrvalid(an))
+    int needversion = u->needversioning(at);
+    if (needversion == -1)
     {
-        restag = reqtag;
-        app->putua_result(API_EEXPIRED);
-        return;
+        app->putua_result(API_EARGS);   // attribute not recognized
     }
-
-    reqs.add(new CommandPutUA(this, an, av, avl, (ctag != -1) ? ctag : reqtag));
+    else if (!needversion)
+    {
+        reqs.add(new CommandPutUA(this, at, av, avl));
+    }
+    else
+    {
+        // if the cached value is outdated, first get latest version
+        if (u->getattr(at) && !u->isattrvalid(at))
+        {
+            restag = reqtag;
+            app->putua_result(API_EEXPIRED);
+            return;
+        }
+        reqs.add(new CommandPutUAVer(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
+    }
 }
 
 /**
@@ -6606,20 +6619,20 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int ctag)
  * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const char* an, int ctag)
+void MegaClient::getua(User* u, const attr_t at, int ctag)
 {
-    if (an)
+    if (at != ATTR_UNKNOWN)
     {
         // if we can solve those requests locally (cached values)...
-        const string *cachedav = u->getattr(an);
+        const string *cachedav = u->getattr(at);
 
 #ifdef ENABLE_CHAT
-        if (!fetchingkeys && cachedav && u->isattrvalid(an))
+        if (!fetchingkeys && cachedav && u->isattrvalid(at))
 #else
-        if (cachedav && u->isattrvalid(an))
+        if (cachedav && u->isattrvalid(at))
 #endif
         {
-            if (*an == '*') // private attribute, TLV encoding
+            if (User::scope(at) == '*') // private attribute, TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = reqtag;
@@ -6636,16 +6649,16 @@ void MegaClient::getua(User* u, const char* an, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), an, (ctag != -1) ? ctag : reqtag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, (ctag != -1) ? ctag : reqtag));
         }
     }
 }
 
-void MegaClient::getua(const char *email_handle, const char *an, int ctag)
+void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
 {
-    if (email_handle && an)
+    if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, an, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
     }
 }
 
@@ -7695,11 +7708,11 @@ void MegaClient::fetchkeys()
     reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
     reqtag = creqtag;
 
-    getua(u, "*keyring", 0);   // private Cu25519 & private Ed25519
-    getua(u, "+puEd255", 0);
-    getua(u, "+puCu255", 0);
-    getua(u, "+sigCu255", 0);
-    getua(u, "+sigPubk", 0); // it triggers MegaClient::initializekeys()
+    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+    getua(u, ATTR_ED25519_PUBK, 0);
+    getua(u, ATTR_CU25519_PUBK, 0);
+    getua(u, ATTR_SIG_CU255_PUBK, 0);
+    getua(u, ATTR_SIG_RSA_PUBK, 0);   // it triggers MegaClient::initializekeys() --> must be the latest
 }
 
 void MegaClient::initializekeys()
@@ -7707,7 +7720,7 @@ void MegaClient::initializekeys()
     User *u = finduser(me);
 
     // Initialize private keys
-    const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
+    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
@@ -7746,10 +7759,10 @@ void MegaClient::initializekeys()
         delete tlvRecords;
     }
 
-    string puEd255 = (u->isattrvalid("+puEd255")) ? *u->getattr("+puEd255") : "";
-    string puCu255 = (u->isattrvalid("+puCu255")) ? *u->getattr("+puCu255") : "";
-    string sigCu255 = (u->isattrvalid("+sigCu255")) ? *u->getattr("+sigCu255") : "";
-    string sigPubk = (u->isattrvalid("+sigPubk")) ? *u->getattr("+sigPubk") : "";
+    string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
+    string puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
+    string sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
+    string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
 
     if (chatkey && signkey)    // THERE ARE KEYS
     {
@@ -7803,7 +7816,7 @@ void MegaClient::initializekeys()
         }
 
         // Verify signature for RSA public key
-        string sigPubk = (u->isattrvalid("+sigPubk")) ? *u->getattr("+sigPubk") : "";
+        string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
         string pubkstr;
         if (pubk.isvalid())
         {
@@ -7875,11 +7888,11 @@ void MegaClient::initializekeys()
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-            putua("*keyring", (byte *) tlvContainer->data(), tlvContainer->size(), 0);
-            putua("+puEd255", (byte *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
-            putua("+puCu255", (byte *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
-            putua("+sigPubk", (byte *) sigPubk.data(), sigPubk.size(), 0);
-            putua("+sigCu255", (byte *) sigCu255.data(), sigCu255.size(), 0);
+            putua(ATTR_KEYRING, (byte *) tlvContainer->data(), tlvContainer->size(), 0);
+            putua(ATTR_ED25519_PUBK, (byte *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
+            putua(ATTR_CU25519_PUBK, (byte *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
+            putua(ATTR_SIG_RSA_PUBK, (byte *) sigPubk.data(), sigPubk.size(), 0);
+            putua(ATTR_SIG_CU255_PUBK, (byte *) sigCu255.data(), sigCu255.size(), 0);
 
             delete tlvContainer;
 

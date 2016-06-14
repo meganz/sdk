@@ -203,13 +203,13 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL, int ctag = -1);
+    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // queue a user attribute retrieval (for non-contacts)
-    void getua(const char* email_handle, const char* an = NULL, int ctag = -1);
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
 #ifdef DEBUG
     // queue a user attribute removal

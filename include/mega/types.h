@@ -368,6 +368,29 @@ typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef string_map TLV_map;
 
+
+// user attribute types
+typedef enum {
+    ATTR_UNKNOWN = -1,
+    ATTR_AVATAR = 0,            // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
+    ATTR_LASTNAME = 2,          // public - char array - non-versioned
+    ATTR_AUTHRING = 3,          // private - byte array
+    ATTR_LAST_INT = 4,          // private - byte array
+    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
+    ATTR_KEYRING = 7,           // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
+    ATTR_COUNTRY = 10,          // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
+//    USER_ATTR_AUTHRSA = 10,
+//    USER_ATTR_AUTHCU255 = 11
+} attr_t;
+typedef map<attr_t, string> userattr_map;
+
 typedef enum {
 
     AES_CCM_12_16 = 0x00,

@@ -61,11 +61,9 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
-    for (string_map::iterator it = attrs.begin(); it != attrs.end(); it++)
+    for (userattr_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
-        l = it->first.size();
-        d->append((char*)&l, sizeof l);
-        d->append(it->first.data(), l);
+        d->append((char*)&it->first, sizeof it->first);
 
         ll = it->second.size();
         d->append((char*)&ll, sizeof ll);
@@ -170,16 +168,17 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     else if (attrVersion == '1')
     {
-        string key;
-        while ((ptr < end) && (l = *ptr++))
+        attr_t key;
+        while (ptr + sizeof key < end)
         {
-            if (ptr + l + sizeof(ll) > end)
+            key = MemAccess::get<attr_t>(ptr);
+            ptr += sizeof key;
+
+            if (ptr + sizeof(ll) > end)
             {
                 client->discarduser(uh);
                 return NULL;
             }
-            key.assign(ptr, l);
-            ptr += l;
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
@@ -210,7 +209,7 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 
 #ifdef ENABLE_CHAT
-    const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
+    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
@@ -238,28 +237,28 @@ User* User::unserialize(MegaClient* client, string* d)
     return u;
 }
 
-void User::setattr(string *an, string *av, string *v)
+void User::setattr(attr_t at, string *av, string *v)
 {
-    setChanged(an->c_str());
+    setChanged(at);
 
-    if (*an != "+a") // avatar is saved to disc
+    if (at != ATTR_AVATAR)  // avatar is saved to disc
     {
-        attrs[*an] = *av;
+        attrs[at] = *av;
     }
 
-    attrsv[*an] = *v;
+    attrsv[at] = *v;
 }
 
-void User::invalidateattr(string an)
+void User::invalidateattr(attr_t at)
 {
-    setChanged(an.c_str());
-    attrsv.erase(an);
+    setChanged(at);
+    attrsv.erase(at);
 }
 
 // returns the value if there is value (even if it's invalid by now)
-const string * User::getattr(string an)
+const string * User::getattr(attr_t at)
 {
-    string_map::const_iterator it = attrs.find(an);
+    userattr_map::const_iterator it = attrs.find(at);
     if (it != attrs.end())
     {
         return &(it->second);
@@ -268,14 +267,195 @@ const string * User::getattr(string an)
     return NULL;
 }
 
-bool User::isattrvalid(string an)
+bool User::isattrvalid(attr_t at)
 {
-    return attrsv.count(an);
+    return attrsv.count(at);
 }
 
-const string *User::getattrversion(string an)
+string User::attr2string(attr_t type)
 {
-    string_map::iterator it = attrsv.find(an);
+    string attrname;
+
+    switch(type)
+    {
+        case ATTR_AVATAR:
+            attrname = "+a";
+            break;
+
+        case ATTR_FIRSTNAME:
+            attrname = "firstname";
+            break;
+
+        case ATTR_LASTNAME:
+            attrname = "lastname";
+            break;
+
+        case ATTR_AUTHRING:
+            attrname = "*!authring";
+            break;
+
+        case ATTR_LAST_INT:
+            attrname = "*!lstint";
+            break;
+
+        case ATTR_ED25519_PUBK:
+            attrname = "+puEd255";
+            break;
+
+        case ATTR_CU25519_PUBK:
+            attrname = "+puCu255";
+            break;
+
+        case ATTR_SIG_RSA_PUBK:
+            attrname = "+sigPubk";
+            break;
+
+        case ATTR_SIG_CU255_PUBK:
+            attrname = "+sigCu255";
+            break;
+
+        case ATTR_KEYRING:
+            attrname = "*keyring";
+            break;
+
+        case ATTR_COUNTRY:
+            attrname = "country";
+            break;
+
+        case ATTR_BIRTHDAY:
+            attrname = "birthday";
+            break;
+
+        case ATTR_BIRTHMONTH:
+            attrname = "birthmonth";
+            break;
+
+        case ATTR_BIRTHYEAR:
+            attrname = "birthyear";
+            break;
+
+        case ATTR_UNKNOWN:  // empty string
+            break;
+    }
+
+    return attrname;
+}
+
+attr_t User::string2attr(const char* name)
+{
+    if (!strcmp(name, "*keyring"))
+    {
+        return ATTR_KEYRING;
+    }
+    else if (!strcmp(name, "*!authring"))
+    {
+        return ATTR_AUTHRING;
+    }
+    else if (!strcmp(name, "*!lstint"))
+    {
+        return ATTR_LAST_INT;
+    }
+    else if (!strcmp(name, "+puCu255"))
+    {
+        return ATTR_CU25519_PUBK;
+    }
+    else if (!strcmp(name, "+puEd255"))
+    {
+        return ATTR_ED25519_PUBK;
+    }
+    else if (!strcmp(name, "+sigPubk"))
+    {
+        return ATTR_SIG_RSA_PUBK;
+    }
+    else if (!strcmp(name, "+sigCu255"))
+    {
+        return ATTR_SIG_CU255_PUBK;
+    }
+    else if (!strcmp(name, "+a"))
+    {
+        return ATTR_AVATAR;
+    }
+    else if (!strcmp(name, "firstname"))
+    {
+        return ATTR_FIRSTNAME;
+    }
+    else if (!strcmp(name, "lastname"))
+    {
+        return ATTR_LASTNAME;
+    }
+    else if (!strcmp(name, "country"))
+    {
+        return ATTR_COUNTRY;
+    }
+    else if (!strcmp(name, "birthday"))
+    {
+        return ATTR_BIRTHDAY;
+    }
+    else if(!strcmp(name, "birthmonth"))
+    {
+        return ATTR_BIRTHMONTH;
+    }
+    else if(!strcmp(name, "birthyear"))
+    {
+        return ATTR_BIRTHYEAR;
+    }
+    else
+    {
+        return ATTR_UNKNOWN;   // attribute not recognized
+    }
+}
+
+bool User::needversioning(attr_t at)
+{
+    switch(at)
+    {
+        case ATTR_AVATAR:
+        case ATTR_FIRSTNAME:
+        case ATTR_LASTNAME:
+        case ATTR_COUNTRY:
+        case ATTR_BIRTHDAY:
+        case ATTR_BIRTHMONTH:
+        case ATTR_BIRTHYEAR:
+            return 0;
+
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+        case ATTR_ED25519_PUBK:
+        case ATTR_CU25519_PUBK:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+        case ATTR_KEYRING:
+            return 1;
+
+        default:
+            return -1;
+    }
+}
+
+char User::scope(attr_t at)
+{
+    switch(at)
+    {
+        case ATTR_KEYRING:
+        case ATTR_AUTHRING:
+        case ATTR_LAST_INT:
+            return '*';
+
+        case ATTR_AVATAR:
+        case ATTR_ED25519_PUBK:
+        case ATTR_CU25519_PUBK:
+        case ATTR_SIG_RSA_PUBK:
+        case ATTR_SIG_CU255_PUBK:
+            return '+';
+
+        default:
+            return '0';
+    }
+}
+
+const string *User::getattrversion(attr_t at)
+{
+    userattr_map::iterator it = attrsv.find(at);
     if (it != attrsv.end())
     {
         return &(it->second);
@@ -284,61 +464,62 @@ const string *User::getattrversion(string an)
     return NULL;
 }
 
-bool User::setChanged(const char *an)
+bool User::setChanged(attr_t at)
 {
-    if (!strcmp(an, "*keyring"))
+    switch(at)
     {
-        changed.keyring = true;
-    }
-    else if (!strcmp(an, "*!authring"))
-    {
-        changed.authring = true;
-    }
-    else if (!strcmp(an, "*!lstint"))
-    {
-        changed.lstint = true;
-    }
-    else if (!strcmp(an, "+puCu255"))
-    {
-        changed.puCu255 = true;
-    }
-    else if (!strcmp(an, "+puEd255"))
-    {
-        changed.puEd255 = true;
-    }
-    else if (!strcmp(an, "+sigPubk"))
-    {
-        changed.sigPubk = true;
-    }
-    else if (!strcmp(an, "+sigCu255"))
-    {
-        changed.sigCu255 = true;
-    }
-    else if (!strcmp(an, "+a"))
-    {
-        changed.avatar = true;
-    }
-    else if (!strcmp(an, "firstname"))
-    {
-        changed.firstname = true;
-    }
-    else if (!strcmp(an, "lastname"))
-    {
-        changed.lastname = true;
-    }
-    else if (!strcmp(an, "country"))
-    {
-        changed.country = true;
-    }
-    else if (!strcmp(an, "birthday")   ||
-             !strcmp(an, "birthmonth") ||
-             !strcmp(an, "birthyear"))
-    {
-        changed.birthday = true;
-    }
-    else
-    {
-        return false;   // attribute not recognized
+        case ATTR_AVATAR:
+            changed.avatar = true;
+            break;
+
+        case ATTR_FIRSTNAME:
+            changed.firstname = true;
+            break;
+
+        case ATTR_LASTNAME:
+            changed.lastname = true;
+            break;
+
+        case ATTR_AUTHRING:
+            changed.authring = true;
+            break;
+
+        case ATTR_LAST_INT:
+            changed.lstint = true;
+            break;
+
+        case ATTR_ED25519_PUBK:
+            changed.puEd255 = true;
+            break;
+
+        case ATTR_CU25519_PUBK:
+            changed.puCu255 = true;
+            break;
+
+        case ATTR_SIG_RSA_PUBK:
+            changed.sigPubk = true;
+            break;
+
+        case ATTR_SIG_CU255_PUBK:
+            changed.sigCu255 = true;
+            break;
+
+        case ATTR_KEYRING:
+            changed.keyring = true;
+            break;
+
+        case ATTR_COUNTRY:
+            changed.country = true;
+            break;
+
+        case ATTR_BIRTHDAY:
+        case ATTR_BIRTHMONTH:
+        case ATTR_BIRTHYEAR:
+            changed.birthday = true;
+            break;
+
+        default:
+            return false;
     }
 
     return true;

@@ -190,14 +190,23 @@ public:
     CommandUserRequest(MegaClient*, const char*, visibility_t);
 };
 
-// set user attributes
-class MEGA_API CommandPutUA : public Command
+// set user attributes with version
+class MEGA_API CommandPutUAVer : public Command
 {
-    string an;  // attribute name
+    attr_t at;  // attribute type
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, const char*, const byte*, unsigned, int);
+    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int);
+
+    void procresult();
+};
+
+// set user attributes
+class MEGA_API CommandPutUA : public Command
+{
+public:
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned);
 
     void procresult();
 };
@@ -205,10 +214,10 @@ public:
 class MEGA_API CommandGetUA : public Command
 {
     User* u;
-    string an;  // attribute name
+    attr_t at;  // attribute type
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*, int);
+    CommandGetUA(MegaClient*, const char*, attr_t, int);
 
     void procresult();
 };
