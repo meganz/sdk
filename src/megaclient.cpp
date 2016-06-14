@@ -571,7 +571,8 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
-// returns the first matching child folder node by UTF-8 name (does not resolve name clashes)
+// returns a matching child node by UTF-8 name (does not resolve name clashes)
+// folder nodes take precedence over file nodes
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
