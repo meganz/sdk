@@ -22,6 +22,9 @@
 #include "mega.h"
 #include "mega/thread/cppthread.h"
 
+#include <ctime>
+#include <chrono>
+
 #ifdef WINDOWS_PHONE
 
 namespace mega {
@@ -110,12 +113,13 @@ void CppSemaphore::wait()
 
 int CppSemaphore::timedwait(int milliseconds)
 {
+	std::chrono::system_clock::time_point endTime = std::chrono::system_clock::now() 
+		+ std::chrono::milliseconds(milliseconds);
+
     std::unique_lock<std::mutex> lock(mtx);
     while (!count)
     {
-        auto status = cv.wait_for(
-                lock,
-                std::chrono::milliseconds(milliseconds));
+        auto status = cv.wait_until(lock, endTime);
         if (status == std::cv_status::timeout)
         {
             return -1;
