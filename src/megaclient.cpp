@@ -571,10 +571,12 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
-// returns the first matching child node by UTF-8 name (does not resolve name clashes)
+// returns a matching child node by UTF-8 name (does not resolve name clashes)
+// folder nodes take precedence over file nodes
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
+    Node *found = NULL;
 
     fsaccess->normalize(&nname);
 
@@ -582,11 +584,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            return *it;
+            if ((*it)->type == FOLDERNODE)
+            {
+                return *it;
+            }
+
+            found = *it;
         }
     }
 
-    return NULL;
+    return found;
 }
 
 void MegaClient::init()
@@ -9109,13 +9116,13 @@ void MegaClient::execmovetosyncdebris()
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris
-    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)))
+    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
     {
         tn = n;
         target = SYNCDEL_DEBRIS;
 
         // locate //bin/SyncDebris/yyyy-mm-dd
-        if ((n = childnodebyname(tn, buf)))
+        if ((n = childnodebyname(tn, buf)) && n->type == FOLDERNODE)
         {
             tn = n;
             target = SYNCDEL_DEBRISDAY;
