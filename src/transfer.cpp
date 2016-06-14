@@ -424,7 +424,6 @@ void Transfer::complete()
 #endif
         delete fa;
 
-        int missingattr = 0;
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
         set<handle> nodes;
@@ -440,6 +439,7 @@ void Transfer::complete()
                             nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
                             client->checkaccess(n, FULL))
                     {
+                        int missingattr = 0;
                         nodes.insert(n->nodehandle);
 
                         // check for missing imagery
