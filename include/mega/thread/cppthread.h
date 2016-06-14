@@ -37,28 +37,28 @@ namespace mega {
 class CppThread : public Thread
 {
 public:
-	CppThread();
+    CppThread();
     virtual void start(void *(*start_routine)(void*), void *parameter);
     virtual void join();
-	virtual ~CppThread();
+    virtual ~CppThread();
 
 protected:
-	std::thread *thread;
+    std::thread *thread;
 };
 
 	
 class CppMutex : public Mutex
 {
 public:
-	CppMutex();
+    CppMutex();
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
 	virtual ~CppMutex();
 
 protected:
-	std::mutex *mutex;
-	std::recursive_mutex *rmutex;
+    std::mutex *mutex;
+    std::recursive_mutex *rmutex;
 };
 
 class CppSemaphore : public Semaphore
@@ -72,7 +72,7 @@ public:
 
 protected:
     std::mutex mtx;
-    int count;
+    unsigned int count;
     std::condition_variable cv;
 };
 

@@ -24,66 +24,67 @@
 
 #ifdef WINDOWS_PHONE
 
-#ifdef _MSC_VER
-typedef std::cv_status::cv_status std_cv_status;
-#else
-typedef std::cv_status std_cv_status;
-#endif
-
 namespace mega {
 
 //thread
 CppThread::CppThread()
 {
-	thread = NULL;
+    thread = NULL;
 }
 
 void CppThread::start(void *(*start_routine)(void*), void *parameter)
 {
-	thread = new std::thread(start_routine, parameter);
+    thread = new std::thread(start_routine, parameter);
 }
 
 void CppThread::join()
 {
-	thread->join();
+    thread->join();
 }
 
 CppThread::~CppThread()
 {
-	delete thread;
+    delete thread;
 }
 
 //mutex
 CppMutex::CppMutex()
 {
-	mutex = NULL;
-	rmutex = NULL;
+    mutex = NULL;
+    rmutex = NULL;
 }
 
 void CppMutex::init(bool recursive = true)
 {
-	if (mutex || rmutex) return;
+    if (mutex || rmutex)
+    {
+        return;
+    }
 
-    if(recursive)
-		rmutex = new std::recursive_mutex;
+    if (recursive)
+    {
+        rmutex = new std::recursive_mutex();
+    }
     else
-		mutex = new std::mutex;
+    {
+        mutex = new std::mutex();
+    }
 }
 
 void CppMutex::lock()
 {
-	mutex ? mutex->lock() : rmutex->lock();
+    mutex ? mutex->lock() : rmutex->lock();
 }
 
 void CppMutex::unlock()
 {
-	mutex ? mutex->unlock() : rmutex->unlock();
+    mutex ? mutex->unlock() : rmutex->unlock();
 }
 
 CppMutex::~CppMutex()
 {
-	delete mutex;
-	delete rmutex;
+    delete mutex;
+    delete rmutex;
 }
 
 
@@ -110,9 +111,9 @@ void CppSemaphore::wait()
 int CppSemaphore::timedwait(int milliseconds)
 {
     std::unique_lock<std::mutex> lock(mtx);
-    while (count == 0)
+    while (!count)
     {
-        std_cv_status status = cv.wait_for(
+        auto status = cv.wait_for(
                 lock,
                 std::chrono::milliseconds(milliseconds));
         if (status == std::cv_status::timeout)
