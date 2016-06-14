@@ -90,9 +90,12 @@ void HttpReqCommandPutFA::procresult()
                         (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-
                     n->attrs.map['f'] = me64;
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
                     client->setattr(n);
+                    client->reqtag = creqtag;
                 }
             }
 
