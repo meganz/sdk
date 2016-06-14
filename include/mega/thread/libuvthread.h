@@ -1,8 +1,8 @@
 /**
- * @file mega/thread/win32thread.h
- * @brief Win32 thread/mutex handling
+ * @file mega/thread/libuvthread.h
+ * @brief Implementation of thread functions based on libuv
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,56 +19,58 @@
  * program.
  */
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE) 
+#ifdef HAVE_LIBUV
 
 #ifndef THREAD_CLASS
-#define THREAD_CLASS Win32Thread
-#define MUTEX_CLASS Win32Mutex
-#define SEMAPHORE_CLASS Win32Semaphore
+#define THREAD_CLASS LibUVThread
+#define MUTEX_CLASS LibUVMutex
+#define SEMAPHORE_CLASS LibUVSemaphore
 
 #include "mega/thread.h"
+#include <uv.h>
 
 namespace mega {
-class Win32Thread : public Thread
+class LibUVThread : public Thread
 {
 public:
-    Win32Thread();
-    virtual void start(void *(*start_routine)(void*), void *parameter);
-    virtual void join();
-    virtual ~Win32Thread();
+    LibUVThread();
+    void start(void *(*start_routine)(void*), void *parameter);
+    void join();
+    virtual ~LibUVThread();
 
     void *(*start_routine)(void*);
     void *pointer;
 
 protected:
-    static DWORD WINAPI run(LPVOID lpParameter);
-    HANDLE hThread;
+    uv_thread_t *thread;
+    static void run(void *arg);
 };
 
-class Win32Mutex : public Mutex
+class LibUVMutex : public Mutex
 {
 public:
-    Win32Mutex();
+    LibUVMutex();
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
-    virtual ~Win32Mutex();
+    virtual ~LibUVMutex();
 
 protected:
-    CRITICAL_SECTION mutex;
+    uv_mutex_t *mutex;
+    uv_key_t *count;
 };
 
-class Win32Semaphore : public Semaphore
+class LibUVSemaphore : public Semaphore
 {
 public:
-    Win32Semaphore();
+    LibUVSemaphore();
     virtual void release();
     virtual void wait();
     virtual int timedwait(int milliseconds);
-    virtual ~Win32Semaphore();
+    virtual ~LibUVSemaphore();
 
 protected:
-    HANDLE semaphore;
+    uv_sem_t* semaphore;
 };
 
 } // namespace

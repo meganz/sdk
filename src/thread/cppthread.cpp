@@ -22,8 +22,11 @@
 #include "mega.h"
 #include "mega/thread/cppthread.h"
 
+#ifdef WINDOWS_PHONE
+
 namespace mega {
 
+//thread
 CppThread::CppThread()
 {
 	thread = NULL;
@@ -44,7 +47,7 @@ CppThread::~CppThread()
 	delete thread;
 }
 
-	
+//mutex
 CppMutex::CppMutex()
 {
 	mutex = NULL;
@@ -77,4 +80,49 @@ CppMutex::~CppMutex()
 	delete rmutex;
 }
 
+
+//semaphore
+CppSemaphore::CppSemaphore()
+{
+    count = 0;
+}
+
+void CppSemaphore::release()
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    count++;
+    cv.notify_one();
+}
+
+void CppSemaphore::wait()
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait(lock, [this]{return count > 0;});
+    count--;
+}
+
+int CppSemaphore::timedwait(int milliseconds)
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    while (count == 0)
+    {
+        std::cv_status status = cv.wait_for(
+                lock,
+                std::chrono::milliseconds(milliseconds));
+        if (status == std::cv_status::timeout)
+        {
+            return -1;
+        }
+    }
+
+    count--;
+    return 0;
+}
+
+CppSemaphore::~CppSemaphore()
+{
+}
+
 } // namespace
+
+#endif

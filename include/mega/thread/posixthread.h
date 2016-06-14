@@ -23,9 +23,12 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS PosixThread
+#define MUTEX_CLASS PosixMutex
+#define SEMAPHORE_CLASS PosixSemaphore
 
 #include "mega/thread.h"
 #include <pthread.h>
+#include <semaphore.h>
 
 namespace mega {
 class PosixThread : public Thread
@@ -52,6 +55,19 @@ public:
 protected:
     pthread_mutex_t *mutex;
     pthread_mutexattr_t *attr;
+};
+
+class PosixSemaphore : public Semaphore
+{
+public:
+    PosixSemaphore();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~PosixSemaphore();
+
+protected:
+    sem_t* semaphore;
 };
 
 } // namespace
