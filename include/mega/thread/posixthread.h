@@ -67,7 +67,7 @@ public:
     virtual ~PosixSemaphore();
 
 protected:
-    int count;
+    unsigned int count;
     pthread_mutex_t mtx;
     pthread_cond_t cv;
 };

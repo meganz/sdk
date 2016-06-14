@@ -113,7 +113,7 @@ void CppSemaphore::wait()
 
 int CppSemaphore::timedwait(int milliseconds)
 {
-	std::chrono::system_clock::time_point endTime = std::chrono::system_clock::now() 
+    std::chrono::system_clock::time_point endTime = std::chrono::system_clock::now()
 		+ std::chrono::milliseconds(milliseconds);
 
     std::unique_lock<std::mutex> lock(mtx);

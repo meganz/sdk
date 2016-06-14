@@ -28,7 +28,7 @@ namespace mega {
 
 PosixThread::PosixThread()
 {
-    thread = new pthread_t;
+    thread = new pthread_t();
 }
 
 void PosixThread::start(void *(*start_routine)(void*), void *parameter)
@@ -55,17 +55,17 @@ PosixMutex::PosixMutex()
 
 void PosixMutex::init(bool recursive)
 {
-    if(recursive)
+    if (recursive)
     {
-        mutex = new pthread_mutex_t;
-        attr = new pthread_mutexattr_t;
+        mutex = new pthread_mutex_t();
+        attr = new pthread_mutexattr_t();
         pthread_mutexattr_init(attr);
         pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(mutex, attr);
     }
     else
     {
-        mutex = new pthread_mutex_t;
+        mutex = new pthread_mutex_t();
         pthread_mutex_init(mutex, NULL);
     }
 }
@@ -101,20 +101,22 @@ PosixSemaphore::PosixSemaphore()
     count = 0;
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
-    pthread_mutex_init(&mtx,&attr);
+    pthread_mutex_init(&mtx, &attr);
     pthread_mutexattr_destroy(&attr);
-
-    pthread_cond_init(&cv,NULL);
+    pthread_cond_init(&cv, NULL);
 }
 
 void PosixSemaphore::wait()
 {
     pthread_mutex_lock(&mtx);
-    while (count == 0)
+    while (!count)
     {
-        if (pthread_cond_wait(&cv,&mtx) == -1)
+        int ret = pthread_cond_wait(&cv,&mtx);
+        if (ret)
         {
-            LOG_fatal << "Error in sem_wait: " << errno;
+            pthread_mutex_unlock(&mtx);
+            LOG_fatal << "Error in sem_wait: " << ret;
+            return;
         }
     }
     count--;
@@ -137,28 +139,11 @@ void timespec_add_msec(struct timespec *tv, int milliseconds)
     }
 }
 
-
-static inline
-void timeval_add_msec(struct timeval *tv, int milliseconds)
-{
-    int seconds = milliseconds / 1000;
-    int milliseconds_left = milliseconds % 1000;
-
-    tv->tv_sec += seconds;
-    tv->tv_usec += milliseconds_left * 1000;
-
-    if (tv->tv_usec >= 1000000)
-    {
-        tv->tv_usec -= 1000000;
-        tv->tv_sec++;
-    }
-}
-
 int PosixSemaphore::timedwait(int milliseconds)
 {
     struct timespec ts;
-
     struct timeval now;
+
     int ret = gettimeofday(&now, NULL); //not Y2K38 safe :-D
     if (ret)
     {
@@ -167,39 +152,41 @@ int PosixSemaphore::timedwait(int milliseconds)
     }
     ts.tv_sec = now.tv_sec;
     ts.tv_nsec = now.tv_usec * 1000;
-
     timespec_add_msec (&ts, milliseconds);
 
     pthread_mutex_lock(&mtx);
-    while (count == 0)
+    while (!count)
     {
-        int retcontimeout = pthread_cond_timedwait(&cv,&mtx,&ts);
-        if (retcontimeout == ETIMEDOUT)
+        int ret = pthread_cond_timedwait(&cv, &mtx, &ts);
+        if (ret == ETIMEDOUT)
         {
             pthread_mutex_unlock(&mtx);
             return -1;
         }
-        else if (retcontimeout)
+
+        if (ret)
         {
-            LOG_fatal << "Unexpected error in pthread_cond_timedwait: " << errno;
             pthread_mutex_unlock(&mtx);
+            LOG_err << "Unexpected error in pthread_cond_timedwait: " << ret;
             return -2;
         }
     }
-    count --;
+
+    count--;
     pthread_mutex_unlock(&mtx);
+    return 0;
 }
 
 void PosixSemaphore::release()
 {
     pthread_mutex_lock(&mtx);
     count++;
-    if (pthread_cond_signal(&cv))
+    int ret = pthread_cond_signal(&cv);
+    if (ret)
     {
-        LOG_fatal << "Unexpected error in pthread_cond_signal: " << errno;
+        LOG_fatal << "Unexpected error in pthread_cond_signal: " << ret;
     }
     pthread_mutex_unlock(&mtx);
-
 }
 
 PosixSemaphore::~PosixSemaphore()
