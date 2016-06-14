@@ -838,7 +838,7 @@ void DemoApp::removecontact_result(error e)
 {
     if (e)
     {
-        cout << "Invitation failed (" << errorstring(e) << ")" << endl;
+        cout << "Contact removal failed (" << errorstring(e) << ")" << endl;
     }
     else
     {

@@ -211,7 +211,7 @@ public:
     // queue a user attribute retrieval
     void getua(User* u, const char* an = NULL);
 
-    // add new contact (by e-mail address)
+    // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
