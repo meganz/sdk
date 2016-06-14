@@ -1701,7 +1701,7 @@ void CommandSetPendingContact::procresult()
         if (!e) // response for delete & remind actions is always numeric
         {
             // find the PCR by email
-            PendingContactRequest *pcr;
+            PendingContactRequest *pcr = NULL;
             for (handlepcr_map::iterator it = client->pcrindex.begin();
                  it != client->pcrindex.end(); it++)
             {
@@ -1716,7 +1716,6 @@ void CommandSetPendingContact::procresult()
             if (!pcr)
             {
                 LOG_err << "Reminded/deleted PCR not found";
-                e = API_EINTERNAL;
             }
             else if (action == OPCA_DELETE)
             {
