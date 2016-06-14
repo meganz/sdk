@@ -437,9 +437,9 @@ void Transfer::complete()
 #endif
         delete fa;
 
-        int missingattr = 0;
-        handle attachh;
-        SymmCipher* symmcipher;
+        char me64[12];
+        Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+        set<handle> nodes;
 
         if (!transient_error)
         {
@@ -448,13 +448,25 @@ void Transfer::complete()
             {
                 if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname))
+                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                     {
+                        int missingattr = 0;
+                        nodes.insert(n->nodehandle);
+
                         // check for missing imagery
                         if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
                         if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
-                        attachh = n->nodehandle;
-                        symmcipher = n->nodecipher();
+
+                        if (missingattr)
+                        {
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                client->gfx->gendimensionsputfa(NULL, &localfilename, n->nodehandle, n->nodecipher(), missingattr);
+                            }
+                        }
                     }
 
                     if (fingerprint.isvalid && (!n->isvalid || fixfingerprint)
@@ -471,12 +483,6 @@ void Transfer::complete()
             if (fingerprint.isvalid && fixfingerprint)
             {
                 (*(FileFingerprint*)this) = fingerprint;
-            }
-
-            if (missingattr)
-            {
-                // FIXME: do this while file is still open
-                client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, symmcipher, missingattr);
             }
 
             // ...and place it in all target locations. first, update the files'

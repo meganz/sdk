@@ -8577,11 +8577,16 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                                     if (missingattr && checkaccess(ll->node, OWNER))
                                     {
-                                        LOG_debug << "Restoring missing attributes: " << ll->name;
-                                        string localpath;
-                                        ll->getlocalpath(&localpath);
-                                        SymmCipher*symmcipher = ll->node->nodecipher();
-                                        gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        char me64[12];
+                                        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+                                        if (ll->node->attrs.map.find('f') == ll->node->attrs.map.end() || ll->node->attrs.map['f'] != me64)
+                                        {
+                                            LOG_debug << "Restoring missing attributes: " << ll->name;
+                                            string localpath;
+                                            ll->getlocalpath(&localpath);
+                                            SymmCipher*symmcipher = ll->node->nodecipher();
+                                            gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        }
                                     }
                                 }
                                 */
