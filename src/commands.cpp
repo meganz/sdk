@@ -1264,6 +1264,32 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
+    string id;
+    if (!MegaClient::statsid)
+    {
+        client->fsaccess->statsid(&id);
+        if (id.size())
+        {
+            int len = id.size() + 1;
+            char *buff = new char[len];
+            memcpy(buff, id.c_str(), len);
+            MegaClient::statsid = buff;
+        }
+    }
+    else
+    {
+        id = MegaClient::statsid;
+    }
+
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), id.size());
+        hasher.get(&hash);
+        arg("si", (const byte*)hash.data(), hash.size());
+    }
+
     tag = client->reqtag;
 }
 

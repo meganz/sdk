@@ -848,6 +848,31 @@ void WinFileSystemAccess::osversion(string* u) const
     u->append(buf);
 }
 
+void WinFileSystemAccess::statsid(string *id) const
+{
+#ifndef WINDOWS_PHONE
+    LONG hr;
+    HKEY hKey = NULL;
+    hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
+                      KEY_QUERY_VALUE | KEY_WOW64_64KEY, &hKey);
+    if (hr == ERROR_SUCCESS)
+    {
+        WCHAR pszData[256];
+        DWORD cbData = sizeof(pszData);
+        hr = RegQueryValueExW(hKey, L"MachineGuid", NULL, NULL, (LPBYTE)pszData, &cbData);
+        if (hr == ERROR_SUCCESS)
+        {
+            string localdata;
+            string utf8data;
+            localdata.assign((char *)pszData, cbData - sizeof(WCHAR));
+            local2path(&localdata, &utf8data);
+            id->append(utf8data);
+        }
+        RegCloseKey(hKey);
+    }
+#endif
+}
+
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, string*)
 {

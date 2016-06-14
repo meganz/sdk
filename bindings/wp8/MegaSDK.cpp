@@ -364,6 +364,15 @@ void MegaSDK::reconnect()
 	megaApi->retryPendingConnections(true, true);
 }
 
+void MegaSDK::setStatsID(String^ id)
+{
+    std::string utf8id;
+    if (id != nullptr)
+        MegaApi::utf16ToUtf8(id->Data(), id->Length(), &utf8id);
+
+    MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;

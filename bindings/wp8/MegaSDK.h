@@ -144,6 +144,7 @@ namespace mega
         void retryPendingConnections(bool disconnect);
         void retryPendingConnections();
         void reconnect();
+        static void setStatsID(String^ id);
 
         //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
