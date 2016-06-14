@@ -98,29 +98,27 @@ PosixMutex::~PosixMutex()
 //PosixSemaphore
 PosixSemaphore::PosixSemaphore()
 {
-    semaphore = new sem_t;
-    if (sem_init(semaphore, 0, 0) == -1)
-    {
-        LOG_fatal << "Error creating semaphore: " << errno;
-    }
-
+    count = 0;
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutex_init(&mtx,&attr);
     pthread_mutexattr_destroy(&attr);
+
+    pthread_cond_init(&cv,NULL);
 }
 
 void PosixSemaphore::wait()
 {
-    while (sem_wait(semaphore) == -1)
+    pthread_mutex_lock(&mtx);
+    while (count == 0)
     {
-        if (errno == EINTR)
+        if (pthread_cond_wait(&cv,&mtx) == -1)
         {
-            continue;
+            LOG_fatal << "Error in sem_wait: " << errno;
         }
-
-        LOG_fatal << "Error in sem_wait: " << errno;
     }
+    count--;
+    pthread_mutex_unlock(&mtx);
 }
 
 static inline
@@ -170,33 +168,11 @@ int PosixSemaphore::timedwait(int milliseconds)
     ts.tv_sec = now.tv_sec;
     ts.tv_nsec = now.tv_usec * 1000;
 
-
     timespec_add_msec (&ts, milliseconds);
 
     pthread_mutex_lock(&mtx);
-    while (true)
+    while (count == 0)
     {
-        int ret = sem_trywait(semaphore);
-        if (!ret)
-        {
-            pthread_mutex_unlock(&mtx);
-            return 0;
-        }
-        else if (errno == EAGAIN)
-        {
-            //continue;
-        }
-        else if (errno == EINTR)
-        {
-            continue;
-        }
-        else
-        {
-            LOG_err << "Error in sem_timedwait: " << ret;
-            pthread_mutex_unlock(&mtx);
-            return -2;
-        }
-
         int retcontimeout = pthread_cond_timedwait(&cv,&mtx,&ts);
         if (retcontimeout == ETIMEDOUT)
         {
