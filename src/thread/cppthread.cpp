@@ -24,6 +24,12 @@
 
 #ifdef WINDOWS_PHONE
 
+#ifdef _MSC_VER
+typedef std::cv_status::cv_status std_cv_status;
+#else
+typedef std::cv_status std_cv_status;
+#endif
+
 namespace mega {
 
 //thread
@@ -106,7 +112,7 @@ int CppSemaphore::timedwait(int milliseconds)
     std::unique_lock<std::mutex> lock(mtx);
     while (count == 0)
     {
-        std::cv_status status = cv.wait_for(
+        std_cv_status status = cv.wait_for(
                 lock,
                 std::chrono::milliseconds(milliseconds));
         if (status == std::cv_status::timeout)
