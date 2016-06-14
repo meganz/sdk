@@ -107,7 +107,7 @@ PosixSemaphore::PosixSemaphore()
 
 void PosixSemaphore::wait()
 {
-    while (sem_wait(&semaphore) == -1)
+    while (sem_wait(semaphore) == -1)
     {
         if (errno == EINTR)
         {
