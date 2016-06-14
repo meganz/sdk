@@ -82,8 +82,12 @@ void PosixMutex::unlock()
 
 PosixMutex::~PosixMutex()
 {
-    pthread_mutex_destroy(mutex);
-    delete mutex;
+    if (mutex)
+    {
+        pthread_mutex_destroy(mutex);
+        delete mutex;
+    }
+
     if (attr)
     {
         pthread_mutexattr_destroy(attr);
