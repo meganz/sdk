@@ -263,9 +263,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ptr += sizeof(char);
 
     ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
-    if (ptr + ll + sizeof(unsigned short) > end)
+    if (hasUltoken < 0 || hasUltoken > 2
+            || (ptr + ll + sizeof(unsigned short) > end))
     {
-        LOG_err << "Transfer unserialization failed - ultoken too long";
+        LOG_err << "Transfer unserialization failed - invalid ultoken";
         delete t;
         return NULL;
     }
