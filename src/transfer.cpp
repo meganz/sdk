@@ -437,7 +437,7 @@ void Transfer::complete()
                 {
                     if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
                             nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                            client->checkaccess(n, FULL))
+                            client->checkaccess(n, OWNER))
                     {
                         int missingattr = 0;
                         nodes.insert(n->nodehandle);
