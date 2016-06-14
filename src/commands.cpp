@@ -2025,6 +2025,8 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
     }
     endarray();
 
+    notself(client);
+
     tag = ctag;
 }
 

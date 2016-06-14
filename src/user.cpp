@@ -35,6 +35,8 @@ User::User(const char* cemail)
     {
         email = cemail;
     }
+
+    memset(&changed, 0, sizeof(changed));
 }
 
 bool User::serialize(string* d)
