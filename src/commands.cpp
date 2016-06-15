@@ -2091,6 +2091,8 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
         arg(an.c_str(), av, avl);
     }
 
+    notself(client);
+
     tag = client->reqtag;
 }
 
