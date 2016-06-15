@@ -4291,16 +4291,16 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     if(type == MegaApi::USER_ATTR_AVATAR)
     {
-        request->setFile(srcFilePath);
+        request->setFile(value);
     }
     else
     {
-        request->setText(srcFilePath);
+        request->setText(value);
     }
 
     request->setParamType(type);
