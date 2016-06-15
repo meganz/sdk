@@ -4921,6 +4921,7 @@ class MegaApi
          *
          * @param srcFilePath Source path of the file that will be set as avatar.
          * If NULL, the existing avatar will be removed (if any).
+         * In case the avatar never existed before, removing the avatar returns MegaError::API_ENOENT
          * @param listener MegaRequestListener to track this request
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
