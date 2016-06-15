@@ -1072,7 +1072,7 @@ class MegaUser
         /**
          * @brief Returns a bit field with the changes of the user
          *
-         * This value is only useful for users notified by MegaListener::onUserspdate or
+         * This value is only useful for users notified by MegaListener::onUsersUpdate or
          * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
          *
          * @return The returned value is an OR combination of these flags:
@@ -1117,6 +1117,18 @@ class MegaUser
          * Check if the user has new or modified signature for Cu25519 public key
          */
         virtual int getChanges();
+
+        /**
+         * @brief Indicates if the user is changed by yourself or by another client.
+         *
+         * This value is only useful for users notified by MegaListener::onUsersUpdate or
+         * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
+         *
+         * @return 0 if the change is external. >0 if the change is the result of an
+         * explicit request, -1 if the change is the result of an implicit request
+         * made by the SDK internally.
+         */
+        virtual int isOwnChange();
 };
 
 /**

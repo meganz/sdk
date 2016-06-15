@@ -2025,6 +2025,8 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
     endarray();
 
+    notself(client);
+
     tag = ctag;
 }
 
@@ -2062,6 +2064,8 @@ void CommandPutUAVer::procresult()
         {
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
+            u->setTag(tag ? tag : -1);
+
             client->notifyuser(u);
             client->app->putua_result(API_OK);
         }
@@ -2070,6 +2074,9 @@ void CommandPutUAVer::procresult()
 
 CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl)
 {
+    this->at = at;
+    this->av.assign((const char*)av, avl);
+
     cmd("up");
 
     string an = User::attr2string(at);
@@ -2097,8 +2104,14 @@ void CommandPutUA::procresult()
     }
     else
     {
-        client->json.storeobject();
+        client->json.storeobject(); // [<uh>]
         e = API_OK;
+
+        User *u = client->ownuser();
+        u->setattr(at, &av, NULL);
+        u->setTag(tag ? tag : -1);
+
+        client->notifyuser(u);
     }
 
     client->app->putua_result(e);
@@ -2175,6 +2188,7 @@ void CommandGetUA::procresult()
                     if (u && at == ATTR_AVATAR && buf == "none")
                     {
                         u->setattr(at, NULL, &version);
+                        u->setTag(tag ? tag : -1);
                         client->app->getua_result(API_ENOENT);
                         client->notifyuser(u);
                         return;
@@ -2255,6 +2269,7 @@ void CommandGetUA::procresult()
                             break;
                     }
 
+                    u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }

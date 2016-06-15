@@ -922,6 +922,7 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     handle = user->userhandle;
 	visibility = user->show;
 	ctime = user->ctime;
+    tag = user->getTag();
     changed = 0;
     if (user->changed.authring)
     {
@@ -984,6 +985,7 @@ MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 	visibility = user->getVisibility();
 	ctime = user->getTimestamp();
     changed = user->getChanges();
+    tag = user->isOwnChange();
 }
 
 MegaUser *MegaUserPrivate::fromUser(User *user)
@@ -1033,6 +1035,11 @@ bool MegaUserPrivate::hasChanged(int changeType)
 int MegaUserPrivate::getChanges()
 {
     return changed;
+}
+
+int MegaUserPrivate::isOwnChange()
+{
+    return tag;
 }
 
 

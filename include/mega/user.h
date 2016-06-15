@@ -78,6 +78,9 @@ private:
     // version of each attribute
     userattr_map attrsv;
 
+    // source tag
+    int tag;
+
 public:
     void set(visibility_t, m_time_t);
 
@@ -97,6 +100,10 @@ public:
     static char scope(attr_t at);
 
     bool setChanged(attr_t at);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
 
     User(const char* = NULL);
 };

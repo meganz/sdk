@@ -431,6 +431,11 @@ int MegaUser::getChanges()
     return 0;
 }
 
+int MegaUser::isOwnChange()
+{
+    return 0;
+}
+
 MegaShare::~MegaShare() { }
 
 MegaShare *MegaShare::copy()

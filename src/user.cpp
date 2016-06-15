@@ -29,11 +29,14 @@ User::User(const char* cemail)
     show = VISIBILITY_UNKNOWN;
     ctime = 0;
     pubkrequested = 0;
+    resetTag();
 
     if (cemail)
     {
         email = cemail;
     }
+
+    memset(&changed, 0, sizeof(changed));
 }
 
 bool User::serialize(string* d)
@@ -155,7 +158,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
-
+    u->setTag(-1);
 
     if (attrVersion == '\0')
     {
@@ -246,7 +249,7 @@ void User::setattr(attr_t at, string *av, string *v)
         attrs[at] = *av;
     }
 
-    attrsv[at] = *v;
+    attrsv[at] = v ? *v : "";
 }
 
 void User::invalidateattr(attr_t at)
@@ -523,6 +526,24 @@ bool User::setChanged(attr_t at)
     }
 
     return true;
+}
+
+void User::setTag(int tag)
+{
+    if (this->tag != 0)    // external changes prevail
+    {
+        this->tag = tag;
+    }
+}
+
+int User::getTag()
+{
+    return tag;
+}
+
+void User::resetTag()
+{
+    tag = -1;
 }
 
 // update user attributes
