@@ -418,7 +418,7 @@ void Transfer::complete()
                 }
                 else
                 {
-                    if (fingerprint.size == this->size)
+                    if (success && fingerprint.size == this->size)
                     {
                         fixfingerprint = true;
                     }
