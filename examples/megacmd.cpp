@@ -39,6 +39,17 @@ using namespace mega;
 //MegaClient* client;
 MegaApi* api;
 
+
+#include "megaapi_impl.h"
+/**
+ * @brief This abstract class extendes the functionality of MegaRequestListener
+ * allowing a synchronous beheviour
+ * A virtual method is declared and should be implemented: doOnRequestFinish
+ * when onRequestFinish is called by the SDK.
+ * A client for this listener may wait() until the request is finished and doOnRequestFinish is completed.
+ *
+ * @see MegaRequestListener
+ */
 class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else
 {
     private:
@@ -72,6 +83,26 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
         }
 };
 
+
+
+class MegaCmdListener : public SynchronousRequestListener
+{
+public:
+    MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
+    virtual ~MegaCmdListener();
+
+    //Request callbacks
+    virtual void onRequestStart(MegaApi* api, MegaRequest *request);
+    virtual void doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
+    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
+
+protected:
+    //virtual void customEvent(QEvent * event);
+
+    MegaRequestListener *listener;
+    MegaApi *megaApi;
+};
 
 // listener for all actions with the api
 MegaCmdListener* megaCmdListener;
