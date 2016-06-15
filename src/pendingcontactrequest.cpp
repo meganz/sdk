@@ -39,6 +39,7 @@ PendingContactRequest::PendingContactRequest(const handle id,const char *oemail,
     this->id = id;
     this->targetemail = "";
     this->update(oemail, temail, ts, uts, msg, outgoing);
+    memset(&changed, 0, sizeof changed);
 }
 
 void PendingContactRequest::update(const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
