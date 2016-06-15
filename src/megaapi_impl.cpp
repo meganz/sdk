@@ -8671,59 +8671,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-    if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
+    if (tlv)
     {
-        if (tlv)
-        {
-            // TLV data usually includes byte arrays with zeros in the middle, so values
-            // must be converted into Base64 strings to avoid problems
-            MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
-            request->setMegaStringMap(stringMap);
-            delete stringMap;
-        }
-
-        fireOnRequestFinish(request, MegaError(API_OK));
-        return;
+        // TLV data usually includes byte arrays with zeros in the middle, so values
+        // must be converted into Base64 strings to avoid problems
+        MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
+        request->setMegaStringMap(stringMap);
+        delete stringMap;
     }
-    else    // type == TYPE_SET_ATTR_USER
-    {
-        // putua failed with API_EEXPIRED, so this is the update of the value/version
 
-        int type = request->getParamType();
-        MegaStringMap *stringMap = request->getMegaStringMap();
-        if (!stringMap)
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
-
-        // encode the MegaStringMap as a TLV container
-        TLVstore tlv;
-        string value;
-        unsigned len;
-        const char *buf, *key;
-        MegaStringList *keys = stringMap->getKeys();
-        for (int i=0; i < keys->size(); i++)
-        {
-            key = keys->get(i);
-            buf = stringMap->get(key);
-
-            len = strlen(buf)/4*3+3;
-            value.resize(len);
-            value.resize(Base64::atob(buf, (byte *)value.data(), len));
-
-            tlv.set(key, value);
-        }
-        delete keys;
-
-        // serialize and encrypt the TLV container
-        string *container = tlv.tlvRecordsToContainer(&client->key);
-        client->putua((attr_t)type, (byte *)container->data(), container->size(), request->getTag());
-        delete container;
-    }
+    fireOnRequestFinish(request, MegaError(API_OK));
+    return;
 }
 
 #ifdef DEBUG
