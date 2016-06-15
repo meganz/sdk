@@ -4454,6 +4454,7 @@ void MegaClient::notifypurge(void)
             else
             {
                 pcr->notified = false;
+                memset(&(pcr->changed), 0, sizeof(pcr->changed));
             }
         }
 

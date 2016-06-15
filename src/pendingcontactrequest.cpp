@@ -59,7 +59,6 @@ void PendingContactRequest::update(const char *oemail, const char *temail, const
     }
 
     this->isoutgoing = outgoing;
-    memset(&changed, 0, sizeof changed);
 }
 
 bool PendingContactRequest::removed()
