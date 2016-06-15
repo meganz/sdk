@@ -3750,9 +3750,8 @@ void MegaClient::sc_userattr()
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
-                // if no version received, or not for every attribute...
-                else if ( !uavlist.size() ||
-                          (uavlist.size() && (ualist.size() != uavlist.size())) )
+                // if no version received (very old actionpacket)...
+                else if ( !uavlist.size() )
                 {
                     // ...invalidate all of the notified user attributes
                     for (itua = ualist.begin(); itua != ualist.end(); itua++)
@@ -3769,7 +3768,7 @@ void MegaClient::sc_userattr()
                     u->setTag(0);
                     notifyuser(u);
                 }
-                else
+                else if (ualist.size() == uavlist.size())
                 {
                     // invalidate only out-of-date attributes
                     const string *cacheduav;
@@ -3791,6 +3790,10 @@ void MegaClient::sc_userattr()
                     }
                     u->setTag(0);
                     notifyuser(u);
+                }
+                else    // different number of attributes than versions --> error
+                {
+                    LOG_err << "Unpaired user attributes and versions";
                 }
                 return;
 
@@ -6603,7 +6606,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
     }
     else
     {
-        // if the cached value is outdated, first get latest version
+        // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(at) && !u->isattrvalid(at))
         {
             restag = reqtag;
