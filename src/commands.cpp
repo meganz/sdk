@@ -3925,7 +3925,7 @@ void CommandChatFetch::procresult()
 
                     case EOO:
                         if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                                && shard != -1 && userpriv)
+                                && shard != -1)
                         {
                             TextChat *chat = new TextChat();
                             chat->id = chatid;
@@ -3935,22 +3935,24 @@ void CommandChatFetch::procresult()
                             chat->group = group;
 
                             // remove yourself from the list of users (only peers matter)
-                            userpriv_vector::iterator upvit;
-                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            if (userpriv)
                             {
-                                if (upvit->first == client->me)
+                                userpriv_vector::iterator upvit;
+                                for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                                 {
-                                    userpriv->erase(upvit);
-                                    if (userpriv->empty())
+                                    if (upvit->first == client->me)
                                     {
-                                        delete userpriv;
-                                        userpriv = NULL;
+                                        userpriv->erase(upvit);
+                                        if (userpriv->empty())
+                                        {
+                                            delete userpriv;
+                                            userpriv = NULL;
+                                        }
+                                        break;
                                     }
-                                    break;
                                 }
                             }
                             chat->userpriv = userpriv;
-
                             chatlist->push_back(chat);
                         }
                         else
