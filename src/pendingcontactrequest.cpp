@@ -141,6 +141,7 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
 
     l = *ptr++;
     if (ptr + l > end)
+    // should be ptr+l+sizeof(isoutgoing), but legacy code writes 0 bytes when false
     {
         return NULL;
     }
@@ -148,8 +149,15 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     msg.assign(ptr, l);
     ptr += l;
 
-    isoutgoing = MemAccess::get<bool>(ptr);
-    ptr += sizeof isoutgoing;
+    if (ptr == end) // legacy bug writes 0 bytes for incoming PCRs
+    {
+        isoutgoing = false;
+    }
+    else if (ptr + sizeof isoutgoing == end)
+    {
+        isoutgoing = MemAccess::get<bool>(ptr);
+        ptr += sizeof isoutgoing;
+    }
 
     if (ptr == end)
     {
