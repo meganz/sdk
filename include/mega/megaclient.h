@@ -205,6 +205,9 @@ public:
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
 
+    // attach/update multiple versioned user attributes at once
+    void putua(userattr_map *attrs, int ctag = -1);
+
     // queue a user attribute retrieval
     void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 

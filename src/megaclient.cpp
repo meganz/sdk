@@ -6598,9 +6598,12 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
+        restag = reqtag;
         app->putua_result(API_EARGS);   // attribute not recognized
+        return;
     }
-    else if (!needversion)
+
+    if (!needversion)
     {
         reqs.add(new CommandPutUA(this, at, av, avl));
     }
@@ -6615,6 +6618,36 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
         }
         reqs.add(new CommandPutUAVer(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
     }
+}
+
+void MegaClient::putua(userattr_map *attrs, int ctag)
+{
+    User *u = ownuser();
+
+    if (!u || !attrs || !attrs->size())
+    {
+        return app->putua_result(API_EARGS);
+    }
+
+    for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
+    {
+        attr_t type = it->first;;
+
+        if (!User::needversioning(type))
+        {
+            restag = reqtag;
+            return app->putua_result(API_EARGS);
+        }
+
+        // if the cached value is outdated, first need to fetch the latest version
+        if (u->getattr(type) && !u->isattrvalid(type))
+        {
+            restag = reqtag;
+            return app->putua_result(API_EEXPIRED);
+        }
+    }
+
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, (ctag != -1) ? ctag : reqtag));
 }
 
 /**
@@ -7872,7 +7905,7 @@ void MegaClient::initializekeys()
             signkey = new EdDSA();
             chatkey = new ECDH();
 
-            if (!chatkey->initializationOK || signkey->initializationOK)
+            if (!chatkey->initializationOK || !signkey->initializationOK)
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
                 clearKeys();
@@ -7894,11 +7927,25 @@ void MegaClient::initializekeys()
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-            putua(ATTR_KEYRING, (byte *) tlvContainer->data(), tlvContainer->size(), 0);
-            putua(ATTR_ED25519_PUBK, (byte *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
-            putua(ATTR_CU25519_PUBK, (byte *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
-            putua(ATTR_SIG_RSA_PUBK, (byte *) sigPubk.data(), sigPubk.size(), 0);
-            putua(ATTR_SIG_CU255_PUBK, (byte *) sigCu255.data(), sigCu255.size(), 0);
+            userattr_map attrs;
+            string buf;
+
+            buf.assign(tlvContainer->data(), tlvContainer->size());
+            attrs[ATTR_KEYRING] = buf;
+
+            buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+            attrs[ATTR_ED25519_PUBK] = buf;
+
+            buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+            attrs[ATTR_CU25519_PUBK] = buf;
+
+            buf.assign(sigPubk.data(), sigPubk.size());
+            attrs[ATTR_SIG_RSA_PUBK] = buf;
+
+            buf.assign(sigCu255.data(), sigCu255.size());
+            attrs[ATTR_SIG_CU255_PUBK] = buf;
+
+            putua(&attrs, 0);
 
             delete tlvContainer;
 

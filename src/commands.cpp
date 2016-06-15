@@ -1998,6 +1998,77 @@ void CommandUserRequest::procresult()
     client->app->invite_result(e);
 }
 
+
+CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
+{
+    this->attrs = *attrs;
+
+    cmd("upv");
+
+    for (userattr_map::const_iterator it = attrs->begin(); it != attrs->end(); it++)
+    {
+        attr_t type = it->first;
+
+        beginarray(User::attr2string(type).c_str());
+
+        element((const byte *) it->second.data(), it->second.size());
+
+        const string *attrv = client->ownuser()->getattrversion(type);
+        if (attrv)
+        {
+            element(attrv->c_str());
+        }
+
+        endarray();
+    }
+
+    notself(client);
+
+    tag = ctag;
+}
+
+void CommandPutMultipleUAVer::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->putua_result((error)client->json.getint());
+    }
+
+    User *u = client->ownuser();
+    for(;;)   // while there are more attrs to read...
+    {
+        const char* ptr;
+        const char* end;
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            break;
+        }
+        attr_t type = User::string2attr(string(ptr, (end-ptr)).c_str());
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            return client->app->putua_result(API_EINTERNAL);
+        }
+        string version = string(ptr, (end-ptr));
+
+        userattr_map::iterator it = this->attrs.find(type);
+        if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
+        {
+            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            return client->app->putua_result(API_EINTERNAL);
+        }
+        else
+        {
+            u->setattr(type, &it->second, &version);
+            u->setTag(tag ? tag : -1);
+        }
+    }
+
+    client->notifyuser(u);
+    client->app->putua_result(API_OK);
+}
+
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;

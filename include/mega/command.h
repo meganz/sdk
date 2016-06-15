@@ -191,6 +191,17 @@ public:
 };
 
 // set user attributes with version
+class MEGA_API CommandPutMultipleUAVer : public Command
+{
+    userattr_map attrs;  // attribute values
+
+public:
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+
+    void procresult();
+};
+
+// set user attributes with version
 class MEGA_API CommandPutUAVer : public Command
 {
     attr_t at;  // attribute type
