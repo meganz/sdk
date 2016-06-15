@@ -854,6 +854,7 @@ bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     bool success = !utime(name->c_str(), &times);
     if (!success)
     {
+        LOG_err << "Error setting mtime: " << name <<" mtime: "<< mtime << " errno: " << errno;
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
 
