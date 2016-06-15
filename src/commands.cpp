@@ -78,6 +78,27 @@ void HttpReqCommandPutFA::procresult()
         }
         else
         {
+            if (e == API_EACCESS)
+            {
+                // create a custom attribute indicating thumbnail can't be restored from this account
+                Node *n = client->nodebyhandle(th);
+
+                char me64[12];
+                Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+
+                if (n && client->checkaccess(n, FULL) &&
+                        (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
+                {
+                    LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
+                    n->attrs.map['f'] = me64;
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->setattr(n);
+                    client->reqtag = creqtag;
+                }
+            }
+
             status = REQ_SUCCESS;
             return client->app->putfa_result(th, type, e);
         }
@@ -266,6 +287,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         arg("ssl", 2);
     }
 
+    arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }
@@ -453,6 +475,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     }
 
     tslot = ctslot;
+    priv = p;
     ph = h;
 
     if (!tslot)
@@ -629,6 +652,30 @@ void CommandGetFile::procresult()
 
                                     if (tslot)
                                     {
+                                        if (s >= 0 && s != tslot->transfer->size)
+                                        {
+                                            tslot->transfer->size = s;
+                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                            {
+                                                (*it)->size = s;
+                                            }
+
+                                            if (priv)
+                                            {
+                                                Node *n = client->nodebyhandle(ph);
+                                                if (n)
+                                                {
+                                                    n->size = s;
+                                                    client->notifynode(n);
+                                                }
+                                            }
+
+                                            int creqtag = client->reqtag;
+                                            client->reqtag = 0;
+                                            client->sendevent(99411, "Node size mismatch");
+                                            client->reqtag = creqtag;
+                                        }
+
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
                                         if (tslot->tempurl.size() && s >= 0)
@@ -1239,6 +1286,32 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
+    string id;
+    if (!MegaClient::statsid)
+    {
+        client->fsaccess->statsid(&id);
+        if (id.size())
+        {
+            int len = id.size() + 1;
+            char *buff = new char[len];
+            memcpy(buff, id.c_str(), len);
+            MegaClient::statsid = buff;
+        }
+    }
+    else
+    {
+        id = MegaClient::statsid;
+    }
+
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), id.size());
+        hasher.get(&hash);
+        arg("si", (const byte*)hash.data(), hash.size());
+    }
+
     tag = client->reqtag;
 }
 
@@ -1671,8 +1744,7 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         case OPCA_REMIND:
             arg("aa", "r");
             break;
-        case OPCA_ADD:          
-        default:
+        case OPCA_ADD:
             arg("aa", "a");
             break;
     }
@@ -1682,36 +1754,112 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
+    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    {
+        notself(client);
+    }
+
     tag = client->reqtag;
     this->action = action;
+    this->temail = temail;
 }
 
 void CommandSetPendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->setpcr_result(UNDEF, (error)client->json.getint(), this->action);
+        error e = (error)client->json.getint();
+
+        handle pcrhandle = UNDEF;
+        if (!e) // response for delete & remind actions is always numeric
+        {
+            // find the PCR by email
+            PendingContactRequest *pcr = NULL;
+            for (handlepcr_map::iterator it = client->pcrindex.begin();
+                 it != client->pcrindex.end(); it++)
+            {
+                if (it->second->targetemail == temail)
+                {
+                    pcr = it->second;
+                    pcrhandle = pcr->id;
+                    break;
+                }
+            }
+
+            if (!pcr)
+            {
+                LOG_err << "Reminded/deleted PCR not found";
+            }
+            else if (action == OPCA_DELETE)
+            {
+                pcr->changed.deleted = true;
+                client->notifypcr(pcr);
+            }
+        }
+
+        return client->app->setpcr_result(pcrhandle, e, this->action);
     }
 
-    handle p = UNDEF;
+    // if the PCR has been added, the response contains full details
+    handle p = UNDEF;    
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
+    PendingContactRequest *pcr = NULL;
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'p':
                 p = client->json.gethandle(MegaClient::PCRHANDLE);  
-                break;              
+                break;
+            case 'm':
+                m = client->json.getvalue();
+                break;
+            case 'e':
+                e = client->json.getvalue();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = client->json.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = client->json.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = client->json.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = client->json.getint();
+                break;
             case EOO:
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
                     client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                    return;
                 }
-                else
+
+                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
                 {
-                    client->app->setpcr_result(p, API_OK, this->action);
+                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
                 }
+
+                pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                client->mappcr(p, pcr);
+
+                client->notifypcr(pcr);
+                client->app->setpcr_result(p, API_OK, this->action);
                 return;
+
             default:
                 if (!client->json.storeobject())
                 {
@@ -1972,16 +2120,16 @@ void CommandPurchaseCheckout::procresult()
     }
 }
 
-CommandUserRequest::CommandUserRequest(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
-    cmd("ur");
+    cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
 
     tag = client->reqtag;
 }
 
-void CommandUserRequest::procresult()
+void CommandRemoveContact::procresult()
 {
     error e;
 
@@ -1995,7 +2143,7 @@ void CommandUserRequest::procresult()
         e = API_OK;
     }
 
-    client->app->invite_result(e);
+    client->app->removecontact_result(e);
 }
 
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)

@@ -38,6 +38,14 @@ public:
     virtual void unlock() = 0;
 };
 
+class Semaphore
+{
+public:
+    virtual void release() = 0;
+    virtual void wait() = 0;
+    virtual int timedwait(int milliseconds) = 0;
+};
+
 } // namespace
 
 #endif

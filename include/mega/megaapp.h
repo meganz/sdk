@@ -137,7 +137,7 @@ struct MEGA_API MegaApp
     virtual void sendevent_result(error) { }
 
     // user invites/attributes
-    virtual void invite_result(error) { }
+    virtual void removecontact_result(error) { }
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
     virtual void getua_result(byte*, unsigned) { }

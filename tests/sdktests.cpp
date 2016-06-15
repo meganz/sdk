@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "gtest/gtest.h"
 
+#include <stdio.h>
+
 using namespace mega;
 using ::testing::InitGoogleTest;
 using ::testing::Test;
@@ -32,6 +34,8 @@ using ::testing::UnitTest;
 
 int main (int argc, char *argv[])
 {
+    remove("SDK.log");
+
     InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

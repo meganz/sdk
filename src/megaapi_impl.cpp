@@ -2242,7 +2242,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_USER: return "GET_ATTR_USER";
         case TYPE_SET_ATTR_USER: return "SET_ATTR_USER";
         case TYPE_RETRY_PENDING_CONNECTIONS: return "RETRY_PENDING_CONNECTIONS";
-        case TYPE_ADD_CONTACT: return "ADD_CONTACT";
         case TYPE_REMOVE_CONTACT: return "REMOVE_CONTACT";
         case TYPE_CREATE_ACCOUNT: return "CREATE_ACCOUNT";
         case TYPE_CONFIRM_ACCOUNT: return "CONFIRM_ACCOUNT";
@@ -3350,6 +3349,16 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 #endif
 }
 
+void MegaApiImpl::setStatsID(const char *id)
+{
+    if (!id || !*id || MegaClient::statsid)
+    {
+        return;
+    }
+
+    MegaClient::statsid = MegaApi::strdup(id);
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -4282,28 +4291,20 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     if(type == MegaApi::USER_ATTR_AVATAR)
     {
-        request->setFile(srcFilePath);
+        request->setFile(value);
     }
     else
     {
-        request->setText(srcFilePath);
+        request->setText(value);
     }
 
     request->setParamType(type);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
-{
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
-	request->setEmail(email);
-	requestQueue.push(request);
     waiter->notify();
 }
 
@@ -5794,7 +5795,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(!it->second->isoutgoing)
+        if(!it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -5812,7 +5813,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(it->second->isoutgoing)
+        if(it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -6584,6 +6585,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         {
             if(!transfer->getStartTime())
             {
+                transfer->setTotalBytes(tr->size);
                 transfer->setStartTime(Waiter::ds);
                 transfer->setTransferredBytes(tr->slot->progressreported);
             }
@@ -6704,6 +6706,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         {
             fireOnTransferUpdate(transfer);
         }
+        transfer->setTransfer(NULL);
     }
 }
 
@@ -7547,16 +7550,19 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
     }
     else
     {
-        if (h == UNDEF)
+        switch (action)
         {
-            // must have been deleted
-            LOG_debug << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully";
-        }
-        else
-        {
-            char buffer[12];
-            Base64::btoa((byte*)&h, sizeof(h), buffer);
-            LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+            case OPCA_DELETE:
+                LOG_debug << "Outgoing pending contact request deleted successfully";
+                break;
+            case OPCA_REMIND:
+                LOG_debug << "Outgoing pending contact request reminded successfully";
+                break;
+            case OPCA_ADD:
+                char buffer[12];
+                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+                break;
         }
     }
 
@@ -8306,13 +8312,12 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::invite_result(error e)
+void MegaApiImpl::removecontact_result(error e)
 {
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_ADD_CONTACT) &&
-                    (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT))) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10266,7 +10271,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			Node *parent = client->nodebyhandle(request->getParentHandle());
 			const char *name = request->getName();
-			if(!name || !parent) { e = API_EARGS; break; }
+            if(!name || !(*name) || !parent) { e = API_EARGS; break; }
 
 			NewNode *newnode = new NewNode[1];
 			SymmCipher key;
@@ -10985,26 +10990,7 @@ void MegaApiImpl::sendPendingRequests()
 
 			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
-		}
-		case MegaRequest::TYPE_ADD_CONTACT:
-		{
-            const char *email = request->getEmail();
-
-            if(client->loggedin() != FULLACCOUNT)
-            {
-                e = API_EACCESS;
-                break;
-            }
-
-            if(!email || !client->finduser(client->me)->email.compare(email))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-			e = client->invite(email, VISIBLE);
-			break;
-		}
+        }
         case MegaRequest::TYPE_INVITE_CONTACT:
         {
             const char *email = request->getEmail();
@@ -11018,6 +11004,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if(!email || !client->finduser(client->me)->email.compare(email))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (action != OPCA_ADD && action != OPCA_REMIND && action != OPCA_DELETE)
             {
                 e = API_EARGS;
                 break;
@@ -11044,7 +11036,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char *email = request->getEmail();
 			if(!email) { e = API_EARGS; break; }
-			e = client->invite(email, HIDDEN);
+            e = client->removecontact(email, HIDDEN);
 			break;
 		}
 		case MegaRequest::TYPE_CREATE_ACCOUNT:
@@ -11214,6 +11206,11 @@ void MegaApiImpl::sendPendingRequests()
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
+                if (!transfer)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
 
                 #ifdef _WIN32
                     if(transfer->type==GET)
