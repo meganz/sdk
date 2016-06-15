@@ -28,7 +28,7 @@ namespace mega {
 
 PosixThread::PosixThread()
 {
-    thread = new pthread_t;
+    thread = new pthread_t();
 }
 
 void PosixThread::start(void *(*start_routine)(void*), void *parameter)
@@ -55,17 +55,17 @@ PosixMutex::PosixMutex()
 
 void PosixMutex::init(bool recursive)
 {
-    if(recursive)
+    if (recursive)
     {
-        mutex = new pthread_mutex_t;
-        attr = new pthread_mutexattr_t;
+        mutex = new pthread_mutex_t();
+        attr = new pthread_mutexattr_t();
         pthread_mutexattr_init(attr);
         pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(mutex, attr);
     }
     else
     {
-        mutex = new pthread_mutex_t;
+        mutex = new pthread_mutex_t();
         pthread_mutex_init(mutex, NULL);
     }
 }
@@ -98,24 +98,29 @@ PosixMutex::~PosixMutex()
 //PosixSemaphore
 PosixSemaphore::PosixSemaphore()
 {
-    semaphore = new sem_t;
-    if (sem_init(semaphore, 0, 0) == -1)
-    {
-        LOG_fatal << "Error creating semaphore: " << errno;
-    }
+    count = 0;
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutex_init(&mtx, &attr);
+    pthread_mutexattr_destroy(&attr);
+    pthread_cond_init(&cv, NULL);
 }
 
 void PosixSemaphore::wait()
 {
-    while (sem_wait(semaphore) == -1)
+    pthread_mutex_lock(&mtx);
+    while (!count)
     {
-        if (errno == EINTR)
+        int ret = pthread_cond_wait(&cv,&mtx);
+        if (ret)
         {
-            continue;
+            pthread_mutex_unlock(&mtx);
+            LOG_fatal << "Error in sem_wait: " << ret;
+            return;
         }
-
-        LOG_fatal << "Error in sem_wait: " << errno;
     }
+    count--;
+    pthread_mutex_unlock(&mtx);
 }
 
 static inline
@@ -136,52 +141,58 @@ void timespec_add_msec(struct timespec *tv, int milliseconds)
 
 int PosixSemaphore::timedwait(int milliseconds)
 {
-    int ret;
     struct timespec ts;
+    struct timeval now;
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+    int ret = gettimeofday(&now, NULL); //not Y2K38 safe :-D
+    if (ret)
     {
-        LOG_err << "Error in clock_gettime";
+        LOG_err << "Error in gettimeofday: " << ret;
         return -2;
     }
-
+    ts.tv_sec = now.tv_sec;
+    ts.tv_nsec = now.tv_usec * 1000;
     timespec_add_msec (&ts, milliseconds);
 
-    while (true)
+    pthread_mutex_lock(&mtx);
+    while (!count)
     {
-        ret = sem_timedwait(semaphore, &ts);
-        if (!ret)
+        int ret = pthread_cond_timedwait(&cv, &mtx, &ts);
+        if (ret == ETIMEDOUT)
         {
-            return 0;
-        }
-
-        if (errno == ETIMEDOUT)
-        {
+            pthread_mutex_unlock(&mtx);
             return -1;
         }
 
-        if (errno == EINTR)
+        if (ret)
         {
-            continue;
+            pthread_mutex_unlock(&mtx);
+            LOG_err << "Unexpected error in pthread_cond_timedwait: " << ret;
+            return -2;
         }
-
-        LOG_err << "Error in sem_timedwait: " << errno;
-        return -2;
     }
+
+    count--;
+    pthread_mutex_unlock(&mtx);
+    return 0;
 }
 
 void PosixSemaphore::release()
 {
-    if (sem_post(semaphore) == -1)
+    pthread_mutex_lock(&mtx);
+    count++;
+    int ret = pthread_cond_signal(&cv);
+    if (ret)
     {
-        LOG_fatal << "Error in sem_post: " << errno;
+        LOG_fatal << "Unexpected error in pthread_cond_signal: " << ret;
     }
+    pthread_mutex_unlock(&mtx);
 }
 
 PosixSemaphore::~PosixSemaphore()
 {
-    sem_destroy(semaphore);
-    delete semaphore;
+    pthread_mutex_destroy(&mtx);
+    pthread_cond_destroy(&cv);
 }
 
 }// namespace

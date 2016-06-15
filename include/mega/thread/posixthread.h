@@ -67,7 +67,9 @@ public:
     virtual ~PosixSemaphore();
 
 protected:
-    sem_t* semaphore;
+    unsigned int count;
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
 };
 
 } // namespace
