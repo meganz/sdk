@@ -27,6 +27,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <iomanip>
+#include <string>
 
 
 #ifdef __linux__
@@ -37,6 +38,40 @@ using namespace mega;
 
 //MegaClient* client;
 MegaApi* api;
+
+class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else
+{
+    private:
+        MegaSemaphore* semaphore;
+
+    public:
+        SynchronousRequestListener()
+        {
+            semaphore = new MegaSemaphore();
+        }
+        virtual ~SynchronousRequestListener(){
+            delete semaphore;
+        }
+        virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error) = 0;
+
+        void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
+        {
+            doOnRequestFinish(api,request,error);
+//            sleep(1); //TODO: delete
+            semaphore->release();
+        }
+
+        void wait()
+        {
+            semaphore->wait();
+        }
+
+        int trywait(int milliseconds)
+        {
+            return semaphore->timedwait(milliseconds);
+        }
+};
+
 
 // listener for all actions with the api
 MegaCmdListener* megaCmdListener;
@@ -203,11 +238,6 @@ static void displaytransferdetails(Transfer* t, const char* action)
 
     cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
 }
-
-////////////////////////////////////////
-///      MegaCmdListener methods     ///
-////////////////////////////////////////
-
 
 
 /*
@@ -983,6 +1013,7 @@ static void listtrees()
 //    }
 }
 
+
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
 // * path is relative to cwd
@@ -1488,6 +1519,9 @@ void clear_display(){
     else \
         clear_display();
 
+////////////////////////////////////////
+///      MegaCmdListener methods     ///
+////////////////////////////////////////
 
 void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
     if (!request)
@@ -1513,7 +1547,7 @@ void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
 }
 
 
-void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
+void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
 {
     if (!request)
     {
@@ -1534,9 +1568,7 @@ void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaEr
             }
             else //login success:
             {
-                LOG_info << "Login correct. Fetching nodes ..."; CLEAN_info;
-                session = megaApi->dumpSession();
-                api->fetchNodes(this);
+                LOG_info << "Login correct ..."; CLEAN_info;
             }
             break;
 
@@ -1577,7 +1609,34 @@ void MegaCmdListener::onRequestFinish(MegaApi* api, MegaRequest *request, MegaEr
 }
 
 void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
+    if (!request)
+    {
+        LOG_err << " onRequestUpdate for undefined request "; CLEAN_err;
+        return;
+    }
 
+    LOG_verbose << "onRequestUpdate request->getType(): " << request->getType(); CLEAN_verbose;
+
+    switch(request->getType())
+    {
+        case MegaRequest::TYPE_FETCH_NODES:
+    {
+            ostringstream s;
+            if (request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 >=0){
+            s << request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 << " %" ;
+            }
+            else{
+                s<< "0 %";
+            }
+            rl_replace_line(s.str().c_str(), 0);rl_redisplay();
+
+//            rl_forced_update_display(); cout <<   << "%";
+        break;
+    }
+        default:
+          LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType(); CLEAN_debug;
+        break;
+    }
 }
 
 void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e){
@@ -1758,6 +1817,7 @@ static void process_line(char* l)
     switch (prompt)
     {
         case LOGINPASSWORD:
+        {
         //TODO: modify using API
 //            client->pw_key(l, pwkey);
 
@@ -1789,10 +1849,20 @@ static void process_line(char* l)
                 //TODO: modify using API
 //                client->login(login.c_str(), pwkey);
                   api->login(login.c_str(), l,megaCmdListener);
+                  int trywaitout=megaCmdListener->trywait(1000);
+                  cout << "wait for login: " << trywaitout << endl;
+
+                  session = api->dumpSession();
+                  api->fetchNodes(megaCmdListener);
+                  trywaitout=megaCmdListener->trywait(1000);
+                  cout << "wait for ftechnodes: " << trywaitout << endl;
+
+
 //            }
 
             setprompt(COMMAND);
             return;
+        }
 
         case OLDPASSWORD:
         //TODO: modify using API
@@ -2699,6 +2769,27 @@ static void process_line(char* l)
                                     {
                                         //TODO: validate & delete
                                         api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
+                                        int trywaitout=megaCmdListener->trywait(4000); //TODO: use a constant here
+
+                                        if (!trywaitout){
+                                            session = api->dumpSession();
+                                            api->fetchNodes(megaCmdListener);
+                                            trywaitout=megaCmdListener->trywait(4000);
+                                            if (trywaitout){
+                                                LOG_err << " Fetch nodes took too long, it may have failed"; CLEAN_err;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            LOG_err << " login took too long, it may have failed"; CLEAN_err;
+                                        }
+
+//                                        api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
+//                                        megaCmdListener->wait(); //TODO: use a constant here
+//                                        api->fetchNodes(megaCmdListener);
+//                                        megaCmdListener->wait();
+
+
 //                                        client->pw_key(words[2].c_str(), pwkey);
 //                                        client->login(words[1].c_str(), pwkey);
 //                                        cout << "Initiated login attempt..." << endl;
@@ -2727,7 +2818,8 @@ static void process_line(char* l)
 //                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
 
                                             cout << "Resuming session..." << endl;
-                                            return api->fastLogin(words[1].c_str(),NULL);//TODO: pass listener once created
+                                            return api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
+                                            megaCmdListener->wait();
                                         }
                                     }
 
@@ -3688,14 +3780,16 @@ static void process_line(char* l)
                         cwd = UNDEF;
                         //TODO: modify using API
 //                        client->cachedscsn = UNDEF;
-//                        client->fetchnodes();
-
+//                        client->fetchnodes(); //TODO: test
+                        api->fetchNodes(megaCmdListener);
+                        megaCmdListener->wait();
                         return;
                     }
                     else if (words[0] == "logout")
                     {
                         cout << "Logging off..." << endl;
                         api->logout(megaCmdListener);
+                        megaCmdListener->wait();
                         return;
                     }
 #ifdef ENABLE_CHAT
@@ -4686,15 +4780,16 @@ int main()
     LoggerForApi* apiLogger = new LoggerForApi(); //TODO: never deleted
 //    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
 //    api->setLoggerObject(apiLogger);
-    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+//    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
     megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted
 
-//    SimpleLogger::setLogLevel(logInfo);
-    //    SimpleLogger::setLogLevel(logDebug);
-    //    SimpleLogger::setLogLevel(logFatal);
+    SimpleLogger::setLogLevel(logInfo);
+//      SimpleLogger::setLogLevel(logDebug);
+//    SimpleLogger::setLogLevel(logError);
+//    SimpleLogger::setLogLevel(logFatal);
 
     console = new CONSOLE_CLASS;
 

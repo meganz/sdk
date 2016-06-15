@@ -38,25 +38,24 @@ extern void read_pw_char(char*, int, int*, char**);
 
 //typedef list<struct AppFile*> appfile_list;
 
-class MegaCmdListener : public MegaRequestListener
-{
-public:
-    MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
-    virtual ~MegaCmdListener();
+//class MegaCmdListener : public MegaRequestListener
+//{
+//public:
+//    MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
+//    virtual ~MegaCmdListener();
 
-    //Request callbacks
-    virtual void onRequestStart(MegaApi* api, MegaRequest *request);
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
-    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
-    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
+//    //Request callbacks
+//    virtual void onRequestStart(MegaApi* api, MegaRequest *request);
+//    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+//    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
+//    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
 
-protected:
-    //virtual void customEvent(QEvent * event);
+//protected:
+//    //virtual void customEvent(QEvent * event);
 
-    MegaRequestListener *listener;
-    MegaApi *megaApi;
-
-};
+//    MegaRequestListener *listener;
+//    MegaApi *megaApi;
+//};
 
 
 /*struct DemoApp : public MegaApp //TODO: consider deleting
