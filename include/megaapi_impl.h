@@ -1753,7 +1753,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
 };
 
 class MegaHashSignatureImpl
