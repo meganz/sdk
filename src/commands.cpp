@@ -1744,8 +1744,7 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         case OPCA_REMIND:
             arg("aa", "r");
             break;
-        case OPCA_ADD:          
-        default:
+        case OPCA_ADD:
             arg("aa", "a");
             break;
     }
@@ -1755,36 +1754,112 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
+    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    {
+        notself(client);
+    }
+
     tag = client->reqtag;
     this->action = action;
+    this->temail = temail;
 }
 
 void CommandSetPendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->setpcr_result(UNDEF, (error)client->json.getint(), this->action);
+        error e = (error)client->json.getint();
+
+        handle pcrhandle = UNDEF;
+        if (!e) // response for delete & remind actions is always numeric
+        {
+            // find the PCR by email
+            PendingContactRequest *pcr = NULL;
+            for (handlepcr_map::iterator it = client->pcrindex.begin();
+                 it != client->pcrindex.end(); it++)
+            {
+                if (it->second->targetemail == temail)
+                {
+                    pcr = it->second;
+                    pcrhandle = pcr->id;
+                    break;
+                }
+            }
+
+            if (!pcr)
+            {
+                LOG_err << "Reminded/deleted PCR not found";
+            }
+            else if (action == OPCA_DELETE)
+            {
+                pcr->changed.deleted = true;
+                client->notifypcr(pcr);
+            }
+        }
+
+        return client->app->setpcr_result(pcrhandle, e, this->action);
     }
 
-    handle p = UNDEF;
+    // if the PCR has been added, the response contains full details
+    handle p = UNDEF;    
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
+    PendingContactRequest *pcr = NULL;
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'p':
                 p = client->json.gethandle(MegaClient::PCRHANDLE);  
-                break;              
+                break;
+            case 'm':
+                m = client->json.getvalue();
+                break;
+            case 'e':
+                e = client->json.getvalue();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = client->json.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = client->json.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = client->json.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = client->json.getint();
+                break;
             case EOO:
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
                     client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                    return;
                 }
-                else
+
+                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
                 {
-                    client->app->setpcr_result(p, API_OK, this->action);
+                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
                 }
+
+                pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                client->mappcr(p, pcr);
+
+                client->notifypcr(pcr);
+                client->app->setpcr_result(p, API_OK, this->action);
                 return;
+
             default:
                 if (!client->json.storeobject())
                 {

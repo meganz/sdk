@@ -5795,7 +5795,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(!it->second->isoutgoing)
+        if(!it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -5813,7 +5813,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(it->second->isoutgoing)
+        if(it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -7550,16 +7550,19 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
     }
     else
     {
-        if (h == UNDEF)
+        switch (action)
         {
-            // must have been deleted
-            LOG_debug << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully";
-        }
-        else
-        {
-            char buffer[12];
-            Base64::btoa((byte*)&h, sizeof(h), buffer);
-            LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+            case OPCA_DELETE:
+                LOG_debug << "Outgoing pending contact request deleted successfully";
+                break;
+            case OPCA_REMIND:
+                LOG_debug << "Outgoing pending contact request reminded successfully";
+                break;
+            case OPCA_ADD:
+                char buffer[12];
+                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+                break;
         }
     }
 
@@ -11001,6 +11004,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if(!email || !client->finduser(client->me)->email.compare(email))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (action != OPCA_ADD && action != OPCA_REMIND && action != OPCA_DELETE)
             {
                 e = API_EARGS;
                 break;

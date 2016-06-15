@@ -397,6 +397,7 @@ public:
 class MEGA_API CommandSetPendingContact : public Command
 {
     opcactions_t action;
+    string temail;  // target email
 
 public:
     void procresult();
