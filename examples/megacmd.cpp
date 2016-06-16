@@ -101,17 +101,17 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
 
 MegaRequest *SynchronousRequestListener::getRequest() const
 {
-return megaRequest;
+    return megaRequest;
 }
 
 MegaApi *SynchronousRequestListener::getApi() const
 {
-return megaApi;
+    return megaApi;
 }
 
 MegaError *SynchronousRequestListener::getError() const
 {
-return megaError;
+    return megaError;
 }
 
 
@@ -1896,7 +1896,7 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
     LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail(); CLEAN_debug;
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
-        LOG_err << "actUponLogin login failed: invalid email or password"; CLEAN_err;
+        LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString(); CLEAN_err;
     }
     else //login success:
     {
@@ -1929,10 +1929,41 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
     }
     else
     {
-        LOG_err << "actUponLogout failed to logout"; CLEAN_err;
+        LOG_err << "actUponLogout failed to logout: " << srl->getError()->getErrorString(); CLEAN_err;
     }
 }
 
+int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
+{
+    if (!timeout)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "Logout took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return 1;
+        }
+    }
+    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    {
+        LOG_verbose << "actUponCreateFolder Create Folder ok"; CLEAN_verbose;
+        return 0;
+    }
+    else
+    {
+        if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
+        {
+            LOG_err << "actUponCreateFolder failed to create folder: Access Denied"; CLEAN_err;
+        }
+        else
+        {
+            LOG_err << "actUponCreateFolder failed to create folder: " << srl->getError()->getErrorString(); CLEAN_err;
+        }
+        return 2;
+    }
+
+}
 
 // execute command
 static void process_line(char* l)
@@ -3138,66 +3169,56 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            string newname;
-
-                            if ((n = nodebypath(words[1].c_str(), NULL, &newname)))
+                            MegaNode *currentnode=api->getNodeByHandle(cwd);
+                            string rest = words[1];
+                            while ( rest.length() )
                             {
-                                //TODO: modify using API
-//                                if (!client->checkaccess(n, RDWR))
-//                                {
-//                                    cout << "Write access denied" << endl;
-
-//                                    return;
-//                                }
-
-                                if (newname.size())
+                                bool lastleave = false;
+                                size_t possep = rest.find_first_of("/");
+                                if (possep == string::npos )
                                 {
-                                    SymmCipher key;
-                                    string attrstring;
-                                    byte buf[FOLDERNODEKEYLENGTH];
-                                    NewNode* newnode = new NewNode[1];
+                                    possep = rest.length();
+                                    lastleave=true;
+                                }
 
-                                    // set up new node as folder node
-                                    newnode->source = NEW_NODE;
-                                    newnode->type = FOLDERNODE;
-                                    newnode->nodehandle = 0;
-                                    newnode->parenthandle = UNDEF;
+                                string newfoldername=rest.substr(0,possep);
+                                if (!rest.length()) break;
+                                if (newfoldername.length())
+                                {
+                                    MegaNode *existing_node = api->getChildNode(currentnode,newfoldername.c_str());
+                                    if (!existing_node)
+                                    {
+                                        LOG_verbose << "Creating (sub)folder: " << newfoldername; CLEAN_verbose;
+                                        api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
+                                        actUponCreateFolder(megaCmdListener);
+                                        currentnode = api->getChildNode(currentnode,newfoldername.c_str());
+                                        if (!currentnode)
+                                        {
+                                            LOG_err << "Couldn't get node for created subfolder: " << newfoldername; CLEAN_err;
+                                            break;
+                                        }
+                                    }
 
-                                    // generate fresh random key for this folder node
-                                    PrnGen::genblock(buf, FOLDERNODEKEYLENGTH);
-                                    newnode->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
-                                    key.setkey(buf);
+                                    if (lastleave && existing_node)
+                                    {
+                                        LOG_err << "Folder already exists: " << words[1]; CLEAN_err;
+                                    }
+                                }
 
-                                    // generate fresh attribute object with the folder name
-                                    AttrMap attrs;
-
-                                    //TODO: modify using API
-//                                    client->fsaccess->normalize(&newname);
-                                    attrs.map['n'] = newname;
-
-                                    // JSON-encode object and encrypt attribute string
-                                    attrs.getjson(&attrstring);
-                                    newnode->attrstring = new string;
-                                    //TODO: modify using API
-//                                    client->makeattr(&key, newnode->attrstring, attrstring.c_str());
-
-                                    // add the newly generated folder node
-                                    //TODO: modify using API
-//                                    client->putnodes(n->nodehandle, newnode, 1);
+                                //string rest = rest.substr(possep+1,rest.length()-possep-1);
+                                if (!lastleave)
+                                {
+                                    rest = rest.substr(possep+1,rest.length());
                                 }
                                 else
                                 {
-                                    cout << words[1] << ": Path already exists" << endl;
+                                    break;
                                 }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": Target path not found" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      mkdir remotepath" << endl;
+                            cout << "      mkdir remotepath" << endl; //TODO: print usage specific command
                         }
 
                         return;
