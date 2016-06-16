@@ -1454,61 +1454,78 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
     }
 }
 
+
+static const char * getUserInSharedNode(MegaNode *n)
+{
+    MegaShareList * msl = api->getInSharesList();
+    for (int i=0;i<msl->size();i++)
+    {
+        MegaShare *share = msl->get(i);
+
+        if (share->getNodeHandle() == n->getHandle())
+        {
+            return share->getUser();
+        }
+    }
+    return NULL;
+}
+
 static void nodepath(handle h, string* path)
 {
     path->clear();
+    MegaNode* n = api->getNodeByHandle(h);
 
     //TODO: modify using API
-//    if (h == client->rootnodes[0])
-//    {
-//        *path = "/";
-//        return;
-//    }
+    if (n == rootNode)
+    {
+        *path = "/";
+        return;
+    }
 
     //TODO: modify using API
-//    Node* n = client->nodebyhandle(h);
-//    while (n)
-//    {
-//        switch (n->type)
-//        {
-//            case FOLDERNODE:
-//                path->insert(0, n->displayname());
+    while (n)
+    {
+        switch (n->getType())
+        {
+            case MegaNode::TYPE_FOLDER:
+                path->insert(0, n->getName());
 
-//                if (n->inshare)
-//                {
-//                    path->insert(0, ":");
-//                    if (n->inshare->user)
-//                    {
-//                        path->insert(0, n->inshare->user->email);
-//                    }
-//                    else
-//                    {
-//                        path->insert(0, "UNKNOWN");
-//                    }
-//                    return;
-//                }
-//                break;
+                if (n->isInShare())
+                {
+                    path->insert(0, ":");
 
-//            case INCOMINGNODE:
-//                path->insert(0, "//in");
-//                return;
+                    if (const char * suser=getUserInSharedNode(n))
+                    {
+                        path->insert(0, suser);
+                    }
+                    else
+                    {
+                        path->insert(0, "UNKNOWN");
+                    }
+                    return;
+                }
+                break;
 
-//            case ROOTNODE:
-//                return;
+            case MegaNode::TYPE_INCOMING:
+                path->insert(0, "//in");
+                return;
 
-//            case RUBBISHNODE:
-//                path->insert(0, "//bin");
-//                return;
+            case MegaNode::TYPE_ROOT:
+                return;
 
-//            case TYPE_UNKNOWN:
-//            case FILENODE:
-//                path->insert(0, n->displayname());
-//        }
+            case MegaNode::TYPE_RUBBISH:
+                path->insert(0, "//bin");
+                return;
 
-//        path->insert(0, "/");
+            case MegaNode::TYPE_UNKNOWN:
+            case MegaNode::TYPE_FILE:
+                path->insert(0, n->getName());
+        }
 
-//        n = n->parent;
-//    }
+        path->insert(0, "/");
+
+        n = api->getNodeByHandle(n->getParentHandle());
+    }
 }
 
 //appfile_list appxferq[2];
@@ -1941,7 +1958,7 @@ int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "Logout took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "actUponCreateFolder took too long, it may have failed. No further actions performed"; CLEAN_err;
            return 1;
         }
     }
@@ -1962,8 +1979,42 @@ int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
         }
         return 2;
     }
-
 }
+
+
+
+int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0)
+{
+    if (!timeout)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "delete took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return 1;
+        }
+    }
+    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    {
+        LOG_verbose << "actUponDeleteNode delete ok"; CLEAN_verbose;
+        return 0;
+    }
+    else
+    {
+        if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
+        {
+            LOG_err << "actUponDeleteNode failed to delete: Access Denied"; CLEAN_err;
+        }
+        else
+        {
+            LOG_err << "actUponDeleteNode failed to delete: " << srl->getError()->getErrorString(); CLEAN_err;
+        }
+        return 2;
+    }
+}
+
+
 
 // execute command
 static void process_line(char* l)
@@ -2204,9 +2255,10 @@ static void process_line(char* l)
                 return;
             }
 
-            switch (words[0].size())
+            switch (words[0].size()) //TODO: why this???
             {
                 case 2:
+                case 3:
                     if (words[0] == "ls")
                     {
                         if (!api->isLoggedIn()) { LOG_err << "Not logged in"; CLEAN_err; return;}
@@ -2264,26 +2316,15 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            if ((n = nodebypath(words[1].c_str())))
+                            for (int i=1;i<words.size();i++ )
                             {
-                                //TODO: modify using API
-//                                if (client->checkaccess(n, FULL))
-//                                {
-//                                    error e = client->unlink(n);
-
-//                                    if (e)
-//                                    {
-//                                        cout << words[1] << ": Deletion failed (" << errorstring(e) << ")" << endl;
-//                                    }
-//                                }
-//                                else
-//                                {
-//                                    cout << words[1] << ": Access denied" << endl;
-//                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
+                                MegaNode * nodeToDelete = nodebypath(words[i].c_str());
+                                if (nodeToDelete)
+                                {
+                                    LOG_verbose << "Deleting recursively: " << words[i]; CLEAN_verbose;
+                                    api->remove(nodeToDelete, megaCmdListener);
+                                    actUponDeleteNode(megaCmdListener);
+                                }
                             }
                         }
                         else
@@ -2723,16 +2764,16 @@ static void process_line(char* l)
 
 //                        return;
 //                    }
-//                    else if (words[0] == "pwd")
-//                    {
-//                        string path;
+                    else if (words[0] == "pwd")
+                    {
+                        string path;
 
-//                        nodepath(cwd, &path);
+                        nodepath(cwd, &path);
 
-//                        cout << path << endl;
+                        cout << path << endl;
 
-//                        return;
-//                    }
+                        return;
+                    }
 //                    else if (words[0] == "lcd")
 //                    {
 //                        if (words.size() > 1)
@@ -3815,6 +3856,19 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "whoami")
                     {
+                        MegaUser *u = api->getMyUser();
+                        if (u)
+                        {
+                            cout << "Account e-mail: " << u->getEmail() << endl;
+                            // api->getAccountDetails();//TODO: continue this.
+
+                        }
+                        else
+                        {
+                            cout << "Not logged in." << endl;
+                        }
+
+
                         //TODO: modify using API
 //                        if (client->loggedin() == NOTLOGGEDIN)
 //                        {
@@ -3980,29 +4034,14 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "session")
                     {
-                        byte session[64];
-                        int size;
-
-                        //TODO: modify using API
-//                        size = client->dumpsession(session, sizeof session);
-
-                        if (size > 0)
+                        if (api->dumpSession())
                         {
-                            char buf[sizeof session * 4 / 3 + 3];
-
-                            Base64::btoa(session, size, buf);
-
-                            cout << "Your (secret) session is: " << buf << endl;
-                        }
-                        else if (!size)
-                        {
-                            cout << "Not logged in." << endl;
+                            cout << "Your (secret) session is: " << api->dumpSession() << endl;
                         }
                         else
                         {
-                            cout << "Internal error." << endl;
+                            cout << "Not logged in." << endl;
                         }
-
                         return;
                     }
                     else if (words[0] == "symlink")
