@@ -3984,16 +3984,40 @@ void DemoApp::queryrecoverylink_result(int type, const char *email, const char *
     }
 }
 
-void DemoApp::getprivatekey_result(error e, const char *ukpriv)
+void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len_privk)
 {
     if (e)
     {
         cout << "Unable to get private key (" << errorstring(e) << ")" << endl;
+        setprompt(COMMAND);
     }
     else
     {
-        cout << "Private key successfully retrieved for integrity check masterkey." << endl;
-        setprompt(NEWPASSWORD);
+        // check the private RSA is valid after decryption with master key
+        SymmCipher key;
+        key.setkey(masterkey);
+
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        memcpy(privkbuf, privk, len_privk);
+        key.ecb_decrypt(privkbuf, len_privk);
+
+        AsymmCipher uk;
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+        {
+            cout << "The master key doesn't seem to be correct." << endl;
+
+            recoverycode.clear();
+            recoveryemail.clear();
+            hasMasterKey = false;
+            memset(masterkey, 0, sizeof masterkey);
+
+            setprompt(COMMAND);
+        }
+        else
+        {
+            cout << "Private key successfully retrieved for integrity check masterkey." << endl;
+            setprompt(NEWPASSWORD);
+        }
     }
 }
 

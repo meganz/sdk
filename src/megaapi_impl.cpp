@@ -7067,7 +7067,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     }
 }
 
-void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
+void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t len_privk)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -7097,7 +7097,23 @@ void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
     byte mk[SymmCipher::KEYLENGTH];
     Base64::atob(request->getPrivateKey(), mk, sizeof mk);
 
-    client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
+    // check the private RSA is valid after decryption with master key
+    SymmCipher key;
+    key.setkey(mk);
+
+    byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+    memcpy(privkbuf, privk, len_privk);
+    key.ecb_decrypt(privkbuf, len_privk);
+
+    AsymmCipher uk;
+    if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+    {
+        fireOnRequestFinish(request, MegaError(API_EARGS));
+    }
+    else
+    {
+        client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
+    }
 }
 
 void MegaApiImpl::confirmrecoverylink_result(error e)

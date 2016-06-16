@@ -3685,15 +3685,17 @@ void CommandGetPrivateKey::procresult()
     }
     else
     {
-        string RSApriv;
-        client->json.storeobject(&RSApriv);
-        if (RSApriv.empty())
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        int len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
+
+        // account has RSA keypair: decrypt server-provided session ID
+        if (len_privk < 256)
         {
-            return client->app->getprivatekey_result((error)API_EINTERNAL);
+            return client->app->getprivatekey_result(API_EINTERNAL);
         }
         else
         {
-            return client->app->getprivatekey_result((error)API_OK, RSApriv.c_str());
+            return client->app->getprivatekey_result((error)API_OK, privkbuf, len_privk);
         }
     }
 }

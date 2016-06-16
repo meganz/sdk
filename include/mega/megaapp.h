@@ -172,7 +172,7 @@ struct MEGA_API MegaApp
     virtual void queryrecoverylink_result(int, const char *, const char *, time_t, handle, const vector<string> *) {}
 
     // get private key from recovery link result
-    virtual void getprivatekey_result(error, const char * = NULL) {}
+    virtual void getprivatekey_result(error, const byte * = NULL, const size_t = 0) {}
 
     // confirm recovery link result
     virtual void confirmrecoverylink_result(error) {}
