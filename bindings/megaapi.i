@@ -94,6 +94,18 @@
 
 
 #ifdef SWIGJAVA
+
+%runtime
+%{
+    JavaVM *MEGAjvm = NULL;
+%}
+
+%typemap(check) const char *appKey
+%{
+    jenv->GetJavaVM(&MEGAjvm);
+%}
+
+
 #if SWIG_VERSION < 0x030000
 %typemap(directorargout) (const char* path)
 %{ 

@@ -1177,6 +1177,13 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     MegaApiImpl::addEntropy(data, size);
 }
 
+#ifdef WINDOWS_PHONE
+void MegaApi::setStatsID(const char *id)
+{
+    MegaApiImpl::setStatsID(id);
+}
+#endif
+
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);
@@ -1545,11 +1552,6 @@ void MegaApi::useHttpsOnly(bool httpsOnly)
 bool MegaApi::usingHttpsOnly()
 {
     return pImpl->usingHttpsOnly();
-}
-
-void MegaApi::addContact(const char* email, MegaRequestListener* listener)
-{
-    pImpl->addContact(email, listener);
 }
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)

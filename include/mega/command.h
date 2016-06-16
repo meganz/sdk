@@ -181,13 +181,13 @@ public:
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
 };
 
-// invite contact/set visibility
-class MEGA_API CommandUserRequest : public Command
+// set visibility
+class MEGA_API CommandRemoveContact : public Command
 {
 public:
     void procresult();
 
-    CommandUserRequest(MegaClient*, const char*, visibility_t);
+    CommandRemoveContact(MegaClient*, const char*, visibility_t);
 };
 
 // set user attributes with version
@@ -350,6 +350,7 @@ class MEGA_API CommandGetFile : public Command
 {
     TransferSlot* tslot;
     handle ph;
+    bool priv;
     byte filekey[FILENODEKEYLENGTH];
 
 public:
@@ -434,6 +435,7 @@ public:
 class MEGA_API CommandSetPendingContact : public Command
 {
     opcactions_t action;
+    string temail;  // target email
 
 public:
     void procresult();
