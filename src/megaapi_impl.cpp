@@ -7003,7 +7003,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
     {
-        if (code = strstr(link, "#recover"))
+        if ((code = strstr(link, "#recover")))
         {
             code += strlen("#recover");
         }
@@ -7052,7 +7052,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             return;
         }
 
-        if (code = strstr(link, "#verify"))
+        if ((code = strstr(link, "#verify")))
         {
             code += strlen("#verify");
         }
@@ -7081,7 +7081,7 @@ void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
 
     const char *link = request->getLink();
     const char* code;
-    if (code = strstr(link, "#recover"))
+    if ((code = strstr(link, "#recover")))
     {
         code += strlen("#recover");
     }
@@ -7135,7 +7135,7 @@ void MegaApiImpl::validatepassword_result(error e)
     {
         const char *link = request->getLink();
         const char* code;
-        if (code = strstr(link, "#cancel"))
+        if ((code = strstr(link, "#cancel")))
         {
             code += strlen("#cancel");
             client->confirmcancellink(code);
@@ -7151,7 +7151,7 @@ void MegaApiImpl::validatepassword_result(error e)
         client->pw_key(request->getPassword(), pwkey);
 
         const char* code;
-        if (code = strstr(request->getLink(), "#verify"))
+        if ((code = strstr(request->getLink(), "#verify")))
         {
             code += strlen("#verify");
             client->confirmemaillink(code, request->getEmail(), pwkey);
