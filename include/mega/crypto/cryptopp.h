@@ -339,7 +339,7 @@ public:
      */
     unsigned rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
 
-    static void serializeintarray(CryptoPP::Integer*, int, string*);
+    static void serializeintarray(CryptoPP::Integer*, int, string*, bool headers = true);
 
     /**
      * @brief Serialises a key to a string.
@@ -352,12 +352,12 @@ public:
     void serializekey(string* d, int keytype);
 
     /**
-     * @brief Serialises a public key to a string, skiping headers
+     * @brief Serialize key for compatibility with the webclient
      *
      * @param d String to take the serialized key without size-headers
      * @return Void.
      */
-    void serializepubkey(string* d);
+    void serializekeyforjs(string* d, int keytype);
 
     /**
      * @brief Generates an RSA key pair of a given key size.

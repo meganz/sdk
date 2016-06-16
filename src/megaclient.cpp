@@ -7859,7 +7859,7 @@ void MegaClient::initializekeys()
         string pubkstr;
         if (pubk.isvalid())
         {
-            pubk.serializepubkey(&pubkstr);
+            pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
         if (!pubkstr.size() || !sigPubk.size() ||
                 !signkey->verifyKey((unsigned char*) pubkstr.data(),
@@ -7922,7 +7922,7 @@ void MegaClient::initializekeys()
 
             // prepare signatures
             string pubkStr;
-            pubk.serializepubkey(&pubkStr);
+            pubk.serializekeyforjs(&pubkStr, AsymmCipher::PUBKEY);
             signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 

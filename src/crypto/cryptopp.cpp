@@ -445,25 +445,9 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
     return decodeintarray(key, numints, data, len);
 }
 
-void AsymmCipher::serializepubkey(string* d)
+void AsymmCipher::serializekeyforjs(string* d, int keytype)
 {
-    unsigned size = 0;
-    char c;
-
-    size = key[0].ByteCount() + key[1].ByteCount();
-    d->reserve(d->size() + size);
-
-    for (int j = key[0].ByteCount(); j--;)
-    {
-        c = key[0].GetByte(j);
-        d->append(&c, sizeof c);
-    }
-
-    for (int j = 4; j--;)   // keep 4 bytes for exponent
-    {
-        c = key[1].GetByte(j);
-        d->append(&c, sizeof c);
-    }
+    serializeintarray(key, keytype, d, false);
 }
 
 void AsymmCipher::serializekey(string* d, int keytype)
@@ -471,25 +455,33 @@ void AsymmCipher::serializekey(string* d, int keytype)
     serializeintarray(key, keytype, d);
 }
 
-void AsymmCipher::serializeintarray(Integer* t, int numints, string* d)
+void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool headers)
 {
     unsigned size = 0;
     char c;
 
     for (int i = numints; i--;)
     {
-        size += t[i].ByteCount() + 2;
+        size += t[i].ByteCount();
+
+        if (headers)
+        {
+            size += 2;
+        }
     }
 
     d->reserve(d->size() + size);
 
     for (int i = 0; i < numints; i++)
     {
-        c = t[i].BitCount() >> 8;
-        d->append(&c, sizeof c);
+        if (headers)
+        {
+            c = t[i].BitCount() >> 8;
+            d->append(&c, sizeof c);
 
-        c = (char)t[i].BitCount();
-        d->append(&c, sizeof c);
+            c = (char)t[i].BitCount();
+            d->append(&c, sizeof c);
+        }
 
         for (int j = t[i].ByteCount(); j--;)
         {
