@@ -352,9 +352,11 @@ public:
     void serializekey(string* d, int keytype);
 
     /**
-     * @brief Serialize key for compatibility with the webclient
+     * @brief Serialize key for compatibility with the webclient.
      *
      * @param d String to take the serialized key without size-headers
+     * @param keytype Key type indication by number of integers for key type
+     *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return Void.
      */
     void serializekeyforjs(string* d, int keytype);
