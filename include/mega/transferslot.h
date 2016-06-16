@@ -45,6 +45,8 @@ struct MEGA_API TransferSlot
 
     m_off_t progressreported;
 
+    m_time_t lastprogressreport;
+
     dstime starttime, lastdata;
 
     // number of consecutive errors

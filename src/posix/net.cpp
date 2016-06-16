@@ -24,6 +24,7 @@
 
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
+#define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
 namespace mega {
 
@@ -552,6 +553,11 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = ms;
         }
+
+        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+        {
+            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
+        }
     }
 
     if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
@@ -597,6 +603,11 @@ void CurlHttpIO::addevents(Waiter* w, int)
         if (curltimeoutms < 0 || ms < curltimeoutms)
         {
             curltimeoutms = ms;
+        }
+
+        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+        {
+            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
         }
     }
 

@@ -33,6 +33,7 @@ namespace mega {
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
+    lastprogressreport = 0;
     progressreported = ctransfer->progresscompleted;
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -487,20 +488,24 @@ void TransferSlot::doio(MegaClient* client)
 
     p += transfer->progresscompleted;
 
-    if (p != progressreported)
+    if (p != progressreported || (Waiter::ds - lastprogressreport) > 10)
     {
-        m_off_t diff = p - progressreported;
-        if (transfer->type == PUT)
+        if (p != progressreported)
         {
-            client->httpio->updateuploadspeed(diff);
-        }
-        else
-        {
-            client->httpio->updatedownloadspeed(diff);
-        }
+            m_off_t diff = p - progressreported;
+            if (transfer->type == PUT)
+            {
+                client->httpio->updateuploadspeed(diff);
+            }
+            else
+            {
+                client->httpio->updatedownloadspeed(diff);
+            }
 
-        progressreported = p;
-        lastdata = Waiter::ds;
+            progressreported = p;
+            lastdata = Waiter::ds;
+        }
+        lastprogressreport = Waiter::ds;
 
         progress();
     }
