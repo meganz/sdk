@@ -140,7 +140,6 @@ protected:
     std::map<int, SockInfo> curluploadsockets;
     m_time_t curldownloadtimeoutreset;
     m_time_t curluploadtimeoutreset;
-    m_time_t arestimeoutds;
 #endif
 
 public:

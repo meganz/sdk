@@ -81,8 +81,6 @@ CurlHttpIO::CurlHttpIO()
     filterDNSservers();
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    arestimeoutds = -1;
-
     curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
     curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
@@ -453,8 +451,6 @@ void CurlHttpIO::disconnect()
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    arestimeoutds = -1;
-
     curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
     curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
@@ -498,45 +494,33 @@ bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
 }
 
 // wake up from cURL I/O
-void CurlHttpIO::addevents(Waiter* w, int d)
+void CurlHttpIO::addevents(Waiter* w, int)
 {
     waiter = (WAIT_CLASS*)w;
-
     long curltimeoutms = -1;
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     int t;
-    curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
-    waiter->bumpmaxfd(t);
-
-    long arestimeoutds;
-    curl_multi_timeout(curlm, &curltimeoutms);
-
+    long ms;
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
 #else
     addaresevents(waiter);
-    timeval tv;
-    if (ares_timeout(ares, NULL, &tv))
-    {
-        arestimeoutds = tv.tv_sec * 10 + tv.tv_usec / 100000;
-        if (!arestimeoutds && tv.tv_usec)
-        {
-            arestimeoutds = 1;
-        }
-
-        if (arestimeoutds < waiter->maxds)
-        {
-            waiter->maxds = arestimeoutds;
-        }
-    }
-    else
-    {
-        arestimeoutds = -1;
-    }
+#endif
 
     if (!maxdownloadspeed || maxdownloadspeed > downloadSpeed)
     {
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        curl_multi_fdset(curlmdownload, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
+        waiter->bumpmaxfd(t);
+
+        ms = -1;
+        curl_multi_timeout(curlmdownload, &ms);
+        if (curltimeoutms < 0 || (ms >= 0 && curltimeoutms > ms))
+        {
+            curltimeoutms = ms;
+        }
+#else
         addcurlevents(waiter, GET);
         if (curldownloadtimeoutreset)
         {
@@ -558,6 +542,7 @@ void CurlHttpIO::addevents(Waiter* w, int d)
                 }
             }
         }
+#endif
     }
     else
     {
@@ -571,6 +556,17 @@ void CurlHttpIO::addevents(Waiter* w, int d)
 
     if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
     {
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        curl_multi_fdset(curlmupload, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
+        waiter->bumpmaxfd(t);
+
+        ms = -1;
+        curl_multi_timeout(curlmupload, &ms);
+        if (curltimeoutms < 0 || (ms >= 0 && curltimeoutms > ms))
+        {
+            curltimeoutms = ms;
+        }
+#else
         addcurlevents(waiter, PUT);
         if (curluploadtimeoutreset)
         {
@@ -592,6 +588,7 @@ void CurlHttpIO::addevents(Waiter* w, int d)
                 }
             }
         }
+#endif
     }
     else
     {
@@ -602,7 +599,6 @@ void CurlHttpIO::addevents(Waiter* w, int d)
             curltimeoutms = ms;
         }
     }
-#endif
 
     if (curltimeoutms >= 0)
     {
@@ -615,6 +611,22 @@ void CurlHttpIO::addevents(Waiter* w, int d)
         if ((unsigned long)timeoutds < waiter->maxds)
         {
             waiter->maxds = timeoutds;
+        }
+    }
+
+    timeval tv;
+    if (ares_timeout(ares, NULL, &tv))
+    {
+        long arestimeoutds;
+        arestimeoutds = tv.tv_sec * 10 + tv.tv_usec / 100000;
+        if (!arestimeoutds && tv.tv_usec)
+        {
+            arestimeoutds = 1;
+        }
+
+        if (arestimeoutds < waiter->maxds)
+        {
+            waiter->maxds = arestimeoutds;
         }
     }
 }
@@ -1305,10 +1317,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         options.tries = 2;
         ares_init_options(&ares, &options, ARES_OPT_TRIES);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        arestimeoutds = -1;
-#endif
-
         if (dnsservers.size())
         {
             LOG_info << "Using custom DNS servers: " << dnsservers;
@@ -1883,6 +1891,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     return size * nmemb;
 }
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
 int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
@@ -1911,7 +1920,6 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     return 0;
 }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
 int CurlHttpIO::download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
     return socket_callback(e, s, what, userp, socketp, GET);
