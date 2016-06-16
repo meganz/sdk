@@ -3747,12 +3747,14 @@ void CommandConfirmCancelLink::procresult()
     {
         error e = (error)client->json.getint();
 
-        if (!e)
+        MegaApp *app = client->app;
+        if(!e)
         {
+            client->removecaches();
             client->locallogout();
         }
 
-        return client->app->confirmcancellink_result(e);
+        return app->confirmcancellink_result(e);
     }
     else   // error
     {
