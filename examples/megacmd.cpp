@@ -1047,32 +1047,22 @@ static void nodestats(int* c, const char* action)
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    //TODO: modify using API
-//    for (int i = 0; i < (int) (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
-//    {
-//        if (client->rootnodes[i] != UNDEF)
-//        {
-//            cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-//        }
-//    }
-    //TODO: modify using API
-//    for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
-//    {
-//        User* u = &uit->second;
-//        Node* n;
+//    //TODO: modify using API
+    for (int i = 0; i < (int) (sizeof rootnodenames/sizeof *rootnodenames); i++)
+    {
+        cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
+    }
 
-//        if (u->show == VISIBLE || u->sharing.size())
-//        {
-//            for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-//            {
-//                if ((n = client->nodebyhandle(*sit)) && n->inshare)
-//                {
-//                    cout << "INSHARE on " << u->email << ":" << n->displayname() << " ("
-//                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
-//                }
-//            }
-//        }
-//    }
+    MegaShareList * msl = api->getInSharesList();
+    for (int i=0;i<msl->size();i++)
+    {
+        MegaShare *share = msl->get(i);
+
+        cout << "INSHARE on " << share->getUser() << ":" << api->getNodeByHandle(share->getNodeHandle())->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
+        share->getUser(); //TODO: voy por aqui, que imprima lo de turno
+    }
+
+    delete (msl);
 }
 
 
@@ -1360,7 +1350,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     cout << ", has attributes " << p + 1;
                 }
 
-                if (n->getPublicHandle()) //TODO: validate equivalence
+                if (UNDEF != n->getPublicHandle())
                 //if (n->plink)
                 {
                     cout << ", shared as exported";
@@ -1378,9 +1368,10 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                 break;
 
             case MegaNode::TYPE_FOLDER:
+            {
                 cout << "folder";
-                MegaShareList* outShares;
-                if(!outShares && !(outShares = api->getOutShares(n)))
+                MegaShareList* outShares = api->getOutShares(n);
+                if (outShares)
                 {
                     for (int i=0;i<outShares->size();i++)
                     {
@@ -1390,7 +1381,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                                  << getAccessLevelStr(outShares->get(i)->getAccess());
                         }
                     }
-                    if (n->getPublicHandle()) //TODO: validate equivalence
+                    if (UNDEF != n->getPublicHandle())
                     //if (n->plink)
                     {
                         cout << ", shared as exported";
@@ -1408,8 +1399,8 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     delete outShares;
                 }
 
-                MegaShareList* pendingoutShares;
-                if(!pendingoutShares && !(pendingoutShares = api->getOutShares(n)))
+                MegaShareList* pendingoutShares= api->getPendingOutShares(n);
+                if(pendingoutShares)
                 {
                     for (int i=0;i<pendingoutShares->size();i++)
                     {
@@ -1428,6 +1419,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     cout << ", inbound " << api->getAccess(n) << " share"; //TODO: validate & delete
                 }
                 break;
+            }
 
             default:
                 cout << "unsupported type, please upgrade";
@@ -1464,9 +1456,11 @@ static const char * getUserInSharedNode(MegaNode *n)
 
         if (share->getNodeHandle() == n->getHandle())
         {
+            delete (msl);
             return share->getUser();
         }
     }
+    delete (msl);
     return NULL;
 }
 
