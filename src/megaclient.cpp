@@ -7804,7 +7804,7 @@ void MegaClient::initializekeys()
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99411, "Ed25519 public key mismatch");
+            sendevent(99417, "Ed25519 public key mismatch");
             reqtag = creqtag;
 
             clearKeys();
