@@ -54,21 +54,32 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
 {
     private:
         MegaSemaphore* semaphore;
+    protected:
+        MegaRequestListener *listener;
+        MegaApi *megaApi;
+        MegaRequest *megaRequest;
+        MegaError *megaError;
 
     public:
         SynchronousRequestListener()
         {
             semaphore = new MegaSemaphore();
         }
-        virtual ~SynchronousRequestListener(){
+        virtual ~SynchronousRequestListener()
+        {
             delete semaphore;
+            if (megaRequest) delete megaRequest;
+            if (megaError) delete megaError;
         }
         virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error) = 0;
 
         void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
         {
+            this->megaApi = api;
+            this->megaRequest = request->copy();
+            this->megaError = error->copy();
+
             doOnRequestFinish(api,request,error);
-//            sleep(1); //TODO: delete
             semaphore->release();
         }
 
@@ -81,7 +92,28 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
         {
             return semaphore->timedwait(milliseconds);
         }
+
+
+        MegaError *getError() const;
+        MegaRequest *getRequest() const;
+        MegaApi *getApi() const;
 };
+
+MegaRequest *SynchronousRequestListener::getRequest() const
+{
+return megaRequest;
+}
+
+MegaApi *SynchronousRequestListener::getApi() const
+{
+return megaApi;
+}
+
+MegaError *SynchronousRequestListener::getError() const
+{
+return megaError;
+}
+
 
 
 
@@ -101,7 +133,6 @@ protected:
     //virtual void customEvent(QEvent * event);
 
     MegaRequestListener *listener;
-    MegaApi *megaApi;
 };
 
 // listener for all actions with the api
@@ -1574,9 +1605,7 @@ void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
     }
 
     //clear_display();
-
 }
-
 
 void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
 {
@@ -1586,52 +1615,35 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
         return;
     }
 
-
     LOG_verbose << "onRequestFinish request->getType(): " << request->getType(); CLEAN_verbose;
 
     switch(request->getType())
     {
-        case MegaRequest::TYPE_LOGIN:
-            LOG_debug << "onRequestFinish login email: " << request->getEmail(); CLEAN_debug;
-            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
-            {
-                LOG_err << "onRequestFinish login failed: invalid email or password"; CLEAN_err;
-            }
-            else //login success:
-            {
-                LOG_info << "Login correct ..."; CLEAN_info;
-            }
-            break;
-
-        case MegaRequest::TYPE_LOGOUT:
-            LOG_debug << "onRequestFinish logout .."; CLEAN_debug;
-            if (e->getErrorCode() == MegaError::API_OK) // failed to login
-            {
-                LOG_verbose << "onRequestFinish logout ok"; CLEAN_verbose;
-                cwd = UNDEF;
-                delete rootNode;
-                delete session;
-                //rootNode = NULL;
-                //session = NULL;
-            }
-            else
-            {
-                LOG_err << "onRequestFinish failed to logout"; CLEAN_err;
-            }
-        break;
-    case MegaRequest::TYPE_FETCH_NODES:
-            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: "; CLEAN_debug;
-            if (e->getErrorCode() == MegaError::API_OK)
-            {
-                LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
-                rootNode = api->getRootNode();
-                cwd = rootNode->getHandle();
-            }
-            else
-            {
-                LOG_err << " failed to fetch nodes at login. Error: " << MegaError::API_OK; CLEAN_err;
-            }
-        break;
+//        case MegaRequest::TYPE_LOGIN:
+//            LOG_debug << "onRequestFinish login email: " << request->getEmail(); CLEAN_debug;
+//            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
+//            {
+//                LOG_err << "onRequestFinish login failed: invalid email or password"; CLEAN_err;
+//            }
+//            else //login success:
+//            {
+//                LOG_info << "Login correct ..."; CLEAN_info;
+//            }
+//            break;
+//        case MegaRequest::TYPE_LOGOUT:
+//            LOG_debug << "onRequestFinish logout .."; CLEAN_debug;
+//            if (e->getErrorCode() == MegaError::API_OK) // failed to login
+//            {
+//                LOG_verbose << "onRequestFinish logout ok"; CLEAN_verbose;
+//            }
+//            else
+//            {
+//                LOG_err << "onRequestFinish failed to logout"; CLEAN_err;
+//            }
+//        break;
+//    case MegaRequest::TYPE_FETCH_NODES:
+//            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: "; CLEAN_debug;
+//        break;
         default:
             LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType(); CLEAN_debug;
             break;
@@ -1842,6 +1854,86 @@ static void store_line(char* l)
     line = l;
 }
 
+void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
+{
+    if (timeout==-1)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "Fetch nodes took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return;
+        }
+    }
+
+    if (srl->getError()->getErrorCode() == MegaError::API_OK)
+    {
+        LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
+        rootNode = srl->getApi()->getRootNode();
+        cwd = rootNode->getHandle();
+    }
+    else
+    {
+        LOG_err << " failed to fetch nodes. Error: " << srl->getError()->getErrorString(); CLEAN_err;
+    }
+}
+
+
+void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
+{
+    if (timeout==-1)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "Login took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return;
+        }
+    }
+
+    LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail(); CLEAN_debug;
+    if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
+    {
+        LOG_err << "actUponLogin login failed: invalid email or password"; CLEAN_err;
+    }
+    else //login success:
+    {
+        LOG_info << "Login correct ... " << srl->getRequest()->getEmail(); CLEAN_info;
+
+        session = srl->getApi()->dumpSession();
+        srl->getApi()->fetchNodes(srl);
+        actUponFetchNodes(srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
+    }
+}
+
+void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
+{
+    if (!timeout)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "Logout took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return;
+        }
+    }
+    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    {
+        LOG_verbose << "actUponLogout logout ok"; CLEAN_verbose;
+        cwd = UNDEF;
+        delete rootNode;
+        delete session;
+    }
+    else
+    {
+        LOG_err << "actUponLogout failed to logout"; CLEAN_err;
+    }
+}
+
+
 // execute command
 static void process_line(char* l)
 {
@@ -1880,15 +1972,7 @@ static void process_line(char* l)
                 //TODO: modify using API
 //                client->login(login.c_str(), pwkey);
                   api->login(login.c_str(), l,megaCmdListener);
-                  int trywaitout=megaCmdListener->trywait(1000);
-                  cout << "wait for login: " << trywaitout << endl;
-
-                  session = api->dumpSession();
-                  api->fetchNodes(megaCmdListener);
-                  trywaitout=megaCmdListener->trywait(1000);
-                  cout << "wait for ftechnodes: " << trywaitout << endl;
-
-
+                  actUponLogin(megaCmdListener);
 //            }
 
             setprompt(COMMAND);
@@ -2800,20 +2884,7 @@ static void process_line(char* l)
                                     {
                                         //TODO: validate & delete
                                         api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
-                                        int trywaitout=megaCmdListener->trywait(4000); //TODO: use a constant here
-
-                                        if (!trywaitout){
-                                            session = api->dumpSession();
-                                            api->fetchNodes(megaCmdListener);
-                                            trywaitout=megaCmdListener->trywait(4000);
-                                            if (trywaitout){
-                                                LOG_err << " Fetch nodes took too long, it may have failed"; CLEAN_err;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            LOG_err << " login took too long, it may have failed"; CLEAN_err;
-                                        }
+                                        actUponLogin(megaCmdListener);
 
 //                                        api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
 //                                        megaCmdListener->wait(); //TODO: use a constant here
@@ -2851,6 +2922,7 @@ static void process_line(char* l)
                                             cout << "Resuming session..." << endl;
                                             return api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
                                             megaCmdListener->wait();
+                                            //TODO: implement actUponFastlogin (https://ci.developers.mega.co.nz/view/SDK/job/megasdk-doc/ws/doc/api/html/classmega_1_1_mega_api.html#a074f01b631eab8e504f8cfae890e830c)
                                         }
                                     }
 
@@ -3820,7 +3892,7 @@ static void process_line(char* l)
                     {
                         cout << "Logging off..." << endl;
                         api->logout(megaCmdListener);
-                        megaCmdListener->wait();
+                        actUponLogout(megaCmdListener);
                         return;
                     }
 #ifdef ENABLE_CHAT
@@ -4831,3 +4903,5 @@ int main()
 
     megacmd();
 }
+
+
