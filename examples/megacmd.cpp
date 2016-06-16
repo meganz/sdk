@@ -1882,7 +1882,10 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
     {
         LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
         rootNode = srl->getApi()->getRootNode();
-        cwd = rootNode->getHandle();
+        if (cwd == UNDEF || !api->getNodeByHandle(cwd))
+        {
+            cwd = rootNode->getHandle();
+        }
     }
     else
     {
@@ -3948,13 +3951,8 @@ static void process_line(char* l)
                     else if (words[0] == "reload")
                     {
                         cout << "Reloading account..." << endl;
-
-                        cwd = UNDEF;
-                        //TODO: modify using API
-//                        client->cachedscsn = UNDEF;
-//                        client->fetchnodes(); //TODO: test
                         api->fetchNodes(megaCmdListener);
-                        megaCmdListener->wait();
+                        actUponFetchNodes(megaCmdListener);
                         return;
                     }
                     else if (words[0] == "logout")
