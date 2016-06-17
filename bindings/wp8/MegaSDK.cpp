@@ -364,6 +364,15 @@ void MegaSDK::reconnect()
 	megaApi->retryPendingConnections(true, true);
 }
 
+void MegaSDK::setStatsID(String^ id)
+{
+    std::string utf8id;
+    if (id != nullptr)
+        MegaApi::utf16ToUtf8(id->Data(), id->Length(), &utf8id);
+
+    MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;
@@ -1566,25 +1575,6 @@ void MegaSDK::changePassword(String^ oldPassword, String^ newPassword)
 
 	megaApi->changePassword((oldPassword != nullptr) ? utf8oldPassword.c_str() : NULL,
 		(newPassword != nullptr) ? utf8newPassword.c_str() : NULL);
-}
-
-void MegaSDK::addContact(String^ email, MRequestListenerInterface^ listener)
-{
-    std::string utf8email;
-    if (email != nullptr)
-        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
-
-    megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL,
-        createDelegateMRequestListener(listener));
-}
-
-void MegaSDK::addContact(String^ email)
-{
-    std::string utf8email;
-    if (email != nullptr)
-        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
-
-    megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL);
 }
 
 void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener)

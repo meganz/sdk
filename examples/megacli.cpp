@@ -846,11 +846,11 @@ void DemoApp::putfa_result(handle, fatype, error e)
     }
 }
 
-void DemoApp::invite_result(error e)
+void DemoApp::removecontact_result(error e)
 {
     if (e)
     {
-        cout << "Invitation failed (" << errorstring(e) << ")" << endl;
+        cout << "Contact removal failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
@@ -1791,7 +1791,7 @@ static void process_line(char* l)
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
-                cout << "      users" << endl;
+                cout << "      users [email del]" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
                 cout << "      putbps [limit|auto|none]" << endl;
@@ -2684,49 +2684,60 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "users")
                     {
-                        for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+                        if (words.size() == 1)
                         {
-                            if (it->second.email.size())
+                            for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
                             {
-                                cout << "\t" << it->second.email;
+                                if (it->second.email.size())
+                                {
+                                    cout << "\t" << it->second.email;
 
-                                if (it->second.userhandle == client->me)
-                                {
-                                    cout << ", session user";
-                                }
-                                else if (it->second.show == VISIBLE)
-                                {
-                                    cout << ", visible";
-                                }
-                                else if (it->second.show == HIDDEN)
-                                {
-                                    cout << ", hidden";
-                                }
-                                else if (it->second.show == INACTIVE)
-                                {
-                                    cout << ", inactive";
-                                }
-                                else if (it->second.show == BLOCKED)
-                                {
-                                    cout << ", blocked";
-                                }
-                                else
-                                {
-                                    cout << ", unknown visibility (" << it->second.show << ")";
-                                }
+                                    if (it->second.userhandle == client->me)
+                                    {
+                                        cout << ", session user";
+                                    }
+                                    else if (it->second.show == VISIBLE)
+                                    {
+                                        cout << ", visible";
+                                    }
+                                    else if (it->second.show == HIDDEN)
+                                    {
+                                        cout << ", hidden";
+                                    }
+                                    else if (it->second.show == INACTIVE)
+                                    {
+                                        cout << ", inactive";
+                                    }
+                                    else if (it->second.show == BLOCKED)
+                                    {
+                                        cout << ", blocked";
+                                    }
+                                    else
+                                    {
+                                        cout << ", unknown visibility (" << it->second.show << ")";
+                                    }
 
-                                if (it->second.sharing.size())
-                                {
-                                    cout << ", sharing " << it->second.sharing.size() << " folder(s)";
-                                }
+                                    if (it->second.sharing.size())
+                                    {
+                                        cout << ", sharing " << it->second.sharing.size() << " folder(s)";
+                                    }
 
-                                if (it->second.pubk.isvalid())
-                                {
-                                    cout << ", public key cached";
-                                }
+                                    if (it->second.pubk.isvalid())
+                                    {
+                                        cout << ", public key cached";
+                                    }
 
-                                cout << endl;
+                                    cout << endl;
+                                }
                             }
+                        }
+                        else if (words.size() == 3 && words[2] == "del")
+                        {
+                            client->removecontact(words[1].c_str(), HIDDEN);
+                        }
+                        else
+                        {
+                            cout << "      users [email del]" << endl;
                         }
 
                         return;

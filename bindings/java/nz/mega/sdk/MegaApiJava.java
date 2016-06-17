@@ -2764,36 +2764,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Add a new contact to the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_ADD_CONTACT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Returns the email of the contact.
-     * 
-     * @param email
-     *            Email of the new contact.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @deprecated This method of adding contacts will be removed in future updates.
-     * Please use MegaApiJava.inviteContact().
-     */
-    @Deprecated public void addContact(String email, MegaRequestListenerInterface listener) {
-        megaApi.addContact(email, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Add a new contact to the MEGA account.
-     * 
-     * @param email
-     *            Email of the new contact.
-     * @deprecated This method of adding contacts will be removed in future updates.
-     * Please use MegaApiJava.inviteContact().
-     */
-    @Deprecated public void addContact(String email) {
-        megaApi.addContact(email);
-    }
-
-    /**
      * Invite another person to be your MEGA contact.
      * <p>
      * The user does not need to be registered with MEGA. If the email is not associated with

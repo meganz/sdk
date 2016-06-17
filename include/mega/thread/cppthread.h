@@ -23,39 +23,57 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
+#define MUTEX_CLASS CppMutex
+#define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
 
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 namespace mega {
 
 class CppThread : public Thread
 {
 public:
-	CppThread();
+    CppThread();
     virtual void start(void *(*start_routine)(void*), void *parameter);
     virtual void join();
-	virtual ~CppThread();
+    virtual ~CppThread();
 
 protected:
-	std::thread *thread;
+    std::thread *thread;
 };
 
 	
 class CppMutex : public Mutex
 {
 public:
-	CppMutex();
+    CppMutex();
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
 	virtual ~CppMutex();
 
 protected:
-	std::mutex *mutex;
-	std::recursive_mutex *rmutex;
+    std::mutex *mutex;
+    std::recursive_mutex *rmutex;
+};
+
+class CppSemaphore : public Semaphore
+{
+public:
+    CppSemaphore();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~CppSemaphore();
+
+protected:
+    std::mutex mtx;
+    unsigned int count;
+    std::condition_variable cv;
 };
 
 } // namespace

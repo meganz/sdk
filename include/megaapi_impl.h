@@ -48,10 +48,6 @@
 #include <fcntl.h>
 #endif
 
-#if TARGET_OS_IPHONE
-#include "mega/gfx/GfxProcCG.h"
-#endif
-
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -74,15 +70,19 @@ namespace mega
 #ifdef USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+typedef QtSemaphore MegaSemaphore;
 #elif USE_PTHREAD
 typedef PosixThread MegaThread;
 typedef PosixMutex MegaMutex;
+typedef PosixSemaphore MegaSemaphore;
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
 typedef Win32Thread MegaThread;
 typedef Win32Mutex MegaMutex;
+typedef Win32Semaphore MegaSemaphore;
 #else
 typedef CppThread MegaThread;
 typedef CppMutex MegaMutex;
+typedef CppSemaphore MegaSemaphore;
 #endif
 
 #ifdef USE_QT
@@ -1171,6 +1171,7 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
+        static void setStatsID(const char *id);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -1257,7 +1258,6 @@ class MegaApiImpl : public MegaApp
         char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();
@@ -1667,7 +1667,7 @@ protected:
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
 
         // user invites/attributes
-        virtual void invite_result(error);
+        virtual void removecontact_result(error);
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
@@ -1770,7 +1770,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
 };
 
 class MegaHashSignatureImpl

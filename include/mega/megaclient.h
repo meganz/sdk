@@ -214,8 +214,8 @@ public:
     // queue a user attribute retrieval
     void getua(User* u, const char* an = NULL);
 
-    // add new contact (by e-mail address)
-    error invite(const char*, visibility_t = VISIBLE);
+    // delete or block an existing contact
+    error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
@@ -364,6 +364,9 @@ public:
 
     // account auth for public folders
     string accountauth;
+
+    // stats id
+    static char* statsid;
 
 private:
     BackoffTimer btcs;

@@ -145,7 +145,7 @@ struct DemoApp : public MegaApp
 
     void putfa_result(handle, fatype, error);
 
-    void invite_result(error);
+    void removecontact_result(error);
     void putua_result(error);
     void getua_result(error);
     void getua_result(byte*, unsigned);

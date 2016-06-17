@@ -1600,7 +1600,7 @@ class MegaRequest
             TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
             TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
             TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-            TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+            TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
@@ -1815,7 +1815,6 @@ class MegaRequest
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
-         * - MegaApi::addContact - Returns the email of the contact
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
@@ -3978,6 +3977,24 @@ class MegaApi
          */
         static void addEntropy(char* data, unsigned int size);
 
+#ifdef WINDOWS_PHONE
+        /**
+         * @brief Set the ID for statistics
+         *
+         * This function is not thread-safe so it must be used before
+         * the creation of instances of MegaApi to not interfere with
+         * the internal thread. Otherwise, the behavior of this
+         * function is undefined and it could even crash.
+         *
+         * Only the first call to this function will correctly set the ID.
+         * If you call this function more times, it won't have any effect.
+         *
+         * The id parameter is hashed before being used
+         *
+         * @param id ID for statistics
+         */
+        static void setStatsID(const char *id);
+#endif
 
         /**
          * @brief Retry all pending requests
@@ -4574,7 +4591,7 @@ class MegaApi
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
          * the log level is the same or lower than the active log level (MegaApi::setLogLevel)
          *
-         * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+         * The third and the fouth parameter are optional. You may want to use  __FILE__ and __LINE__
          * to complete them.
          *
          * @param logLevel Log level for this message
@@ -5063,13 +5080,15 @@ class MegaApi
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set the avatar of the MEGA account
+         * @brief Set/Remove the avatar of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getFile - Returns the source path (optional)
          *
-         * @param srcFilePath Source path of the file that will be set as avatar
+         * @param srcFilePath Source path of the file that will be set as avatar.
+         * If NULL, the existing avatar will be removed (if any).
+         * In case the avatar never existed before, removing the avatar returns MegaError::API_ENOENT
          * @param listener MegaRequestListener to track this request
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -5397,20 +5416,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Add a new contact to the MEGA account
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_CONTACT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email of the contact
-         *
-         * @param email Email of the new contact
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated: This way to add contacts will be removed in future updates. Please use MegaApi::inviteContact.
-         */
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Invite another person to be your MEGA contact

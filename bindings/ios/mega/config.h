@@ -159,6 +159,8 @@
 
 #define USE_ARES 1
 
+#define USE_IOS 1
+
 #define HAVE_LIBUV 1
 
 /* Define to use Berkeley DB */
