@@ -1614,7 +1614,7 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY, TYPE_SET_MAX_CONNECTIONS
         };
 
         virtual ~MegaRequest();
@@ -1970,6 +1970,7 @@ class MegaRequest
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
+         * - MegaApi::setMaxConnections - Returns the direction of transfers
          *
          * @return Type of parameter related to the request
          */
@@ -2010,6 +2011,7 @@ class MegaRequest
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
          * - MegaApi::sendEvent - Returns the event type
+         * - MegaApi::setMaxConnections - Returns the number of connections
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5652,6 +5654,22 @@ class MegaApi
          * in bytes per second
          */
         void setUploadLimit(int bpslimit);
+
+        /**
+         * @brief Set the maximum number of connections per transfer
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the first parameter
+         * - MegaRequest::getNumber - Returns the second parameter
+         *
+         * @param direction Direction of transfers
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         * @param connections Maximum number of connection (it should be at least 1)
+         */
+        void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Set the transfer method for downloads

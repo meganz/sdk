@@ -1578,6 +1578,11 @@ void MegaApi::setUploadLimit(int bpslimit)
     pImpl->setUploadLimit(bpslimit);
 }
 
+void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
+{
+    pImpl->setMaxConnections(direction,  connections, listener);
+}
+
 void MegaApi::setDownloadMethod(int method)
 {
     pImpl->setDownloadMethod(method);

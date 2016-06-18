@@ -161,6 +161,9 @@ public:
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
+    // set max connections per transfer
+    void setmaxconnections(direction_t, int);
+
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
