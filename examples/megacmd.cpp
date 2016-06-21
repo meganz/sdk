@@ -1470,14 +1470,15 @@ static const char * getUserInSharedNode(MegaNode *n)
 static void nodepath(handle h, string* path)
 {
     path->clear();
-    MegaNode* n = api->getNodeByHandle(h);
 
     //TODO: modify using API
-    if (n == rootNode)
+    if ( rootNode  && (h == rootNode->getHandle()) )
     {
         *path = "/";
         return;
     }
+
+    MegaNode* n = api->getNodeByHandle(h);
 
     //TODO: modify using API
     while (n)
@@ -1499,19 +1500,23 @@ static void nodepath(handle h, string* path)
                     {
                         path->insert(0, "UNKNOWN");
                     }
+                    delete n;
                     return;
                 }
                 break;
 
             case MegaNode::TYPE_INCOMING:
                 path->insert(0, "//in");
+                delete n;
                 return;
 
             case MegaNode::TYPE_ROOT:
+                delete n;
                 return;
 
             case MegaNode::TYPE_RUBBISH:
                 path->insert(0, "//bin");
+                delete n;
                 return;
 
             case MegaNode::TYPE_UNKNOWN:
@@ -1520,8 +1525,9 @@ static void nodepath(handle h, string* path)
         }
 
         path->insert(0, "/");
-
+        MegaNode *aux=n;
         n = api->getNodeByHandle(n->getParentHandle());
+        delete aux;
     }
 }
 
@@ -1884,11 +1890,15 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
     if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
         LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
+        if (rootNode) delete rootNode;
         rootNode = srl->getApi()->getRootNode();
-        if (cwd == UNDEF || !api->getNodeByHandle(cwd))
+
+        MegaNode *cwdNode = (cwd==UNDEF)?NULL:api->getNodeByHandle(cwd);
+        if (cwd == UNDEF || ! cwdNode)
         {
             cwd = rootNode->getHandle();
         }
+        if (cwdNode) delete cwdNode;
     }
     else
     {
@@ -1942,7 +1952,9 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
         LOG_verbose << "actUponLogout logout ok"; CLEAN_verbose;
         cwd = UNDEF;
         delete rootNode;
+        rootNode=NULL;
         delete session;
+        session=NULL;
     }
     else
     {
@@ -2279,6 +2291,7 @@ static void process_line(char* l)
                         if (n)
                         {
                             dumptree(n, recursive);
+                            delete n;
                         }
 
                         return;
@@ -2298,6 +2311,7 @@ static void process_line(char* l)
                                 {
                                     cwd = n->getHandle();
                                 }
+                                delete n;
                             }
                             else
                             {
@@ -2324,6 +2338,7 @@ static void process_line(char* l)
                                     LOG_verbose << "Deleting recursively: " << words[i]; CLEAN_verbose;
                                     api->remove(nodeToDelete, megaCmdListener);
                                     actUponDeleteNode(megaCmdListener);
+                                    delete nodeToDelete;
                                 }
 
                             }
@@ -2381,10 +2396,12 @@ static void process_line(char* l)
                                         if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
                                         {
                                             // (there should never be any orphaned filenodes)
-                                            if (!tn->getParentHandle() || ! api->getNodeByHandle(tn->getParentHandle()))
+                                            MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
+                                            if (!tn->getParentHandle() || !tnParentNode )
                                             {
                                                 return;
                                             }
+                                            delete tnParentNode;
 
                                             //move into the parent of target node
                                             api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
@@ -2425,29 +2442,14 @@ static void process_line(char* l)
                                             //TODO: act upon...
                                         }
                                     }
-
-//                                    if (n->getParentHandle() != tn->getHandle())
-//                                    {
-//                                        if (e == API_OK)
-//                                        {
-//                                            //TODO: modify using API
-////                                            e = client->rename(n, tn);
-
-//                                            if (e)
-//                                            {
-//                                                cout << "Move failed (" << errorstring(e) << ")" << endl;
-//                                            }
-//                                        }
-//                                        else
-//                                        {
-//                                            cout << "Move not permitted - try copy" << endl;
-//                                        }
-//                                    }
+                                    if (n != tn) //just in case moving to same location
+                                        delete tn;
                                 }
                                 else //target not found (not even its folder), cant move
                                 {
                                     cout << words[2] << ": No such directory" << endl;
                                 }
+                                delete n;
                             }
                             else
                             {
@@ -3203,57 +3205,71 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             MegaNode *currentnode=api->getNodeByHandle(cwd);
-                            string rest = words[1];
-                            while ( rest.length() )
+                            if (currentnode)
                             {
-                                bool lastleave = false;
-                                size_t possep = rest.find_first_of("/");
-                                if (possep == string::npos )
+                                string rest = words[1];
+                                while ( rest.length() )
                                 {
-                                    possep = rest.length();
-                                    lastleave=true;
-                                }
-
-                                string newfoldername=rest.substr(0,possep);
-                                if (!rest.length()) break;
-                                if (newfoldername.length())
-                                {
-                                    MegaNode *existing_node = api->getChildNode(currentnode,newfoldername.c_str());
-                                    if (!existing_node)
+                                    bool lastleave = false;
+                                    size_t possep = rest.find_first_of("/");
+                                    if (possep == string::npos )
                                     {
-                                        LOG_verbose << "Creating (sub)folder: " << newfoldername; CLEAN_verbose;
-                                        api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
-                                        actUponCreateFolder(megaCmdListener);
-                                        currentnode = api->getChildNode(currentnode,newfoldername.c_str());
-                                        if (!currentnode)
+                                        possep = rest.length();
+                                        lastleave=true;
+                                    }
+
+                                    string newfoldername=rest.substr(0,possep);
+                                    if (!rest.length()) break;
+                                    if (newfoldername.length())
+                                    {
+                                        MegaNode *existing_node = api->getChildNode(currentnode,newfoldername.c_str());
+                                        if (!existing_node)
                                         {
-                                            LOG_err << "Couldn't get node for created subfolder: " << newfoldername; CLEAN_err;
-                                            break;
+                                            LOG_verbose << "Creating (sub)folder: " << newfoldername; CLEAN_verbose;
+                                            api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
+                                            actUponCreateFolder(megaCmdListener);
+                                            MegaNode *prevcurrentNode=currentnode;
+                                            currentnode = api->getChildNode(currentnode,newfoldername.c_str());
+                                            delete prevcurrentNode;
+                                            if (!currentnode)
+                                            {
+                                                LOG_err << "Couldn't get node for created subfolder: " << newfoldername; CLEAN_err;
+                                                break;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            delete currentnode;
+                                            currentnode=existing_node;
+                                        }
+
+                                        if (lastleave && existing_node)
+                                        {
+                                            LOG_err << "Folder already exists: " << words[1]; CLEAN_err;
                                         }
                                     }
 
-                                    if (lastleave && existing_node)
+                                    //string rest = rest.substr(possep+1,rest.length()-possep-1);
+                                    if (!lastleave)
                                     {
-                                        LOG_err << "Folder already exists: " << words[1]; CLEAN_err;
+                                        rest = rest.substr(possep+1,rest.length());
+                                    }
+                                    else
+                                    {
+                                        break;
                                     }
                                 }
-
-                                //string rest = rest.substr(possep+1,rest.length()-possep-1);
-                                if (!lastleave)
-                                {
-                                    rest = rest.substr(possep+1,rest.length());
-                                }
-                                else
-                                {
-                                    break;
-                                }
+                                delete currentnode;
+                            }
+                            else
+                            {
+                                cout << "      mkdir remotepath" << endl; //TODO: print usage specific command
                             }
                         }
                         else
                         {
-                            cout << "      mkdir remotepath" << endl; //TODO: print usage specific command
+                            LOG_err << "Couldn't get node for cwd handle: " << cwd; CLEAN_err;
                         }
-
                         return;
                     }
 //                    else if (words[0] == "getfa")
