@@ -119,8 +119,9 @@ char *EdDSA::genFingerprintHex()
 
     delete fp;
 
-    char *result = new char[fpHex.length() + 1];
-    strcpy(result, fpHex.c_str());
+    char *result = new char[40 + 1];
+    strncpy(result, fpHex.c_str(), 40);
+    result[40] = '\0';
 
     return result;
 }
