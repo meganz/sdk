@@ -22,8 +22,6 @@
 #ifndef MEGAAPI_IMPL_H
 #define MEGAAPI_IMPL_H
 
-#include <inttypes.h>
-
 #include "mega.h"
 #include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
