@@ -74,9 +74,9 @@ public:
 
     /**
      * @brief Generates the fingerprint of the public key.
-     * @return The 20 bytes corresponding to the fingerprint.
+     * @return The 20 bytes corresponding to the fingerprint. 40 bytes for hex format.
      */
-    byte *genFingerprint(bool hexFormat);
+    byte *genFingerprint(bool hexFormat = false);
 
     /**
      * @brief Generates the fingerprint of the public key in hexadecimal format.
