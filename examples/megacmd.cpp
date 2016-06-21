@@ -55,10 +55,10 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
     private:
         MegaSemaphore* semaphore;
     protected:
-        MegaRequestListener *listener;
-        MegaApi *megaApi;
-        MegaRequest *megaRequest;
-        MegaError *megaError;
+        MegaRequestListener *listener = NULL;
+        MegaApi *megaApi = NULL;
+        MegaRequest *megaRequest = NULL;
+        MegaError *megaError = NULL;
 
     public:
         SynchronousRequestListener()
@@ -76,8 +76,11 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
         void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
         {
             this->megaApi = api;
+            if (megaRequest) delete megaRequest; //in case of reused listener
             this->megaRequest = request->copy();
+            if (megaError) delete megaError; //in case of reused listener
             this->megaError = error->copy();
+
 
             doOnRequestFinish(api,request,error);
             semaphore->release();
@@ -1271,10 +1274,10 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
                     nn = api->getChildNode(n, c[l].c_str());
 //                    nn = client->childnodebyname(n, c[l].c_str());
 
-                    if (!nn)
+                    if (!nn) //NOT FOUND
                     {
                         // mv command target? return name part of not found
-                        if (namepart && l == (int) c.size() - 1)
+                        if (namepart && l == (int) c.size() - 1) //if this is the last part, we will pass that one, so that a mv command know the name to give the the new node
                         {
                             *namepart = c[l];
                             return n;
@@ -1959,7 +1962,7 @@ int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
            return 1;
         }
     }
-    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
         LOG_verbose << "actUponCreateFolder Create Folder ok"; CLEAN_verbose;
         return 0;
@@ -2322,6 +2325,7 @@ static void process_line(char* l)
                                     api->remove(nodeToDelete, megaCmdListener);
                                     actUponDeleteNode(megaCmdListener);
                                 }
+
                             }
                         }
                         else
@@ -2331,107 +2335,98 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    else if (words[0] == "mv")
-//                    {
-//                        Node* tn;
-//                        string newname;
+                    else if (words[0] == "mv")
+                    {
+                        MegaNode* tn; //target node
+                        string newname;
 
-//                        if (words.size() > 2)
-//                        {
-//                            // source node must exist
-//                            if ((n = nodebypath(words[1].c_str())))
-//                            {
-//                                // we have four situations:
-//                                // 1. target path does not exist - fail
-//                                // 2. target node exists and is folder - move
-//                                // 3. target node exists and is file - delete and rename (unless same)
-//                                // 4. target path exists, but filename does not - rename
-//                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
-//                                {
-//                                    error e;
+                        if (words.size() > 2)
+                        {
+                            // source node must exist
+                            if (n = nodebypath(words[1].c_str()))
+                            {
 
-//                                    if (newname.size())
-//                                    {
-//                                        if (tn->type == FILENODE)
-//                                        {
-//                                            cout << words[2] << ": Not a directory" << endl;
+                                // we have four situations:
+                                // 1. target path does not exist - fail
+                                // 2. target node exists and is folder - move
+                                // 3. target node exists and is file - delete and rename (unless same)
+                                // 4. target path exists, but filename does not - rename
+                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
+                                {
+                                    if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
+                                    {
+                                        if (tn->getType() == MegaNode::TYPE_FILE)
+                                        {
+                                            cout << words[2] << ": Not a directory" << endl;
 
-//                                            return;
-//                                        }
-//                                        else
-//                                        {
-//                                            //TODO: modify using API
-////                                            if ((e = client->checkmove(n, tn)) == API_OK)
-////                                            {
-////                                                if (!client->checkaccess(n, RDWR))
-////                                                {
-////                                                    cout << "Write access denied" << endl;
+                                            return;
+                                        }
+                                        else //move and rename!
+                                        {
+                                            api->moveNode(n,tn,megaCmdListener);
+                                            megaCmdListener->wait(); // TODO: act upon move. log access denied...
+                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                            {
+                                                api->renameNode(n,newname.c_str(),megaCmdListener);
+                                                megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                            }
+                                            else
+                                            {
+                                                LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                            }
+                                        }
+                                    }
+                                    else //target found
+                                    {
+                                        if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
+                                        {
+                                            // (there should never be any orphaned filenodes)
+                                            if (!tn->getParentHandle() || ! api->getNodeByHandle(tn->getParentHandle()))
+                                            {
+                                                return;
+                                            }
 
-////                                                    return;
-////                                                }
+                                            //move into the parent of target node
+                                            api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
+                                            megaCmdListener->wait(); //TODO: do actuponmove...
 
-////                                                // rename
-////                                                client->fsaccess->normalize(&newname);
-////                                                n->attrs.map['n'] = newname;
+                                            const char* name_to_replace = tn->getName();
 
-////                                                if ((e = client->setattr(n)))
-////                                                {
-////                                                    cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
-////                                                }
-////                                            }
-//                                        }
-//                                    }
-//                                    else
-//                                    {
-//                                        if (tn->type == FILENODE)
-//                                        {
-//                                            // (there should never be any orphaned filenodes)
-//                                            if (!tn->parent)
-//                                            {
-//                                                return;
-//                                            }
-//                                            //TODO: modify using API
-////                                            if ((e = client->checkmove(n, tn->parent)) == API_OK)
-////                                            {
-////                                                if (!client->checkaccess(n, RDWR))
-////                                                {
-////                                                    cout << "Write access denied" << endl;
+                                            //remove (replaced) target node
+                                            if (n != tn) //just in case moving to same location
+                                            {
+                                                api->remove(tn,megaCmdListener); //remove target node
+                                                megaCmdListener->wait(); //TODO: actuponremove ...
+                                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                                                {
+                                                    LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                                }
+                                            }
 
-////                                                    return;
-////                                                }
+                                            // rename moved node with the new name
+                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                            {
+                                                if (!strcmp(name_to_replace,n->getName()))
+                                                {
+                                                    api->renameNode(n,name_to_replace,megaCmdListener);
+                                                    megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                }
+                                            }
+                                            else
+                                            {
+                                                LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                            }
+                                        }
+                                        else // target is a folder
+                                        {
+//                                            e = client->checkmove(n, tn);
+                                            api->moveNode(n,tn,megaCmdListener);
+                                            megaCmdListener->wait();
+                                            //TODO: act upon...
+                                        }
+                                    }
 
-////                                                // overwrite existing target file: rename source...
-////                                                n->attrs.map['n'] = tn->attrs.map['n'];
-////                                                e = client->setattr(n);
-
-////                                                if (e)
-////                                                {
-////                                                    cout << "Rename failed (" << errorstring(e) << ")" << endl;
-////                                                }
-
-////                                                if (n != tn)
-////                                                {
-////                                                    // ...delete target...
-////                                                    e = client->unlink(tn);
-
-////                                                    if (e)
-////                                                    {
-////                                                        cout << "Remove failed (" << errorstring(e) << ")" << endl;
-////                                                    }
-////                                                }
-////                                            }
-
-//                                            // ...and set target to original target's parent
-//                                            tn = tn->parent;
-//                                        }
-//                                        else
-//                                        {
-//                                            //TODO: modify using API
-////                                            e = client->checkmove(n, tn);
-//                                        }
-//                                    }
-
-//                                    if (n->parent != tn)
+//                                    if (n->getParentHandle() != tn->getHandle())
 //                                    {
 //                                        if (e == API_OK)
 //                                        {
@@ -2448,24 +2443,24 @@ static void process_line(char* l)
 //                                            cout << "Move not permitted - try copy" << endl;
 //                                        }
 //                                    }
-//                                }
-//                                else
-//                                {
-//                                    cout << words[2] << ": No such directory" << endl;
-//                                }
-//                            }
-//                            else
-//                            {
-//                                cout << words[1] << ": No such file or directory" << endl;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            cout << "      mv srcremotepath dstremotepath" << endl;
-//                        }
+                                }
+                                else //target not found (not even its folder), cant move
+                                {
+                                    cout << words[2] << ": No such directory" << endl;
+                                }
+                            }
+                            else
+                            {
+                                cout << words[1] << ": No such file or directory" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      mv srcremotepath dstremotepath" << endl;
+                        }
 
-//                        return;
-//                    }
+                        return;
+                    }
 //                    else if (words[0] == "cp")
 //                    {
 //                        Node* tn;
