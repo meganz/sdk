@@ -36,6 +36,26 @@
 
 using namespace mega;
 
+void clear_display(){
+    rl_forced_update_display();
+}
+
+#define CLEAN_fatal if (SimpleLogger::logCurrentLevel < logFatal) ;\
+    else \
+        clear_display();
+#define CLEAN_err if (SimpleLogger::logCurrentLevel < logError) ;\
+    else \
+        clear_display();
+#define CLEAN_info if (SimpleLogger::logCurrentLevel < logInfo) ;\
+    else \
+        clear_display();
+#define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
+    else \
+        clear_display();
+#define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        clear_display();
+
 //MegaClient* client;
 MegaApi* api;
 
@@ -138,8 +158,46 @@ protected:
     MegaRequestListener *listener;
 };
 
+class MegaCmdGlobalListener : public MegaGlobalListener
+{
+public:
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+};
+
+
+void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes){
+
+    int nfolders = 0;
+    int nfiles = 0;
+    int rfolders = 0;
+    int rfiles = 0;
+    if (nodes)
+    for (int i=0;i<nodes->size();i++)
+    {
+        MegaNode *n = nodes->get(i);
+        if (n->getType() == MegaNode::TYPE_FOLDER)
+        {
+            if (n->isRemoved()) rfolders++;
+            else nfolders++;
+        }
+        else if (n->getType() == MegaNode::TYPE_FILE)
+        {
+            if (n->isRemoved()) rfiles++;
+            else nfiles++;
+        }
+    }
+
+    if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; CLEAN_info; }
+    if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; CLEAN_info; }
+    if (rfolders) { LOG_info << rfolders << " folders " << "removed"; CLEAN_info; }
+    if (rfiles) { LOG_info << rfiles << " files " << "removed"; CLEAN_info; }
+}
+
 // listener for all actions with the api
 MegaCmdListener* megaCmdListener;
+
+// global listener
+MegaCmdGlobalListener* megaCmdGlobalListener;
 
 // login e-mail address
 static string login;
@@ -1579,27 +1637,6 @@ void sigint_handler(int signum)
 }
 #endif
 
-
-
-void clear_display(){
-    rl_forced_update_display();
-}
-
-#define CLEAN_fatal if (SimpleLogger::logCurrentLevel < logFatal) ;\
-    else \
-        clear_display();
-#define CLEAN_err if (SimpleLogger::logCurrentLevel < logError) ;\
-    else \
-        clear_display();
-#define CLEAN_info if (SimpleLogger::logCurrentLevel < logInfo) ;\
-    else \
-        clear_display();
-#define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
-    else \
-        clear_display();
-#define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
-    else \
-        clear_display();
 
 ////////////////////////////////////////
 ///      MegaCmdListener methods     ///
@@ -4951,6 +4988,9 @@ int main()
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
     megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted
+    megaCmdGlobalListener =  new MegaCmdGlobalListener(); //TODO: never deleted
+
+    api->addGlobalListener(megaCmdGlobalListener);
 
     SimpleLogger::setLogLevel(logInfo);
 //      SimpleLogger::setLogLevel(logDebug);
