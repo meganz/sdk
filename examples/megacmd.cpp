@@ -60,6 +60,19 @@ void clear_display(){
 MegaApi* api;
 
 
+static AccountDetails account;
+
+
+static handle cwd = UNDEF;
+static MegaNode* rootNode = NULL;
+static char *session;
+
+static const char* rootnodenames[] =
+{ "ROOT", "INBOX", "RUBBISH" };
+static const char* rootnodepaths[] =
+{ "/", "//in", "//bin" };
+
+
 #include "megaapi_impl.h"
 /**
  * @brief This abstract class extendes the functionality of MegaRequestListener
@@ -164,6 +177,39 @@ public:
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 };
 
+/**
+ * @brief getNumFolderFiles
+ *
+ * Ownership of returned value belongs to the caller
+ * @param n
+ * @return
+ */
+int * getNumFolderFiles(MegaNode *n){
+
+    int * nFolderFiles = new int[2]();
+    MegaNodeList *totalnodes = api->getChildren(n,MegaApi::ORDER_DEFAULT_ASC); //sort folders first
+    for (int i=0; i<totalnodes->size();i++)
+    {
+        if (totalnodes->get(i)->getType() == MegaNode::TYPE_FILE) //find first file
+        {
+            nFolderFiles[1] = totalnodes->size()-i;
+            break;
+        }
+        nFolderFiles[0]++; //folder
+    }
+    int nfolders = nFolderFiles[0];
+    for (int i=0; i<nfolders;i++)
+    {
+        int * nFolderFilesSub = getNumFolderFiles(totalnodes->get(i));
+
+        nFolderFiles[0]+=  nFolderFilesSub[0];
+        nFolderFiles[1]+=  nFolderFilesSub[1];
+        delete nFolderFilesSub;
+
+    }
+    delete totalnodes;
+    return nFolderFiles;
+}
 
 void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes){
 
@@ -172,19 +218,56 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes){
     int rfolders = 0;
     int rfiles = 0;
     if (nodes)
-    for (int i=0;i<nodes->size();i++)
     {
-        MegaNode *n = nodes->get(i);
-        if (n->getType() == MegaNode::TYPE_FOLDER)
+        for (int i=0;i<nodes->size();i++)
         {
-            if (n->isRemoved()) rfolders++;
-            else nfolders++;
+            MegaNode *n = nodes->get(i);
+            if (n->getType() == MegaNode::TYPE_FOLDER)
+            {
+                if (n->isRemoved()) rfolders++;
+                else nfolders++;
+            }
+            else if (n->getType() == MegaNode::TYPE_FILE)
+            {
+                if (n->isRemoved()) rfiles++;
+                else nfiles++;
+            }
         }
-        else if (n->getType() == MegaNode::TYPE_FILE)
+    }
+    else //initial update or too many changes
+    {
+        MegaNode * nodeRoot= api->getRootNode();
+        int * nFolderFiles = getNumFolderFiles(nodeRoot);
+        nfolders+=nFolderFiles[0];
+        nfiles+=nFolderFiles[1];
+        delete nFolderFiles;
+        delete nodeRoot;
+
+        MegaNode * inboxNode= api->getInboxNode();
+        nFolderFiles = getNumFolderFiles(inboxNode);
+        nfolders+=nFolderFiles[0];
+        nfiles+=nFolderFiles[1];
+        delete nFolderFiles;
+        delete inboxNode;
+
+        MegaNode * rubbishNode= api->getRubbishNode();
+        nFolderFiles = getNumFolderFiles(rubbishNode);
+        nfolders+=nFolderFiles[0];
+        nfiles+=nFolderFiles[1];
+        delete nFolderFiles;
+        delete rubbishNode;
+
+        MegaNodeList *inshares = api->getInShares();
+        if (inshares)
+        for (int i=0; i<inshares->size();i++)
         {
-            if (n->isRemoved()) rfiles++;
-            else nfiles++;
+            nfolders++; //add the share itself
+            nFolderFiles = getNumFolderFiles(inshares->get(i));
+            nfolders+=nFolderFiles[0];
+            nfiles+=nFolderFiles[1];
+            delete nFolderFiles;
         }
+        delete inshares;
     }
 
     if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; CLEAN_info; }
@@ -1073,16 +1156,6 @@ static void store_line(char*);
 static void process_line(char *);
 static char* line;
 
-static AccountDetails account;
-
-static handle cwd = UNDEF;
-static MegaNode* rootNode = NULL;
-static char *session;
-
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
 
 static void nodestats(int* c, const char* action)
 {
