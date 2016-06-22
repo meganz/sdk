@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "../src/crypto/sodium.cpp"
+#include <math.h>
 #include "gtest/gtest.h"
 
 using namespace mega;
@@ -149,26 +150,55 @@ TEST(Crypto, Ed25519_Signing)
                           "dcvskHUydAL0qNOqbCwvt1Y7xIQfclR0SQE/AbwuJui0mt3"
                           "PuGjM42T/DQ==";
     string estr         = "AQE=";
-    string pubRSAstr    = pqstr + estr;                                             // Base64
-    std::replace(pubRSAstr.begin(), pubRSAstr.end(), '+', '-');
-    std::replace(pubRSAstr.begin(), pubRSAstr.end(), '/', '_');
-
+    
     string fpRSAstr     = "GN2sWsukWnEarqVPS7mE5sPro38";                            // Base64 url encoded
     string fpRSAhex     = "18ddac5acba45a711aaea54f4bb984e6c3eba37f";
 
-    string sigRSAstr     = "AAAAAFPqtrj3Qr4d83Oz/Ya6svzJfeoSBtWPC7KBU4"           // Base64
+    string sigRSAstr    = "AAAAAFPqtrj3Qr4d83Oz/Ya6svzJfeoSBtWPC7KBU4"           // Base64
                           "KqWMI8OX3eXT45+IyWCTTA5yeip/GThvkS8O2HBF"
                           "aNLvSAFq5/5lQG";
-    std::replace(sigRSAstr.begin(), sigRSAstr.end(), '+', '-');
-    std::replace(sigRSAstr.begin(), sigRSAstr.end(), '/', '_');
 
-    // Prepare Ed25519 keypair
+    uint64_t sigRSAts   = 1407891128; // authring_test.js specify 1407891127650 ms, which is later rounded to seconds
+
+
+    // Initialize variables
+
     int keySeedLen = EdDSA::SEED_KEY_LENGTH;
     unsigned char keySeed[keySeedLen];
     ASSERT_EQ(keySeedLen, Base64::atob(prEd255str.data(), keySeed, keySeedLen))
             << "Failed to convert Ed25519 private key to binary";
 
     EdDSA signkey(keySeed);
+
+    string puEd255bin;
+    puEd255bin.resize(puEd255str.size() * 3 / 4 + 3);
+    puEd255bin.resize(Base64::atob(puEd255str.data(), (byte*) puEd255bin.data(), puEd255bin.size()));
+    ASSERT_TRUE(!memcmp(puEd255bin.data(), signkey.pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+            << "Public Ed25519 key doesn't match the derived public key";
+
+    // convert from Base64 to Base64 URL encoding
+    std::replace(pqstr.begin(), pqstr.end(), '+', '-');
+    std::replace(pqstr.begin(), pqstr.end(), '/', '_');
+
+    string pqbin;
+    pqbin.resize(pqstr.size() * 3 / 4 + 3);
+    pqbin.resize(Base64::atob(pqstr.data(), (byte*) pqbin.data(), pqbin.size()));
+
+    string ebin;
+    ebin.resize(estr.size() * 3 / 4 + 3);
+    ebin.resize(Base64::atob(estr.data(), (byte*) ebin.data(), ebin.size()));
+
+    string pubRSAbin;
+    pubRSAbin.append(pqbin.data(), pqbin.size());
+    pubRSAbin.append(ebin.data(), ebin.size());
+
+    // convert from Base64 to Base64 URL encoding
+    std::replace(sigRSAstr.begin(), sigRSAstr.end(), '+', '-');
+    std::replace(sigRSAstr.begin(), sigRSAstr.end(), '/', '_');
+
+    string sigRSAbin;
+    sigRSAbin.resize(sigRSAstr.size() * 4 / 3 + 4);
+    sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), sigRSAbin.size()));
 
 
     // ____ Check Ed25519 fingerprint generation ____
@@ -190,14 +220,62 @@ TEST(Crypto, Ed25519_Signing)
 
     // ____ Check signature of RSA public key ____
 
+    string sigPubk;
+    signkey.signKey((unsigned char *) pubRSAbin.data(), pubRSAbin.size(), &sigPubk, sigRSAts);
+
+    ASSERT_EQ(sigRSAbin.size(), sigPubk.size()) << "Wrong size of signature";
+    ASSERT_TRUE(!memcmp(sigRSAbin.data(), sigPubk.data(), sigRSAbin.size())) << "RSA signatures don't match";
 
 
     // ____ Verify signature of RSA public key ____
 
+    // good signature
+    bool sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                   &sigRSAbin, (unsigned char*) puEd255bin.data());
+    ASSERT_TRUE(sigOK) << "Verification of RSA signature failed.";
+
+    // bad signature
+    string sigBuf = sigRSAbin;
+    sigBuf.at(70) = 42;
+    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                       &sigBuf, (unsigned char*) puEd255bin.data());
+    ASSERT_FALSE(sigOK) << "Verification of bad RSA signature succeed when it should fail.";
+
+    // empty signature
+    sigBuf.clear();
+    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                       &sigBuf, (unsigned char*) puEd255bin.data());
+    ASSERT_FALSE(sigOK) << "Verification of empty RSA signature succeed when it should fail.";
+
+    // bad timestamp
+    sigBuf = sigRSAbin;
+    sigBuf.at(0) = 42;
+    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                       &sigBuf, (unsigned char*) puEd255bin.data());
+    ASSERT_FALSE(sigOK) << "Verification of RSA signature with wrong timestamp succeed when it should fail.";
+
+    // signature with bad point
+    sigBuf = sigRSAbin;
+    sigBuf.at(8) = 42;
+    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                       &sigBuf, (unsigned char*) puEd255bin.data());
+    ASSERT_FALSE(sigOK) << "Verification of RSA signature with bad point succeed when it should fail.";
 
 
     // ____ Create and verify signatures of random messages ____
 
+    unsigned keylen = SymmCipher::KEYLENGTH;
+    byte key[keylen];
+    string sig;
+    for (int i = 0; i < 100; i++)
+    {
+        PrnGen::genblock(key, keylen);
+        signkey.signKey((unsigned char *) key, keylen, &sig);
+
+        ASSERT_TRUE(signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+                                      &sigRSAbin, (unsigned char*) puEd255bin.data()))
+                << "Verification of signature failed for a random key.";
+    }
 
 }
 
