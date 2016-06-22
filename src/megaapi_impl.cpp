@@ -19,13 +19,10 @@
  * program.
  */
 
-#define _POSIX_SOURCE
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
 #define _FILE_OFFSET_BITS 64
-
-#define __DARWIN_C_LEVEL 199506L
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -2245,7 +2242,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_USER: return "GET_ATTR_USER";
         case TYPE_SET_ATTR_USER: return "SET_ATTR_USER";
         case TYPE_RETRY_PENDING_CONNECTIONS: return "RETRY_PENDING_CONNECTIONS";
-        case TYPE_ADD_CONTACT: return "ADD_CONTACT";
         case TYPE_REMOVE_CONTACT: return "REMOVE_CONTACT";
         case TYPE_CREATE_ACCOUNT: return "CREATE_ACCOUNT";
         case TYPE_CONFIRM_ACCOUNT: return "CONFIRM_ACCOUNT";
@@ -3353,6 +3349,16 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 #endif
 }
 
+void MegaApiImpl::setStatsID(const char *id)
+{
+    if (!id || !*id || MegaClient::statsid)
+    {
+        return;
+    }
+
+    MegaClient::statsid = MegaApi::strdup(id);
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -3617,7 +3623,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+#if defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
 
@@ -4285,28 +4291,20 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     if(type == MegaApi::USER_ATTR_AVATAR)
     {
-        request->setFile(srcFilePath);
+        request->setFile(value);
     }
     else
     {
-        request->setText(srcFilePath);
+        request->setText(value);
     }
 
     request->setParamType(type);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
-{
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
-	request->setEmail(email);
-	requestQueue.push(request);
     waiter->notify();
 }
 
@@ -5823,7 +5821,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(!it->second->isoutgoing)
+        if(!it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -5841,7 +5839,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     vector<PendingContactRequest*> vContactRequests;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
-        if(it->second->isoutgoing)
+        if(it->second->isoutgoing && !it->second->removed())
         {
             vContactRequests.push_back(it->second);
         }
@@ -6613,6 +6611,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         {
             if(!transfer->getStartTime())
             {
+                transfer->setTotalBytes(tr->size);
                 transfer->setStartTime(Waiter::ds);
                 transfer->setTransferredBytes(tr->slot->progressreported);
             }
@@ -6733,6 +6732,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         {
             fireOnTransferUpdate(transfer);
         }
+        transfer->setTransfer(NULL);
     }
 }
 
@@ -7576,16 +7576,19 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
     }
     else
     {
-        if (h == UNDEF)
+        switch (action)
         {
-            // must have been deleted
-            LOG_debug << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully";
-        }
-        else
-        {
-            char buffer[12];
-            Base64::btoa((byte*)&h, sizeof(h), buffer);
-            LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+            case OPCA_DELETE:
+                LOG_debug << "Outgoing pending contact request deleted successfully";
+                break;
+            case OPCA_REMIND:
+                LOG_debug << "Outgoing pending contact request reminded successfully";
+                break;
+            case OPCA_ADD:
+                char buffer[12];
+                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
+                break;
         }
     }
 
@@ -8335,13 +8338,12 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::invite_result(error e)
+void MegaApiImpl::removecontact_result(error e)
 {
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_ADD_CONTACT) &&
-                    (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT))) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10295,7 +10297,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			Node *parent = client->nodebyhandle(request->getParentHandle());
 			const char *name = request->getName();
-			if(!name || !parent) { e = API_EARGS; break; }
+            if(!name || !(*name) || !parent) { e = API_EARGS; break; }
 
 			NewNode *newnode = new NewNode[1];
 			SymmCipher key;
@@ -10953,7 +10955,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->disconnect();
 
-#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+#if defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
 
@@ -11014,26 +11016,7 @@ void MegaApiImpl::sendPendingRequests()
 
 			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
-		}
-		case MegaRequest::TYPE_ADD_CONTACT:
-		{
-            const char *email = request->getEmail();
-
-            if(client->loggedin() != FULLACCOUNT)
-            {
-                e = API_EACCESS;
-                break;
-            }
-
-            if(!email || !client->finduser(client->me)->email.compare(email))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-			e = client->invite(email, VISIBLE);
-			break;
-		}
+        }
         case MegaRequest::TYPE_INVITE_CONTACT:
         {
             const char *email = request->getEmail();
@@ -11047,6 +11030,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if(!email || !client->finduser(client->me)->email.compare(email))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (action != OPCA_ADD && action != OPCA_REMIND && action != OPCA_DELETE)
             {
                 e = API_EARGS;
                 break;
@@ -11073,7 +11062,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char *email = request->getEmail();
 			if(!email) { e = API_EARGS; break; }
-			e = client->invite(email, HIDDEN);
+            e = client->removecontact(email, HIDDEN);
 			break;
 		}
 		case MegaRequest::TYPE_CREATE_ACCOUNT:
@@ -11243,6 +11232,11 @@ void MegaApiImpl::sendPendingRequests()
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
+                if (!transfer)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
 
                 #ifdef _WIN32
                     if(transfer->type==GET)
@@ -11350,7 +11344,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
             sync_list::iterator it = client->syncs.begin();
-            while(it != client->syncs.end())
+            while (it != client->syncs.end())
             {
                 Sync *sync = (*it);
                 int tag = sync->tag;
@@ -11358,7 +11352,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->delsync(sync);
 
-                if(syncMap.find(tag) == syncMap.end())
+                if (syncMap.find(tag) != syncMap.end())
                 {
                     MegaSyncPrivate *megaSync = syncMap.at(tag);
                     syncMap.erase(tag);
@@ -11379,26 +11373,37 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
 
                 int tag = sync->tag;
-                if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+                if (!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
                 {
                     string path;
                     fsAccess->local2path(&sync->localroot.localname, &path);
-                    request->setFile(path.c_str());
+                    if (!request->getFile() || sync->localroot.node)
+                    {
+                        request->setFile(path.c_str());
+                    }
+
                     client->delsync(sync, request->getFlag());
 
-                    if(syncMap.find(tag) == syncMap.end())
+                    if (syncMap.find(tag) != syncMap.end())
                     {
                         MegaSyncPrivate *megaSync = syncMap.at(tag);
                         syncMap.erase(tag);
                         delete megaSync;
                     }
 
-                    fireOnRequestFinish(request, MegaError(API_OK));
                     found = true;
                 }
             }
 
-            if(!found) e = API_ENOENT;
+            if (found)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            else
+            {
+                e = API_ENOENT;
+            }
+
             break;
         }
 #endif

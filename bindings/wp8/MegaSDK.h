@@ -144,6 +144,7 @@ namespace mega
         void retryPendingConnections(bool disconnect);
         void retryPendingConnections();
         void reconnect();
+        static void setStatsID(String^ id);
 
         //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
@@ -280,8 +281,6 @@ namespace mega
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
-        void addContact(String^ email, MRequestListenerInterface^ listener);
-        void addContact(String^ email);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);
@@ -403,15 +402,26 @@ namespace mega
         MError^ checkAccess(MNode^ node, int level);
         MError^ checkMove(MNode^ node, MNode^ target);
 
+        bool isFilesystemAvailable();
         MNode^ getRootNode();
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+
+        uint64 getBandwidthOverquotaDelay();
+
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
         MNodeList^ globalSearch(String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+
+        MNode^ authorizeNode(MNode^ node);
         
+        bool createThumbnail(String^ imagePath, String^ dstPath);
+        bool createPreview(String^ imagePath, String^ dstPath);
+
+        bool isOnline();
+
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;
         std::set<DelegateMTransferListener *> activeTransferListeners;

@@ -1611,7 +1611,7 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
                 {
                     if (req->binary)
                     {
-                        LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
+                        LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
                     else
                     {

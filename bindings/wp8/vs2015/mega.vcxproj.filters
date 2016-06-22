@@ -1,28 +1,134 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Resources">
+      <UniqueIdentifier>ae544755-63db-4e8b-a097-7420dd03fb2f</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tga;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
     <Filter Include="Bindings">
-      <UniqueIdentifier>{c5cef34a-dd94-4490-9abf-e665dfdc2191}</UniqueIdentifier>
+      <UniqueIdentifier>{bfca6117-7271-4160-ae4b-0ebbed4927da}</UniqueIdentifier>
     </Filter>
     <Filter Include="SDK">
-      <UniqueIdentifier>{8ee96227-d895-44c8-b951-c2537da87311}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="SDK\Source">
-      <UniqueIdentifier>{a52a73d9-c0c8-4c89-b21b-c27e94fedb9e}</UniqueIdentifier>
+      <UniqueIdentifier>{b4f092cd-47b4-43e8-a7b1-a3f96ab5f28c}</UniqueIdentifier>
     </Filter>
     <Filter Include="SDK\Header">
-      <UniqueIdentifier>{daeeae6f-4786-413b-9aeb-bb7850420bbd}</UniqueIdentifier>
+      <UniqueIdentifier>{607152bd-854d-45e8-9ced-834dc727a5af}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\Source">
+      <UniqueIdentifier>{66225a13-4098-4d05-a803-127be3fb22a1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\mega.h">
-      <Filter>SDK\Header</Filter>
+    <ClInclude Include="..\DelegateMGfxProcessor.h">
+      <Filter>Bindings</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\megaapi.h">
-      <Filter>SDK\Header</Filter>
+    <ClInclude Include="..\DelegateMGlobalListener.h">
+      <Filter>Bindings</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\megaapi_impl.h">
-      <Filter>SDK\Header</Filter>
+    <ClInclude Include="..\DelegateMListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMLogger.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMRequestListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMTransferListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMTreeProcessor.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountBalance.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountDetails.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountPurchase.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountSession.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountTransaction.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MContactRequest.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MContactRequestList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MegaSDK.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MError.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MGfxProcessorInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MGlobalListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MInputStream.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MInputStreamAdapter.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MLoggerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MNode.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MNodeList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MPricing.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRandomNumberProvider.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRequest.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRequestListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MShare.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MShareList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MStringList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransfer.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransferList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransferListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTreeProcessorInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MUser.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MUserList.h">
+      <Filter>Bindings</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\mega\account.h">
       <Filter>SDK\Header</Filter>
@@ -70,6 +176,12 @@
       <Filter>SDK\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\mega\logging.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_http_parser.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\mega\megaapp.h">
@@ -129,10 +241,19 @@
     <ClInclude Include="..\..\..\include\mega\waiter.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\wp8\megaconsole.h">
+    <ClInclude Include="..\..\..\include\mega\crypto\cryptopp.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\wp8\megaconsolewaiter.h">
+    <ClInclude Include="..\..\..\include\mega\crypto\sodium.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\db\sqlite.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\gfx\freeimage.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\thread\cppthread.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\mega\wp8\megafs.h">
@@ -147,134 +268,92 @@
     <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\thread\cppthread.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\db\sqlite.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\crypto\cryptopp.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\crypto\sodium.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\gfx\external.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMGlobalListener.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMListener.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMRequestListener.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMTransferListener.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MAccountDetails.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MegaSDK.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MError.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MGlobalListenerInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MListenerInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MNode.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MNodeList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MRequest.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MRequestListenerInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MShare.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MShareList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MTransfer.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MTransferList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MTransferListenerInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MTreeProcessorInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MUser.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MUserList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMTreeProcessor.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MRandomNumberProvider.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MGfxProcessorInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMGfxProcessor.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MLoggerInterface.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\DelegateMLogger.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MPricing.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MContactRequest.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MContactRequestList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MInputStream.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MInputStreamAdapter.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MAccountBalance.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MAccountSession.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MAccountPurchase.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MAccountTransaction.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
-    <ClInclude Include="..\MStringList.h">
-      <Filter>Bindings</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\DelegateMGfxProcessor.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMGlobalListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMLogger.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMRequestListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMTransferListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMTreeProcessor.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountBalance.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountDetails.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountPurchase.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountSession.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountTransaction.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MContactRequest.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MContactRequestList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MegaSDK.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MError.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MInputStreamAdapter.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MNode.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MNodeList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MPricing.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MRequest.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MShare.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MShareList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MStringList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransfer.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransferList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUser.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUserList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
@@ -315,6 +394,12 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\logging.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_http_parser.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\megaapi.cpp">
@@ -371,116 +456,32 @@
     <ClCompile Include="..\..\..\src\waiterbase.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\crypto\cryptopp.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\crypto\sodium.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\db\sqlite.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\gfx\freeimage.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\thread\cppthread.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\src\wp8\waiter.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\win32\fs.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\thread\cppthread.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\db\sqlite.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\crypto\cryptopp.cpp">
+    <ClCompile Include="..\..\..\src\posix\net.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\gfx\external.cpp">
       <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\posix\net.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMGlobalListener.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMListener.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMRequestListener.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMTransferListener.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MAccountDetails.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MegaSDK.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MError.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MNode.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MNodeList.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MRequest.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MShare.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MShareList.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MTransfer.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MTransferList.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MUser.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MUserList.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\gfx\freeimage.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMTreeProcessor.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMGfxProcessor.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DelegateMLogger.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MPricing.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MContactRequest.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MContactRequestList.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MInputStreamAdapter.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MAccountBalance.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MAccountSession.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MAccountPurchase.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MAccountTransaction.cpp">
-      <Filter>Bindings</Filter>
-    </ClCompile>
-    <ClCompile Include="..\MStringList.cpp">
-      <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

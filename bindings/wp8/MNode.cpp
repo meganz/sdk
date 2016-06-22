@@ -62,6 +62,45 @@ String^ MNode::getName()
     return utf8name ? ref new String((wchar_t *)utf16name.data()) : nullptr;
 }
 
+String^ MNode::getFingerprint()
+{
+    if (!megaNode) return nullptr;
+
+    std::string utf16fingerprint;
+    const char *utf8fingerprint = megaNode->getFingerprint();
+    MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
+
+    return utf8fingerprint ? ref new String((wchar_t *)utf16fingerprint.data()) : nullptr;
+}
+
+bool MNode::hasCustomAttrs()
+{
+    return megaNode ? megaNode->hasCustomAttrs() : false;
+}
+
+MStringList^ MNode::getCustomAttrNames()
+{
+    return megaNode ? ref new MStringList(megaNode->getCustomAttrNames(), true) : nullptr;
+}
+
+String^ MNode::getCustomAttr(String^ attrName)
+{
+    if (!megaNode || attrName == nullptr) return nullptr;
+
+    std::string utf8attrName;
+    MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    const char *utf8customAttr = megaNode->getCustomAttr(utf8attrName.c_str());
+    if (!utf8customAttr)
+        return nullptr;
+
+    std::string utf16customAttr;
+    MegaApi::utf8ToUtf16(utf8customAttr, &utf16customAttr);
+    delete[] utf8customAttr;
+
+    return ref new String((wchar_t *)utf16customAttr.c_str());
+}
+
 String^ MNode::getBase64Handle()
 {
     if (!megaNode) return nullptr;
@@ -205,4 +244,24 @@ bool MNode::isExpired()
 bool MNode::isTakenDown()
 {
     return megaNode ? megaNode->isTakenDown() : false;
+}
+
+bool MNode::isForeign()
+{
+    return megaNode ? megaNode->isForeign() : false;
+}
+
+bool MNode::isShared()
+{
+    return megaNode ? megaNode->isShared() : false;
+}
+
+bool MNode::isOutShare()
+{
+    return megaNode ? megaNode->isOutShare() : false;
+}
+
+bool MNode::isInShare()
+{
+    return megaNode ? megaNode->isInShare() : false;
 }

@@ -1827,35 +1827,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
 
 /**
- * @brief Add a new contact to the MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeAddContact.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email of the contact
- *
- * @param email Email of the new contact.
- * @param delegate Delegate to track this request.
- *
- * @deprecated: This way to add contacts will be removed in future updates. Please use 
- * [MEGASdk inviteContactWithEmail:message:action:].
- */
-- (void)addContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Add a new contact to the MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeAddContact.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email of the contact
- *
- * @param email Email of the new contact.
- *
- * @deprecated: This way to add contacts will be removed in future updates. Please use
- * [MEGASdk inviteContactWithEmail:message:action:].
- */
-- (void)addContactWithEmail:(NSString *)email;
-
-/**
  * @brief Invite another person to be your MEGA contact
  *
  * The user doesn't need to be registered on MEGA. If the email isn't associated with
@@ -1940,25 +1911,25 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action;
 
 /**
- * @brief Remove a contact to the MEGA account.
+ * @brief Remove a contact from the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeRemoveContact.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  *
- * @param user User of the new contact.
+ * @param user User of the contact to be removed.
  * @param delegate Delegate to track this request.
  */
 - (void)removeContactUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Add a new contact to the MEGA account.
+ * @brief Remove a contact from the MEGA account.
  *
- * The associated request type with this request is MEGARequestTypeAddContact.
+ * The associated request type with this request is MEGARequestTypeRemoveContact.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  *
- * @param user User of the new contact.
+ * @param user User of the contact to be removed.
  */
 - (void)removeContactUser:(MEGAUser *)user;
 

@@ -34,7 +34,8 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
     lastprogressreport = 0;
-    progressreported = ctransfer->progresscompleted;
+    progressreported = 0;
+
     lastdata = Waiter::ds;
     errorcount = 0;
 
@@ -245,16 +246,28 @@ void TransferSlot::doio(MegaClient* client)
                         // return of the upload token
                         if (reqs[i]->in.size())
                         {
-                            if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
+                            if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
                             {                                        
                                 LOG_debug << "Upload token received";
                                 if (!transfer->ultoken)
                                 {
-                                    transfer->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
+                                    transfer->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
                                 }
 
-                                if (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN + 1)
-                                    == NewNode::UPLOADTOKENLEN)
+                                bool tokenOK = true;
+                                if (reqs[i]->in.data()[NewNode::UPLOADTOKENLEN - 1] == 1)
+                                {
+                                    LOG_debug << "New style upload token";
+                                    memcpy(transfer->ultoken, reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+                                }
+                                else
+                                {
+                                    LOG_debug << "Old style upload token: " << reqs[i]->in;
+                                    tokenOK = (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN)
+                                               == NewNode::OLDUPLOADTOKENLEN);
+                                }
+
+                                if (tokenOK)
                                 {
                                     memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;

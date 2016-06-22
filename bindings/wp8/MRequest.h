@@ -41,7 +41,7 @@ namespace mega
         TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
         TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
         TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-        TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+        TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
         TYPE_CONFIRM_ACCOUNT,
         TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
         TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
@@ -81,7 +81,8 @@ namespace mega
         String^ getPrivateKey();
         int getAccess();
         String^ getFile();
-        MNode^ getPublicNode();
+        int getNumRetry();        
+        MNode^ getPublicMegaNode();
         int getParamType();
         String^ getText();
         uint64 getNumber();
@@ -89,6 +90,9 @@ namespace mega
         uint64 getTransferredBytes();
         uint64 getTotalBytes();
         MAccountDetails^ getMAccountDetails();
+        int getTransferTag();
+        int getNumDetails();
+        int getTag();
         MPricing^ getPricing();
 
     private:
