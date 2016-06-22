@@ -156,6 +156,11 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
 
 bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, string *sig, const unsigned char* signingPubKey)
 {
+    if (sig->size() < 72)
+    {
+        return false;
+    }
+
     uint64_t ts;
     memcpy(&ts, sig->substr(0, 8).data(), sizeof(ts));
 
