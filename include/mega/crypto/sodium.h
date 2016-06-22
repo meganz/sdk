@@ -84,7 +84,7 @@ public:
      */
     char *genFingerprintHex();
 
-    void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf);
+    void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf, uint64_t ts = 0);
     bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
                    string *sig, const unsigned char* singingPubKey = NULL);
 

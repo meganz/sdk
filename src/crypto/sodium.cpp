@@ -126,9 +126,12 @@ char *EdDSA::genFingerprintHex()
     return result;
 }
 
-void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result)
+void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result, uint64_t ts)
 {
-    uint64_t ts = (uint64_t) time(NULL);
+    if (!ts)
+    {
+        ts = (uint64_t) time(NULL);
+    }
 
     string tsstr;
     unsigned char digit;
