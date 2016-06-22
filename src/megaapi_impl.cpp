@@ -3623,7 +3623,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
+#if defined(WINDOWS_PHONE) || TARGET_OS_IPHONE
     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
 
@@ -10955,7 +10955,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->disconnect();
 
-#if defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
+#if defined(WINDOWS_PHONE) || TARGET_OS_IPHONE
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
 
