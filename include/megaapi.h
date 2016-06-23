@@ -1614,7 +1614,10 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
+            TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
+            TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK
         };
 
         virtual ~MegaRequest();
@@ -4329,6 +4332,153 @@ class MegaApi
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Initialize the reset of the existing password, with and without the Master Key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOVERY_LINK.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
+         *
+         * If this request succeed, a recovery link will be sent to the user.
+         * If no account is registered under the provided email, you will get the error code
+         * MegaError::API_ENOENT in onRequestFinish
+         *
+         * @param email Email used to register the account whose password wants to be reset.
+         * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a recovery link created by MegaApi::resetPassword.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link Recovery link (#recover)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a new password for the account pointed by the recovery link.
+         *
+         * Recovery links are created by calling MegaApi::resetPassword and may or may not
+         * require to provide the Master Key.
+         *
+         * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         * - MegaRequest::getPrivateKey - Returns the Master Key, when provided
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param newPwd The new password to be set.
+         * @param masterKey Base64-encoded string containing the master key (optional).
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeed, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @see MegaApi::confirmCancelAccount
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelAccount(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively parks the user's account without creating a new fresh account.
+         *
+         * The contents of the account will then be purged after 60 days. Once the account is
+         * parked, the user needs to contact MEGA support to restore the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CANCEL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Cancellation link sent to the user's email address;
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the change of the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         *
+         * If this request succeed, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeEmail(const char *email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a change-email link created by MegaApi::changeEmail.
+         *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link (#verify)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryChangeEmailLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively changes the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         * - MegaRequest::getPassword - Returns the password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link sent to the user's email address.
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set proxy settings
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
@@ -5245,6 +5395,7 @@ class MegaApi
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
          * - https://mega.nz/#recovery
+         * - MegaApi::resetPassword()
          *
          * You take the ownership of the returned value.
          *

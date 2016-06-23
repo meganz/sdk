@@ -30,6 +30,10 @@
 // FIXME: move to autoconf
 #define __STDC_FORMAT_MACROS
 
+#ifdef WINDOWS_PHONE
+#define __STDC_LIMIT_MACROS
+#endif
+
 // (inttypes.h is not present in Microsoft Visual Studio)
 #ifdef _MSC_VER
  #define PRIu32 "I32u"
