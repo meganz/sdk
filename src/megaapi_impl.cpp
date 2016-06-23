@@ -11502,7 +11502,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
         {
-			const char *email = request->getEmail();
+            const char *email = request->getEmail();
             bool hasMasterKey = request->getFlag();
 
             if (!email || !email[0])
@@ -11512,8 +11512,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->getrecoverylink(email, hasMasterKey);
-			break;
-		}
+            break;
+        }
         case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
         {
             const char *link = request->getLink();
