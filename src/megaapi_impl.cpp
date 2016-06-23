@@ -7111,7 +7111,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     AsymmCipher uk;
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
     {
-        fireOnRequestFinish(request, MegaError(API_EARGS));
+        fireOnRequestFinish(request, MegaError(API_EKEY));
     }
     else
     {
