@@ -407,6 +407,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
+        virtual void setAppData(const char *data);
+        virtual const char* getAppData() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -444,6 +446,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         Transfer *transfer;
         MegaError lastError;
         int folderTransferTag;
+        const char* appData;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -1276,7 +1279,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener);
+        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
