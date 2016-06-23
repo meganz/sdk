@@ -59,6 +59,9 @@ void clear_display(){
 //MegaClient* client;
 MegaApi* api;
 
+//Syncs
+map<string,MegaHandle> syncsmap;
+
 
 static AccountDetails account;
 
@@ -2548,6 +2551,7 @@ static void process_line(char* l)
             {
                 case 2:
                 case 3:
+                case 4:
                     if (words[0] == "ls")
                     {
                         if (!api->isLoggedIn()) { LOG_err << "Not logged in"; CLEAN_err; return;}
@@ -3086,99 +3090,140 @@ static void process_line(char* l)
 ////                        xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
 //                        return;
 //                    }
-//#ifdef ENABLE_SYNC
-//                    else if (words[0] == "sync")
-//                    {
-//                        if (words.size() == 3)
-//                        {
-//                            Node* n = nodebypath(words[2].c_str());
-//                            //TODO: modify using API
-////                            if (client->checkaccess(n, FULL))
-////                            {
-////                                string localname;
+#ifdef ENABLE_SYNC
+                    else if (words[0] == "sync")
+                    {
+                        if (words.size() == 3)
+                        {
+                            MegaNode* n = nodebypath(words[2].c_str());
+                            if (n)
+                            {
+                                //TODO: modify using API
+                                if (api->getAccess(n) >= MegaShare::ACCESS_FULL)
+                                {
+                                    //                                    string localname;
+                                    ////                                    client->fsaccess->path2local(&words[1], &localname);
 
-////                                client->fsaccess->path2local(&words[1], &localname);
+                                    api->syncFolder(words[1].c_str(),n,megaCmdListener);
+                                    megaCmdListener->wait();//TODO: actuponsyncfolder
+                                    //TODO:  api->addSyncListener();
 
-////                                if (!n)
-////                                {
-////                                    cout << words[2] << ": Not found." << endl;
-////                                }
-////                                else if (n->type == FILENODE)
-////                                {
-////                                    cout << words[2] << ": Remote sync root must be folder." << endl;
-////                                }
-////                                else
-////                                {
-////                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
 
-////                                    if (e)
-////                                    {
-////                                        cout << "Sync could not be added: " << errorstring(e) << endl;
-////                                    }
-////                                }
-////                            }
-////                            else
-////                            {
-////                                cout << words[2] << ": Syncing requires full access to path." << endl;
-////                            }
-//                        }
-//                        else if (words.size() == 2)
-//                        {
+                                    if (n->getType() == MegaNode::TYPE_FILE)
+                                    {
+                                        LOG_err << words[2] << ": Remote sync root must be folder."; CLEAN_err;
+                                    }
+                                    else
+                                    {
+                                        if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK )
+                                        {
+                                            //TODO: save sync
+                                            syncsmap[megaCmdListener->getRequest()->getFile()] = megaCmdListener->getRequest()->getNodeHandle();
+                                        }
+                                        else
+                                        {
+                                            LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString() ;CLEAN_err
+                                        }
+
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_err << words[2] << ": Syncing requires full access to path, current acces: " << api->getAccess(n); CLEAN_err;
+                                }
+                                delete n;
+                            }
+                            else
+                            {
+                                LOG_err << "Couldn't find remote folder: " << words[2]; CLEAN_err;
+                            }
+                        }
+                        else if (words.size() == 2)
+                        {
+
 //                            int i = 0, cancel = atoi(words[1].c_str());
 
+                            //TODO: modify using API
+//                            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+//                            {
+//                                if ((*it)->state > SYNC_CANCELED && i++ == cancel)
+//                                {
+//                                    client->delsync(*it);
+
+//                                    cout << "Sync " << cancel << " deactivated and removed." << endl;
+//                                    break;
+//                                }
+//                            }
+                        }
+                        else if (words.size() == 1)
+                        {
+                            map<string,MegaHandle>::const_iterator itr;
+                            int i =0;
+                            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr){
+
+
+                                cout << "Key: " << (*itr).first << " Value: " << (*itr).second;
+                                MegaNode * n = api->getNodeByHandle((*itr).second);
+                                if (n)
+                                {
+//                                    nodepath((*it)->localroot.node->nodehandle, &remotepath);
+//                                    client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+
+                                    cout << i++ << ": " << (*itr).first << " to " << api->getNodePath(n) << endl;
+//                                         << " - "
+//                                         << n->syncstatenames[(*it)->state] << ", " << (*it)->localbytes
+//                                         << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
+//                                         << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
+                                    delete n;
+                                }
+                                else
+                                {
+                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << (*itr).second; CLEAN_err
+                                }
+                            }
+//                            for (int i=0;i<m)
 //                            //TODO: modify using API
-////                            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-////                            {
-////                                if ((*it)->state > SYNC_CANCELED && i++ == cancel)
-////                                {
-////                                    client->delsync(*it);
+//                            if (api->getNumActiveSyncs())
+//                            {
+//                            for (int i=0;i<api->getNumActiveSyncs(); i++)
+//                            {
+//                                //MegaSync * sync = api->getSync(i); //TODO: use this one whenever it is available
 
-////                                    cout << "Sync " << cancel << " deactivated and removed." << endl;
-////                                    break;
-////                                }
-////                            }
-//                        }
-//                        else if (words.size() == 1)
-//                        {
-//                            //TODO: modify using API
-////                            if (client->syncs.size())
-////                            {
-////                                int i = 0;
-////                                string remotepath, localpath;
+//                                int i = 0;
+//                                string remotepath, localpath;
 
-////                                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-////                                {
-////                                    if ((*it)->state > SYNC_CANCELED)
-////                                    {
-////                                        static const char* syncstatenames[] =
-////                                        { "Initial scan, please wait", "Active", "Failed" };
+//                                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+//                                {
+//                                    if ((*it)->state > SYNC_CANCELED)
+//                                    {
+//                                        static const char* syncstatenames[] =
+//                                        { "Initial scan, please wait", "Active", "Failed" };
 
-////                                        if ((*it)->localroot.node)
-////                                        {
-////                                            nodepath((*it)->localroot.node->nodehandle, &remotepath);
-////                                            client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+//                                        if ((*it)->localroot.node)
+//                                        {
+//                                            nodepath((*it)->localroot.node->nodehandle, &remotepath);
+//                                            client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
 
-////                                            cout << i++ << ": " << localpath << " to " << remotepath << " - "
-////                                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-////                                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-////                                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
-////                                        }
-////                                    }
-////                                }
-////                            }
-////                            else
-////                            {
-////                                cout << "No syncs active at this time." << endl;
-////                            }
-//                        }
-//                        else
-//                        {
-//                            cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
-//                        }
-
-//                        return;
-//                    }
-//#endif
+//                                            cout << i++ << ": " << localpath << " to " << remotepath << " - "
+//                                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
+//                                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
+//                                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                            else
+//                            {
+//                                cout << "No syncs active at this time." << endl;
+//                            }
+                        }
+                        else
+                        {
+                            cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+                        }
+                        return;
+                    }
+#endif
 //                    break;
 
                 case 5:
