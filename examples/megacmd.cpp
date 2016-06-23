@@ -1195,9 +1195,11 @@ static void listtrees()
     for (int i=0;i<msl->size();i++)
     {
         MegaShare *share = msl->get(i);
+        MegaNode *n= api->getNodeByHandle(share->getNodeHandle());
 
-        cout << "INSHARE on " << share->getUser() << ":" << api->getNodeByHandle(share->getNodeHandle())->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
+        cout << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
         share->getUser(); //TODO: voy por aqui, que imprima lo de turno
+        delete n;
     }
 
     delete (msl);
@@ -1988,6 +1990,167 @@ static void store_line(char* l)
     line = l;
 }
 
+void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeout=-1)
+{
+    if (timeout==-1)
+        srl->wait();
+    else
+    {
+        int trywaitout=srl->trywait(timeout);
+        if (trywaitout){
+           LOG_err << "GetExtendedAccountDetails took too long, it may have failed. No further actions performed"; CLEAN_err;
+           return;
+        }
+    }
+
+    if (srl->getError()->getErrorCode() == MegaError::API_OK)
+    {
+        char timebuf[32], timebuf2[32];
+
+        LOG_verbose << "actUponGetExtendedAccountDetails ok"; CLEAN_verbose;
+
+        MegaAccountDetails *details =  srl->getRequest()->getMegaAccountDetails();
+        if (details)
+        {
+            cout << "\tAvailable storage: " << details->getStorageMax() << " byte(s)" << endl;
+            MegaNode *n = api->getRootNode();
+            cout << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                 << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+            delete n;
+
+            n = api->getInboxNode();
+            cout << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                 << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+            delete n;
+
+            n = api->getRubbishNode();
+            cout << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                 << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+            delete n;
+
+
+            MegaNodeList *inshares = api->getInShares();
+            if (inshares)
+            for (int i=0; i<inshares->size();i++)
+            {
+                n=inshares->get(i);
+                cout << "\t\tIn INSHARE "<< n->getName() << ": " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                     << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+            }
+            delete inshares;
+
+//            if (details->getTransferMax())
+//            {
+//                cout << "\tTransfer completed: " << details->getTransferOwnUsed() << " of " << details->getTransferMax() << "("
+//                     << ( 100 * details->getTransferOwnUsed() / details->getTransferMax() ) << "%)" << endl;
+
+//            }
+
+//            cout << "\tTransfer history:\n";
+//            MegaTransferList *transferlist = api->getTransfers();
+//            if (transferlist)
+//            {
+//                for (int i=0;i<transferlist->size();i++)
+//                {
+//                    MegaTransfer * transfer = transferlist->get(i);
+//                    cout << "\t\t" << transfer->getTransferredBytes() << " out of " << transfer->getTotalBytes() << " bytes downloaded up to "<< transfer->getUpdateTime() << endl;
+//                }
+//            }
+//            delete transferlist;
+
+
+
+            cout << "\tPro level: " << details->getProLevel() << endl;
+            if (details->getProLevel())
+            {
+                if (details->getProExpiration())
+                {
+                    time_t ts = details->getProExpiration();
+                    strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                    printf("\t\tPro expiration date: %s\n", timebuf);
+                }
+            }
+            cout << "\tSubscription type: " << details->getSubscriptionMethod() << endl;
+            cout << "\tAccount balance:" << endl;
+            for (int i = 0; i < details->getNumBalances();i++)
+            {
+                MegaAccountBalance * balance =  details->getBalance(i);
+                printf("\tBalance: %.3s %.02f\n", balance->getCurrency(), balance->getAmount());
+            }
+
+            if (details->getNumPurchases())
+            {
+                cout << "Purchase history:" << endl;
+                for (int i = 0; i < details->getNumPurchases(); i++)
+                {
+                    MegaAccountPurchase *purchase = details->getPurchase(i);
+
+                    time_t ts = purchase->getTimestamp();
+                    strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                    printf("\tID: %.11s Time: %s Amount: %.3s %.02f Payment method: %d\n",
+                           purchase->getHandle(), timebuf, purchase->getCurrency(), purchase->getAmount(), purchase->getMethod());
+                }
+            }
+
+            if (details->getNumTransactions())
+            {
+                for (int i = 0; i < details->getNumTransactions(); i++)
+                {
+                    MegaAccountTransaction *transaction = details->getTransaction(i);
+
+                    cout << "Transaction history:" << endl;
+
+                        time_t ts = transaction->getTimestamp();
+                        strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                        printf("\tID: %.11s Time: %s Amount: %.3s %.02f\n",
+                               transaction->getHandle(), timebuf, transaction->getCurrency(), transaction->getAmount());
+                }
+            }
+
+            int alive_sessions = 0;
+            cout << "Current Active Sessions:" << endl;
+            for (int i = 0; i < details->getNumSessions(); i++)
+            {
+                MegaAccountSession * session = details->getSession(i);
+                if (session->isAlive())
+                {
+                    time_t ts = session->getCreationTimestamp();
+                    strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                    ts = session->getMostRecentUsage();
+                    strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
+
+
+                    MegaHandle id = session->getHandle();
+                    char sid[12];
+                    Base64::btoa((byte*)&(id), sizeof(id), sid);
+
+                    if (session->isCurrent())
+                    {
+                        printf("\t* Current Session\n");
+                    }
+                    printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
+                           sid,
+                           timebuf,
+                           timebuf2,
+                           session->getIP(),
+                           session->getCountry(),
+                           session->getUserAgent()
+                           );
+
+                    cout << "User agent: " << session->getUserAgent() << endl;
+                    alive_sessions++;
+                }
+            }
+            if (alive_sessions)
+                cout << details->getNumSessions() << " active sessions opened" << endl;
+        }
+    }
+    else
+    {
+        LOG_err << " failed to GetExtendedAccountDetails. Error: " << srl->getError()->getErrorString(); CLEAN_err;
+    }
+}
+
 void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
 {
     if (timeout==-1)
@@ -2003,7 +2166,7 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
 
     if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
-        LOG_verbose << "onRequestFinish TYPE_FETCH_NODES ok"; CLEAN_verbose;
+        LOG_verbose << "actUponFetchNodes ok"; CLEAN_verbose;
         if (rootNode) delete rootNode;
         rootNode = srl->getApi()->getRootNode();
 
@@ -3953,7 +4116,8 @@ static void process_line(char* l)
                         if (u)
                         {
                             cout << "Account e-mail: " << u->getEmail() << endl;
-                            // api->getAccountDetails();//TODO: continue this.
+                            api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
+                            actUponGetExtendedAccountDetails(megaCmdListener);
 
                         }
                         else
