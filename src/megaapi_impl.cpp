@@ -3357,7 +3357,7 @@ char *MegaApiImpl::getMyFingerprint()
     char *result = NULL;
     if (client->signkey)
     {
-        result = MegaApi::strdup(client->signkey->genFingerprintHex());
+        result = client->signkey->genFingerprintHex();
     }
 
     sdkMutex.unlock();
