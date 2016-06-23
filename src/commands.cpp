@@ -3737,6 +3737,283 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+{
+    cmd("erm");
+    arg("m", email);
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandGetRecoveryLink::procresult()
+{    
+    if (client->json.isnumeric())
+    {
+        client->app->getrecoverylink_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->getrecoverylink_result(API_EINTERNAL);
+    }
+}
+
+CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const char *linkcode)
+{
+    cmd("erv");
+    arg("c", linkcode);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryRecoveryLink::procresult()
+{
+    // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]
+
+    client->json.enterarray();
+
+    int type;
+    string email;
+    string ip;
+    time_t ts;
+    handle uh;
+
+    if (!client->json.isnumeric() || ((type = client->json.getint()) < 0))   // error
+    {
+        return client->app->queryrecoverylink_result((error)type);
+    }
+
+    if ( !client->json.storeobject(&email)  ||
+         !client->json.storeobject(&ip)     ||
+         ((ts = client->json.getint()) == -1) ||
+         !(uh = client->json.gethandle(MegaClient::USERHANDLE)) )
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    string tmp;
+    vector<string> emails;
+
+    // read emails registered for this account
+    client->json.enterarray();
+    while (client->json.storeobject(&tmp))
+    {
+        emails.push_back(tmp);
+        if (*client->json.pos == ']')
+        {
+            break;
+        }
+    }
+    client->json.leavearray();  // emails array
+    client->json.leavearray();  // response array
+
+    if (!emails.size()) // there should be at least one email
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
+}
+
+CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
+{
+    cmd("erx");
+    arg("r", "gk");
+    arg("c", code);
+
+    tag = client->reqtag;
+}
+
+void CommandGetPrivateKey::procresult()
+{
+    if (client->json.isnumeric())   // error
+    {
+        return client->app->getprivatekey_result((error)client->json.getint());
+    }
+    else
+    {
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        int len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
+
+        // account has RSA keypair: decrypt server-provided session ID
+        if (len_privk < 256)
+        {
+            return client->app->getprivatekey_result(API_EINTERNAL);
+        }
+        else
+        {
+            return client->app->getprivatekey_result((error)API_OK, privkbuf, len_privk);
+        }
+    }
+}
+
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, uint64_t newLoginHash, const byte *encMasterKey, const byte *initialSession)
+{
+    cmd("erx");
+
+    if (!initialSession)
+    {
+        arg("r", "sk");
+    }
+
+    arg("c", code);
+
+    arg("x", encMasterKey, SymmCipher::KEYLENGTH);
+    arg("y", (byte*)&newLoginHash, sizeof newLoginHash);
+
+    if (initialSession)
+    {
+        arg("z", initialSession, 2 * SymmCipher::KEYLENGTH);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmRecoveryLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->confirmrecoverylink_result((error)client->json.getint());
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmrecoverylink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const char *code)
+{
+    cmd("erx");
+    arg("c", code);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmCancelLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        MegaApp *app = client->app;
+        app->confirmcancellink_result(e);
+        if (!e)
+        {
+            app->request_error(API_ESID);
+        }
+        return;
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+{
+    cmd("us");
+    arg("user", email);
+    arg("uh", (byte*)&emailhash, sizeof emailhash);
+
+    tag = client->reqtag;
+}
+
+void CommandValidatePassword::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->validatepassword_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        return client->app->validatepassword_result((error)API_OK);
+    }
+}
+
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+{
+    cmd("se");
+
+    if (add)
+    {
+        arg("aa", "a");     // add
+    }
+    else
+    {
+        arg("aa", "r");     // remove
+    }
+    arg("e", email);    
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandGetEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getemaillink_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        return client->app->getemaillink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, uint64_t newLoginHash, bool replace)
+{
+    this->email = email;
+    this->replace = replace;
+
+    cmd("sec");
+
+    arg("c", code);
+    arg("e", email);
+    arg("uh", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (replace)
+    {
+        arg("r", 1);    // replace the current email address by this one
+    }
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+
+        if (!e)
+        {
+            User *u = client->finduser(client->me);
+
+            if (replace)
+            {
+                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
+
+                client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+                u->changed.email = true;
+                client->notifyuser(u);
+            }
+            // TODO: once we manage multiple emails, add the new email to the list of emails
+        }
+
+        return client->app->confirmemaillink_result(e);
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmemaillink_result((error)API_EINTERNAL);
+    }
+}
+
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {

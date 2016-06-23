@@ -2282,7 +2282,14 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
         case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
         case TYPE_SET_PROXY: return "SET_PROXY";
-	}
+        case TYPE_GET_RECOVERY_LINK: return "TYPE_GET_RECOVERY_LINK";
+        case TYPE_QUERY_RECOVERY_LINK: return "TYPE_QUERY_RECOVERY_LINK";
+        case TYPE_CONFIRM_RECOVERY_LINK: return "TYPE_CONFIRM_RECOVERY_LINK";
+        case TYPE_GET_CANCEL_LINK: return "TYPE_GET_CANCEL_LINK";
+        case TYPE_CONFIRM_CANCEL_LINK: return "TYPE_CONFIRM_CANCEL_LINK";
+        case TYPE_GET_CHANGE_EMAIL_LINK: return "TYPE_GET_CHANGE_EMAIL_LINK";
+        case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "TYPE_CONFIRM_CHANGE_EMAIL_LINK";
+    }
     return "UNKNOWN";
 }
 
@@ -3544,6 +3551,66 @@ void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, 
 	request->setLink(link);
 	request->setPrivateKey(base64pwkey);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOVERY_LINK, listener);
+    request->setEmail(email);
+    request->setFlag(hasMasterKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryRecoveryLink(const char *link, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_RECOVERY_LINK, listener);
+    request->setLink(link);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_RECOVERY_LINK, listener);
+    request->setLink(link);
+    request->setPassword(newPwd);
+    request->setPrivateKey(masterKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::cancelAccount(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
+    request->setLink(link);
+    request->setPassword(pwd);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::changeEmail(const char *email, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
+    request->setEmail(email);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK, listener);
+    request->setLink(link);
+    request->setPassword(pwd);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -6884,6 +6951,272 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
     fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::getrecoverylink_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_GET_CANCEL_LINK))) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::queryrecoverylink_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const char *ip, time_t, handle uh, const vector<string> *)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    int reqType = request->getType();
+    if(!request || ((reqType != MegaRequest::TYPE_QUERY_RECOVERY_LINK) &&
+                    (reqType != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK) &&
+                    (reqType != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
+
+    request->setEmail(email);
+    request->setFlag(type == RECOVER_WITH_MASTERKEY);
+    request->setNumber(type);   // not specified in MegaApi documentation
+    request->setText(ip);       // not specified in MegaApi documentation
+    request->setNodeHandle(uh); // not specified in MegaApi documentation
+
+    const char *link = request->getLink();
+    const char* code;
+
+    byte pwkey[SymmCipher::KEYLENGTH];
+    const char *mk64;
+
+    if (reqType == MegaRequest::TYPE_QUERY_RECOVERY_LINK)
+    {
+        fireOnRequestFinish(request, MegaError());
+        return;
+    }
+    else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
+    {
+        if ((code = strstr(link, "#recover")))
+        {
+            code += strlen("#recover");
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+
+        switch (type)
+        {
+        case RECOVER_WITH_MASTERKEY:
+            {
+                mk64 = request->getPrivateKey();
+                if (!mk64)
+                {
+                    fireOnRequestFinish(request, MegaError(API_EARGS));
+                    return;
+                }
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->getprivatekey(code);
+                client->reqtag = creqtag;
+                break;
+            }
+
+        case RECOVER_WITHOUT_MASTERKEY:
+            {
+                client->pw_key(request->getPassword(), pwkey);
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->confirmrecoverylink(code, email, pwkey);
+                client->reqtag = creqtag;
+                break;
+            }
+
+        default:
+            LOG_debug << "Unknown type of recovery link";
+
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+    }
+    else if (reqType == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
+    {
+        if (type != CHANGE_EMAIL)
+        {
+            LOG_debug << "Unknown type of change email link";
+
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+
+        if ((code = strstr(link, "#verify")))
+        {
+            code += strlen("#verify");
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        };
+
+        client->pw_key(request->getPassword(), pwkey);
+
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->validatepwd(pwkey);
+        client->reqtag = creqtag;
+    }
+}
+
+void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t len_privk)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+
+    if (e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+        return;
+    }
+
+    const char *link = request->getLink();
+    const char* code;
+    if ((code = strstr(link, "#recover")))
+    {
+        code += strlen("#recover");
+    }
+    else
+    {
+        fireOnRequestFinish(request, MegaError(API_EARGS));
+        return;
+    }
+
+    byte pwkey[SymmCipher::KEYLENGTH];
+    client->pw_key(request->getPassword(), pwkey);
+
+    byte mk[SymmCipher::KEYLENGTH];
+    Base64::atob(request->getPrivateKey(), mk, sizeof mk);
+
+    // check the private RSA is valid after decryption with master key
+    SymmCipher key;
+    key.setkey(mk);
+
+    byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+    memcpy(privkbuf, privk, len_privk);
+    key.ecb_decrypt(privkbuf, len_privk);
+
+    AsymmCipher uk;
+    if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+    {
+        fireOnRequestFinish(request, MegaError(API_EKEY));
+    }
+    else
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
+        client->reqtag = creqtag;
+    }
+}
+
+void MegaApiImpl::confirmrecoverylink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::confirmcancellink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::validatepassword_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
+
+    if (e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_CONFIRM_CANCEL_LINK)
+    {
+        const char *link = request->getLink();
+        const char* code;
+        if ((code = strstr(link, "#cancel")))
+        {
+            code += strlen("#cancel");
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
+            client->confirmcancellink(code);
+            client->reqtag = creqtag;
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        client->pw_key(request->getPassword(), pwkey);
+
+        const char* code;
+        if ((code = strstr(request->getLink(), "#verify")))
+        {
+            code += strlen("#verify");
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
+            client->confirmemaillink(code, request->getEmail(), pwkey);
+            client->reqtag = creqtag;
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
+    }
+}
+
+void MegaApiImpl::getemaillink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::confirmemaillink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 #ifdef ENABLE_CHAT
@@ -11167,6 +11500,147 @@ void MegaApiImpl::sendPendingRequests()
 			delete[] c;
 			break;
 		}
+        case MegaRequest::TYPE_GET_RECOVERY_LINK:
+        {
+            const char *email = request->getEmail();
+            bool hasMasterKey = request->getFlag();
+
+            if (!email || !email[0])
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getrecoverylink(email, hasMasterKey);
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
+        {
+            const char *link = request->getLink();
+
+            const char* code;
+            if (link && (code = strstr(link, "#recover")))
+            {
+                code += strlen("#recover");
+            }
+            else if (link && (code = strstr(link, "#verify")))
+            {
+                code += strlen("#verify");
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->queryrecoverylink(code);
+            break;
+        }
+        case MegaRequest::TYPE_CONFIRM_RECOVERY_LINK:
+        {
+            const char *link = request->getLink();
+            const char *newPwd = request->getPassword();
+
+            const char* code;
+            if (newPwd && link && (code = strstr(link, "#recover")))
+            {
+                code += strlen("#recover");
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // concatenate query + confirm requests
+            client->queryrecoverylink(code);
+            break;
+        }
+        case MegaRequest::TYPE_GET_CANCEL_LINK:
+        {
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            User *u = client->finduser(client->me);
+            if (!u)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->getcancellink(u->email.c_str());
+            break;
+        }
+        case MegaRequest::TYPE_CONFIRM_CANCEL_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+            }
+
+            const char* code;
+            if (!pwd || !link || !(code = strstr(link, "#cancel")))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            byte pwkey[SymmCipher::KEYLENGTH];
+            client->pw_key(pwd, pwkey);
+
+            // concatenate login + confirm requests
+            e = client->validatepwd(pwkey);
+            break;
+        }
+        case MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK:
+        {
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            const char *email = request->getEmail();
+            if (!email)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getemaillink(email);
+            break;
+        }
+        case MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+            }
+
+            const char* code;
+            if (pwd && link && (code = strstr(link, "#verify")))
+            {
+                code += strlen("#verify");
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // concatenates query + validate pwd + confirm
+            client->queryrecoverylink(code);
+            break;
+        }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
         {
             bool pause = request->getFlag();

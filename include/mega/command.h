@@ -603,6 +603,71 @@ public:
     CommandCleanRubbishBin(MegaClient*);
 };
 
+class MEGA_API CommandGetRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetRecoveryLink(MegaClient*, const char *, int);
+};
+
+class MEGA_API CommandQueryRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryRecoveryLink(MegaClient*, const char*);
+};
+
+class MEGA_API CommandGetPrivateKey : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPrivateKey(MegaClient*, const char*);
+};
+
+class MEGA_API CommandConfirmRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
+};
+
+class MEGA_API CommandConfirmCancelLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmCancelLink(MegaClient *, const char *);
+};
+
+class MEGA_API CommandValidatePassword : public Command
+{
+public:
+    void procresult();
+
+    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+};
+
+class MEGA_API CommandGetEmailLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetEmailLink(MegaClient*, const char*, int);
+};
+
+class MEGA_API CommandConfirmEmailLink : public Command
+{
+    string email;
+    bool replace;
+public:
+    void procresult();
+
+    CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
+};
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command

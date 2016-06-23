@@ -164,6 +164,31 @@ struct MEGA_API MegaApp
     // clean rubbish bin result
     virtual void cleanrubbishbin_result(error) { }
 
+    // get account recovery link result
+    virtual void getrecoverylink_result(error) {}
+
+    // check account recovery link result
+    virtual void queryrecoverylink_result(error) {}
+    virtual void queryrecoverylink_result(int, const char *, const char *, time_t, handle, const vector<string> *) {}
+
+    // get private key from recovery link result
+    virtual void getprivatekey_result(error, const byte * = NULL, const size_t = 0) {}
+
+    // confirm recovery link result
+    virtual void confirmrecoverylink_result(error) {}
+
+    // convirm cancellation link result
+    virtual void confirmcancellink_result(error) {}
+
+    // validation of password
+    virtual void validatepassword_result(error) {}
+
+    // get change email link result
+    virtual void getemaillink_result(error) {}
+
+    // confirm change email link result
+    virtual void confirmemaillink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
