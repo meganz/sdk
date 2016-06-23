@@ -582,7 +582,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
     SymmCipher pwcipher(pwkey);
 
     string emailstr = email;
-    u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
 
     if (masterkey)
     {
@@ -632,7 +632,7 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     SymmCipher pwcipher(pwkey);
 
     string emailstr = email;
-    u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
 
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
