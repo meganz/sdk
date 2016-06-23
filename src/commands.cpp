@@ -3896,15 +3896,13 @@ void CommandConfirmCancelLink::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-
         MegaApp *app = client->app;
-        if(!e)
+        app->confirmcancellink_result(e);
+        if (!e)
         {
-            client->removecaches();
-            client->locallogout();
+            app->request_error(API_ESID);
         }
-
-        return app->confirmcancellink_result(e);
+        return;
     }
     else   // error
     {
