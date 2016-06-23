@@ -7027,14 +7027,20 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
                     return;
                 }
 
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
                 client->getprivatekey(code);
+                client->reqtag = creqtag;
                 break;
             }
 
         case RECOVER_WITHOUT_MASTERKEY:
             {
                 client->pw_key(request->getPassword(), pwkey);
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
                 client->confirmrecoverylink(code, email, pwkey);
+                client->reqtag = creqtag;
                 break;
             }
 
@@ -7066,7 +7072,11 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         };
 
         client->pw_key(request->getPassword(), pwkey);
+
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
         client->validatepwd(pwkey);
+        client->reqtag = creqtag;
     }
 }
 
@@ -7115,7 +7125,10 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     }
     else
     {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
         client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
+        client->reqtag = creqtag;
     }
 }
 
@@ -7157,7 +7170,10 @@ void MegaApiImpl::validatepassword_result(error e)
         if ((code = strstr(link, "#cancel")))
         {
             code += strlen("#cancel");
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
             client->confirmcancellink(code);
+            client->reqtag = creqtag;
         }
         else
         {
@@ -7173,7 +7189,10 @@ void MegaApiImpl::validatepassword_result(error e)
         if ((code = strstr(request->getLink(), "#verify")))
         {
             code += strlen("#verify");
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
             client->confirmemaillink(code, request->getEmail(), pwkey);
+            client->reqtag = creqtag;
         }
         else
         {
