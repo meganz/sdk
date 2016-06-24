@@ -4943,6 +4943,30 @@ class MegaApi
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+         *  is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function returns NULL.
+         */
+        char *getUserAvatarColor(MegaUser *user);
+
+        /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found (invalid userhandle), this function returns NULL.
+         */
+        char *getUserAvatarColor(const char *userhandle);
+
+        /**
          * @brief Get an attribute of a MegaUser.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
