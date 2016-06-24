@@ -3631,7 +3631,8 @@ class MegaApi
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8,
-            PAYMENT_METHOD_CENTILI = 9
+            PAYMENT_METHOD_CENTILI = 9,
+            PAYMENT_METHOD_WINDOWS_STORE = 13
         };
 
         enum {
@@ -5318,6 +5319,7 @@ class MegaApi
          * Currently supported payment gateways are:
          * - MegaApi::PAYMENT_METHOD_ITUNES = 2
          * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -8016,6 +8018,7 @@ public:
      * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
      * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
      * - MegaApi::PAYMENT_METHOD_CENTILI = 9
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @return Method of the purchase
      */

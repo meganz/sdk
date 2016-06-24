@@ -11926,7 +11926,8 @@ void MegaApiImpl::sendPendingRequests()
                 base64receipt.resize(len * 4 / 3 + 4);
                 base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
             }
-            else //MegaApi::PAYMENT_METHOD_ITUNES
+            else // MegaApi::PAYMENT_METHOD_ITUNES
+                 // MegaApi::PAYMENT_METHOD_WINDOWS_STORE
             {
                 base64receipt = receipt;
             }
