@@ -259,6 +259,8 @@ class MegaCmdGlobalListener : public MegaGlobalListener
 {
 public:
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+    void onUsersUpdate(MegaApi* api, MegaUserList *users);
+
 };
 
 /**
@@ -297,9 +299,40 @@ int * getNumFolderFiles(MegaNode *n){
     delete totalnodes;
     return nFolderFiles;
 }
+void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
+{
+    if (users)
+    {
+        if (users->size()==1)
+        {
+            LOG_info <<" 1 user received or updated" ; CLEAN_info;
+        }
+        else
+        {
+            LOG_info << users->size() << " users received or updated"; CLEAN_info;
+        }
+    }
+    else //initial update or too many changes
+    {
+        MegaUserList *users = api->getContacts();
 
-void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes){
+        if (users)
+        {
+            if (users->size()==1)
+            {
+                LOG_info <<" 1 user received or updated" ; CLEAN_info;
+            }
+            else
+            {
+                LOG_info << users->size() << " users received or updated"; CLEAN_info;
+            }
+            delete users;
+        }
+    }
+}
 
+void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
+{
     int nfolders = 0;
     int nfiles = 0;
     int rfolders = 0;
@@ -1282,7 +1315,6 @@ static void listtrees()
         MegaNode *n= api->getNodeByHandle(share->getNodeHandle());
 
         cout << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
-        share->getUser(); //TODO: voy por aqui, que imprima lo de turno
         delete n;
     }
 
