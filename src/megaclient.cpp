@@ -561,6 +561,82 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
     return true;
 }
 
+void MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
+{
+    reqs.add(new CommandGetRecoveryLink(this, email,
+                hasMasterkey ? RECOVER_WITH_MASTERKEY : RECOVER_WITHOUT_MASTERKEY));
+}
+
+void MegaClient::queryrecoverylink(const char *code)
+{
+    reqs.add(new CommandQueryRecoveryLink(this, code));
+}
+
+void MegaClient::getprivatekey(const char *code)
+{
+    reqs.add(new CommandGetPrivateKey(this, code));
+}
+
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+{
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+    if (masterkey)
+    {
+        // encrypt provided masterkey using the new password
+        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+        pwcipher.ecb_encrypt(encryptedMasterKey);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+    }
+    else
+    {
+        // create a new masterkey
+        byte masterkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(masterkey, sizeof masterkey);
+
+        // generate a new session
+        byte initialSession[2 * SymmCipher::KEYLENGTH];
+        PrnGen::genblock(initialSession, sizeof initialSession);
+        key.setkey(masterkey);
+        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+        // and encrypt the master key to the new password
+        pwcipher.ecb_encrypt(masterkey);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
+    }
+}
+
+void MegaClient::getcancellink(const char *email)
+{
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
+}
+
+void MegaClient::confirmcancellink(const char *code)
+{
+    reqs.add(new CommandConfirmCancelLink(this, code));
+}
+
+void MegaClient::getemaillink(const char *email)
+{
+    reqs.add(new CommandGetEmailLink(this, email, 1));
+}
+
+void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
+{
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -5910,6 +5986,26 @@ void MegaClient::login(const byte* session, int size)
         restag = reqtag;
         app->login_result(API_EARGS);
     }
+}
+
+// check password's integrity
+error MegaClient::validatepwd(const byte *pwkey)
+{
+    User *u = finduser(me);
+    if (!u)
+    {
+        return API_EACCESS;
+    }
+
+    SymmCipher pwcipher(pwkey);
+    pwcipher.setkey((byte*)pwkey);
+
+    string lcemail(u->email.c_str());
+    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+
+    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
+
+    return API_OK;
 }
 
 int MegaClient::dumpsession(byte* session, size_t size)

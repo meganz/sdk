@@ -291,9 +291,11 @@ public:
     /**
      * @brief Simple check for validity of key pair.
      *
+     * @param keytype Key type indication by number of integers for key type
+     *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return 0 on an invalid key pair.
      */
-    int isvalid();
+    int isvalid(int keytype = PUBKEY);
 
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.

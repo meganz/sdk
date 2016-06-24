@@ -1269,6 +1269,46 @@ void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, Mega
     pImpl->fastConfirmAccount(link, base64pwkey, listener);
 }
 
+void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
+{
+    pImpl->resetPassword(email, hasMasterKey, listener);
+}
+
+void MegaApi::queryResetPasswordLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
+void MegaApi::confirmResetPassword(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
+{
+    pImpl->confirmResetPasswordLink(link, newPwd, masterKey, listener);
+}
+
+void MegaApi::cancelAccount(MegaRequestListener *listener)
+{
+    pImpl->cancelAccount(listener);
+}
+
+void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    pImpl->confirmCancelAccount(link, pwd, listener);
+}
+
+void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
+{
+    pImpl->changeEmail(email, listener);
+}
+
+void MegaApi::queryChangeEmailLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
+void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    pImpl->confirmChangeEmail(link, pwd, listener);
+}
+
 void MegaApi::setProxySettings(MegaProxy *proxySettings)
 {
     pImpl->setProxySettings(proxySettings);
