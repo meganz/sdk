@@ -4947,6 +4947,8 @@ class MegaApi
          *
          * This color should be used only when the user doesn't have an avatar.
          *
+         * You take the ownership of the returned value.
+         *
          * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
          *  is obtained for the active account.
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
@@ -4958,6 +4960,8 @@ class MegaApi
          * @brief Get the default color for the avatar.
          *
          * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
          *
          * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
