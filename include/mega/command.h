@@ -227,7 +227,7 @@ public:
 
 class MEGA_API CommandGetUA : public Command
 {
-    User* u;
+    string uid;
     attr_t at;  // attribute type
 
 public:

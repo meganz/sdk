@@ -2340,7 +2340,7 @@ void CommandPutUA::procresult()
 
 CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, int ctag)
 {
-    this->u = client->finduser((char*)uid);
+    this->uid = uid;
     this->at = at;
 
     cmd("uga");
@@ -2353,6 +2353,8 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, int c
 
 void CommandGetUA::procresult()
 {
+    User *u = client->finduser(uid.c_str());
+
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();

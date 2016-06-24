@@ -7825,7 +7825,6 @@ void MegaClient::fetchnodes()
 #ifdef ENABLE_CHAT
 void MegaClient::fetchkeys()
 {
-
     fetchingkeys = true;
 
     User *u = finduser(me, 1);
