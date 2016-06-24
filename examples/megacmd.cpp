@@ -32,6 +32,8 @@
 
 #ifdef __linux__
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #endif
 
 using namespace mega;
@@ -61,6 +63,85 @@ MegaApi* api;
 
 //Syncs
 map<string,MegaHandle> syncsmap;
+
+
+
+class ComunicationsManager //TODO: do interface somewhere and move this
+{
+private:
+    //Create socket to hear for commands
+    int sockfd, newsockfd, portno;
+    socklen_t clilen;
+    char buffer[1024];
+    struct sockaddr_in serv_addr, cli_addr;
+    int n;
+
+public:
+    ComunicationsManager(){
+        initialize();
+    }
+    void initialize(){
+        //TODO: read port from somewhere
+        portno=12347;
+
+//        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (sockfd < 0)
+        {
+            LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
+        }
+        bzero((char *) &serv_addr, sizeof(serv_addr));
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_addr.s_addr = INADDR_ANY;
+        serv_addr.sin_port = htons(portno);
+        if (bind(sockfd, (struct sockaddr *) &serv_addr,
+                 sizeof(serv_addr)) < 0)
+        {
+            LOG_fatal << "ERROR on binding"; CLEAN_fatal;
+        }
+        listen(sockfd,150);
+    }
+
+    int getFileDescriptor(){
+        return sockfd;
+    }
+
+    string getPetition(){
+
+        clilen = sizeof(cli_addr);
+//        recv(sockfd,buffer,1023,MSG_PEEK)
+        newsockfd = accept(sockfd,
+                           (struct sockaddr *) &cli_addr,
+                           &clilen);
+        if (newsockfd < 0)
+        {
+            LOG_fatal << "ERROR on accept"; CLEAN_fatal;
+        }
+        bzero(buffer,1024);
+        n = read(newsockfd,buffer,1023);
+        if (n < 0) {
+            LOG_fatal << "ERROR reading from socket"; CLEAN_fatal;
+        }
+        printf("Here is the message: %s\n",buffer); //TODO: deal with this
+
+        n = write(newsockfd,"I got your message",18); //Include port or output socket
+        if (n < 0){
+            LOG_fatal << "ERROR writing to socket"; CLEAN_fatal;
+        }
+        return string(buffer);
+
+    }
+
+    ~ComunicationsManager()
+    {
+        close(newsockfd);
+        close(sockfd);
+    }
+};
+
+//Comunications Manager
+ComunicationsManager * cm;
 
 
 static AccountDetails account;
@@ -3098,7 +3179,6 @@ static void process_line(char* l)
                             MegaNode* n = nodebypath(words[2].c_str());
                             if (n)
                             {
-                                //TODO: modify using API
                                 if (api->getAccess(n) >= MegaShare::ACCESS_FULL)
                                 {
                                     //                                    string localname;
@@ -5068,6 +5148,13 @@ void megacmd()
 
     rl_save_prompt();
 
+
+//    int readline_fd = fileno(rl_instream);
+    int readline_fd = STDIN_FILENO;//stdin
+
+    fd_set fds;
+
+
     for (;;)
     {
         if (prompt == COMMAND)
@@ -5136,6 +5223,7 @@ void megacmd()
             rl_point = saved_point;
             rl_redisplay();
         }
+        int rc = -1;
 
         // command editing loop - exits when a line is submitted or the engine requires the CPU
         for (;;)
@@ -5148,7 +5236,25 @@ void megacmd()
             {
                 if (prompt == COMMAND)
                 {
-                    rl_callback_read_char();
+                    FD_ZERO(&fds);
+                    FD_SET(readline_fd, &fds);
+                    FD_SET(cm->getFileDescriptor(), &fds);
+
+                    rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
+                    if (rc < 0)
+                    {
+                        LOG_fatal << "Error at select: " << errno; CLEAN_fatal;
+                        //TODO: return?
+                    }
+
+                    if (FD_ISSET(readline_fd, &fds)) {
+                        rl_callback_read_char();
+                    }
+                    else if (FD_ISSET(cm->getFileDescriptor(), &fds))
+                    {
+                        string petition=cm->getPetition();
+                        line = strdup(petition.c_str());
+                    }
                 }
                 else
                 {
@@ -5209,6 +5315,9 @@ public:
     }
 };
 
+
+
+
 int main()
 {
     SimpleLogger::setAllOutputs(&std::cout);
@@ -5256,10 +5365,16 @@ int main()
 
     console = new CONSOLE_CLASS;
 
+    cm = new ComunicationsManager();
+    //cm->getPetition();
+    //delete cm; //TODO: never deleted
+
 #ifdef __linux__
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
 #endif
+
+
 
     megacmd();
 }
