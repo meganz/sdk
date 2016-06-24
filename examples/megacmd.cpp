@@ -54,6 +54,9 @@ void clear_display(){
 #define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
     else \
         clear_display();
+#define CLEAN_warn if (SimpleLogger::logCurrentLevel < logWarning) ;\
+    else \
+        clear_display();
 #define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
     else \
         clear_display();
@@ -82,25 +85,70 @@ public:
     }
     void initialize(){
         //TODO: read port from somewhere
-        portno=12347;
 
 //        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+//        sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 
         if (sockfd < 0)
         {
             LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
         }
-        bzero((char *) &serv_addr, sizeof(serv_addr));
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_addr.s_addr = INADDR_ANY;
-        serv_addr.sin_port = htons(portno);
-        if (bind(sockfd, (struct sockaddr *) &serv_addr,
-                 sizeof(serv_addr)) < 0)
+
+//        portno=12347;
+        //        bzero((char *) &serv_addr, sizeof(serv_addr));
+        //        serv_addr.sin_family = AF_INET;
+        //        serv_addr.sin_addr.s_addr = INADDR_ANY;
+        //        serv_addr.sin_port = htons(poFrtno);
+        //        if (bind(sockfd, (struct sockaddr *) &serv_addr,
+        //                 sizeof(serv_addr)) < 0)
+        struct sockaddr saddr = {AF_UNIX, "/tmp/server"};
+        socklen_t saddrlen = sizeof(struct sockaddr) + 6;
+        unlink("/tmp/server");
+
+        if ( bind(sockfd, &saddr, saddrlen) )
         {
-            LOG_fatal << "ERROR on binding"; CLEAN_fatal;
+            if (errno == EADDRINUSE)
+            {
+                LOG_warn << "ERROR on binding socket: Already in use. Getting control:"; CLEAN_warn;
+//                exit(1);
+//                close(sockfd);
+
+//                sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+//                struct sockaddr saddr = {AF_UNIX, "/tmp/server"};
+
+////                bzero((char *) &saddr, sizeof(saddr));
+////                saddr.sa_family = AF_UNIX;
+////                saddr.sa_data = "/tmp/server";
+
+//                socklen_t saddrlen = sizeof(struct sockaddr) + 6;
+
+//                int yes=1;
+//                if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
+//                    LOG_fatal << "ERROR on setsockopt socket: " << errno; CLEAN_fatal;
+//                    exit(1);
+//                }
+
+//                if ( bind(sockfd, &saddr, saddrlen) )
+//                {
+//                    LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+//                    sockfd=NULL;
+//                }
+
+
+
+            }
+            else
+            {
+                LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+                sockfd=NULL;
+            }
+
         }
-        listen(sockfd,150);
+        else
+        {
+           listen(sockfd,150);
+        }
     }
 
     int getFileDescriptor(){
@@ -117,17 +165,21 @@ public:
         if (newsockfd < 0)
         {
             LOG_fatal << "ERROR on accept"; CLEAN_fatal;
+            sleep (1);
+            return "ERROR";
         }
         bzero(buffer,1024);
         n = read(newsockfd,buffer,1023);
         if (n < 0) {
             LOG_fatal << "ERROR reading from socket"; CLEAN_fatal;
+            return "ERROR";
         }
         printf("Here is the message: %s\n",buffer); //TODO: deal with this
 
         n = write(newsockfd,"I got your message",18); //Include port or output socket
         if (n < 0){
             LOG_fatal << "ERROR writing to socket"; CLEAN_fatal;
+            return "ERROR";
         }
         return string(buffer);
 
@@ -5270,8 +5322,8 @@ void megacmd()
                 {
                     FD_ZERO(&fds);
                     FD_SET(readline_fd, &fds);
-                    FD_SET(cm->getFileDescriptor(), &fds);
-
+                    if (cm->getFileDescriptor())
+                        FD_SET(cm->getFileDescriptor(), &fds);
                     rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
                     if (rc < 0)
                     {
@@ -5349,6 +5401,11 @@ public:
 
 
 
+void finalize()
+{
+    cout << "closing application ..."  << endl;
+    delete cm;
+}
 
 int main()
 {
@@ -5406,7 +5463,7 @@ int main()
     signal(SIGINT, sigint_handler);
 #endif
 
-
+    atexit(finalize);
 
     megacmd();
 }
