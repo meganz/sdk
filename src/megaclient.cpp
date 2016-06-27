@@ -2643,6 +2643,7 @@ void MegaClient::locallogout()
 
     // erase master key & session ID
     key.setkey(SymmCipher::zeroiv);
+    asymkey.resetkey();
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();

@@ -2570,6 +2570,18 @@ class MegaTransfer
          * @return Tag of the associated folder transfer.
          */
         virtual int getFolderTransferTag() const;
+
+        /**
+         * @brief Returns the application data associated with this transfer
+         *
+         * You can set the data returned by this function in MegaApi::startDownload
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
+         *
+         * @return Application data associated with this transfer
+         */
+        virtual const char* getAppData() const;
 };
 
 /**
@@ -3776,7 +3788,8 @@ class MegaApi
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8,
-            PAYMENT_METHOD_CENTILI = 9
+            PAYMENT_METHOD_CENTILI = 9,
+            PAYMENT_METHOD_WINDOWS_STORE = 13
         };
 
         enum {
@@ -5559,6 +5572,7 @@ class MegaApi
          * Currently supported payment gateways are:
          * - MegaApi::PAYMENT_METHOD_ITUNES = 2
          * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -5875,6 +5889,20 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startDownload(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -8257,6 +8285,7 @@ public:
      * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
      * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
      * - MegaApi::PAYMENT_METHOD_CENTILI = 9
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @return Method of the purchase
      */

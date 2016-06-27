@@ -445,6 +445,14 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
     return decodeintarray(key, numints, data, len);
 }
 
+void AsymmCipher::resetkey()
+{
+    for (int i = 0; i < PRIVKEY; i++)
+    {
+        key[i] = Integer::Zero();
+    }
+}
+
 void AsymmCipher::serializekeyforjs(string* d, int keytype)
 {
     serializeintarray(key, keytype, d, false);
