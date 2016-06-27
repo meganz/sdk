@@ -1103,7 +1103,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     parentPath = NULL;
     fileName = NULL;
     publicNode = NULL;
-	lastBytes = NULL;
+    lastBytes = NULL;
     appData = NULL;
 
     this->listener = transfer->getListener();
@@ -1405,7 +1405,7 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     unsigned short fileNameLen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(unsigned short);
 
-    if (ptr + fileNameLen + sizeof(int) + 8 + sizeof(bool) > end)
+    if (ptr + fileNameLen + sizeof(int) + 7 + sizeof(char) > end)
     {
         LOG_err << "MegaTransfer unserialization failed - filename too long";
         delete transfer;
@@ -1423,7 +1423,7 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     transfer->folderTransferTag = MemAccess::get<int>(ptr);
     ptr += sizeof(int);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 7))
+    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
     {
         LOG_err << "MegaTransfer unserialization failed - invalid version";
         delete transfer;
@@ -4821,7 +4821,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
         }
     }
 
-	transfer->setMaxRetries(maxRetries);
+    transfer->setMaxRetries(maxRetries);
     transfer->setAppData(appData);
 
     if (folderTransferTag)

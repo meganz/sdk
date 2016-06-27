@@ -5654,11 +5654,9 @@ class MegaApi
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
          * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
          * one of these characters, the file will be downloaded to a file in that path.
-         *
-         * The data in the "appData" parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer.
-         *
          * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownload(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
