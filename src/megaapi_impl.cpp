@@ -3969,7 +3969,7 @@ void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFile
 
 char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
 {
-    handle *userhandle = NULL;
+    handle userhandle = UNDEF;
     if (user)
     {
         userhandle = (handle) user->getHandle();
@@ -4428,7 +4428,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
 
     int index = userhandle % sizeof(colors)/sizeof(colors[0]);
 
-    return MegaApi::strdup(colors[index]);
+    return MegaApi::strdup(colors[index].c_str());
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
