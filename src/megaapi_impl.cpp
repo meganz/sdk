@@ -3969,19 +3969,7 @@ void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFile
 
 char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
 {
-    handle userhandle = UNDEF;
-    if (user)
-    {
-        userhandle = (handle) user->getHandle();
-    }
-    else
-    {
-        sdkMutex.lock();
-        userhandle = client->me;
-        sdkMutex.unlock();
-    }
-
-    return getAvatarColor(userhandle);
+    return getAvatarColor(user ? (handle) user->getHandle() : client->me);
 }
 
 char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
