@@ -4413,17 +4413,22 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         return NULL;
     }
 
-    string colors[] = {
-        "#FF6A19",
-        "#5856d6",
-        "#007aff",
-        "#34aadc",
-        "#5ac8fa",
-        "#4cd964",
-        "#ff1a53",
-        "#d90007",
-        "#ff9500",
-        "#ffcc00"
+    string colors[] = {        
+        "#69F0AE",
+        "#13E03C",
+        "#31B500",
+        "#00897B",
+        "#00ACC1",
+        "#61D2FF",
+        "#2BA6DE",
+        "#FFD300",
+        "#FFA500",
+        "#FF6F00",
+        "#E65100",
+        "#FF5252",
+        "#FF1A53",
+        "#C51162",
+        "#880E4F"
     };
 
     int index = userhandle % sizeof(colors)/sizeof(colors[0]);
