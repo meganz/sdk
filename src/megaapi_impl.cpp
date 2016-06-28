@@ -3386,6 +3386,15 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
     return h;
 }
 
+handle MegaApiImpl::base64ToUserHandle(const char *base64Handle)
+{
+    if(!base64Handle) return UNDEF;
+
+    handle h = 0;
+    Base64::atob(base64Handle,(byte*)&h,MegaClient::USERHANDLE);
+    return h;
+}
+
 char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
@@ -4027,6 +4036,16 @@ void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFile
     getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
+char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
+{
+    return getAvatarColor(user ? (handle) user->getHandle() : client->me);
+}
+
+char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
+{
+    return getAvatarColor(userhandle ? MegaApiImpl::base64ToUserHandle(userhandle) : client->me);
+}
+
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
@@ -4442,6 +4461,31 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
+}
+
+char *MegaApiImpl::getAvatarColor(handle userhandle)
+{
+    string colors[] = {        
+        "#69F0AE",
+        "#13E03C",
+        "#31B500",
+        "#00897B",
+        "#00ACC1",
+        "#61D2FF",
+        "#2BA6DE",
+        "#FFD300",
+        "#FFA500",
+        "#FF6F00",
+        "#E65100",
+        "#FF5252",
+        "#FF1A53",
+        "#C51162",
+        "#880E4F"
+    };
+
+    int index = userhandle % sizeof(colors)/sizeof(colors[0]);
+
+    return MegaApi::strdup(colors[index].c_str());
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)

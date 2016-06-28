@@ -1422,6 +1422,16 @@ void MegaApi::getUserAvatar(const char *dstFilePath, MegaRequestListener *listen
     pImpl->getUserAvatar((MegaUser*)NULL, dstFilePath, listener);
 }
 
+char *MegaApi::getUserAvatarColor(MegaUser *user)
+{
+    return pImpl->getUserAvatarColor(user);
+}
+
+char *MegaApi::getUserAvatarColor(const char *userhandle)
+{
+    return pImpl->getUserAvatarColor(userhandle);
+}
+
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);

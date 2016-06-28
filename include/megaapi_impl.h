@@ -1167,6 +1167,7 @@ class MegaApiImpl : public MegaApp
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
+        static handle base64ToUserHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
@@ -1235,6 +1236,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        char* getUserAvatarColor(MegaUser *user);
+        char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
@@ -1772,6 +1775,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
+        char *getAvatarColor(handle userhandle);
 };
 
 class MegaHashSignatureImpl
