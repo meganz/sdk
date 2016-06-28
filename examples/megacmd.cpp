@@ -45,6 +45,7 @@ using namespace mega;
 
 // different outstreams for every thread. to gather all the output data
 map<int,ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
+std::vector<MegaThread *> petitionThreads;
 
 int getCurrentThread(){
     //return std::this_thread::get_id();
@@ -84,8 +85,32 @@ void clear_display(){
     else \
         clear_display();
 
+
+class LoggerForApi: public MegaLogger{
+private:
+    int level;
+public:
+    LoggerForApi()
+    {
+        this->level=MegaApi::LOG_LEVEL_ERROR;
+    }
+
+    void log(const char *time, int loglevel, const char *source, const char *message)
+    {
+        if (loglevel<=level)
+        {
+            OUTSTREAM << "[" << loglevel << "]" << message;
+        }
+    }
+
+    void setLevel(int loglevel){
+        this->level=loglevel;
+    }
+};
+
 //MegaClient* client;
-MegaApi* api;
+MegaApi *api;
+LoggerForApi *apiLogger;
 
 //Syncs
 map<string,MegaHandle> syncsmap;
@@ -293,10 +318,9 @@ public:
     }
 
 
+
     ~ComunicationsManager()
     {
-        close(newsockfd);
-        close(sockfd);
         delete mtx;
     }
 };
@@ -454,7 +478,7 @@ int * getNumFolderFiles(MegaNode *n){
 
         nFolderFiles[0]+=  nFolderFilesSub[0];
         nFolderFiles[1]+=  nFolderFilesSub[1];
-        delete nFolderFilesSub;
+        delete []nFolderFilesSub;
 
     }
     delete totalnodes;
@@ -522,21 +546,21 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
         int * nFolderFiles = getNumFolderFiles(nodeRoot);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
-        delete nFolderFiles;
+        delete []nFolderFiles;
         delete nodeRoot;
 
         MegaNode * inboxNode= api->getInboxNode();
         nFolderFiles = getNumFolderFiles(inboxNode);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
-        delete nFolderFiles;
+        delete []nFolderFiles;
         delete inboxNode;
 
         MegaNode * rubbishNode= api->getRubbishNode();
         nFolderFiles = getNumFolderFiles(rubbishNode);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
-        delete nFolderFiles;
+        delete []nFolderFiles;
         delete rubbishNode;
 
         MegaNodeList *inshares = api->getInShares();
@@ -547,7 +571,7 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
             nFolderFiles = getNumFolderFiles(inshares->get(i));
             nfolders+=nFolderFiles[0];
             nfiles+=nFolderFiles[1];
-            delete nFolderFiles;
+            delete []nFolderFiles;
         }
         delete inshares;
     }
@@ -2246,6 +2270,19 @@ int loadfile(string* name, string* data)
 //    }
 //}
 
+
+void finalize()
+{
+    LOG_info << "closing application ..." ; CLEAN_info;
+    delete cm;
+    delete console;
+    delete apiLogger;
+    delete api;
+    OUTSTREAM << "resources have been cleaned ..."  << endl;
+
+}
+
+
 // password change-related state information
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
@@ -2256,7 +2293,8 @@ static void store_line(char* l)
 {
     if (!l)
     {
-        delete console;
+//        finalize();
+//        delete console;
         exit(0);
     }
 
@@ -2348,7 +2386,9 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                     printf("\t\tPro expiration date: %s\n", timebuf);
                 }
             }
-            OUTSTREAM << "\tSubscription type: " << details->getSubscriptionMethod() << endl;
+            char * subscriptionMethod = details->getSubscriptionMethod();
+            OUTSTREAM << "\tSubscription type: " << subscriptionMethod << endl;
+            delete []subscriptionMethod;
             OUTSTREAM << "\tAccount balance:" << endl;
             for (int i = 0; i < details->getNumBalances();i++)
             {
@@ -2408,21 +2448,29 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                     {
                         sprintf(sdetails,"\t* Current Session\n");
                     }
+                    char * userAgent = session->getUserAgent();
+                    char * country = session->getCountry();
+                    char * ip = session->getIP();
+
                     sprintf(sdetails,"\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
                            sid,
                            timebuf,
                            timebuf2,
-                           session->getIP(),
-                           session->getCountry(),
-                           session->getUserAgent()
+                           ip,
+                           country,
+                           userAgent
                            );
                     OUTSTREAM << sdetails;
-                    OUTSTREAM << "User agent: " << session->getUserAgent() << endl;
+                    delete []userAgent;
+                    delete []country;
+                    delete []ip;
                     alive_sessions++;
                 }
+                delete session;
             }
             if (alive_sessions)
                 OUTSTREAM << details->getNumSessions() << " active sessions opened" << endl;
+        delete details;
         }
     }
     else
@@ -4439,7 +4487,7 @@ static void process_line(char* l)
                             OUTSTREAM << "Account e-mail: " << u->getEmail() << endl;
                             api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
                             actUponGetExtendedAccountDetails(megaCmdListener);
-
+                            delete u;
                         }
                         else
                         {
@@ -5342,6 +5390,11 @@ struct thread_info_t {
     int outSocket;
 };
 
+void destroy_thread_info_t(thread_info_t *t)
+{
+    free(t->line);
+}
+
 void * doProcessLine(void *pointer)
 {
     thread_info_t *inf = (thread_info_t *) pointer;
@@ -5374,6 +5427,7 @@ void * doProcessLine(void *pointer)
 
     close(connectedsocket);
     close(inf->outSocket);
+    destroy_thread_info_t(inf);
 }
 
 
@@ -5492,12 +5546,27 @@ void megacmd()
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
                         int socket_out;
                         string petition=cm->getPetition(socket_out);
-                        MegaThread * petitionThread = new MegaThread();
 
-                        char * cpetition = strdup(petition.c_str());
+                        //delete finished threads
+                        for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
+                            /* std::cout << *it; ... */
+                            MegaThread *mt = (MegaThread *)*it;
+                            if (mt->isFinished())
+                            {
+                                delete mt;
+                                it=petitionThreads.erase(it);
+                            }
+                            else
+                                ++it;
+                        }
+
+                        //append new one
+                        MegaThread * petitionThread = new MegaThread();
+                        petitionThreads.push_back(petitionThread);
+
                         struct thread_info_t inf;
 
-                        inf.line = cpetition;
+                        inf.line = strdup(petition.c_str());;
                         inf.outSocket = socket_out;
 
 //                        inf.stream = OUTSTREAM;
@@ -5544,36 +5613,6 @@ void megacmd()
 }
 
 
-class LoggerForApi: public MegaLogger{
-private:
-    int level;
-public:
-    LoggerForApi()
-    {
-        this->level=MegaApi::LOG_LEVEL_ERROR;
-    }
-
-    void log(const char *time, int loglevel, const char *source, const char *message)
-    {
-        if (loglevel<=level)
-        {
-            OUTSTREAM << "[" << loglevel << "]" << message;
-        }
-    }
-
-    void setLevel(int loglevel){
-        this->level=loglevel;
-    }
-};
-
-
-
-void finalize()
-{
-    OUTSTREAM << "closing application ..."  << endl;
-    delete cm;
-}
-
 int main()
 {
     SimpleLogger::setAllOutputs(&cout);
@@ -5602,14 +5641,14 @@ int main()
 
 
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
-    LoggerForApi* apiLogger = new LoggerForApi(); //TODO: never deleted
+    apiLogger = new LoggerForApi(); //TODO: never deleted
 //    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
 //    api->setLoggerObject(apiLogger);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
-    megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted
+    megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted (or deleted via megaapi?)
     megaCmdGlobalListener =  new MegaCmdGlobalListener(); //TODO: never deleted
 
     api->addGlobalListener(megaCmdGlobalListener);
@@ -5622,8 +5661,6 @@ int main()
     console = new CONSOLE_CLASS;
 
     cm = new ComunicationsManager();
-    //cm->getPetition();
-    //delete cm; //TODO: never deleted
 
 #ifdef __linux__
     // prevent CTRL+C exit
