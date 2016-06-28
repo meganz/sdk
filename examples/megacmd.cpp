@@ -128,7 +128,7 @@ private:
         char socket_path[60];
         *sockId=get_next_outSocket_id();
         bzero(socket_path,sizeof(socket_path)*sizeof(*socket_path));
-        sprintf(socket_path, "/tmp/srv_%d", *sockId);
+        sprintf(socket_path, "/tmp/megaCMDsrv_%d", *sockId);
 
         struct sockaddr_un addr;
         socklen_t saddrlen = sizeof(addr);
@@ -192,7 +192,7 @@ public:
         socklen_t saddrlen = sizeof(addr);
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        const char * socketPath = "/tmp/server";
+        const char * socketPath = "/tmp/megaCMDsrv";
         strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
 
 
