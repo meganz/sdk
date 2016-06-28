@@ -1175,6 +1175,8 @@ void CommandMoveNode::procresult()
                                                         0, NULL, NULL, UNDEF, false));
                     }
                 }
+
+                client->mergenewshares(1);
             }
         }
 
@@ -1846,6 +1848,8 @@ void CommandSetPendingContact::procresult()
                                                  0, NULL, NULL, pcr->id, false));
                     }
                 }
+
+                client->mergenewshares(1);
             }
         }
 
