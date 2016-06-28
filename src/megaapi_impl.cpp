@@ -1094,6 +1094,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->streamingTransfer = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
+    this->appData = NULL;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -1102,7 +1103,8 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     parentPath = NULL;
     fileName = NULL;
     publicNode = NULL;
-	lastBytes = NULL;
+    lastBytes = NULL;
+    appData = NULL;
 
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
@@ -1130,6 +1132,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStreamingTransfer(transfer->isStreamingTransfer());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
+    this->setAppData(transfer->getAppData());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -1282,6 +1285,20 @@ int MegaTransferPrivate::getFolderTransferTag() const
     return this->folderTransferTag;
 }
 
+void MegaTransferPrivate::setAppData(const char *data)
+{
+    if (this->appData)
+    {
+        delete [] this->appData;
+    }
+    this->appData = MegaApi::strdup(data);
+}
+
+const char *MegaTransferPrivate::getAppData() const
+{
+    return this->appData;
+}
+
 bool MegaTransferPrivate::serialize(string *d)
 {
     d->append((const char*)&type, sizeof(type));
@@ -1302,8 +1319,20 @@ bool MegaTransferPrivate::serialize(string *d)
     d->append(fileName, ll);
 
     d->append((const char*)&folderTransferTag, sizeof(folderTransferTag));
+    d->append("\0\0\0\0\0\0", 7);
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    ll = appData ? strlen(appData) + 1 : 0;
+    if (ll)
+    {
+        char hasAppData = 1;
+        d->append(&hasAppData, 1);
+        d->append((char*)&ll, sizeof(ll));
+        d->append(appData, ll);
+    }
+    else
+    {
+        d->append("", 1);
+    }
 
     MegaNodePrivate *node = dynamic_cast<MegaNodePrivate *>(publicNode);
     bool isPublic = (node != NULL);
@@ -1376,7 +1405,7 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     unsigned short fileNameLen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(unsigned short);
 
-    if (ptr + fileNameLen + sizeof(int) + 8 + sizeof(bool) > end)
+    if (ptr + fileNameLen + sizeof(int) + 7 + sizeof(char) > end)
     {
         LOG_err << "MegaTransfer unserialization failed - filename too long";
         delete transfer;
@@ -1394,13 +1423,53 @@ MegaTransferPrivate *MegaTransferPrivate::unserialize(string *d)
     transfer->folderTransferTag = MemAccess::get<int>(ptr);
     ptr += sizeof(int);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
     {
         LOG_err << "MegaTransfer unserialization failed - invalid version";
         delete transfer;
         return NULL;
     }
-    ptr += 8;
+    ptr += 7;
+
+    char hasAppData = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+    if (hasAppData > 1)
+    {
+        LOG_err << "MegaTransfer unserialization failed - invalid app data";
+        delete transfer;
+        return NULL;
+    }
+
+    if (hasAppData)
+    {
+        if (ptr + sizeof(unsigned short) > end)
+        {
+            LOG_err << "MegaTransfer unserialization failed - no app data header";
+            delete transfer;
+            return NULL;
+        }
+
+        unsigned short appDataLen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(unsigned short);
+        if (!appDataLen || (ptr + appDataLen > end))
+        {
+            LOG_err << "MegaTransfer unserialization failed - invalid appData";
+            delete transfer;
+            return NULL;
+        }
+
+        string data;
+        data.assign(ptr, appDataLen - 1);
+        transfer->setAppData(data.c_str());
+        ptr += appDataLen;
+    }
+
+    if (ptr + sizeof(bool) > end)
+    {
+        LOG_err << "MegaTransfer unserialization failed - reading public node";
+        delete transfer;
+        return NULL;
+    }
 
     bool isPublic = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
@@ -3317,6 +3386,15 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
     return h;
 }
 
+handle MegaApiImpl::base64ToUserHandle(const char *base64Handle)
+{
+    if(!base64Handle) return UNDEF;
+
+    handle h = 0;
+    Base64::atob(base64Handle,(byte*)&h,MegaClient::USERHANDLE);
+    return h;
+}
+
 char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
@@ -3958,6 +4036,16 @@ void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFile
     getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
+char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
+{
+    return getAvatarColor(user ? (handle) user->getHandle() : client->me);
+}
+
+char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
+{
+    return getAvatarColor(userhandle ? MegaApiImpl::base64ToUserHandle(userhandle) : client->me);
+}
+
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
@@ -4375,6 +4463,31 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
     waiter->notify();
 }
 
+char *MegaApiImpl::getAvatarColor(handle userhandle)
+{
+    string colors[] = {        
+        "#69F0AE",
+        "#13E03C",
+        "#31B500",
+        "#00897B",
+        "#00ACC1",
+        "#61D2FF",
+        "#2BA6DE",
+        "#FFD300",
+        "#FFA500",
+        "#FF6F00",
+        "#E65100",
+        "#FF5252",
+        "#FF1A53",
+        "#C51162",
+        "#880E4F"
+    };
+
+    int index = userhandle % sizeof(colors)/sizeof(colors[0]);
+
+    return MegaApi::strdup(colors[index].c_str());
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -4725,7 +4838,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -4752,7 +4865,8 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
         }
     }
 
-	transfer->setMaxRetries(maxRetries);
+    transfer->setMaxRetries(maxRetries);
+    transfer->setAppData(appData);
 
     if (folderTransferTag)
     {
@@ -4764,7 +4878,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(node, localFolder, 0, 0, 0, listener); }
+{ startDownload(node, localFolder, 0, 0, 0, NULL, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -10651,7 +10765,31 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((e = client->checkmove(node, newParent)))
             {
-                if (!client->checkaccess(newParent, RDWR))
+                // If it's not possible to move the node, try copy-delete,
+                // but only when it's not possible due to access rights
+                // the node and the target are from different node trees,
+                // it's possible to put nodes in the target folder
+                // and also to remove the source node
+                if (e != API_EACCESS)
+                {
+                    break;
+                }
+
+                Node *nodeRoot = node;
+                while (nodeRoot->parent)
+                {
+                    nodeRoot = nodeRoot->parent;
+                }
+
+                Node *parentRoot = newParent;
+                while (parentRoot->parent)
+                {
+                    parentRoot = parentRoot->parent;
+                }
+
+                if ((nodeRoot == parentRoot)
+                        || !client->checkaccess(node, FULL)
+                        || !client->checkaccess(newParent, RDWR))
                 {
                     break;
                 }
@@ -11926,7 +12064,8 @@ void MegaApiImpl::sendPendingRequests()
                 base64receipt.resize(len * 4 / 3 + 4);
                 base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
             }
-            else //MegaApi::PAYMENT_METHOD_ITUNES
+            else // MegaApi::PAYMENT_METHOD_ITUNES
+                 // MegaApi::PAYMENT_METHOD_WINDOWS_STORE
             {
                 base64receipt = receipt;
             }
@@ -13751,7 +13890,7 @@ void MegaFolderDownloadController::downloadFolderNode(Node *node, string *path)
             delete fa;
 
             MegaNode *megaChild = MegaNodePrivate::fromNode(child);
-            megaApi->startDownload(megaChild, utf8path.c_str(), 0, 0, tag, this);
+            megaApi->startDownload(megaChild, utf8path.c_str(), 0, 0, tag, NULL, this);
             delete megaChild;
         }
         else

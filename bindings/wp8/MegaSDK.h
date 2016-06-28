@@ -105,7 +105,8 @@ namespace mega
         PAYMENT_METHOD_UNIONPAY = 5,
         PAYMENT_METHOD_FORTUMO = 6,
         PAYMENT_METHOD_CREDIT_CARD = 8,
-        PAYMENT_METHOD_CENTILI = 9
+        PAYMENT_METHOD_CENTILI = 9,
+        PAYMENT_METHOD_WINDOWS_STORE = 13
     };
 
     public ref class MegaSDK sealed
@@ -326,6 +327,8 @@ namespace mega
         void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime);
         void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
         void startDownload(MNode^ node, String^ localPath);
+        void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener);
+        void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData);
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer);

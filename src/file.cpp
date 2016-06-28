@@ -314,7 +314,7 @@ void File::terminated()
 bool File::failed(error e)
 {
     return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
-            !((e == API_EREAD || API_EWRITE) && transfer->failcount > 6);
+            !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
 void File::displayname(string* dname)

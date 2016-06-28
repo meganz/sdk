@@ -778,6 +778,11 @@ int MegaTransfer::getFolderTransferTag() const
     return 0;
 }
 
+const char *MegaTransfer::getAppData() const
+{
+    return NULL;
+}
+
 
 MegaError::MegaError(int errorCode)
 {
@@ -1417,6 +1422,16 @@ void MegaApi::getUserAvatar(const char *dstFilePath, MegaRequestListener *listen
     pImpl->getUserAvatar((MegaUser*)NULL, dstFilePath, listener);
 }
 
+char *MegaApi::getUserAvatarColor(MegaUser *user)
+{
+    return pImpl->getUserAvatarColor(user);
+}
+
+char *MegaApi::getUserAvatarColor(const char *userhandle)
+{
+    return pImpl->getUserAvatarColor(userhandle);
+}
+
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
@@ -1686,6 +1701,11 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
 {
     pImpl->startDownload(node, localFolder, listener);
+}
+
+void MegaApi::startDownload(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
+{
+    pImpl->startDownload(node, localPath, 0, 0, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
