@@ -10721,7 +10721,31 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((e = client->checkmove(node, newParent)))
             {
-                if (!client->checkaccess(newParent, RDWR))
+                // If it's not possible to move the node, try copy-delete,
+                // but only when it's not possible due to access rights
+                // the node and the target are from different node trees,
+                // it's possible to put nodes in the target folder
+                // and also to remove the source node
+                if (e != API_EACCESS)
+                {
+                    break;
+                }
+
+                Node *nodeRoot = node;
+                while (nodeRoot->parent)
+                {
+                    nodeRoot = nodeRoot->parent;
+                }
+
+                Node *parentRoot = newParent;
+                while (parentRoot->parent)
+                {
+                    parentRoot = parentRoot->parent;
+                }
+
+                if ((nodeRoot == parentRoot)
+                        || !client->checkaccess(node, FULL)
+                        || !client->checkaccess(newParent, RDWR))
                 {
                     break;
                 }
