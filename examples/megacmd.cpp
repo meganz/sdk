@@ -22,6 +22,12 @@
 #include "megacmd.h"
 #include "mega.h"
 
+// requirements: linux & qt
+#ifdef USE_QT
+#ifdef __linux__
+
+#include "megaapi_impl.h" //to use such things as MegaThread
+
 #define USE_VARARGS
 #define PREFER_STDARG
 #include <readline/readline.h>
@@ -29,14 +35,31 @@
 #include <iomanip>
 #include <string>
 
+#define OUTSTREAM getCurrentOut()
 
-#ifdef __linux__
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#endif
 
 using namespace mega;
+
+// different outstreams for every thread. to gather all the output data
+map<int,ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
+
+int getCurrentThread(){
+    //return std::this_thread::get_id();
+    //return std::thread::get_id();
+    return MegaThread::currentThreadId();//TODO: create this in thread class
+}
+
+ostream &getCurrentOut(){
+    int currentThread=getCurrentThread();
+    if ( outstreams.find(currentThread) == outstreams.end() ) {
+      return cout;
+    } else {
+      return *outstreams[currentThread];
+    }
+}
 
 void clear_display(){
     rl_forced_update_display();
@@ -67,24 +90,85 @@ MegaApi* api;
 //Syncs
 map<string,MegaHandle> syncsmap;
 
-
-
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
 private:
     //Create socket to hear for commands
-    int sockfd, newsockfd, portno;
+    int sockfd, newsockfd;
     socklen_t clilen;
     char buffer[1024];
     struct sockaddr_in serv_addr, cli_addr;
     int n;
 
+    MegaMutex *mtx;
+
+    int count=0;
+
+    int get_next_outSocket_id()
+    {
+        mtx->lock();
+        ++count;
+        mtx->unlock();
+        return count;
+    }
+
+    /**
+     * @brief create_new_socket
+     * The caller is responsible for deleting the newly created socket
+     * @return
+     */
+    int create_new_socket(int *sockId){
+        int thesock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+        if (thesock < 0)
+        {
+            LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
+        }
+
+        char socket_path[60];
+        *sockId=get_next_outSocket_id();
+        bzero(socket_path,sizeof(socket_path)*sizeof(*socket_path));
+        sprintf(socket_path, "/tmp/srv_%d", *sockId);
+
+        struct sockaddr_un addr;
+        socklen_t saddrlen = sizeof(addr);
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+
+        unlink(socket_path);
+
+        if ( bind(thesock, (struct sockaddr*)&addr, saddrlen) )
+        {
+            if (errno == EADDRINUSE)
+            {
+                LOG_warn << "ERROR on binding socket: Already in use."; CLEAN_warn;
+
+            }
+            else
+            {
+                LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+                thesock=0;
+            }
+        }
+        else
+        {
+            listen(thesock,150); //TODO: check errors?
+
+            return thesock;
+        }
+
+        return 0;
+    }
+
 public:
     ComunicationsManager(){
+        mtx=new MegaMutex();
         initialize();
     }
     void initialize(){
-        //TODO: read port from somewhere
+        mtx->init(false);
 
 //        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 //        sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -95,31 +179,39 @@ public:
             LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
         }
 
-//        portno=12347;
+        //        portno=12347;         //TODO: read port from somewhere
         //        bzero((char *) &serv_addr, sizeof(serv_addr));
         //        serv_addr.sin_family = AF_INET;
         //        serv_addr.sin_addr.s_addr = INADDR_ANY;
         //        serv_addr.sin_port = htons(poFrtno);
         //        if (bind(sockfd, (struct sockaddr *) &serv_addr,
         //                 sizeof(serv_addr)) < 0)
-        struct sockaddr saddr = {AF_UNIX, "/tmp/server"};
-        socklen_t saddrlen = sizeof(struct sockaddr) + 6;
-        unlink("/tmp/server");
 
-        if ( bind(sockfd, &saddr, saddrlen) )
+
+        struct sockaddr_un addr;
+        socklen_t saddrlen = sizeof(addr);
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        const char * socketPath = "/tmp/server";
+        strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
+
+
+        unlink(socketPath);
+
+        if ( bind(sockfd, (struct sockaddr*)&addr, saddrlen) )
         {
             if (errno == EADDRINUSE)
             {
-                LOG_warn << "ERROR on binding socket: Already in use. Getting control:"; CLEAN_warn;
+                LOG_warn << "ERROR on binding socket: Already in use."; CLEAN_warn;
 //                exit(1);
 //                close(sockfd);
 
 //                sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-//                struct sockaddr saddr = {AF_UNIX, "/tmp/server"};
+//                struct sockaddr saddr = {AF_UNIX, socketPath};
 
 ////                bzero((char *) &saddr, sizeof(saddr));
 ////                saddr.sa_family = AF_UNIX;
-////                saddr.sa_data = "/tmp/server";
+////                saddr.sa_data = socketPath;
 
 //                socklen_t saddrlen = sizeof(struct sockaddr) + 6;
 
@@ -134,8 +226,6 @@ public:
 //                    LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
 //                    sockfd=NULL;
 //                }
-
-
 
             }
             else
@@ -155,7 +245,13 @@ public:
         return sockfd;
     }
 
-    string getPetition(){
+
+    /**
+     * @brief getPetition
+     * @param socket_out socket for output. It is the responsability of the caller to close this socket
+     * @return
+     */
+    string getPetition(int &socket_out){
 
         clilen = sizeof(cli_addr);
 //        recv(sockfd,buffer,1023,MSG_PEEK)
@@ -174,21 +270,34 @@ public:
             LOG_fatal << "ERROR reading from socket"; CLEAN_fatal;
             return "ERROR";
         }
-        printf("Here is the message: %s\n",buffer); //TODO: deal with this
 
-        n = write(newsockfd,"I got your message",18); //Include port or output socket
-        if (n < 0){
-            LOG_fatal << "ERROR writing to socket"; CLEAN_fatal;
+        int socket_id = 0;
+        socket_out = create_new_socket(&socket_id);
+        if (!socket_out || !socket_id)
+        {
+            LOG_fatal << "ERROR creating output socket"; CLEAN_fatal;
             return "ERROR";
         }
-        return string(buffer);
 
+//        sprintf(buffer,"%d",socket_out);
+
+        //n = write(newsockfd,buffer,sizeof(buffer)*sizeof(char));
+
+        n = write(newsockfd,&socket_id,sizeof(socket_id));
+        if (n < 0){
+            LOG_fatal << "ERROR writing to socket" << errno; CLEAN_fatal;
+            return "ERROR";
+        }
+        close (newsockfd);
+        return string(buffer);
     }
+
 
     ~ComunicationsManager()
     {
         close(newsockfd);
         close(sockfd);
+        delete mtx;
     }
 };
 
@@ -608,14 +717,14 @@ static void displaytransferdetails(Transfer* t, const char* action)
     {
         if (it != t->files.begin())
         {
-            cout << "/";
+            OUTSTREAM << "/";
         }
 
         (*it)->displayname(&name);
-        cout << name;
+        OUTSTREAM << name.c_str();
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    OUTSTREAM << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
 }
 
 
@@ -639,7 +748,7 @@ void DemoApp::transfer_update(Transfer* t)
 void DemoApp::transfer_failed(Transfer* t, error e)
 {
     displaytransferdetails(t, "failed (");
-    cout << errorstring(e) << ")" << endl;
+    OUTSTREAM << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::transfer_limit(Transfer *t)
@@ -653,11 +762,11 @@ void DemoApp::transfer_complete(Transfer* t)
 
     if (t->slot)
     {
-        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+        OUTSTREAM << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
     }
     else
     {
-        cout << "delayed" << endl;
+        OUTSTREAM << "delayed" << endl;
     }
 }
 
@@ -679,7 +788,7 @@ void DemoApp::transfer_prepare(Transfer* t)
 #ifdef ENABLE_SYNC
 static void syncstat(Sync* sync)
 {
-    cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
+    OUTSTREAM << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
@@ -688,11 +797,11 @@ void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
     switch (newstate)
     {
         case SYNC_ACTIVE:
-            cout << "Sync is now active" << endl;
+            OUTSTREAM << "Sync is now active" << endl;
             break;
 
         case SYNC_FAILED:
-            cout << "Sync failed." << endl;
+            OUTSTREAM << "Sync failed." << endl;
 
         default:
             ;
@@ -703,106 +812,106 @@ void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning files and folders" << endl;
+        OUTSTREAM << "Sync - scanning files and folders" << endl;
     }
     else
     {
-        cout << "Sync - scan completed" << endl;
+        OUTSTREAM << "Sync - scan completed" << endl;
     }
 }
 
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
 void DemoApp::syncupdate_local_folder_addition(Sync* sync, LocalNode *, const char* path)
 {
-    cout << "Sync - local folder addition detected: " << path;
+    OUTSTREAM << "Sync - local folder addition detected: " << path;
     syncstat(sync);
 }
 
 void DemoApp::syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode)
 {
-    cout << "Sync - local folder deletion detected: " << localNode->name;
+    OUTSTREAM << "Sync - local folder deletion detected: " << localNode->name;
     syncstat(sync);
 }
 
 void DemoApp::syncupdate_local_file_addition(Sync* sync, LocalNode *, const char* path)
 {
-    cout << "Sync - local file addition detected: " << path;
+    OUTSTREAM << "Sync - local file addition detected: " << path;
     syncstat(sync);
 }
 
 void DemoApp::syncupdate_local_file_deletion(Sync* sync, LocalNode *localNode)
 {
-    cout << "Sync - local file deletion detected: " << localNode->name;
+    OUTSTREAM << "Sync - local file deletion detected: " << localNode->name;
     syncstat(sync);
 }
 
 void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* path)
 {
-    cout << "Sync - local file change detected: " << path;
+    OUTSTREAM << "Sync - local file change detected: " << path;
     syncstat(sync);
 }
 
 void DemoApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* path)
 {
-    cout << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
+    OUTSTREAM << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
 }
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
 {
     if (locked)
     {
-        cout << "Sync - waiting for local filesystem lock" << endl;
+        OUTSTREAM << "Sync - waiting for local filesystem lock" << endl;
     }
     else
     {
-        cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
+        OUTSTREAM << "Sync - local filesystem lock issue resolved, continuing..." << endl;
     }
 }
 
 void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
 {
-    cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
+    OUTSTREAM << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
             " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
 }
 
 void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
 {
-    cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
+    OUTSTREAM << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
 {
-    cout << "Sync - remote folder addition detected " << n->displayname() << endl;
+    OUTSTREAM << "Sync - remote folder addition detected " << n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
 {
-    cout << "Sync - remote file addition detected " << n->displayname() << endl;
+    OUTSTREAM << "Sync - remote file addition detected " << n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
 {
-    cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
+    OUTSTREAM << "Sync - remote folder deletion detected " << n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
 {
-    cout << "Sync - remote file deletion detected " << n->displayname() << endl;
+    OUTSTREAM << "Sync - remote file deletion detected " << n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
 {
-    cout << "Sync - requesting file " << path << endl;
+    OUTSTREAM << "Sync - requesting file " << path << endl;
 }
 
 void DemoApp::syncupdate_put(Sync*, LocalNode *, const char* path)
 {
-    cout << "Sync - sending file " << path << endl;
+    OUTSTREAM << "Sync - sending file " << path << endl;
 }
 
 void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
 {
-    cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
+    OUTSTREAM << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
 }
 
 static const char* treestatename(treestate_t ts)
@@ -824,7 +933,7 @@ static const char* treestatename(treestate_t ts)
 
 void DemoApp::syncupdate_treestate(LocalNode* l)
 {
-    cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
+    OUTSTREAM << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
 }
 
 // generic name filter
@@ -906,11 +1015,11 @@ void DemoApp::users_updated(User** u, int count)
 {
     if (count == 1)
     {
-        cout << "1 user received or updated" << endl;
+        OUTSTREAM << "1 user received or updated" << endl;
     }
     else
     {
-        cout << count << " users received or updated" << endl;
+        OUTSTREAM << count << " users received or updated" << endl;
     }
 }
 
@@ -920,13 +1029,13 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
 {
     if (e)
     {
-        cout << "Chat creation failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Chat creation failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Chat created successfully" << endl;
+        OUTSTREAM << "Chat created successfully" << endl;
         printChatInformation(chat);
-        cout << endl;
+        OUTSTREAM << endl;
     }
 }
 
@@ -934,23 +1043,23 @@ void DemoApp::chatfetch_result(textchat_vector *chats, error e)
 {
     if (e)
     {
-        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Chat fetching failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
         if (chats->size() == 1)
         {
-            cout << "1 chat received or updated" << endl;
+            OUTSTREAM << "1 chat received or updated" << endl;
         }
         else
         {
-            cout << chats->size() << " chats received or updated" << endl;
+            OUTSTREAM << chats->size() << " chats received or updated" << endl;
         }
 
         for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
         {
             printChatInformation(*it);
-            cout << endl;
+            OUTSTREAM << endl;
         }
     }
 }
@@ -959,11 +1068,11 @@ void DemoApp::chatinvite_result(error e)
 {
     if (e)
     {
-        cout << "Chat invitation failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Chat invitation failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Chat invitation successful" << endl;
+        OUTSTREAM << "Chat invitation successful" << endl;
     }
 }
 
@@ -971,11 +1080,11 @@ void DemoApp::chatremove_result(error e)
 {
     if (e)
     {
-        cout << "Peer removal failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Peer removal failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Peer removal successful" << endl;
+        OUTSTREAM << "Peer removal successful" << endl;
     }
 }
 
@@ -983,11 +1092,11 @@ void DemoApp::chaturl_result(string *url, error e)
 {
     if (e)
     {
-        cout << "Chat URL retrieval failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Chat URL retrieval failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Chat URL: " << *url << endl;
+        OUTSTREAM << "Chat URL: " << *url << endl;
     }
 
 }
@@ -996,11 +1105,11 @@ void DemoApp::chatgrantaccess_result(error e)
 {
     if (e)
     {
-        cout << "Grant access to node failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Grant access to node failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Access to node granted successfully" << endl;
+        OUTSTREAM << "Access to node granted successfully" << endl;
     }
 }
 
@@ -1008,11 +1117,11 @@ void DemoApp::chatremoveaccess_result(error e)
 {
     if (e)
     {
-        cout << "Revoke access to node failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Revoke access to node failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Access to node removed successfully" << endl;
+        OUTSTREAM << "Access to node removed successfully" << endl;
     }
 }
 
@@ -1022,11 +1131,11 @@ void DemoApp::chats_updated(textchat_vector *chats)
     {
         if (chats->size() == 1)
         {
-            cout << "1 chat updated or created" << endl;
+            OUTSTREAM << "1 chat updated or created" << endl;
         }
         else
         {
-            cout << chats->size() << " chats updated or created" << endl;
+            OUTSTREAM << chats->size() << " chats updated or created" << endl;
         }
     }
 }
@@ -1041,33 +1150,33 @@ void DemoApp::printChatInformation(TextChat *chat)
     char hstr[sizeof(handle) * 4 / 3 + 4];
     Base64::btoa((const byte *)&chat->id, sizeof(handle), hstr);
 
-    cout << "Chat ID: " << hstr << endl;
-    cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
-    cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tURL: " << chat->url << endl;
+    OUTSTREAM << "Chat ID: " << hstr << endl;
+    OUTSTREAM << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    OUTSTREAM << "\tChat shard: " << chat->shard << endl;
+    OUTSTREAM << "\tURL: " << chat->url << endl;
     if (chat->group)
     {
-        cout << "\tGroup chat: yes" << endl;
+        OUTSTREAM << "\tGroup chat: yes" << endl;
     }
     else
     {
-        cout << "\tGroup chat: no" << endl;
+        OUTSTREAM << "\tGroup chat: no" << endl;
     }
-    cout << "\tPeers:";
+    OUTSTREAM << "\tPeers:";
 
     if (chat->userpriv)
     {
-        cout << "\t\t(userhandle)\t(privilege level)" << endl;
+        OUTSTREAM << "\t\t(userhandle)\t(privilege level)" << endl;
         for (unsigned i = 0; i < chat->userpriv->size(); i++)
         {
             Base64::btoa((const byte *)&chat->userpriv->at(i).first, sizeof(handle), hstr);
-            cout << "\t\t\t" << hstr;
-            cout << "\t" << getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            OUTSTREAM << "\t\t\t" << hstr;
+            OUTSTREAM << "\t" << getPrivilegeString(chat->userpriv->at(i).second) << endl;
         }
     }
     else
     {
-        cout << " no peers (only you as participant)" << endl;
+        OUTSTREAM << " no peers (only you as participant)" << endl;
     }
 }
 
@@ -1130,11 +1239,11 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
 
     if (deletecount != 0)
     {
-        cout << deletecount << " pending contact request" << (deletecount != 1 ? "s" : "") << " deleted" << endl;
+        OUTSTREAM << deletecount << " pending contact request" << (deletecount != 1 ? "s" : "") << " deleted" << endl;
     }
     if (updatecount != 0)
     {
-        cout << updatecount << " pending contact request" << (updatecount != 1 ? "s" : "") << " received or updated" << endl;
+        OUTSTREAM << updatecount << " pending contact request" << (updatecount != 1 ? "s" : "") << " received or updated" << endl;
     }
 }
 
@@ -1142,7 +1251,7 @@ void DemoApp::setattr_result(handle, error e)
 {
     if (e)
     {
-        cout << "Node attribute update failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Node attribute update failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1150,7 +1259,7 @@ void DemoApp::rename_result(handle, error e)
 {
     if (e)
     {
-        cout << "Node move failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Node move failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1158,7 +1267,7 @@ void DemoApp::unlink_result(handle, error e)
 {
     if (e)
     {
-        cout << "Node deletion failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Node deletion failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1166,7 +1275,7 @@ void DemoApp::fetchnodes_result(error e)
 {
     if (e)
     {
-        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
@@ -1177,7 +1286,7 @@ void DemoApp::fetchnodes_result(error e)
             Node *n = client->nodebyhandle(h);
             if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
             {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+                OUTSTREAM << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
     }
@@ -1191,13 +1300,13 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         if (!e)
         {
-            cout << "Success." << endl;
+            OUTSTREAM << "Success." << endl;
         }
     }
 
     if (e)
     {
-        cout << "Node addition failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Node addition failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1205,7 +1314,7 @@ void DemoApp::share_result(error e)
 {
     if (e)
     {
-        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1213,11 +1322,11 @@ void DemoApp::share_result(int, error e)
 {
     if (e)
     {
-        cout << "Share creation/modification failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Share creation/modification failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Share creation/modification succeeded" << endl;
+        OUTSTREAM << "Share creation/modification succeeded" << endl;
     }
 }
 
@@ -1225,20 +1334,20 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
 {
     if (e)
     {
-        cout << "Outgoing pending contact request failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Outgoing pending contact request failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
         if (h == UNDEF)
         {
             // must have been deleted
-            cout << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
+            OUTSTREAM << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
         }
         else
         {
             char buffer[12];
             Base64::btoa((byte*)&h, sizeof(h), buffer);
-            cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+            OUTSTREAM << "Outgoing pending contact request succeeded, id: " << buffer << endl;
         }
     }
 }
@@ -1247,23 +1356,23 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
 {
     if (e)
     {
-        cout << "Incoming pending contact request update failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Incoming pending contact request update failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
         string labels[3] = {"accepted", "denied", "ignored"};
-        cout << "Incoming pending contact request successfully " << labels[(int)action] << endl;
+        OUTSTREAM << "Incoming pending contact request successfully " << labels[(int)action] << endl;
     }
 }
 
 void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
 {
-    cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
+    OUTSTREAM << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
 
 int DemoApp::fa_failed(handle, fatype type, int retries, error e)
 {
-    cout << "File attribute retrieval of type " << type << " failed (retries: " << retries << ") error: " << e << endl;
+    OUTSTREAM << "File attribute retrieval of type " << type << " failed (retries: " << retries << ") error: " << e << endl;
 
     return retries > 2;
 }
@@ -1272,7 +1381,7 @@ void DemoApp::putfa_result(handle, fatype, error e)
 {
     if (e)
     {
-        cout << "File attribute attachment failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "File attribute attachment failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -1280,11 +1389,11 @@ void DemoApp::invite_result(error e)
 {
     if (e)
     {
-        cout << "Invitation failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Invitation failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Success." << endl;
+        OUTSTREAM << "Success." << endl;
     }
 }
 
@@ -1292,36 +1401,36 @@ void DemoApp::putua_result(error e)
 {
     if (e)
     {
-        cout << "User attribute update failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "User attribute update failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Success." << endl;
+        OUTSTREAM << "Success." << endl;
     }
 }
 
 void DemoApp::getua_result(error e)
 {
-    cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
+    OUTSTREAM << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l)
 {
-    cout << "Received " << l << " byte(s) of user attribute: ";
+    OUTSTREAM << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
-    cout << endl;
+    OUTSTREAM << endl;
 }
 
 void DemoApp::notify_retry(dstime dsdelta)
 {
     if (dsdelta)
     {
-        cout << "API request failed, retrying in " << dsdelta * 100 << " ms - Use 'retry' to retry immediately..."
+        OUTSTREAM << "API request failed, retrying in " << dsdelta * 100 << " ms - Use 'retry' to retry immediately..."
              << endl;
     }
     else
     {
-        cout << "Retried API request completed" << endl;
+        OUTSTREAM << "Retried API request completed" << endl;
     }
 }
 */
@@ -1334,20 +1443,20 @@ static void nodestats(int* c, const char* action)
 {
     if (c[FILENODE])
     {
-        cout << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
+        OUTSTREAM << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
     }
     if (c[FILENODE] && c[FOLDERNODE])
     {
-        cout << " and ";
+        OUTSTREAM << " and ";
     }
     if (c[FOLDERNODE])
     {
-        cout << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
+        OUTSTREAM << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
     }
 
     if (c[FILENODE] || c[FOLDERNODE])
     {
-        cout << " " << action << endl;
+        OUTSTREAM << " " << action << endl;
     }
 }
 
@@ -1357,7 +1466,7 @@ static void listtrees()
 //    //TODO: modify using API
     for (int i = 0; i < (int) (sizeof rootnodenames/sizeof *rootnodenames); i++)
     {
-        cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
+        OUTSTREAM << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
     }
 
     MegaShareList * msl = api->getInSharesList();
@@ -1366,7 +1475,7 @@ static void listtrees()
         MegaShare *share = msl->get(i);
         MegaNode *n= api->getNodeByHandle(share->getNodeHandle());
 
-        cout << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
+        OUTSTREAM << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
         delete n;
     }
 
@@ -1610,16 +1719,16 @@ static void listnodeshares(MegaNode* n)
         for (int i=0;i<outShares->size();i++)
 //        for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
-            cout << "\t" << n->getName();
+            OUTSTREAM << "\t" << n->getName();
 
             if (outShares->get(i))
             {
-                cout << ", shared with " << outShares->get(i)->getUser() << " (" << getAccessLevelStr(outShares->get(i)->getAccess()) << ")"
+                OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << " (" << getAccessLevelStr(outShares->get(i)->getAccess()) << ")"
                      << endl;
             }
             else
             {
-                cout << ", shared as exported folder link" << endl;
+                OUTSTREAM << ", shared as exported folder link" << endl;
             }
         }
         delete outShares;
@@ -1642,42 +1751,42 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
 
         for (int i = depth; i--; )
         {
-            cout << "\t";
+            OUTSTREAM << "\t";
         }
 
-        cout << title << " (";
+        OUTSTREAM << title << " (";
 
         switch (n->getType())
         {
             case MegaNode::TYPE_FILE:
-                cout << n->getSize();
+                OUTSTREAM << n->getSize();
 
                 const char* p;
                 if ((p = strchr(n->getAttrString()->c_str(), ':')))
                 {
-                    cout << ", has attributes " << p + 1;
+                    OUTSTREAM << ", has attributes " << p + 1;
                 }
 
                 if (UNDEF != n->getPublicHandle())
                 //if (n->plink)
                 {
-                    cout << ", shared as exported";
+                    OUTSTREAM << ", shared as exported";
                     if (n->getExpirationTime()) //TODO: validate equivalence
                     //if (n->plink->ets)
                     {
-                        cout << " temporal";
+                        OUTSTREAM << " temporal";
                     }
                     else
                     {
-                        cout << " permanent";
+                        OUTSTREAM << " permanent";
                     }
-                    cout << " file link";
+                    OUTSTREAM << " file link";
                 }
                 break;
 
             case MegaNode::TYPE_FOLDER:
             {
-                cout << "folder";
+                OUTSTREAM << "folder";
                 MegaShareList* outShares = api->getOutShares(n);
                 if (outShares)
                 {
@@ -1685,24 +1794,24 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     {
                         if (outShares->get(i))
                         {
-                            cout << ", shared with " << outShares->get(i)->getUser() << ", access "
+                            OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << ", access "
                                  << getAccessLevelStr(outShares->get(i)->getAccess());
                         }
                     }
                     if (UNDEF != n->getPublicHandle())
                     //if (n->plink)
                     {
-                        cout << ", shared as exported";
+                        OUTSTREAM << ", shared as exported";
                         if (n->getExpirationTime()) //TODO: validate equivalence
 //                        if (n->plink->ets)
                         {
-                            cout << " temporal";
+                            OUTSTREAM << " temporal";
                         }
                         else
                         {
-                            cout << " permanent";
+                            OUTSTREAM << " permanent";
                         }
-                        cout << " folder link";
+                        OUTSTREAM << " folder link";
                     }
                     delete outShares;
                 }
@@ -1714,7 +1823,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     {
                         if (pendingoutShares->get(i))
                         {
-                            cout << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
+                            OUTSTREAM << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
                                  << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
                         }
                     }
@@ -1723,16 +1832,16 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
 
                 if (n->isInShare())
                 {
-                    //cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
-                    cout << ", inbound " << api->getAccess(n) << " share"; //TODO: validate & delete
+                    //OUTSTREAM << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
+                    OUTSTREAM << ", inbound " << api->getAccess(n) << " share"; //TODO: validate & delete
                 }
                 break;
             }
 
             default:
-                cout << "unsupported type, please upgrade";
+                OUTSTREAM << "unsupported type, please upgrade";
         }
-        cout << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
+        OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -1866,7 +1975,7 @@ static void setprompt(prompttype p)
     else
     {
         pw_buf_pos = 0;
-        cout << prompts[p] << flush;
+        OUTSTREAM << prompts[p] << flush;
         console->setecho(false);
     }
 }
@@ -1880,7 +1989,7 @@ void sigint_handler(int signum)
 
     // reset position and print prompt
     pw_buf_pos = 0;
-    cout << prompts[prompt] << flush;
+    OUTSTREAM << prompts[prompt] << flush;
 }
 #endif
 
@@ -1966,22 +2075,23 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
 
     switch(request->getType())
     {
-        case MegaRequest::TYPE_FETCH_NODES:
+    case MegaRequest::TYPE_FETCH_NODES:
     {
-            ostringstream s;
-            if (request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 >=0){
+        ostringstream s;
+        if (request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 >=0)
+        {
             s << request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 << " %" ;
-            }
-            else{
-                s<< "0 %";
-            }
-            rl_replace_line(s.str().c_str(), 0);rl_redisplay();
+        }
+        else{
+            s<< "0 %";
+        }
+        rl_replace_line(s.str().c_str(), 0);rl_redisplay();
 
-//            rl_forced_update_display(); cout <<   << "%";
+        //            rl_forced_update_display(); OUTSTREAM <<   << "%";
         break;
     }
-        default:
-          LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType(); CLEAN_debug;
+    default:
+        LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType(); CLEAN_debug;
         break;
     }
 }
@@ -2088,35 +2198,35 @@ int loadfile(string* name, string* data)
 //        {
 //            (*it)->displayname(&name);
 
-//            cout << (*it)->seqno << ": " << name;
+//            OUTSTREAM << (*it)->seqno << ": " << name;
 
 //            if (d == PUT)
 //            {
 //                AppFilePut* f = (AppFilePut*) *it;
 
-//                cout << " -> ";
+//                OUTSTREAM << " -> ";
 
 //                if (f->targetuser.size())
 //                {
-//                    cout << f->targetuser << ":";
+//                    OUTSTREAM << f->targetuser << ":";
 //                }
 //                else
 //                {
 //                    string path;
 //                    nodepath(f->h, &path);
-//                    cout << path;
+//                    OUTSTREAM << path;
 //                }
 //            }
 
 //            if ((*it)->transfer && (*it)->transfer->slot)
 //            {
-//                cout << " [ACTIVE]";
+//                OUTSTREAM << " [ACTIVE]";
 //            }
-//            cout << endl;
+//            OUTSTREAM << endl;
 
 //            if (cancel >= 0)
 //            {
-//                cout << "Canceling..." << endl;
+//                OUTSTREAM << "Canceling..." << endl;
 
 //                if ((*it)->transfer)
 //                {
@@ -2180,19 +2290,19 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
         MegaAccountDetails *details =  srl->getRequest()->getMegaAccountDetails();
         if (details)
         {
-            cout << "\tAvailable storage: " << details->getStorageMax() << " byte(s)" << endl;
+            OUTSTREAM << "\tAvailable storage: " << details->getStorageMax() << " byte(s)" << endl;
             MegaNode *n = api->getRootNode();
-            cout << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+            OUTSTREAM << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
                  << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
             delete n;
 
             n = api->getInboxNode();
-            cout << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+            OUTSTREAM << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
                  << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
             delete n;
 
             n = api->getRubbishNode();
-            cout << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+            OUTSTREAM << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
                  << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
             delete n;
 
@@ -2202,33 +2312,33 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
             for (int i=0; i<inshares->size();i++)
             {
                 n=inshares->get(i);
-                cout << "\t\tIn INSHARE "<< n->getName() << ": " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                OUTSTREAM << "\t\tIn INSHARE "<< n->getName() << ": " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
                      << details->getNumFiles(n->getHandle())  << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
             }
             delete inshares;
 
 //            if (details->getTransferMax())
 //            {
-//                cout << "\tTransfer completed: " << details->getTransferOwnUsed() << " of " << details->getTransferMax() << "("
+//                OUTSTREAM << "\tTransfer completed: " << details->getTransferOwnUsed() << " of " << details->getTransferMax() << "("
 //                     << ( 100 * details->getTransferOwnUsed() / details->getTransferMax() ) << "%)" << endl;
 
 //            }
 
-//            cout << "\tTransfer history:\n";
+//            OUTSTREAM << "\tTransfer history:\n";
 //            MegaTransferList *transferlist = api->getTransfers();
 //            if (transferlist)
 //            {
 //                for (int i=0;i<transferlist->size();i++)
 //                {
 //                    MegaTransfer * transfer = transferlist->get(i);
-//                    cout << "\t\t" << transfer->getTransferredBytes() << " out of " << transfer->getTotalBytes() << " bytes downloaded up to "<< transfer->getUpdateTime() << endl;
+//                    OUTSTREAM << "\t\t" << transfer->getTransferredBytes() << " OUTSTREAM of " << transfer->getTotalBytes() << " bytes downloaded up to "<< transfer->getUpdateTime() << endl;
 //                }
 //            }
 //            delete transferlist;
 
 
 
-            cout << "\tPro level: " << details->getProLevel() << endl;
+            OUTSTREAM << "\tPro level: " << details->getProLevel() << endl;
             if (details->getProLevel())
             {
                 if (details->getProExpiration())
@@ -2238,8 +2348,8 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                     printf("\t\tPro expiration date: %s\n", timebuf);
                 }
             }
-            cout << "\tSubscription type: " << details->getSubscriptionMethod() << endl;
-            cout << "\tAccount balance:" << endl;
+            OUTSTREAM << "\tSubscription type: " << details->getSubscriptionMethod() << endl;
+            OUTSTREAM << "\tAccount balance:" << endl;
             for (int i = 0; i < details->getNumBalances();i++)
             {
                 MegaAccountBalance * balance =  details->getBalance(i);
@@ -2248,7 +2358,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
 
             if (details->getNumPurchases())
             {
-                cout << "Purchase history:" << endl;
+                OUTSTREAM << "Purchase history:" << endl;
                 for (int i = 0; i < details->getNumPurchases(); i++)
                 {
                     MegaAccountPurchase *purchase = details->getPurchase(i);
@@ -2266,7 +2376,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                 {
                     MegaAccountTransaction *transaction = details->getTransaction(i);
 
-                    cout << "Transaction history:" << endl;
+                    OUTSTREAM << "Transaction history:" << endl;
 
                         time_t ts = transaction->getTimestamp();
                         strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
@@ -2276,7 +2386,8 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
             }
 
             int alive_sessions = 0;
-            cout << "Current Active Sessions:" << endl;
+            OUTSTREAM << "Current Active Sessions:" << endl;
+            char sdetails[500];
             for (int i = 0; i < details->getNumSessions(); i++)
             {
                 MegaAccountSession * session = details->getSession(i);
@@ -2292,11 +2403,12 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                     char sid[12];
                     Base64::btoa((byte*)&(id), sizeof(id), sid);
 
+
                     if (session->isCurrent())
                     {
-                        printf("\t* Current Session\n");
+                        sprintf(sdetails,"\t* Current Session\n");
                     }
-                    printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
+                    sprintf(sdetails,"\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
                            sid,
                            timebuf,
                            timebuf2,
@@ -2304,13 +2416,13 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                            session->getCountry(),
                            session->getUserAgent()
                            );
-
-                    cout << "User agent: " << session->getUserAgent() << endl;
+                    OUTSTREAM << sdetails;
+                    OUTSTREAM << "User agent: " << session->getUserAgent() << endl;
                     alive_sessions++;
                 }
             }
             if (alive_sessions)
-                cout << details->getNumSessions() << " active sessions opened" << endl;
+                OUTSTREAM << details->getNumSessions() << " active sessions opened" << endl;
         }
     }
     else
@@ -2491,7 +2603,7 @@ static void process_line(char* l)
 
 //                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
 //                {
-//                    cout << endl << "Incorrect password, please try again." << endl;
+//                    OUTSTREAM << endl << "Incorrect password, please try again." << endl;
 //                }
 //                else
 //                {
@@ -2524,12 +2636,12 @@ static void process_line(char* l)
 
             if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
             {
-                cout << endl;
+                OUTSTREAM << endl;
                 setprompt(NEWPASSWORD);
             }
             else
             {
-                cout << endl << "Bad password, please try again" << endl;
+                OUTSTREAM << endl << "Bad password, please try again" << endl;
                 setprompt(COMMAND);
             }
             return;
@@ -2538,7 +2650,7 @@ static void process_line(char* l)
         //TODO: modify using API
 //            client->pw_key(l, newpwkey);
 
-            cout << endl;
+            OUTSTREAM << endl;
             setprompt(PASSWORDCONFIRM);
             return;
 
@@ -2548,7 +2660,7 @@ static void process_line(char* l)
 
             if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
             {
-                cout << endl << "Mismatch, please try again" << endl;
+                OUTSTREAM << endl << "Mismatch, please try again" << endl;
             }
             else
             {
@@ -2565,11 +2677,11 @@ static void process_line(char* l)
 //                    if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
 //                    {
 //                        memcpy(pwkey, newpwkey, sizeof pwkey);
-//                        cout << endl << "Changing password..." << endl;
+//                        OUTSTREAM << endl << "Changing password..." << endl;
 //                    }
 //                    else
 //                    {
-//                        cout << "You must be logged in to change your password." << endl;
+//                        OUTSTREAM << "You must be logged in to change your password." << endl;
 //                    }
                 }
             }
@@ -2651,63 +2763,63 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-                cout << "      login email [password]" << endl;
-                cout << "      login exportedfolderurl#key" << endl;
-                cout << "      login session" << endl;
-                cout << "      begin [ephemeralhandle#ephemeralpw]" << endl;
-                cout << "      signup [email name|confirmationlink]" << endl;
-                cout << "      confirm" << endl;
-                cout << "      session" << endl;
-                cout << "      mount" << endl;
-                cout << "      ls [-R] [remotepath]" << endl;
-                cout << "      cd [remotepath]" << endl;
-                cout << "      pwd" << endl;
-                cout << "      lcd [localpath]" << endl;
-                cout << "      import exportedfilelink#key" << endl;
-                cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
-                cout << "      putq [cancelslot]" << endl;
-                cout << "      get remotepath [offset [length]]" << endl;
-                cout << "      get exportedfilelink#key [offset [length]]" << endl;
-                cout << "      getq [cancelslot]" << endl;
-                cout << "      pause [get|put] [hard] [status]" << endl;
-                cout << "      getfa type [path] [cancel]" << endl;
-                cout << "      mkdir remotepath" << endl;
-                cout << "      rm remotepath" << endl;
-                cout << "      mv srcremotepath dstremotepath" << endl;
-                cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+                OUTSTREAM << "      login email [password]" << endl;
+                OUTSTREAM << "      login exportedfolderurl#key" << endl;
+                OUTSTREAM << "      login session" << endl;
+                OUTSTREAM << "      begin [ephemeralhandle#ephemeralpw]" << endl;
+                OUTSTREAM << "      signup [email name|confirmationlink]" << endl;
+                OUTSTREAM << "      confirm" << endl;
+                OUTSTREAM << "      session" << endl;
+                OUTSTREAM << "      mount" << endl;
+                OUTSTREAM << "      ls [-R] [remotepath]" << endl;
+                OUTSTREAM << "      cd [remotepath]" << endl;
+                OUTSTREAM << "      pwd" << endl;
+                OUTSTREAM << "      lcd [localpath]" << endl;
+                OUTSTREAM << "      import exportedfilelink#key" << endl;
+                OUTSTREAM << "      put localpattern [dstremotepath|dstemail:]" << endl;
+                OUTSTREAM << "      putq [cancelslot]" << endl;
+                OUTSTREAM << "      get remotepath [offset [length]]" << endl;
+                OUTSTREAM << "      get exportedfilelink#key [offset [length]]" << endl;
+                OUTSTREAM << "      getq [cancelslot]" << endl;
+                OUTSTREAM << "      pause [get|put] [hard] [status]" << endl;
+                OUTSTREAM << "      getfa type [path] [cancel]" << endl;
+                OUTSTREAM << "      mkdir remotepath" << endl;
+                OUTSTREAM << "      rm remotepath" << endl;
+                OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
+                OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
 #ifdef ENABLE_SYNC
-                cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+                OUTSTREAM << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
-                cout << "      export remotepath [expireTime|del]" << endl;
-                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                cout << "      invite dstemail [origemail|del|rmd]" << endl;
-                cout << "      ipc handle a|d|i" << endl;
-                cout << "      showpcr" << endl;
-                cout << "      users" << endl;
-                cout << "      getua attrname [email]" << endl;
-                cout << "      putua attrname [del|set string|load file]" << endl;
-                cout << "      putbps [limit|auto|none]" << endl;
-                cout << "      killsession [all|sessionid]" << endl;
-                cout << "      whoami" << endl;
-                cout << "      passwd" << endl;
-                cout << "      retry" << endl;
-                cout << "      recon" << endl;
-                cout << "      reload" << endl;
-                cout << "      logout" << endl;
-                cout << "      locallogout" << endl;
-                cout << "      symlink" << endl;
-                cout << "      version" << endl;
-                cout << "      debug" << endl;
+                OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
+                OUTSTREAM << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
+                OUTSTREAM << "      invite dstemail [origemail|del|rmd]" << endl;
+                OUTSTREAM << "      ipc handle a|d|i" << endl;
+                OUTSTREAM << "      showpcr" << endl;
+                OUTSTREAM << "      users" << endl;
+                OUTSTREAM << "      getua attrname [email]" << endl;
+                OUTSTREAM << "      putua attrname [del|set string|load file]" << endl;
+                OUTSTREAM << "      putbps [limit|auto|none]" << endl;
+                OUTSTREAM << "      killsession [all|sessionid]" << endl;
+                OUTSTREAM << "      whoami" << endl;
+                OUTSTREAM << "      passwd" << endl;
+                OUTSTREAM << "      retry" << endl;
+                OUTSTREAM << "      recon" << endl;
+                OUTSTREAM << "      reload" << endl;
+                OUTSTREAM << "      logout" << endl;
+                OUTSTREAM << "      locallogout" << endl;
+                OUTSTREAM << "      symlink" << endl;
+                OUTSTREAM << "      version" << endl;
+                OUTSTREAM << "      debug" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chatf " << endl;
-                cout << "      chatc group [email ro|rw|full|op]*" << endl;
-                cout << "      chati chatid email ro|rw|full|op" << endl;
-                cout << "      chatr chatid [email]" << endl;
-                cout << "      chatu chatid" << endl;
-                cout << "      chatga chatid nodehandle uid" << endl;
-                cout << "      chatra chatid nodehandle uid" << endl;
+                OUTSTREAM << "      chatf " << endl;
+                OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
+                OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
+                OUTSTREAM << "      chatr chatid [email]" << endl;
+                OUTSTREAM << "      chatu chatid" << endl;
+                OUTSTREAM << "      chatga chatid nodehandle uid" << endl;
+                OUTSTREAM << "      chatra chatid nodehandle uid" << endl;
 #endif
-                cout << "      quit" << endl;
+                OUTSTREAM << "      quit" << endl;
 
                 return;
             }
@@ -2791,7 +2903,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      rm remotepath" << endl;
+                            OUTSTREAM << "      rm remotepath" << endl;
                         }
 
                         return;
@@ -2824,7 +2936,7 @@ static void process_line(char* l)
                                         {
                                             if (tn->getType() == MegaNode::TYPE_FILE)
                                             {
-                                                cout << words[2] << ": Not a directory" << endl;
+                                                OUTSTREAM << words[2] << ": Not a directory" << endl;
 
                                                 return;
                                             }
@@ -2903,18 +3015,18 @@ static void process_line(char* l)
                                 }
                                 else //target not found (not even its folder), cant move
                                 {
-                                    cout << words[2] << ": No such directory" << endl;
+                                    OUTSTREAM << words[2] << ": No such directory" << endl;
                                 }
                                 delete n;
                             }
                             else
                             {
-                                cout << words[1] << ": No such file or directory" << endl;
+                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      mv srcremotepath dstremotepath" << endl;
+                            OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
                         }
 
                         return;
@@ -2987,7 +3099,7 @@ static void process_line(char* l)
                                                 }
                                                 else
                                                 {
-                                                    cout << "Cannot overwrite file with folder" << endl;
+                                                    OUTSTREAM << "Cannot overwrite file with folder" << endl;
                                                     return;
                                                 }
                                             }
@@ -3004,12 +3116,12 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << words[1] << ": No such file or directory" << endl;
+                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+                            OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
                         }
 
                         return;
@@ -3022,7 +3134,7 @@ static void process_line(char* l)
                         {
                             if (!(n = nodebypath(words[1].c_str())))
                             {
-                                cout << words[1] << ": No such file or directory" << endl;
+                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
 
                                 return;
                             }
@@ -3038,9 +3150,9 @@ static void process_line(char* l)
                             //TODO: modify using API
 //                            client->proctree(n, &du);
 
-                            cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
-                            cout << "Total # of files: " << du.numfiles << endl;
-                            cout << "Total # of folders: " << du.numfolders << endl;
+                            OUTSTREAM << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
+                            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
+                            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
                         }
 
                         return;
@@ -3055,7 +3167,7 @@ static void process_line(char* l)
 //                            //TODO: modify using API
 ////                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
 ////                            {
-////                                cout << "Checking link..." << endl;
+////                                OUTSTREAM << "Checking link..." << endl;
 ////                                return;
 ////                            }
 
@@ -3099,12 +3211,12 @@ static void process_line(char* l)
 //                            }
 //                            else
 //                            {
-//                                cout << words[1] << ": No such file or folder" << endl;
+//                                OUTSTREAM << words[1] << ": No such file or folder" << endl;
 //                            }
 //                        }
 //                        else
 //                        {
-//                            cout << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
+//                            OUTSTREAM << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
 //                        }
 
 //                        return;
@@ -3135,7 +3247,7 @@ static void process_line(char* l)
 //                            //TODO: modify using API
 ////                            if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
 ////                            {
-////                                cout << "Not logged in." << endl;
+////                                OUTSTREAM << "Not logged in." << endl;
 
 ////                                return;
 ////                            }
@@ -3150,7 +3262,7 @@ static void process_line(char* l)
 ////                                {
 ////                                    //TODO: modify using API
 //////                                    client->fsaccess->local2path(&localname, &name);
-////                                    cout << "Queueing " << name << "..." << endl;
+////                                    OUTSTREAM << "Queueing " << name << "..." << endl;
 
 ////                                    if (type == FILENODE)
 ////                                    {
@@ -3165,12 +3277,12 @@ static void process_line(char* l)
 ////
 ////                            delete da;
 
-////                            cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
+////                            OUTSTREAM << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
 ////                                 << " file(s) in queue" << endl;
 //                        }
 //                        else
 //                        {
-//                            cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
+//                            OUTSTREAM << "      put localpattern [dstremotepath|dstemail:]" << endl;
 //                        }
 
 //                        return;
@@ -3181,7 +3293,7 @@ static void process_line(char* l)
 
                         nodepath(cwd, &path);
 
-                        cout << path << endl;
+                        OUTSTREAM << path << endl;
 
                         return;
                     }
@@ -3196,12 +3308,12 @@ static void process_line(char* l)
 
 ////                            if (!client->fsaccess->chdirlocal(&localpath))
 ////                            {
-////                                cout << words[1] << ": Failed" << endl;
+////                                OUTSTREAM << words[1] << ": Failed" << endl;
 ////                            }
 //                        }
 //                        else
 //                        {
-//                            cout << "      lcd [localpath]" << endl;
+//                            OUTSTREAM << "      lcd [localpath]" << endl;
 //                        }
 
 //                        return;
@@ -3227,7 +3339,7 @@ static void process_line(char* l)
 //                            }
 //                            else
 //                            {
-//                                cout << "      ipc handle a|d|i" << endl;
+//                                OUTSTREAM << "      ipc handle a|d|i" << endl;
 //                                return;
 //                            }
 
@@ -3236,7 +3348,7 @@ static void process_line(char* l)
 //                        }
 //                        else
 //                        {
-//                            cout << "      ipc handle a|d|i" << endl;
+//                            OUTSTREAM << "      ipc handle a|d|i" << endl;
 //                        }
 //                        return;
 //                    }
@@ -3314,7 +3426,7 @@ static void process_line(char* l)
 //                                {
 //                                    client->delsync(*it);
 
-//                                    cout << "Sync " << cancel << " deactivated and removed." << endl;
+//                                    OUTSTREAM << "Sync " << cancel << " deactivated and removed." << endl;
 //                                    break;
 //                                }
 //                            }
@@ -3326,14 +3438,14 @@ static void process_line(char* l)
                             for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr){
 
 
-                                cout << "Key: " << (*itr).first << " Value: " << (*itr).second;
+                                OUTSTREAM << "Key: " << (*itr).first << " Value: " << (*itr).second;
                                 MegaNode * n = api->getNodeByHandle((*itr).second);
                                 if (n)
                                 {
 //                                    nodepath((*it)->localroot.node->nodehandle, &remotepath);
 //                                    client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
 
-                                    cout << i++ << ": " << (*itr).first << " to " << api->getNodePath(n) << endl;
+                                    OUTSTREAM << i++ << ": " << (*itr).first << " to " << api->getNodePath(n) << endl;
 //                                         << " - "
 //                                         << n->syncstatenames[(*it)->state] << ", " << (*it)->localbytes
 //                                         << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
@@ -3368,7 +3480,7 @@ static void process_line(char* l)
 //                                            nodepath((*it)->localroot.node->nodehandle, &remotepath);
 //                                            client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
 
-//                                            cout << i++ << ": " << localpath << " to " << remotepath << " - "
+//                                            OUTSTREAM << i++ << ": " << localpath << " to " << remotepath << " - "
 //                                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
 //                                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
 //                                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -3378,12 +3490,12 @@ static void process_line(char* l)
 //                            }
 //                            else
 //                            {
-//                                cout << "No syncs active at this time." << endl;
+//                                OUTSTREAM << "No syncs active at this time." << endl;
 //                            }
                         }
                         else
                         {
-                            cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+                            OUTSTREAM << "      sync [localpath dstremotepath|cancelslot]" << endl;
                         }
                         return;
                     }
@@ -3417,7 +3529,7 @@ static void process_line(char* l)
 
 //                                        client->pw_key(words[2].c_str(), pwkey);
 //                                        client->login(words[1].c_str(), pwkey);
-//                                        cout << "Initiated login attempt..." << endl;
+//                                        OUTSTREAM << "Initiated login attempt..." << endl;
                                     }
                                     else
                                     {
@@ -3442,28 +3554,28 @@ static void process_line(char* l)
                                         {
 //                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
 
-                                            cout << "Resuming session..." << endl;
+                                            OUTSTREAM << "Resuming session..." << endl;
                                             return api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
                                             megaCmdListener->wait();
                                             //TODO: implement actUponFastlogin (https://ci.developers.mega.co.nz/view/SDK/job/megasdk-doc/ws/doc/api/html/classmega_1_1_mega_api.html#a074f01b631eab8e504f8cfae890e830c)
                                         }
                                     }
 
-                                    cout << "Invalid argument. Please specify a valid e-mail address, "
+                                    OUTSTREAM << "Invalid argument. Please specify a valid e-mail address, "
                                          << "a folder link containing the folder key "
                                          << "or a valid session." << endl;
                                 }
                             }
                             else
                             {
-                                cout << "      login email [password]" << endl
+                                OUTSTREAM << "      login email [password]" << endl
                                      << "      login exportedfolderurl#key" << endl
                                      << "      login session" << endl;
                             }
                         }
                         else
                         {
-                            cout << "Already logged in. Please log out first." << endl;
+                            OUTSTREAM << "Already logged in. Please log OUTSTREAM first." << endl;
                         }
 
                         return;
@@ -3472,7 +3584,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 1)
                         {
-                            cout << "Creating ephemeral session..." << endl;
+                            OUTSTREAM << "Creating ephemeral session..." << endl;
                             //TODO: modify using API
 //                            client->createephemeral();
                         }
@@ -3489,12 +3601,12 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << "Malformed ephemeral session identifier." << endl;
+                                OUTSTREAM << "Malformed ephemeral session identifier." << endl;
                             }
                         }
                         else
                         {
-                            cout << "      begin [ephemeralhandle#ephemeralpw]" << endl;
+                            OUTSTREAM << "      begin [ephemeralhandle#ephemeralpw]" << endl;
                         }
 
                         return;
@@ -3513,7 +3625,7 @@ static void process_line(char* l)
 //                                    TreeProcListOutShares listoutshares;
                                     Node* n;
 
-                                    cout << "Shared folders:" << endl;
+                                    OUTSTREAM << "Shared folders:" << endl;
 
                                     //TODO: modify using API
 //                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
@@ -3533,7 +3645,7 @@ static void process_line(char* l)
 
 //                                        if (u->show == VISIBLE && u->sharing.size())
 //                                        {
-//                                            cout << "From " << u->email << ":" << endl;
+//                                            OUTSTREAM << "From " << u->email << ":" << endl;
 
 //                                            for (handle_set::iterator sit = u->sharing.begin();
 //                                                 sit != u->sharing.end(); sit++)
@@ -3541,7 +3653,7 @@ static void process_line(char* l)
 //                                                //TODO: modify using API
 ////                                                if ((n = client->nodebyhandle(*sit)))
 ////                                                {
-////                                                    cout << "\t" << n->displayname() << " ("
+////                                                    OUTSTREAM << "\t" << n->displayname() << " ("
 ////                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
 ////                                                }
 //                                            }
@@ -3580,7 +3692,7 @@ static void process_line(char* l)
                                             }
                                             else
                                             {
-                                                cout << "Access level must be one of r, rw or full" << endl;
+                                                OUTSTREAM << "Access level must be one of r, rw or full" << endl;
 
                                                 return;
                                             }
@@ -3596,13 +3708,13 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    cout << words[1] << ": No such directory" << endl;
+                                    OUTSTREAM << words[1] << ": No such directory" << endl;
                                 }
 
                                 break;
 
                             default:
-                                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
+                                OUTSTREAM << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                         }
 
                         return;
@@ -3614,44 +3726,44 @@ static void process_line(char* l)
 //                        {
 //                            if (it->second.email.size())
 //                            {
-//                                cout << "\t" << it->second.email;
+//                                OUTSTREAM << "\t" << it->second.email;
 
 //                                if (it->second.userhandle == client->me)
 //                                {
-//                                    cout << ", session user";
+//                                    OUTSTREAM << ", session user";
 //                                }
 //                                else if (it->second.show == VISIBLE)
 //                                {
-//                                    cout << ", visible";
+//                                    OUTSTREAM << ", visible";
 //                                }
 //                                else if (it->second.show == HIDDEN)
 //                                {
-//                                    cout << ", hidden";
+//                                    OUTSTREAM << ", hidden";
 //                                }
 //                                else if (it->second.show == INACTIVE)
 //                                {
-//                                    cout << ", inactive";
+//                                    OUTSTREAM << ", inactive";
 //                                }
 //                                else if (it->second.show == BLOCKED)
 //                                {
-//                                    cout << ", blocked";
+//                                    OUTSTREAM << ", blocked";
 //                                }
 //                                else
 //                                {
-//                                    cout << ", unknown visibility (" << it->second.show << ")";
+//                                    OUTSTREAM << ", unknown visibility (" << it->second.show << ")";
 //                                }
 
 //                                if (it->second.sharing.size())
 //                                {
-//                                    cout << ", sharing " << it->second.sharing.size() << " folder(s)";
+//                                    OUTSTREAM << ", sharing " << it->second.sharing.size() << " folder(s)";
 //                                }
 
 //                                if (it->second.pubk.isvalid())
 //                                {
-//                                    cout << ", public key cached";
+//                                    OUTSTREAM << ", public key cached";
 //                                }
 
-//                                cout << endl;
+//                                OUTSTREAM << endl;
 //                            }
 //                        }
 
@@ -3720,7 +3832,7 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << "      mkdir remotepath" << endl; //TODO: print usage specific command
+                                OUTSTREAM << "      mkdir remotepath" << endl; //TODO: print usage specific command
                             }
                         }
                         else
@@ -3743,7 +3855,7 @@ static void process_line(char* l)
 //                            }
 //                            else if (!(n = nodebypath(words[2].c_str())))
 //                            {
-//                                cout << words[2] << ": Path not found" << endl;
+//                                OUTSTREAM << words[2] << ": Path not found" << endl;
 //                            }
 
 //                            if (n)
@@ -3775,12 +3887,12 @@ static void process_line(char* l)
 //                                    }
 //                                }
 
-//                                cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
+//                                OUTSTREAM << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
 //                            }
 //                        }
 //                        else
 //                        {
-//                            cout << "      getfa type [path] [cancel]" << endl;
+//                            OUTSTREAM << "      getfa type [path] [cancel]" << endl;
 //                        }
 
 //                        return;
@@ -3795,13 +3907,13 @@ static void process_line(char* l)
                             //TODO: modify using API
 //                            if (!(u = client->finduser(words[2].c_str())))
 //                            {
-//                                cout << words[2] << ": Unknown user." << endl;
+//                                OUTSTREAM << words[2] << ": Unknown user." << endl;
 //                                return;
 //                            }
                         }
                         else if (words.size() != 2)
                         {
-                            cout << "      getua attrname [email]" << endl;
+                            OUTSTREAM << "      getua attrname [email]" << endl;
                             return;
                         }
 
@@ -3811,7 +3923,7 @@ static void process_line(char* l)
                             //TODO: modify using API
 //                            if (!(u = client->finduser(client->me)))
 //                            {
-//                                cout << "Must be logged in to query own attributes." << endl;
+//                                OUTSTREAM << "Must be logged in to query own attributes." << endl;
 //                                return;
 //                            }
                         }
@@ -3864,14 +3976,14 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    cout << "Cannot read " << words[3] << endl;
+                                    OUTSTREAM << "Cannot read " << words[3] << endl;
                                 }
 
                                 return;
                             }
                         }
 
-                        cout << "      putua attrname [del|set string|load file]" << endl;
+                        OUTSTREAM << "      putua attrname [del|set string|load file]" << endl;
 
                         return;
                     }
@@ -3906,23 +4018,23 @@ static void process_line(char* l)
                                 //TODO: modify using API
 //                                if (!client->xferpaused[GET] && !client->xferpaused[PUT])
 //                                {
-//                                    cout << "Transfers not paused at the moment.";
+//                                    OUTSTREAM << "Transfers not paused at the moment.";
 //                                }
 //                                else
 //                                {
 //                                    if (client->xferpaused[GET])
 //                                    {
-//                                        cout << "GETs currently paused." << endl;
+//                                        OUTSTREAM << "GETs currently paused." << endl;
 //                                    }
 //                                    if (client->xferpaused[PUT])
 //                                    {
-//                                        cout << "PUTs currently paused." << endl;
+//                                        OUTSTREAM << "PUTs currently paused." << endl;
 //                                    }
 //                                }
                             }
                             else
                             {
-                                cout << "      pause [get|put] [hard] [status]" << endl;
+                                OUTSTREAM << "      pause [get|put] [hard] [status]" << endl;
                             }
 
                             return;
@@ -3940,11 +4052,11 @@ static void process_line(char* l)
 //                            client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
 //                            if (client->xferpaused[GET])
 //                            {
-//                                cout << "GET transfers paused. Resume using the same command." << endl;
+//                                OUTSTREAM << "GET transfers paused. Resume using the same command." << endl;
 //                            }
 //                            else
 //                            {
-//                                cout << "GET transfers unpaused." << endl;
+//                                OUTSTREAM << "GET transfers unpaused." << endl;
 //                            }
                         }
 
@@ -3954,11 +4066,11 @@ static void process_line(char* l)
 //                            client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
 //                            if (client->xferpaused[PUT])
 //                            {
-//                                cout << "PUT transfers paused. Resume using the same command." << endl;
+//                                OUTSTREAM << "PUT transfers paused. Resume using the same command." << endl;
 //                            }
 //                            else
 //                            {
-//                                cout << "PUT transfers unpaused." << endl;
+//                                OUTSTREAM << "PUT transfers unpaused." << endl;
 //                            }
                         }
 
@@ -3967,7 +4079,7 @@ static void process_line(char* l)
                     else if (words[0] == "debug")
                     {
                         //TODO: modify using API
-//                        cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+//                        OUTSTREAM << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
 
                         return;
                     }
@@ -3976,18 +4088,18 @@ static void process_line(char* l)
                         //TODO: modify using API
 //                        if (client->abortbackoff())
 //                        {
-//                            cout << "Retrying..." << endl;
+//                            OUTSTREAM << "Retrying..." << endl;
 //                        }
 //                        else
 //                        {
-//                            cout << "No failed request pending." << endl;
+//                            OUTSTREAM << "No failed request pending." << endl;
 //                        }
 
                         return;
                     }
                     else if (words[0] == "recon")
                     {
-                        cout << "Closing all open network connections..." << endl;
+                        OUTSTREAM << "Closing all open network connections..." << endl;
 
                         //TODO: modify using API
 //                        client->disconnect();
@@ -4016,7 +4128,7 @@ static void process_line(char* l)
                                 User *u = client->finduser(email.c_str(), 0);
                                 if (!u)
                                 {
-                                    cout << "User not found: " << email << endl;
+                                    OUTSTREAM << "User not found: " << email << endl;
                                     delete userpriv;
                                     return;
                                 }
@@ -4041,7 +4153,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    cout << "Unknown privilege for " << email << endl;
+                                    OUTSTREAM << "Unknown privilege for " << email << endl;
                                     delete userpriv;
                                     return;
                                 }
@@ -4056,7 +4168,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                            OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
                             return;
                         }
                     }
@@ -4071,7 +4183,7 @@ static void process_line(char* l)
                             User *u = client->finduser(email.c_str(), 0);
                             if (!u)
                             {
-                                cout << "User not found: " << email << endl;
+                                OUTSTREAM << "User not found: " << email << endl;
                                 return;
                             }
 
@@ -4095,7 +4207,7 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << "Unknown privilege for " << email << endl;
+                                OUTSTREAM << "Unknown privilege for " << email << endl;
                                 return;
                             }
 
@@ -4104,7 +4216,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|rw|full|op" << endl;
+                            OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
                             return;
 
                         }
@@ -4126,7 +4238,7 @@ static void process_line(char* l)
                                 User *u = client->finduser(email.c_str(), 0);
                                 if (!u)
                                 {
-                                    cout << "User not found: " << email << endl;
+                                    OUTSTREAM << "User not found: " << email << endl;
                                     return;
                                 }
 
@@ -4135,13 +4247,13 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                cout << "      chatr chatid [email]" << endl;
+                                OUTSTREAM << "      chatr chatid [email]" << endl;
                                 return;
                             }
                         }
                         else
                         {
-                            cout << "      chatr chatid [email]" << endl;
+                            OUTSTREAM << "      chatr chatid [email]" << endl;
                             return;
                         }
 
@@ -4158,7 +4270,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatu chatid" << endl;
+                            OUTSTREAM << "      chatu chatid" << endl;
                             return;
                         }
                     }
@@ -4175,7 +4287,7 @@ static void process_line(char* l)
 //                        }
 //                        else
 //                        {
-//                            cout << "Not logged in." << endl;
+//                            OUTSTREAM << "Not logged in." << endl;
 //                        }
 
                         return;
@@ -4205,26 +4317,26 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    cout << "      putbps [limit|auto|none]" << endl;
+                                    OUTSTREAM << "      putbps [limit|auto|none]" << endl;
                                     return;
                                 }
                             }
                         }
 
-                        cout << "Upload speed limit set to ";
+                        OUTSTREAM << "Upload speed limit set to ";
 
                         //TODO: modify using API
 //                        if (client->putmbpscap < 0)
 //                        {
-//                            cout << "AUTO (approx. 90% of your available bandwidth)" << endl;
+//                            OUTSTREAM << "AUTO (approx. 90% of your available bandwidth)" << endl;
 //                        }
 //                        else if (!client->putmbpscap)
 //                        {
-//                            cout << "NONE" << endl;
+//                            OUTSTREAM << "NONE" << endl;
 //                        }
 //                        else
 //                        {
-//                            cout << client->putmbpscap << " byte(s)/second" << endl;
+//                            OUTSTREAM << client->putmbpscap << " byte(s)/second" << endl;
 //                        }
 
                         return;
@@ -4251,12 +4363,12 @@ static void process_line(char* l)
 //                            }
 //                            else
 //                            {
-//                                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+//                                OUTSTREAM << "      invite dstemail [origemail|del|rmd]" << endl;
 //                            }
 //                        }
 //                        else
 //                        {
-//                            cout << "Cannot send invitation to your own user" << endl;
+//                            OUTSTREAM << "Cannot send invitation to your own user" << endl;
 //                        }
 
                         return;
@@ -4290,11 +4402,11 @@ static void process_line(char* l)
 //                            switch (client->loggedin())
 //                            {
 //                                case FULLACCOUNT:
-//                                    cout << "Already logged in." << endl;
+//                                    OUTSTREAM << "Already logged in." << endl;
 //                                    break;
 
 //                                case CONFIRMEDACCOUNT:
-//                                    cout << "Current account already confirmed." << endl;
+//                                    OUTSTREAM << "Current account already confirmed." << endl;
 //                                    break;
 
 //                                case EPHEMERALACCOUNT:
@@ -4303,17 +4415,17 @@ static void process_line(char* l)
 //                                        signupemail = words[1];
 //                                        signupname = words[2];
 
-//                                        cout << endl;
+//                                        OUTSTREAM << endl;
 //                                        setprompt(NEWPASSWORD);
 //                                    }
 //                                    else
 //                                    {
-//                                        cout << "Please enter a valid e-mail address." << endl;
+//                                        OUTSTREAM << "Please enter a valid e-mail address." << endl;
 //                                    }
 //                                    break;
 
 //                                case NOTLOGGEDIN:
-//                                    cout << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
+//                                    OUTSTREAM << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
 //                            }
                         }
 
@@ -4324,21 +4436,21 @@ static void process_line(char* l)
                         MegaUser *u = api->getMyUser();
                         if (u)
                         {
-                            cout << "Account e-mail: " << u->getEmail() << endl;
+                            OUTSTREAM << "Account e-mail: " << u->getEmail() << endl;
                             api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
                             actUponGetExtendedAccountDetails(megaCmdListener);
 
                         }
                         else
                         {
-                            cout << "Not logged in." << endl;
+                            OUTSTREAM << "Not logged in." << endl;
                         }
 
 
                         //TODO: modify using API
 //                        if (client->loggedin() == NOTLOGGEDIN)
 //                        {
-//                            cout << "Not logged in." << endl;
+//                            OUTSTREAM << "Not logged in." << endl;
 //                        }
 //                        else
 //                        {
@@ -4346,10 +4458,10 @@ static void process_line(char* l)
 
 //                            if ((u = client->finduser(client->me)))
 //                            {
-//                                cout << "Account e-mail: " << u->email << endl;
+//                                OUTSTREAM << "Account e-mail: " << u->email << endl;
 //                            }
 
-//                            cout << "Retrieving account status..." << endl;
+//                            OUTSTREAM << "Retrieving account status..." << endl;
 
 //                            client->getaccountdetails(&account, true, true, true, true, true, true);
 //                        }
@@ -4375,23 +4487,23 @@ static void process_line(char* l)
 //                                    }
 //                                }
 
-//                                cout << "Exporting..." << endl;
+//                                OUTSTREAM << "Exporting..." << endl;
 
 //                                error e;
 //                                //TODO: modify using API
 ////                                if ((e = client->exportnode(n, del, ets)))
 ////                                {
-////                                    cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+////                                    OUTSTREAM << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
 ////                                }
 //                            }
 //                            else
 //                            {
-//                                cout << words[1] << ": Not found" << endl;
+//                                OUTSTREAM << words[1] << ": Not found" << endl;
 //                            }
 //                        }
 //                        else
 //                        {
-//                            cout << "      export remotepath [expireTime|del]" << endl;
+//                            OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
 //                        }
 
 //                        return;
@@ -4403,30 +4515,30 @@ static void process_line(char* l)
                             //TODO: modify using API
 //                            if (client->openfilelink(words[1].c_str(), 1) == API_OK)
 //                            {
-//                                cout << "Opening link..." << endl;
+//                                OUTSTREAM << "Opening link..." << endl;
 //                            }
 //                            else
 //                            {
-//                                cout << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
+//                                OUTSTREAM << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
 //                            }
                         }
                         else
                         {
-                            cout << "      import exportedfilelink#key" << endl;
+                            OUTSTREAM << "      import exportedfilelink#key" << endl;
                         }
 
                         return;
                     }
                     else if (words[0] == "reload")
                     {
-                        cout << "Reloading account..." << endl;
+                        OUTSTREAM << "Reloading account..." << endl;
                         api->fetchNodes(megaCmdListener);
                         actUponFetchNodes(megaCmdListener);
                         return;
                     }
                     else if (words[0] == "logout")
                     {
-                        cout << "Logging off..." << endl;
+                        OUTSTREAM << "Logging off..." << endl;
                         api->logout(megaCmdListener);
                         actUponLogout(megaCmdListener);
                         return;
@@ -4449,7 +4561,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "       chatga chatid nodehandle uid" << endl;
+                            OUTSTREAM << "       chatga chatid nodehandle uid" << endl;
                             return;
                         }
 
@@ -4471,7 +4583,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "       chatra chatid nodehandle uid" << endl;
+                            OUTSTREAM << "       chatra chatid nodehandle uid" << endl;
                             return;
                         }
                     }
@@ -4483,12 +4595,12 @@ static void process_line(char* l)
                     {
                         if (signupemail.size() && signupcode.size())
                         {
-                            cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
+                            OUTSTREAM << "Please type " << signupemail << "'s password to confirm the signup." << endl;
                             setprompt(LOGINPASSWORD);
                         }
                         else
                         {
-                            cout << "No signup confirmation pending." << endl;
+                            OUTSTREAM << "No signup confirmation pending." << endl;
                         }
 
                         return;
@@ -4497,11 +4609,11 @@ static void process_line(char* l)
                     {
                         if (api->dumpSession())
                         {
-                            cout << "Your (secret) session is: " << api->dumpSession() << endl;
+                            OUTSTREAM << "Your (secret) session is: " << api->dumpSession() << endl;
                         }
                         else
                         {
-                            cout << "Not logged in." << endl;
+                            OUTSTREAM << "Not logged in." << endl;
                         }
                         return;
                     }
@@ -4510,55 +4622,55 @@ static void process_line(char* l)
                         //TODO: modify using API
 //                        if (client->followsymlinks ^= true)
 //                        {
-//                            cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
+//                            OUTSTREAM << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
 //                        }
 //                        else
 //                        {
-//                            cout << "No longer following symlinks." << endl;
+//                            OUTSTREAM << "No longer following symlinks." << endl;
 //                        }
 
                         return;
                     }
                     else if (words[0] == "version")
                     {
-                        cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
+                        OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
-                        cout << "Features enabled:" << endl;
+                        OUTSTREAM << "Features enabled:" << endl;
 
 #ifdef USE_CRYPTOPP
-                        cout << "* CryptoPP" << endl;
+                        OUTSTREAM << "* CryptoPP" << endl;
 #endif
 
 #ifdef USE_SQLITE
-                        cout << "* SQLite" << endl;
+                        OUTSTREAM << "* SQLite" << endl;
 #endif
 
 #ifdef USE_BDB
-                        cout << "* Berkeley DB" << endl;
+                        OUTSTREAM << "* Berkeley DB" << endl;
 #endif
 
 #ifdef USE_INOTIFY
-                        cout << "* inotify" << endl;
+                        OUTSTREAM << "* inotify" << endl;
 #endif
 
 #ifdef HAVE_FDOPENDIR
-                        cout << "* fdopendir" << endl;
+                        OUTSTREAM << "* fdopendir" << endl;
 #endif
 
 #ifdef HAVE_SENDFILE
-                        cout << "* sendfile" << endl;
+                        OUTSTREAM << "* sendfile" << endl;
 #endif
 
 #ifdef _LARGE_FILES
-                        cout << "* _LARGE_FILES" << endl;
+                        OUTSTREAM << "* _LARGE_FILES" << endl;
 #endif
 
 #ifdef USE_FREEIMAGE
-                        cout << "* FreeImage" << endl;
+                        OUTSTREAM << "* FreeImage" << endl;
 #endif
 
 #ifdef ENABLE_SYNC
-                        cout << "* sync subsystem" << endl;
+                        OUTSTREAM << "* sync subsystem" << endl;
 #endif
 
 
@@ -4608,8 +4720,8 @@ static void process_line(char* l)
 //                                incoming.append(")\n");
 //                            }
 //                        }
-                        cout << "Incoming PCRs:" << endl << incoming << endl;
-                        cout << "Outgoing PCRs:" << endl << outgoing << endl;
+                        OUTSTREAM << "Incoming PCRs:" << endl << incoming << endl;
+                        OUTSTREAM << "Outgoing PCRs:" << endl << outgoing << endl;
                         return;
                     }
                     break;
@@ -4635,19 +4747,19 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    cout << "invalid session id provided" << endl;
+                                    OUTSTREAM << "invalid session id provided" << endl;
                                 }
                             }
                         }
                         else
                         {
-                            cout << "      killsession [all|sessionid] " << endl;
+                            OUTSTREAM << "      killsession [all|sessionid] " << endl;
                         }
                         return;
                     }
                     else if (words[0] == "locallogout")
                     {
-                        cout << "Logging off locally..." << endl;
+                        OUTSTREAM << "Logging off locally..." << endl;
 
                         cwd = UNDEF;
                         //TODO: modify using API
@@ -4658,7 +4770,7 @@ static void process_line(char* l)
                     break;
             }
 
-            cout << "?Invalid command" << endl;
+            OUTSTREAM << "?Invalid command" << endl;
     }
 }
 
@@ -4670,13 +4782,13 @@ void DemoApp::request_error(error e)
 {
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
-        cout << "Invalid or expired session, logging out..." << endl;
+        OUTSTREAM << "Invalid or expired session, logging OUTSTREAM..." << endl;
         //TODO: modify using API
 //        client->locallogout();
         return;
     }
 
-    cout << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
+    OUTSTREAM << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
 
     delete console;
     exit(0);
@@ -4699,11 +4811,11 @@ void DemoApp::login_result(error e)
 {
     if (e)
     {
-        cout << "Login failed: " << errorstring(e) << endl;
+        OUTSTREAM << "Login failed: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Login successful, retrieving account..." << endl;
+        OUTSTREAM << "Login successful, retrieving account..." << endl;
         //TODO: modify using API
 //        client->fetchnodes();
     }
@@ -4714,7 +4826,7 @@ void DemoApp::ephemeral_result(error e)
 {
     if (e)
     {
-        cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -4723,11 +4835,11 @@ void DemoApp::sendsignuplink_result(error e)
 {
     if (e)
     {
-        cout << "Unable to send signup link (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Unable to send signup link (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Thank you. Please check your e-mail and enter the command signup followed by the confirmation link." << endl;
+        OUTSTREAM << "Thank you. Please check your e-mail and enter the command signup followed by the confirmation link." << endl;
     }
 }
 
@@ -4735,7 +4847,7 @@ void DemoApp::sendsignuplink_result(error e)
 void DemoApp::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte* kc,
                                      const byte* c, size_t len)
 {
-    cout << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
+    OUTSTREAM << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
 
     signupemail = email;
     signupcode.assign((char*) c, len);
@@ -4746,7 +4858,7 @@ void DemoApp::querysignuplink_result(handle uh, const char* email, const char* n
 // signup link query failed
 void DemoApp::querysignuplink_result(error e)
 {
-    cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+    OUTSTREAM << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
 }
 
 // signup link (account e-mail) confirmation result
@@ -4754,11 +4866,11 @@ void DemoApp::confirmsignuplink_result(error e)
 {
     if (e)
     {
-        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "Signup confirmed, logging in..." << endl;
+        OUTSTREAM << "Signup confirmed, logging in..." << endl;
         client->login(signupemail.c_str(), pwkey);
     }
 }
@@ -4768,11 +4880,11 @@ void DemoApp::setkeypair_result(error e)
 {
     if (e)
     {
-        cout << "RSA keypair setup failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "RSA keypair setup failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << "RSA keypair added. Account setup complete." << endl;
+        OUTSTREAM << "RSA keypair added. Account setup complete." << endl;
     }
 }
 
@@ -4780,11 +4892,11 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
 
-    cout << "Ephemeral session established, session ID: ";
+    OUTSTREAM << "Ephemeral session established, session ID: ";
     Base64::btoa((byte*) &uh, sizeof uh, buf);
-    cout << buf << "#";
+    OUTSTREAM << buf << "#";
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    cout << buf << endl;
+    OUTSTREAM << buf << endl;
 
     client->fetchnodes();
 }
@@ -4794,11 +4906,11 @@ void DemoApp::changepw_result(error e)
 {
     if (e)
     {
-        cout << "Password update failed: " << errorstring(e) << endl;
+        OUTSTREAM << "Password update failed: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password updated." << endl;
+        OUTSTREAM << "Password updated." << endl;
     }
 }
 
@@ -4807,7 +4919,7 @@ void DemoApp::exportnode_result(error e)
 {
     if (e)
     {
-        cout << "Export failed: " << errorstring(e) << endl;
+        OUTSTREAM << "Export failed: " << errorstring(e) << endl;
     }
 }
 
@@ -4823,7 +4935,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 
         nodepath(h, &path);
 
-        cout << "Exported " << path << ": ";
+        OUTSTREAM << "Exported " << path << ": ";
 
         Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, node);
 
@@ -4838,15 +4950,15 @@ void DemoApp::exportnode_result(handle h, handle ph)
         }
         else
         {
-            cout << "No key available for exported folder" << endl;
+            OUTSTREAM << "No key available for exported folder" << endl;
             return;
         }
 
-        cout << "https://mega.co.nz/#" << (n->type ? "F" : "") << "!" << node << "!" << key << endl;
+        OUTSTREAM << "https://mega.co.nz/#" << (n->type ? "F" : "") << "!" << node << "!" << key << endl;
     }
     else
     {
-        cout << "Exported node no longer available" << endl;
+        OUTSTREAM << "Exported node no longer available" << endl;
     }
 }
 
@@ -4855,7 +4967,7 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        cout << "Failed to open link: " << errorstring(e) << endl;
+        OUTSTREAM << "Failed to open link: " << errorstring(e) << endl;
     }
 }
 
@@ -4867,7 +4979,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
     if (!key)
     {
-        cout << "File is valid, but no key was provided." << endl;
+        OUTSTREAM << "File is valid, but no key was provided." << endl;
         return;
     }
 
@@ -4885,7 +4997,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
     if(!buf)
     {
-        cout << "The file won't be imported, the provided key is invalid." << endl;
+        OUTSTREAM << "The file won't be imported, the provided key is invalid." << endl;
     }
     else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
@@ -4905,7 +5017,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     }
     else
     {
-        cout << "Need to be logged in to import file links." << endl;
+        OUTSTREAM << "Need to be logged in to import file links." << endl;
     }
 
     delete [] buf;
@@ -4913,33 +5025,33 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
 void DemoApp::checkfile_result(handle h, error e)
 {
-    cout << "Link check failed: " << errorstring(e) << endl;
+    OUTSTREAM << "Link check failed: " << errorstring(e) << endl;
 }
 
 void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename,
                                string* fingerprint, string* fileattrstring)
 {
-    cout << "Name: " << *filename << ", size: " << size;
+    OUTSTREAM << "Name: " << *filename << ", size: " << size;
 
     if (fingerprint->size())
     {
-        cout << ", fingerprint available";
+        OUTSTREAM << ", fingerprint available";
     }
 
     if (fileattrstring->size())
     {
-        cout << ", has attributes";
+        OUTSTREAM << ", has attributes";
     }
 
-    cout << endl;
+    OUTSTREAM << endl;
 
     if (e)
     {
-        cout << "Not available: " << errorstring(e) << endl;
+        OUTSTREAM << "Not available: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Initiating download..." << endl;
+        OUTSTREAM << "Initiating download..." << endl;
         //TODO: modify using API
 //        AppFileGet* f = new AppFileGet(NULL, h, filekey, size, tm, filename, fingerprint);
 //        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
@@ -4949,9 +5061,9 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
 
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
 {
-    cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
+    OUTSTREAM << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);
-    cout << endl;
+    OUTSTREAM << endl;
 
     return true;
 }
@@ -4960,12 +5072,12 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
 {
     if (retry < 5)
     {
-        cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << ")" << endl;
+        OUTSTREAM << "Retrying read (" << errorstring(e) << ", attempt #" << retry << ")" << endl;
         return (dstime)(retry*10);
     }
     else
     {
-        cout << "Too many failures (" << errorstring(e) << "), giving up" << endl;
+        OUTSTREAM << "Too many failures (" << errorstring(e) << "), giving up" << endl;
         return ~(dstime)0;
     }
 }
@@ -4973,7 +5085,7 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
 // reload needed
 void DemoApp::reload(const char* reason)
 {
-    cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
+    OUTSTREAM << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
 }
 
 // reload initiated
@@ -5059,13 +5171,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+        OUTSTREAM << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
 
         for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+            OUTSTREAM << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
         }
     }
 
@@ -5073,46 +5185,46 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         if (ad->transfer_max)
         {
-            cout << "\tTransfer in progress: " << ad->transfer_own_reserved << "/" << ad->transfer_srv_reserved << endl;
-            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << " of "
+            OUTSTREAM << "\tTransfer in progress: " << ad->transfer_own_reserved << "/" << ad->transfer_srv_reserved << endl;
+            OUTSTREAM << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << " of "
                  << ad->transfer_max << " ("
                  << (100 * (ad->transfer_own_used + ad->transfer_srv_used) / ad->transfer_max) << "%)" << endl;
-            cout << "\tServing bandwidth ratio: " << ad->srv_ratio << "%" << endl;
+            OUTSTREAM << "\tServing bandwidth ratio: " << ad->srv_ratio << "%" << endl;
         }
 
         if (ad->transfer_hist_starttime)
         {
             time_t t = time(NULL) - ad->transfer_hist_starttime;
 
-            cout << "\tTransfer history:\n";
+            OUTSTREAM << "\tTransfer history:\n";
 
             for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
             {
                 t -= ad->transfer_hist_interval;
-                cout << "\t\t" << t;
+                OUTSTREAM << "\t\t" << t;
                 if (t < ad->transfer_hist_interval)
                 {
-                    cout << " second(s) ago until now: ";
+                    OUTSTREAM << " second(s) ago until now: ";
                 }
                 else
                 {
-                    cout << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
+                    OUTSTREAM << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
                 }
-                cout << ad->transfer_hist[i] << " byte(s)" << endl;
+                OUTSTREAM << ad->transfer_hist[i] << " byte(s)" << endl;
             }
         }
 
         if (ad->transfer_limit)
         {
-            cout << "Per-IP transfer limit: " << ad->transfer_limit << endl;
+            OUTSTREAM << "Per-IP transfer limit: " << ad->transfer_limit << endl;
         }
     }
 
     if (pro)
     {
-        cout << "\tPro level: " << ad->pro_level << endl;
-        cout << "\tSubscription type: " << ad->subscription_type << endl;
-        cout << "\tAccount balance:" << endl;
+        OUTSTREAM << "\tPro level: " << ad->pro_level << endl;
+        OUTSTREAM << "\tSubscription type: " << ad->subscription_type << endl;
+        OUTSTREAM << "\tAccount balance:" << endl;
 
         for (vector<AccountBalance>::iterator it = ad->balances.begin(); it != ad->balances.end(); it++)
         {
@@ -5122,7 +5234,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (purchases)
     {
-        cout << "Purchase history:" << endl;
+        OUTSTREAM << "Purchase history:" << endl;
 
         for (vector<AccountPurchase>::iterator it = ad->purchases.begin(); it != ad->purchases.end(); it++)
         {
@@ -5135,7 +5247,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (transactions)
     {
-        cout << "Transaction history:" << endl;
+        OUTSTREAM << "Transaction history:" << endl;
 
         for (vector<AccountTransaction>::iterator it = ad->transactions.begin(); it != ad->transactions.end(); it++)
         {
@@ -5147,7 +5259,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (sessions)
     {
-        cout << "Currently Active Sessions:" << endl;
+        OUTSTREAM << "Currently Active Sessions:" << endl;
         for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
         {
             if (it->alive)
@@ -5171,7 +5283,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         if(client->debugstate())
         {
-            cout << endl << "Full Session history:" << endl;
+            OUTSTREAM << endl << "Full Session history:" << endl;
 
             for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
             {
@@ -5191,7 +5303,7 @@ void DemoApp::account_details(AccountDetails* ad, error e)
 {
     if (e)
     {
-        cout << "Account details retrieval failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Account details retrieval failed (" << errorstring(e) << ")" << endl;
     }
 }
 
@@ -5200,19 +5312,19 @@ void DemoApp::sessions_killed(handle sessionid, error e)
 {
     if (e)
     {
-        cout << "Session killing failed (" << errorstring(e) << ")" << endl;
+        OUTSTREAM << "Session killing failed (" << errorstring(e) << ")" << endl;
         return;
     }
 
     if (sessionid == UNDEF)
     {
-        cout << "All sessions except current have been killed" << endl;
+        OUTSTREAM << "All sessions except current have been killed" << endl;
     }
     else
     {
         char id[12];
         int size = Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
-        cout << "Session with id " << id << " has been killed" << endl;
+        OUTSTREAM << "Session with id " << id << " has been killed" << endl;
     }
 }
 
@@ -5220,10 +5332,51 @@ void DemoApp::sessions_killed(handle sessionid, error e)
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)
 {
-    cout << "Notification: User " << u->email << " -" << (priv ? " private" : "") << " attribute "
+    OUTSTREAM << "Notification: User " << u->email << " -" << (priv ? " private" : "") << " attribute "
           << n << " added or updated" << endl;
 }
 */
+
+struct thread_info_t {
+    char * line;
+    int outSocket;
+};
+
+void * doProcessLine(void *pointer)
+{
+    thread_info_t *inf = (thread_info_t *) pointer;
+
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof(cliAddr);
+    int connectedsocket = accept(inf->outSocket,(struct sockaddr *) &cliAddr,&cliLength); //TODO: check errors
+
+    //TODO use mutex, and free after accept
+
+
+    std::ostringstream   s;
+    outstreams[getCurrentThread()]=&s;
+
+
+    LOG_debug << " Processing " << ((thread_info_t *) pointer)->line << " in thread: " << getCurrentThread()
+         << " socket output: " <<  inf->outSocket ; CLEAN_debug;
+
+    process_line(((thread_info_t *) pointer)->line);
+
+    LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>"; CLEAN_verbose;
+
+    string sout = s.str();
+
+    int n = write(connectedsocket,sout.data(),sout.size());
+    if (n < 0)
+    {
+        LOG_fatal << "ERROR writing to socket: " << errno; CLEAN_fatal;
+    }
+
+    close(connectedsocket);
+    close(inf->outSocket);
+}
+
+
 // main loop
 void megacmd()
 {
@@ -5336,8 +5489,22 @@ void megacmd()
                     }
                     else if (FD_ISSET(cm->getFileDescriptor(), &fds))
                     {
-                        string petition=cm->getPetition();
-                        line = strdup(petition.c_str());
+                        //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
+                        int socket_out;
+                        string petition=cm->getPetition(socket_out);
+                        MegaThread * petitionThread = new MegaThread();
+
+                        char * cpetition = strdup(petition.c_str());
+                        struct thread_info_t inf;
+
+                        inf.line = cpetition;
+                        inf.outSocket = socket_out;
+
+//                        inf.stream = OUTSTREAM;
+
+                        petitionThread->start(doProcessLine, (void *)&inf);
+//                        delete petitionThread; //TODO: never deleted
+                        //TODO: cpetition never freed (should be done after joining petitionThread). save map with threads/stuff to clean
                     }
                 }
                 else
@@ -5390,7 +5557,7 @@ public:
     {
         if (loglevel<=level)
         {
-            cout << "[" << loglevel << "]" << message;
+            OUTSTREAM << "[" << loglevel << "]" << message;
         }
     }
 
@@ -5403,13 +5570,13 @@ public:
 
 void finalize()
 {
-    cout << "closing application ..."  << endl;
+    OUTSTREAM << "closing application ..."  << endl;
     delete cm;
 }
 
 int main()
 {
-    SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setAllOutputs(&cout);
 
 
     // instantiate app components: the callback processor (DemoApp),
@@ -5468,4 +5635,5 @@ int main()
     megacmd();
 }
 
-
+#endif //linux
+#endif //use qt
