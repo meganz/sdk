@@ -3974,7 +3974,7 @@ char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
 
 char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
 {
-    return getAvatarColor(MegaApiImpl::base64ToUserHandle(userhandle));
+    return getAvatarColor(userhandle ? MegaApiImpl::base64ToUserHandle(userhandle) : client->me);
 }
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
@@ -4396,11 +4396,6 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
 
 char *MegaApiImpl::getAvatarColor(handle userhandle)
 {
-    if (ISUNDEF(userhandle))
-    {
-        return NULL;
-    }
-
     string colors[] = {        
         "#69F0AE",
         "#13E03C",
