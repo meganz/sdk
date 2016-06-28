@@ -1833,6 +1833,19 @@ void CommandSetPendingContact::procresult()
             {
                 pcr->changed.deleted = true;
                 client->notifypcr(pcr);
+
+                // remove pending shares related to the deleted PCR
+                Node *n;
+                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                {
+                    n = it->second;
+                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
+                    {
+                        client->newshares.push_back(
+                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                 0, NULL, NULL, pcr->id, false));
+                    }
+                }
             }
         }
 
