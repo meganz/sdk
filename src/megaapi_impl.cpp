@@ -738,7 +738,7 @@ bool MegaApiImpl::is_syncable(const char *name)
         {
             // Don't manage the '?' line a wildcard for the string "Icon?"
             // because it's added by default in MEGAsync to exclude a system
-            // file with exactly that name. A proper fix with be implemented
+            // file with exactly that name. A proper fix will be implemented
             // when the advanced exclusion of files based on PCRE is finished
             if (!(excludedNames[i] == "Icon?" && excludedNames[i] != name))
             {
