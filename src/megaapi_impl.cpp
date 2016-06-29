@@ -213,7 +213,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
        {
            if (it->first == AttrMap::string2nameid("d"))
            {
-               memcpy(&duration, it->second.data(), sizeof duration);
+               istringstream convert(it->second.data());
+               if (!(convert >> duration))
+               {
+                   duration = INVALID_DURATION;
+               }
            }
            else if (it->first == AttrMap::string2nameid("gps"))
            {
@@ -11367,7 +11371,6 @@ void MegaApiImpl::sendPendingRequests()
             if (isOfficial)
             {
                 int type = request->getParamType();
-
                 if (type == MegaApi::NODE_ATTR_DURATION)
                 {
                     int secs = request->getNumber();
@@ -11383,9 +11386,9 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        string buf;
-                        buf.assign((char*)&secs, sizeof secs);
-                        node->attrs.map['d'] = buf;
+                        stringstream convert;
+                        convert << secs;
+                        node->attrs.map['d'] = convert.str();
                     }
                 }
                 else if (type == MegaApi::NODE_ATTR_COORDINATES)
