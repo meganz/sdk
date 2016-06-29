@@ -213,32 +213,38 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
        {
            if (it->first == AttrMap::string2nameid("d"))
            {
-               istringstream convert(it->second.data());
-               if (!(convert >> duration))
+               if (node->type == FILENODE)
                {
-                   duration = INVALID_DURATION;
+                   istringstream convert(it->second.data());
+                   if (!(convert >> duration))
+                   {
+                       duration = INVALID_DURATION;
+                   }
                }
            }
            else if (it->first == AttrMap::string2nameid("gps"))
            {
-               string coords = it->second;
-               size_t separator = coords.find_first_of(';');
-               if (separator != coords.npos && (separator + 1 < coords.size()))
+               if (node->type == FILENODE)
                {
-                   const char *ptr = coords.substr(0, separator).c_str();
-                   char *endptr = NULL;
-                   latitude = std::strtod(ptr, &endptr);
-                   if ((latitude == 0 && endptr == ptr) || (latitude == HUGE_VAL))
+                   string coords = it->second;
+                   size_t separator = coords.find_first_of(';');
+                   if (separator != coords.npos && (separator + 1 < coords.size()))
                    {
-                       latitude = INVALID_COORDINATE;
-                   }
+                       const char *ptr = coords.substr(0, separator).c_str();
+                       char *endptr = NULL;
+                       latitude = std::strtod(ptr, &endptr);
+                       if ((latitude == 0 && endptr == ptr) || (latitude == HUGE_VAL))
+                       {
+                           latitude = INVALID_COORDINATE;
+                       }
 
-                   ptr = coords.substr(separator+1, coords.length()).c_str();
-                   endptr = NULL;
-                   longitude = std::strtod(ptr, &endptr);
-                   if ((longitude == 0 && endptr == ptr) || (longitude == HUGE_VAL))
-                   {
-                       longitude = INVALID_COORDINATE;
+                       ptr = coords.substr(separator+1, coords.length()).c_str();
+                       endptr = NULL;
+                       longitude = std::strtod(ptr, &endptr);
+                       if ((longitude == 0 && endptr == ptr) || (longitude == HUGE_VAL))
+                       {
+                           longitude = INVALID_COORDINATE;
+                       }
                    }
                }
            }
