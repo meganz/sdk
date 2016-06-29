@@ -795,6 +795,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     testingInvalidArgs = false;
 
+
     // ___ Set coordinates of a node ___
 
     double lat = -51.8719987255814;
@@ -814,6 +815,20 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     sprintf(buf, "%.6f", lon);
     ASSERT_EQ(atof(buf), n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to origin (0,0) ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, 0, 0);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(0, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(0, n1->getLongitude()) << "Longitude value does not match";
 
 
     // ___ Reset coordinates of a node ___
