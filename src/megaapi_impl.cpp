@@ -214,7 +214,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
            {
                memcpy(&duration, it->second.data(), sizeof duration);
            }
-           else if (it->first == AttrMap::string2nameid("coords"))
+           else if (it->first == AttrMap::string2nameid("gps"))
            {
                string coords = it->second;
                size_t separator = coords.find_first_of(';');
@@ -11383,7 +11383,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     string coordsValue = request->getText();
-                    nameid coordsName = AttrMap::string2nameid("coords");
+                    nameid coordsName = AttrMap::string2nameid("gps");
 
                     size_t separator = coordsValue.find_first_of(';');
                     if (separator == coordsValue.npos)
