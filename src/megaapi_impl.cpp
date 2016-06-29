@@ -220,8 +220,21 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                size_t separator = coords.find_first_of(';');
                if (separator != coords.npos && (separator + 1 < coords.size()))
                {
-                   latitude = atof(coords.substr(0, separator).c_str());
-                   longitude = atof(coords.substr(separator+1, coords.length()).c_str());
+                   const char *ptr = coords.substr(0, separator).c_str();
+                   char *endptr = NULL;
+                   latitude = std::strtod(ptr, &endptr);
+                   if ((latitude == 0 && endptr == ptr) || (latitude == HUGE_VAL))
+                   {
+                       latitude = INVALID_COORDINATE;
+                   }
+
+                   ptr = coords.substr(separator+1, coords.length()).c_str();
+                   endptr = NULL;
+                   longitude = std::strtod(ptr, &endptr);
+                   if ((longitude == 0 && endptr == ptr) || (longitude == HUGE_VAL))
+                   {
+                       longitude = INVALID_COORDINATE;
+                   }
                }
            }
        }
@@ -11392,8 +11405,26 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    float latValue = atof(coordsValue.substr(0, separator).c_str());
-                    float lonValue = atof(coordsValue.substr(separator+1, coordsValue.length()).c_str());
+                    double latValue = MegaNode::INVALID_COORDINATE;
+                    double lonValue = MegaNode::INVALID_COORDINATE;
+
+                    const char *ptr = coordsValue.substr(0, separator).c_str();
+                    char *endptr = NULL;
+                    latValue = std::strtod(ptr, &endptr);
+                    if ((latValue == 0 && endptr == ptr) || (latValue == HUGE_VAL))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    ptr = coordsValue.substr(separator+1, coordsValue.length()).c_str();
+                    endptr = NULL;
+                    lonValue = std::strtod(ptr, &endptr);
+                    if ((lonValue == 0 && endptr == ptr) || (lonValue == HUGE_VAL))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
 
                     if (lonValue == MegaNode::INVALID_COORDINATE &&
                             latValue == MegaNode::INVALID_COORDINATE)
