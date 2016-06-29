@@ -75,6 +75,9 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->name = MegaApi::strdup(name);
     this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
+    this->duration = -1;
+    this->latitude = INVALID_COORDINATE;
+    this->longitude = INVALID_COORDINATE;
     this->type = type;
     this->size = size;
     this->ctime = ctime;
@@ -114,6 +117,9 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
+    this->duration = node->getDuration();
+    this->latitude = node->getLatitude();
+    this->longitude = node->getLongitude();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -182,6 +188,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
 
+    this->duration = -1;
+    this->latitude = INVALID_COORDINATE;
+    this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
 
     char buf[10];
@@ -198,6 +207,23 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
            nameid id = AttrMap::string2nameid(&buf[1]);
            (*customAttrs)[id] = it->second;
+       }
+       else
+       {
+           if (buf[0] == 'd')
+           {
+               memcpy(&duration, it->second.data(), sizeof duration);
+           }
+           else if (it->first == AttrMap::string2nameid("coords"))
+           {
+               string coords = it->second;
+               size_t separator = coords.find_first_of(';');
+               if (separator != coords.npos)
+               {
+                   latitude = atof(coords.substr(0, separator).c_str());
+                   longitude = atof(coords.substr(separator+1, coords.length()).c_str());
+               }
+           }
        }
     }
 
@@ -533,6 +559,21 @@ const char *MegaNodePrivate::getCustomAttr(const char *attrName)
     }
 
     return it->second.c_str();
+}
+
+int MegaNodePrivate::getDuration()
+{
+    return duration;
+}
+
+double MegaNodePrivate::getLatitude()
+{
+    return latitude;
+}
+
+double MegaNodePrivate::getLongitude()
+{
+    return longitude;
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -4058,6 +4099,38 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     if(node) request->setNodeHandle(node->getHandle());
     request->setName(attrName);
     request->setText(value);
+    request->setFlag(false);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_DURATION);
+    request->setNumber(secs);
+    request->setFlag(true);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
+
+    // calculate the required size of the string containing both values
+    size_t size = 0;
+    std::ostringstream strs;
+    strs << (int) latitude << (int) longitude;
+    size = strs.str().length() + 1 + 6 * 2 + 1;
+
+    char coords[size];     // <lat>;<lon>
+    sprintf(coords, "%.6f;%.6f", latitude, longitude);
+    request->setText(coords);
+    request->setFlag(true);     // is official attribute?
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11263,10 +11336,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_ATTR_NODE:
         {
             Node *node = client->nodebyhandle(request->getNodeHandle());
-            const char* attrName = request->getName();
-            const char* attrValue = request->getText();
+            bool isOfficial = request->getFlag();
 
-            if (!node || !attrName || !attrName[0] || strlen(attrName) > 7)
+            if (!node)
             {
                 e = API_EARGS;
                 break;
@@ -11278,23 +11350,107 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            string sname = attrName;
-            fsAccess->normalize(&sname);
-            sname.insert(0, "_");
-            nameid attr = AttrMap::string2nameid(sname.c_str());
-
-            if (attrValue)
+            if (isOfficial)
             {
-                string svalue = attrValue;
-                fsAccess->normalize(&svalue);
-                node->attrs.map[attr] = svalue;
+                int type = request->getParamType();
+                int secs = request->getNumber();
+
+                if (type == MegaApi::NODE_ATTR_DURATION)
+                {
+                    if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    if (secs == MegaNode::INVALID_DURATION)
+                    {
+                        node->attrs.map.erase('d');
+                    }
+                    else
+                    {
+                        string buf;
+                        buf.assign((char*)&secs, sizeof secs);
+                        node->attrs.map['d'] = buf;
+                    }
+                }
+                else if (type == MegaApi::NODE_ATTR_COORDINATES)
+                {
+                    if (node->type != FILENODE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string coordsValue = request->getText();
+                    nameid coordsName = AttrMap::string2nameid("coords");
+
+                    size_t separator = coordsValue.find_first_of(';');
+                    if (separator == coordsValue.npos)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    float latValue = atof(coordsValue.substr(0, separator).c_str());
+                    float lonValue = atof(coordsValue.substr(separator+1, coordsValue.length()).c_str());
+
+                    if (lonValue == MegaNode::INVALID_COORDINATE &&
+                            latValue == MegaNode::INVALID_COORDINATE)
+                    {
+                        node->attrs.map.erase(coordsName);
+                    }
+                    else
+                    {
+                        if (lonValue < -180 || lonValue > +180 ||
+                                latValue < -90 || latValue > +90)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
+
+                        node->attrs.map[coordsName] = coordsValue;
+                    }
+                }
+                else
+                {
+                    e = API_EARGS;
+                    break;
+                }
             }
-            else
+            else    // custom attribute, not official
             {
-                node->attrs.map.erase(attr);
+                const char* attrName = request->getName();
+                const char* attrValue = request->getText();
+
+                if (!attrName || !attrName[0] || strlen(attrName) > 7)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string sname = attrName;
+                fsAccess->normalize(&sname);
+                sname.insert(0, "_");
+                nameid attr = AttrMap::string2nameid(sname.c_str());
+
+                if (attrValue)
+                {
+                    string svalue = attrValue;
+                    fsAccess->normalize(&svalue);
+                    node->attrs.map[attr] = svalue;
+                }
+                else
+                {
+                    node->attrs.map.erase(attr);
+                }
             }
 
-            e = client->setattr(node);
+            if (!e)
+            {
+                e = client->setattr(node);
+            }
+
             break;
         }
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:

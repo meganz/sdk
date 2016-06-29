@@ -395,6 +395,9 @@ class MegaNode
             CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
+        static const int INVALID_DURATION       = -1;
+        static const double INVALID_COORDINATE  = -200;
+
         virtual ~MegaNode();
 
         /**
@@ -497,6 +500,35 @@ class MegaNode
          * @see MegaApi::setCustomNodeAttribute
          */
         virtual const char *getCustomAttr(const char* attrName);
+
+        /**
+         * @brief Get the attribute of the node representing its duration.
+         *
+         * The purpose of this attribute is to store the duration of audio/video files.
+         *
+         * @return The number of seconds, or -1 if this attribute is not set.
+         */
+        virtual int getDuration();
+
+        /**
+         * @brief Get the attribute of the node representing the latitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The latitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLatitude();
+
+        /**
+         * @brief Get the attribute of the node representing the longitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The longitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLongitude();
 
         /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
@@ -3635,6 +3667,11 @@ class MegaApi
         };
 
         enum {
+            NODE_ATTR_DURATION = 0,
+            NODE_ATTR_COORDINATES = 1
+        };
+
+        enum {
             PAYMENT_METHOD_BALANCE = 0,
             PAYMENT_METHOD_PAYPAL = 1,
             PAYMENT_METHOD_ITUNES = 2,
@@ -5135,7 +5172,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
          * - MegaRequest::getName - Returns the name of the custom attribute
-         * - MegaRequest::getText - Returns the tezt for the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns false (not official attribute)
          *
          * The attribute name must be an UTF8 string with between 1 and 7 bytes
          * If the attribute already has a value, it will be replaced
@@ -5148,6 +5186,44 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the duration of audio/video files as a node attribute.
+         *
+         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumber - Returns the number of seconds for the node
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+         *
+         * @param node Node that will receive the information.
+         * @param duration Length of the audio/video in seconds.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDuration(MegaNode *node, int duration,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the GPS coordinates of image files as a node attribute.
+         *
+         * To remove the existing coordinates, set both the latitude and longitud to
+         * the value MegaNode::INVALID_COORDINATE.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getText - Returns the longitude and latitude, with 6 decimal digits and a semicolon as separator
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         *
+         * @param node Node that will receive the information.
+         * @param latitude Latitude in signed decimal degrees notation
+         * @param longitude Longitude in signed decimal degrees notation
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude,  MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
