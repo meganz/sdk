@@ -2712,16 +2712,6 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
-
-                            // NULL vector: "notify all elements"
-                            app->nodes_updated(NULL, nodes.size());
-                            app->users_updated(NULL, users.size());
-                            app->pcrs_updated(NULL, pcrindex.size());
-
-                            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-                            {
-                                memset(&(it->second->changed), 0, sizeof it->second->changed);
-                            }
                         }
 
                         statecurrent = true;
@@ -2739,6 +2729,16 @@ bool MegaClient::procsc()
                             cachedfiles.clear();
                             cachedfilesdbids.clear();
                             tctable->commit();
+                        }
+
+                        // NULL vector: "notify all elements"
+                        app->nodes_updated(NULL, nodes.size());
+                        app->users_updated(NULL, users.size());
+                        app->pcrs_updated(NULL, pcrindex.size());
+
+                        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+                        {
+                            memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
                     }
                 
@@ -7654,15 +7654,6 @@ void MegaClient::fetchnodes()
         statecurrent = false;
 
         app->fetchnodes_result(API_OK);
-        app->nodes_updated(NULL, nodes.size());
-        app->users_updated(NULL, users.size());
-        app->pcrs_updated(NULL, pcrindex.size());
-
-        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-        {
-            memset(&(it->second->changed), 0, sizeof it->second->changed);
-        }
-
         sctable->begin();
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);

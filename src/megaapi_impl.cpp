@@ -8714,13 +8714,14 @@ void MegaApiImpl::reload(const char*)
 // at which point their pointers will become invalid at that point.)
 void MegaApiImpl::nodes_updated(Node** n, int count)
 {
-    if(!count)
+    LOG_debug << "Nodes updated: " << count;
+    if (!count)
     {
         return;
     }
 
     MegaNodeList *nodeList = NULL;
-    if(n != NULL)
+    if (n != NULL)
     {
         nodeList = new MegaNodeListPrivate(n, count);
         fireOnNodesUpdate(nodeList);
