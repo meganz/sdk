@@ -36,6 +36,8 @@ void SdkTest::SetUp()
         pwd[0].assign(buf);
     ASSERT_LT(0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
 
+    testingInvalidArgs = false;
+
     if (megaApi[0] == NULL)
     {
         logger = new MegaLoggerSDK("SDK.log");
@@ -58,6 +60,8 @@ void SdkTest::SetUp()
 void SdkTest::TearDown()
 {
     // do some cleanup
+
+    testingInvalidArgs = false;
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
