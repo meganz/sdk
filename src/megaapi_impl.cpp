@@ -218,7 +218,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
            {
                string coords = it->second;
                size_t separator = coords.find_first_of(';');
-               if (separator != coords.npos)
+               if (separator != coords.npos && (separator + 1 < coords.size()))
                {
                    latitude = atof(coords.substr(0, separator).c_str());
                    longitude = atof(coords.substr(separator+1, coords.length()).c_str());
@@ -11386,7 +11386,7 @@ void MegaApiImpl::sendPendingRequests()
                     nameid coordsName = AttrMap::string2nameid("gps");
 
                     size_t separator = coordsValue.find_first_of(';');
-                    if (separator == coordsValue.npos)
+                    if ((separator == coordsValue.npos) || (separator + 1 >= coordsValue.size()))
                     {
                         e = API_EARGS;
                         break;
