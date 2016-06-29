@@ -34,6 +34,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <cmath>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -4138,10 +4139,10 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double lon
     size_t size = 0;
     std::ostringstream strs;
     strs << (int) latitude << (int) longitude;
-    size = strs.str().length() + 1 + 6 * 2 + 1;
+    size = strs.str().length() + 1 + 7 * 2 + 1;
 
     char coords[size];     // <lat>;<lon>
-    sprintf(coords, "%.6f;%.6f", latitude, longitude);
+    snprintf(coords, size, "%.6f;%.6f", latitude, longitude);
     request->setText(coords);
     request->setFlag(true);     // is official attribute?
     requestQueue.push(request);
