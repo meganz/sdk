@@ -732,11 +732,18 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 
 bool MegaApiImpl::is_syncable(const char *name)
 {
-    for(unsigned int i=0; i< excludedNames.size(); i++)
+    for (unsigned int i = 0; i < excludedNames.size(); i++)
     {
-        if(WildcardMatch(name, excludedNames[i].c_str()))
+        if (WildcardMatch(name, excludedNames[i].c_str()))
         {
-            return false;
+            // Don't manage the '?' line a wildcard for the string "Icon?"
+            // because it's added by default in MEGAsync to exclude a system
+            // file with exactly that name. A proper fix with be implemented
+            // when the advanced exclusion of files based on PCRE is finished
+            if (!(excludedNames[i] == "Icon?" && excludedNames[i] != name))
+            {
+                return false;
+            }
         }
     }
 
