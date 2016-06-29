@@ -210,7 +210,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
        }
        else
        {
-           if (buf[0] == 'd')
+           if (it->first == AttrMap::string2nameid("d"))
            {
                memcpy(&duration, it->second.data(), sizeof duration);
            }
