@@ -12045,7 +12045,8 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getNumber();
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
-                            && type != MegaApi::PAYMENT_METHOD_ITUNES))
+                            && type != MegaApi::PAYMENT_METHOD_ITUNES
+                            && type != MegaApi::PAYMENT_METHOD_WINDOWS_STORE))
             {
                 e = API_EARGS;
                 break;
@@ -12058,14 +12059,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string base64receipt;
-            if(type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET)
+            if (type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
+                    || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE)
             {
                 int len = strlen(receipt);
                 base64receipt.resize(len * 4 / 3 + 4);
                 base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
-                 // MegaApi::PAYMENT_METHOD_WINDOWS_STORE
             {
                 base64receipt = receipt;
             }
