@@ -127,7 +127,7 @@ private:
 
     MegaMutex *mtx;
 
-    int count=0;
+    int count;
 
     int get_next_outSocket_id()
     {
@@ -174,13 +174,20 @@ private:
             else
             {
                 LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
-                thesock=0;
+                thesock=0; //TODO: potentian issue: if no stdin/stdout, 0 is valid Id
             }
         }
         else
         {
-            listen(thesock,150); //TODO: check errors?
+            if (thesock)
+            {
+                int returned = listen(thesock,150); //TODO: check errors?
+                if (returned)
+                {
+                    LOG_fatal << "ERROR on listen socket: " << errno; CLEAN_fatal;
+                }
 
+            }
             return thesock;
         }
 
@@ -189,6 +196,7 @@ private:
 
 public:
     ComunicationsManager(){
+        count=0;
         mtx=new MegaMutex();
         initialize();
     }
@@ -256,7 +264,7 @@ public:
             else
             {
                 LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
-                sockfd=NULL;
+                sockfd=-1;
             }
 
         }
@@ -310,7 +318,7 @@ public:
 
         n = write(newsockfd,&socket_id,sizeof(socket_id));
         if (n < 0){
-            LOG_fatal << "ERROR writing to socket" << errno; CLEAN_fatal;
+            LOG_fatal << "ERROR writing to socket: errno = " << errno; CLEAN_fatal;
             return "ERROR";
         }
         close (newsockfd);
@@ -1704,7 +1712,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
                 MegaNode * aux;
                 aux = n;
                 n = api->getParentNode(n);
-                if (n!=aux) delete n;
+                if (n!=aux) delete aux;
             }
             else
             {
@@ -2563,7 +2571,7 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
         cwd = UNDEF;
         delete rootNode;
         rootNode=NULL;
-        delete session;
+        delete []session;
         session=NULL;
     }
     else
@@ -2969,7 +2977,7 @@ static void process_line(char* l)
                         if (words.size() > 2)
                         {
                             // source node must exist
-                            if (n = nodebypath(words[1].c_str()))
+                            if ((n = nodebypath(words[1].c_str())))
                             {
 
                                 // we have four situations:
@@ -2977,7 +2985,7 @@ static void process_line(char* l)
                                 // 2. target node exists and is folder - move
                                 // 3. target node exists and is file - delete and rename (unless same)
                                 // 4. target path exists, but filename does not - rename
-                                if (tn = nodebypath(words[2].c_str(), NULL, &newname))
+                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
                                 {
                                     if (tn->getHandle() == n->getHandle())
                                     {
@@ -3108,7 +3116,7 @@ static void process_line(char* l)
                                             if (n->getType() == MegaNode::TYPE_FILE)
                                             {
                                                 //copy with new name
-                                                api->copyNode(n,tn,newname.c_str(),megaCmdListener);
+                                                api->copyNode(n,tn,newname.c_str(),megaCmdListener); //only works for files
                                                 megaCmdListener->wait();//TODO: actupon...
 
                                                 //TODO: newname is ignored in case of public node!!!!
@@ -3118,8 +3126,18 @@ static void process_line(char* l)
                                                 //copy with new name
                                                 api->copyNode(n,tn,megaCmdListener);
                                                 megaCmdListener->wait();//TODO: actupon...
-                                                api->renameNode(n,newname.c_str(),megaCmdListener);
-                                                megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+
+                                                MegaNode * newNode=api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+                                                if (newNode)
+                                                {
+                                                    api->renameNode(newNode,newname.c_str(),megaCmdListener);
+                                                    megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                    delete newNode;
+                                                }
+                                                else
+                                                {
+                                                    LOG_err << " Couldn't find new node created upon cp"; CLEAN_err;
+                                                }
                                             }
                                         }
                                         else
@@ -4661,9 +4679,11 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "session")
                     {
-                        if (api->dumpSession())
+                        char * dumpSession = api->dumpSession();
+                        if (dumpSession)
                         {
-                            OUTSTREAM << "Your (secret) session is: " << api->dumpSession() << endl;
+                            OUTSTREAM << "Your (secret) session is: " << dumpSession << endl;
+                            delete []dumpSession;
                         }
                         else
                         {
@@ -5392,17 +5412,20 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 */
 
 struct thread_info_t {
-    char * line;
+    char * line = NULL;
     int outSocket;
 };
 
 void destroy_thread_info_t(thread_info_t *t)
 {
-    free(t->line);
+    if (t && t->line !=NULL)
+        free(t->line);
 }
 
 void * doProcessLine(void *pointer)
 {
+
+    //TODO: think about moving socket code to CommunicationManager
     thread_info_t *inf = (thread_info_t *) pointer;
 
     sockaddr_in cliAddr;
@@ -5411,29 +5434,40 @@ void * doProcessLine(void *pointer)
 
     //TODO use mutex, and free after accept
 
+    if (connectedsocket == -1) {
+        LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno; CLEAN_fatal;
+        return NULL;
+    }
+
+
 
     std::ostringstream   s;
     outstreams[getCurrentThread()]=&s;
 
 
-    LOG_debug << " Processing " << ((thread_info_t *) pointer)->line << " in thread: " << getCurrentThread()
+    LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
          << " socket output: " <<  inf->outSocket ; CLEAN_debug;
 
-    process_line(((thread_info_t *) pointer)->line);
+    process_line(inf->line);
+
+    LOG_debug << " Procesed " << inf->line << " in thread: " << getCurrentThread()
+         << " socket output: " <<  inf->outSocket ; CLEAN_debug;
+
 
     LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>"; CLEAN_verbose;
 
     string sout = s.str();
 
-    int n = write(connectedsocket,sout.data(),sout.size());
+    int n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
     if (n < 0)
     {
-        LOG_fatal << "ERROR writing to socket: " << errno; CLEAN_fatal;
+        LOG_err << "ERROR writing to socket: " << errno; CLEAN_err;
     }
-
     close(connectedsocket);
     close(inf->outSocket);
     destroy_thread_info_t(inf);
+    delete inf;
+    return NULL;
 }
 
 
@@ -5549,9 +5583,13 @@ void megacmd()
                     }
                     else if (FD_ISSET(cm->getFileDescriptor(), &fds))
                     {
+                        LOG_verbose << "Client connected "; CLEAN_verbose;
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
                         int socket_out;
                         string petition=cm->getPetition(socket_out);
+
+                        LOG_verbose << "petition registered: " << petition; CLEAN_verbose;
+
 
                         //delete finished threads
                         for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
@@ -5570,14 +5608,18 @@ void megacmd()
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
 
-                        struct thread_info_t inf;
+                        thread_info_t *inf = new thread_info_t();
 
-                        inf.line = strdup(petition.c_str());;
-                        inf.outSocket = socket_out;
+                        inf->line = strdup(petition.c_str());
+                        LOG_verbose << "petition copied to struct: " << inf->line; CLEAN_verbose;
+
+                        inf->outSocket = socket_out;
 
 //                        inf.stream = OUTSTREAM;
 
-                        petitionThread->start(doProcessLine, (void *)&inf);
+                        LOG_debug << "starting processing: "; CLEAN_debug;
+
+                        petitionThread->start(doProcessLine, (void *)inf);
 //                        delete petitionThread; //TODO: never deleted
                         //TODO: cpetition never freed (should be done after joining petitionThread). save map with threads/stuff to clean
                     }
@@ -5671,6 +5713,8 @@ int main()
 #ifdef __linux__
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
+
+
 #endif
 
     atexit(finalize);
