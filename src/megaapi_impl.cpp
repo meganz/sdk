@@ -11367,10 +11367,10 @@ void MegaApiImpl::sendPendingRequests()
             if (isOfficial)
             {
                 int type = request->getParamType();
-                int secs = request->getNumber();
 
                 if (type == MegaApi::NODE_ATTR_DURATION)
                 {
+                    int secs = request->getNumber();
                     if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
                     {
                         e = API_EARGS;
