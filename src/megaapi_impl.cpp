@@ -4793,7 +4793,7 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
     return result;
 }
 
-void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -4812,6 +4812,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     }
 
     transfer->setMaxRetries(maxRetries);
+    transfer->setAppData(appData);
 
     if(fileName)
     {
@@ -4830,13 +4831,13 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, -1, 0, listener); }
+{ return startUpload(localPath, parent, (const char *)NULL, -1, 0, NULL, listener); }
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, mtime, 0, listener); }
+{ return startUpload(localPath, parent, (const char *)NULL, mtime, 0, NULL, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, fileName, -1, 0, listener); }
+{ return startUpload(localPath, parent, fileName, -1, 0, NULL, listener); }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
@@ -13578,7 +13579,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                         {
                             string utf8path;
                             client->fsaccess->local2path(&localPath, &utf8path);
-                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, this);
+                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, this);
                         }
                         else
                         {

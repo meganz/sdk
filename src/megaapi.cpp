@@ -1683,6 +1683,11 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
+{
+    pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, listener);
+}
+
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, mtime, listener);
@@ -1695,7 +1700,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, 0, listener);
+    pImpl->startUpload(localPath, parent, fileName, mtime, 0, NULL, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -1703,7 +1708,7 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
     pImpl->startDownload(node, localFolder, listener);
 }
 
-void MegaApi::startDownload(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
+void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
     pImpl->startDownload(node, localPath, 0, 0, 0, appData, listener);
 }

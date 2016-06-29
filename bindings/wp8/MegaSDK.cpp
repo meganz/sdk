@@ -2035,7 +2035,7 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
     if (appData != nullptr)
         MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
 
-    megaApi->startDownload((node != nullptr) ? node->getCPtr() : NULL,
+    megaApi->startDownloadWithData((node != nullptr) ? node->getCPtr() : NULL,
         (localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (appData != nullptr) ? utf8appData.c_str() : NULL,
         createDelegateMTransferListener(listener));
@@ -2051,7 +2051,7 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
     if (appData != nullptr)
         MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
 
-    megaApi->startDownload((node != nullptr) ? node->getCPtr() : NULL,
+    megaApi->startDownloadWithData((node != nullptr) ? node->getCPtr() : NULL,
         (localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (appData != nullptr) ? utf8appData.c_str() : NULL);
 }
