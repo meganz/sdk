@@ -4303,6 +4303,8 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
 
     endarray();
 
+    arg("v", 1);
+
     tag = client->reqtag;
 }
 
@@ -4378,6 +4380,7 @@ CommandChatFetch::CommandChatFetch(MegaClient *client)
     this->client = client;
 
     cmd("mcf");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -4546,6 +4549,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("u", uid);
     arg("p", priv);
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -4575,6 +4579,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const ch
     {
         arg("u", uid);
     }
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -4599,6 +4604,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
     cmd("mcurl");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -4632,6 +4638,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -4658,6 +4665,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
+    arg("v", 1);
 
     tag = client->reqtag;
 }
