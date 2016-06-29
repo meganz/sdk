@@ -1701,7 +1701,10 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
         {
             if (c[l] == "..")
             {
+                MegaNode * aux;
+                aux = n;
                 n = api->getParentNode(n);
+                if (n!=aux) delete n;
             }
             else
             {
@@ -1721,9 +1724,11 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
                             return n;
                         }
 
+                        delete n;
                         return NULL;
                     }
 
+                    if (n!=nn) delete n;
                     n = nn;
                 }
             }
@@ -2972,7 +2977,7 @@ static void process_line(char* l)
                                 // 2. target node exists and is folder - move
                                 // 3. target node exists and is file - delete and rename (unless same)
                                 // 4. target path exists, but filename does not - rename
-                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
+                                if (tn = nodebypath(words[2].c_str(), NULL, &newname))
                                 {
                                     if (tn->getHandle() == n->getHandle())
                                     {
@@ -2985,7 +2990,8 @@ static void process_line(char* l)
                                             if (tn->getType() == MegaNode::TYPE_FILE)
                                             {
                                                 OUTSTREAM << words[2] << ": Not a directory" << endl;
-
+                                                delete tn;
+                                                delete n;
                                                 return;
                                             }
                                             else //move and rename!
