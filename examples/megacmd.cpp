@@ -86,31 +86,51 @@ ostream &getCurrentOut(){
 //        clear_display();
 
 
-class LoggerForApi: public MegaLogger{
+class MegaCMDLogger: public MegaLogger{
 private:
-    int level;
+    int apiLoggerLevel;
+    int cmdLoggerLevel;
+    ostream * output;
 public:
-    LoggerForApi()
+    MegaCMDLogger(ostream * outstr)
     {
-        this->level=MegaApi::LOG_LEVEL_ERROR;
+        this->output = outstr;
+        this->apiLoggerLevel=MegaApi::LOG_LEVEL_ERROR;
     }
 
     void log(const char *time, int loglevel, const char *source, const char *message)
     {
-        if (loglevel<=level)
+        if (strstr(source, "megacmd") != NULL) //TODO: warning: what if new files are added
         {
-            OUTSTREAM << "[" << loglevel << "]" << message;
+            if (loglevel<=cmdLoggerLevel)
+            {
+                *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+                if (&OUTSTREAM != output) //TODO: ERRSTREAM? (2 sockets?)
+                    OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+            }
+        }
+        else{
+            if (loglevel<=apiLoggerLevel)
+            {
+                *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+                if (&OUTSTREAM != output) //since it happens in the sdk thread, this shall be false
+                    OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+            }
         }
     }
 
-    void setLevel(int loglevel){
-        this->level=loglevel;
+    void setApiLoggerLevel(int apiLoggerLevel){
+        this->apiLoggerLevel=apiLoggerLevel;
+    }
+
+    void setCmdLoggerLevel(int cmdLoggerLevel){
+        this->cmdLoggerLevel=cmdLoggerLevel;
     }
 };
 
 //MegaClient* client;
 MegaApi *api;
-LoggerForApi *apiLogger;
+MegaCMDLogger *loggerCMD;
 
 //Syncs
 map<string,MegaHandle> syncsmap;
@@ -2306,7 +2326,7 @@ void finalize()
     LOG_info << "closing application ..." ;
     delete cm;
     delete console;
-    delete apiLogger;
+    delete loggerCMD;
     delete api;
     OUTSTREAM << "resources have been cleaned ..."  << endl;
 
@@ -5682,9 +5702,29 @@ void megacmd()
 }
 
 
+class NulStreambuf : public std::streambuf
+{
+    char                dummyBuffer[ 64 ];
+protected:
+    virtual int         overflow( int c )
+    {
+        setp( dummyBuffer, dummyBuffer + sizeof( dummyBuffer ) );
+        return (c == traits_type::eof()) ? '\0' : c;
+    }
+};
+
+class NulOStream : private NulStreambuf, public std::ostream
+{
+public:
+    NulOStream() : std::ostream( this ) {}
+    const NulStreambuf* rdbuf() const { return this; }
+};
+
+
 int main()
 {
-    SimpleLogger::setAllOutputs(&cout);
+//    SimpleLogger::setAllOutputs(&cout);
+    SimpleLogger::setAllOutputs(new NulOStream());
 
 
     // instantiate app components: the callback processor (DemoApp),
@@ -5710,9 +5750,10 @@ int main()
 
 
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
-    apiLogger = new LoggerForApi(); //TODO: never deleted
-//    apiLogger->setLevel(MegaApi::LOG_LEVEL_ERROR);
-//    api->setLoggerObject(apiLogger);
+    loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
+    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+    api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
@@ -5722,10 +5763,11 @@ int main()
 
     api->addGlobalListener(megaCmdGlobalListener);
 
-    SimpleLogger::setLogLevel(logInfo);
+//    SimpleLogger::setLogLevel(-1) ;//Do not log via simplelogger
 //      SimpleLogger::setLogLevel(logDebug);
 //    SimpleLogger::setLogLevel(logError);
-//    SimpleLogger::setLogLevel(logFatal);
+    //    SimpleLogger::setLogLevel(logFatal);
+        SimpleLogger::setLogLevel(logMax); // log level checking is done by loggerCMD
 
     console = new CONSOLE_CLASS;
 
