@@ -62,28 +62,28 @@ ostream &getCurrentOut(){
     }
 }
 
-void clear_display(){
-    rl_forced_update_display();
-}
+//void clear_display(){
+//    rl_forced_update_display();
+//}
 
-#define CLEAN_fatal if (SimpleLogger::logCurrentLevel < logFatal) ;\
-    else \
-        clear_display();
-#define CLEAN_err if (SimpleLogger::logCurrentLevel < logError) ;\
-    else \
-        clear_display();
-#define CLEAN_info if (SimpleLogger::logCurrentLevel < logInfo) ;\
-    else \
-        clear_display();
-#define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
-    else \
-        clear_display();
-#define CLEAN_warn if (SimpleLogger::logCurrentLevel < logWarning) ;\
-    else \
-        clear_display();
-#define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
-    else \
-        clear_display();
+//#define CLEAN_fatal if (SimpleLogger::logCurrentLevel < logFatal) ;\
+//    else \
+//        clear_display();
+//#define CLEAN_err if (SimpleLogger::logCurrentLevel < logError) ;\
+//    else \
+//        clear_display();
+//#define CLEAN_info if (SimpleLogger::logCurrentLevel < logInfo) ;\
+//    else \
+//        clear_display();
+//#define CLEAN_debug if (SimpleLogger::logCurrentLevel < logDebug) ;\
+//    else \
+//        clear_display();
+//#define CLEAN_warn if (SimpleLogger::logCurrentLevel < logWarning) ;\
+//    else \
+//        clear_display();
+//#define CLEAN_verbose if (SimpleLogger::logCurrentLevel < logMax) ;\
+//    else \
+//        clear_display();
 
 
 class LoggerForApi: public MegaLogger{
@@ -147,7 +147,7 @@ private:
 
         if (thesock < 0)
         {
-            LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
+            LOG_fatal << "ERROR opening socket";
         }
 
         char socket_path[60];
@@ -168,12 +168,12 @@ private:
         {
             if (errno == EADDRINUSE)
             {
-                LOG_warn << "ERROR on binding socket: Already in use."; CLEAN_warn;
+                LOG_warn << "ERROR on binding socket: Already in use.";
 
             }
             else
             {
-                LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+                LOG_fatal << "ERROR on binding socket: " << errno;
                 thesock=0; //TODO: potentian issue: if no stdin/stdout, 0 is valid Id
             }
         }
@@ -184,7 +184,7 @@ private:
                 int returned = listen(thesock,150); //TODO: check errors?
                 if (returned)
                 {
-                    LOG_fatal << "ERROR on listen socket: " << errno; CLEAN_fatal;
+                    LOG_fatal << "ERROR on listen socket: " << errno;
                 }
 
             }
@@ -209,7 +209,7 @@ public:
 
         if (sockfd < 0)
         {
-            LOG_fatal << "ERROR opening socket"; CLEAN_fatal;
+            LOG_fatal << "ERROR opening socket";
         }
 
         //        portno=12347;         //TODO: read port from somewhere
@@ -235,7 +235,7 @@ public:
         {
             if (errno == EADDRINUSE)
             {
-                LOG_warn << "ERROR on binding socket: Already in use."; CLEAN_warn;
+                LOG_warn << "ERROR on binding socket: Already in use.";
 //                exit(1);
 //                close(sockfd);
 
@@ -250,20 +250,20 @@ public:
 
 //                int yes=1;
 //                if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
-//                    LOG_fatal << "ERROR on setsockopt socket: " << errno; CLEAN_fatal;
+//                    LOG_fatal << "ERROR on setsockopt socket: " << errno;
 //                    exit(1);
 //                }
 
 //                if ( bind(sockfd, &saddr, saddrlen) )
 //                {
-//                    LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+//                    LOG_fatal << "ERROR on binding socket: " << errno;
 //                    sockfd=NULL;
 //                }
 
             }
             else
             {
-                LOG_fatal << "ERROR on binding socket: " << errno; CLEAN_fatal;
+                LOG_fatal << "ERROR on binding socket: " << errno;
                 sockfd=-1;
             }
 
@@ -293,14 +293,14 @@ public:
                            &clilen);
         if (newsockfd < 0)
         {
-            LOG_fatal << "ERROR on accept"; CLEAN_fatal;
+            LOG_fatal << "ERROR on accept";
             sleep (1);
             return "ERROR";
         }
         bzero(buffer,1024);
         n = read(newsockfd,buffer,1023);
         if (n < 0) {
-            LOG_fatal << "ERROR reading from socket"; CLEAN_fatal;
+            LOG_fatal << "ERROR reading from socket";
             return "ERROR";
         }
 
@@ -308,7 +308,7 @@ public:
         socket_out = create_new_socket(&socket_id);
         if (!socket_out || !socket_id)
         {
-            LOG_fatal << "ERROR creating output socket"; CLEAN_fatal;
+            LOG_fatal << "ERROR creating output socket";
             return "ERROR";
         }
 
@@ -318,7 +318,7 @@ public:
 
         n = write(newsockfd,&socket_id,sizeof(socket_id));
         if (n < 0){
-            LOG_fatal << "ERROR writing to socket: errno = " << errno; CLEAN_fatal;
+            LOG_fatal << "ERROR writing to socket: errno = " << errno;
             return "ERROR";
         }
         close (newsockfd);
@@ -432,6 +432,8 @@ MegaError *SynchronousRequestListener::getError() const
 
 class MegaCmdListener : public SynchronousRequestListener
 {
+private:
+    float percentFetchnodes;
 public:
     MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();
@@ -498,11 +500,11 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
     {
         if (users->size()==1)
         {
-            LOG_info <<" 1 user received or updated" ; CLEAN_info;
+            LOG_info <<" 1 user received or updated" ;
         }
         else
         {
-            LOG_info << users->size() << " users received or updated"; CLEAN_info;
+            LOG_info << users->size() << " users received or updated";
         }
     }
     else //initial update or too many changes
@@ -513,11 +515,11 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
         {
             if (users->size()==1)
             {
-                LOG_info <<" 1 user received or updated" ; CLEAN_info;
+                LOG_info <<" 1 user received or updated" ;
             }
             else
             {
-                LOG_info << users->size() << " users received or updated"; CLEAN_info;
+                LOG_info << users->size() << " users received or updated";
             }
             delete users;
         }
@@ -584,10 +586,10 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
         delete inshares;
     }
 
-    if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; CLEAN_info; }
-    if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; CLEAN_info; }
-    if (rfolders) { LOG_info << rfolders << " folders " << "removed"; CLEAN_info; }
-    if (rfiles) { LOG_info << rfiles << " files " << "removed"; CLEAN_info; }
+    if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
+    if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
+    if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
+    if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
 }
 
 // listener for all actions with the api
@@ -1786,7 +1788,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
             title = "CRYPTO_ERROR";
         }
 
-        for (int i = depth; i--; )
+        for (int i = depth-1; i--; )
         {
             OUTSTREAM << "\t";
         }
@@ -2038,19 +2040,19 @@ void sigint_handler(int signum)
 void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
     if (!request)
     {
-        LOG_err << " onRequestStart for undefined request "; CLEAN_err;
+        LOG_err << " onRequestStart for undefined request ";
         return;
     }
 
-    LOG_verbose << "onRequestStart request->getType(): " << request->getType(); CLEAN_verbose;
+    LOG_verbose << "onRequestStart request->getType(): " << request->getType();
 
     switch(request->getType())
     {
         case MegaRequest::TYPE_LOGIN:
-            LOG_debug << "onRequestStart login email: " << request->getEmail(); CLEAN_debug;
+            LOG_debug << "onRequestStart login email: " << request->getEmail();
             break;
         default:
-            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType(); CLEAN_debug;
+            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType();
             break;
     }
 
@@ -2061,41 +2063,43 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
 {
     if (!request)
     {
-        LOG_err << " onRequestFinish for undefined request "; CLEAN_err;
+        LOG_err << " onRequestFinish for undefined request ";
         return;
     }
 
-    LOG_verbose << "onRequestFinish request->getType(): " << request->getType(); CLEAN_verbose;
+    LOG_verbose << "onRequestFinish request->getType(): " << request->getType();
 
     switch(request->getType())
     {
 //        case MegaRequest::TYPE_LOGIN:
-//            LOG_debug << "onRequestFinish login email: " << request->getEmail(); CLEAN_debug;
+//            LOG_debug << "onRequestFinish login email: " << request->getEmail();
 //            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
 //            {
-//                LOG_err << "onRequestFinish login failed: invalid email or password"; CLEAN_err;
+//                LOG_err << "onRequestFinish login failed: invalid email or password";
 //            }
 //            else //login success:
 //            {
-//                LOG_info << "Login correct ..."; CLEAN_info;
+//                LOG_info << "Login correct ...";
 //            }
 //            break;
 //        case MegaRequest::TYPE_LOGOUT:
-//            LOG_debug << "onRequestFinish logout .."; CLEAN_debug;
+//            LOG_debug << "onRequestFinish logout ..";
 //            if (e->getErrorCode() == MegaError::API_OK) // failed to login
 //            {
-//                LOG_verbose << "onRequestFinish logout ok"; CLEAN_verbose;
+//                LOG_verbose << "onRequestFinish logout ok";
 //            }
 //            else
 //            {
-//                LOG_err << "onRequestFinish failed to logout"; CLEAN_err;
+//                LOG_err << "onRequestFinish failed to logout";
 //            }
 //        break;
 //    case MegaRequest::TYPE_FETCH_NODES:
-//            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: "; CLEAN_debug;
+//            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
 //        break;
         default:
-            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType(); CLEAN_debug;
+            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
+//            rl_message("");
+//            clear_display();
             break;
     }
     //clear_display();
@@ -2104,31 +2108,44 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
 void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
     if (!request)
     {
-        LOG_err << " onRequestUpdate for undefined request "; CLEAN_err;
+        LOG_err << " onRequestUpdate for undefined request ";
         return;
     }
 
-    LOG_verbose << "onRequestUpdate request->getType(): " << request->getType(); CLEAN_verbose;
+    LOG_verbose << "onRequestUpdate request->getType(): " << request->getType();
 
     switch(request->getType())
     {
     case MegaRequest::TYPE_FETCH_NODES:
     {
-        ostringstream s;
-        if (request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 >=0)
-        {
-            s << request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0 << " %" ;
-        }
-        else{
-            s<< "0 %";
-        }
-        rl_replace_line(s.str().c_str(), 0);rl_redisplay();
+        int rows,cols;
+        rl_get_screen_size (&rows,&cols);
+        char formatString[30];
+        char outputString[cols+1];
+        for (int i=0;i<cols;i++) outputString[i]='.';
+        outputString[cols]='\0';
+        char * ptr = outputString;
+        sprintf(ptr,"%s","Fetching nodes ||");
+        ptr+=strlen("Fetching nodes ||");
+        *ptr='.'; //replace \0 char
 
-        //            rl_forced_update_display(); OUTSTREAM <<   << "%";
+
+        float oldpercent = percentFetchnodes;
+        percentFetchnodes =  request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0;
+        if (percentFetchnodes==oldpercent && oldpercent!=0) return;
+        if (percentFetchnodes <0) percentFetchnodes = 0;
+
+        char aux[30];
+        sprintf(aux,"||( %.2f %%)",percentFetchnodes);
+        sprintf(outputString+cols-strlen(aux),"%s",aux);
+
+        for (int i=0; i< (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
+
+        rl_message("%s",outputString);
         break;
     }
     default:
-        LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType(); CLEAN_debug;
+        LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType();
         break;
     }
 }
@@ -2286,7 +2303,7 @@ int loadfile(string* name, string* data)
 
 void finalize()
 {
-    LOG_info << "closing application ..." ; CLEAN_info;
+    LOG_info << "closing application ..." ;
     delete cm;
     delete console;
     delete apiLogger;
@@ -2327,7 +2344,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "GetExtendedAccountDetails took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "GetExtendedAccountDetails took too long, it may have failed. No further actions performed";
            return;
         }
     }
@@ -2336,7 +2353,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
     {
         char timebuf[32], timebuf2[32];
 
-        LOG_verbose << "actUponGetExtendedAccountDetails ok"; CLEAN_verbose;
+        LOG_verbose << "actUponGetExtendedAccountDetails ok";
 
         MegaAccountDetails *details =  srl->getRequest()->getMegaAccountDetails();
         if (details)
@@ -2488,7 +2505,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
     }
     else
     {
-        LOG_err << " failed to GetExtendedAccountDetails. Error: " << srl->getError()->getErrorString(); CLEAN_err;
+        LOG_err << " failed to GetExtendedAccountDetails. Error: " << srl->getError()->getErrorString();
     }
 }
 
@@ -2500,14 +2517,14 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "Fetch nodes took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "Fetch nodes took too long, it may have failed. No further actions performed";
            return;
         }
     }
 
     if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
-        LOG_verbose << "actUponFetchNodes ok"; CLEAN_verbose;
+        LOG_verbose << "actUponFetchNodes ok";
         if (rootNode) delete rootNode;
         rootNode = srl->getApi()->getRootNode();
 
@@ -2517,10 +2534,11 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
             cwd = rootNode->getHandle();
         }
         if (cwdNode) delete cwdNode;
+        LOG_info << " Fetch nodes correctly";
     }
     else
     {
-        LOG_err << " failed to fetch nodes. Error: " << srl->getError()->getErrorString(); CLEAN_err;
+        LOG_err << " failed to fetch nodes. Error: " << srl->getError()->getErrorString();
     }
 }
 
@@ -2533,19 +2551,19 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "Login took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "Login took too long, it may have failed. No further actions performed";
            return;
         }
     }
 
-    LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail(); CLEAN_debug;
+    LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail();
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
-        LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString(); CLEAN_err;
+        LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString();
     }
     else //login success:
     {
-        LOG_info << "Login correct ... " << srl->getRequest()->getEmail(); CLEAN_info;
+        LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
 
         session = srl->getApi()->dumpSession();
         srl->getApi()->fetchNodes(srl);
@@ -2561,13 +2579,13 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "Logout took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "Logout took too long, it may have failed. No further actions performed";
            return;
         }
     }
     if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
     {
-        LOG_verbose << "actUponLogout logout ok"; CLEAN_verbose;
+        LOG_verbose << "actUponLogout logout ok";
         cwd = UNDEF;
         delete rootNode;
         rootNode=NULL;
@@ -2576,7 +2594,7 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
     }
     else
     {
-        LOG_err << "actUponLogout failed to logout: " << srl->getError()->getErrorString(); CLEAN_err;
+        LOG_err << "actUponLogout failed to logout: " << srl->getError()->getErrorString();
     }
 }
 
@@ -2588,24 +2606,24 @@ int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "actUponCreateFolder took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "actUponCreateFolder took too long, it may have failed. No further actions performed";
            return 1;
         }
     }
     if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
-        LOG_verbose << "actUponCreateFolder Create Folder ok"; CLEAN_verbose;
+        LOG_verbose << "actUponCreateFolder Create Folder ok";
         return 0;
     }
     else
     {
         if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
         {
-            LOG_err << "actUponCreateFolder failed to create folder: Access Denied"; CLEAN_err;
+            LOG_err << "actUponCreateFolder failed to create folder: Access Denied";
         }
         else
         {
-            LOG_err << "actUponCreateFolder failed to create folder: " << srl->getError()->getErrorString(); CLEAN_err;
+            LOG_err << "actUponCreateFolder failed to create folder: " << srl->getError()->getErrorString();
         }
         return 2;
     }
@@ -2621,24 +2639,24 @@ int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0)
     {
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
-           LOG_err << "delete took too long, it may have failed. No further actions performed"; CLEAN_err;
+           LOG_err << "delete took too long, it may have failed. No further actions performed";
            return 1;
         }
     }
     if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
     {
-        LOG_verbose << "actUponDeleteNode delete ok"; CLEAN_verbose;
+        LOG_verbose << "actUponDeleteNode delete ok";
         return 0;
     }
     else
     {
         if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
         {
-            LOG_err << "actUponDeleteNode failed to delete: Access Denied"; CLEAN_err;
+            LOG_err << "actUponDeleteNode failed to delete: Access Denied";
         }
         else
         {
-            LOG_err << "actUponDeleteNode failed to delete: " << srl->getError()->getErrorString(); CLEAN_err;
+            LOG_err << "actUponDeleteNode failed to delete: " << srl->getError()->getErrorString();
         }
         return 2;
     }
@@ -2892,7 +2910,7 @@ static void process_line(char* l)
                 case 4:
                     if (words[0] == "ls")
                     {
-                        if (!api->isLoggedIn()) { LOG_err << "Not logged in"; CLEAN_err; return;}
+                        if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return;}
                         int recursive = words.size() > 1 && words[1] == "-R";
 
                         if ((int) words.size() > recursive + 1)
@@ -2917,14 +2935,14 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "cd")
                     {
-                        if (!api->isLoggedIn()) { LOG_err << "Not logged in";CLEAN_err; return; }
+                        if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return; }
                         if (words.size() > 1)
                         {
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (n->getType() == MegaNode::TYPE_FILE)
                                 {
-                                    LOG_err << words[1] << ": Not a directory"; CLEAN_err;
+                                    LOG_err << words[1] << ": Not a directory";
                                 }
                                 else
                                 {
@@ -2934,12 +2952,12 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                LOG_err << words[1] << ": No such file or directory"; CLEAN_err;
+                                LOG_err << words[1] << ": No such file or directory";
                             }
                         }
                         else
                         {
-                            if (!rootNode) {LOG_err << "nodes not fetched"; CLEAN_err; return; }
+                            if (!rootNode) {LOG_err << "nodes not fetched"; return; }
                               cwd = rootNode->getHandle();
                         }
 
@@ -2954,7 +2972,7 @@ static void process_line(char* l)
                                 MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                                 if (nodeToDelete)
                                 {
-                                    LOG_verbose << "Deleting recursively: " << words[i]; CLEAN_verbose;
+                                    LOG_verbose << "Deleting recursively: " << words[i];
                                     api->remove(nodeToDelete, megaCmdListener);
                                     actUponDeleteNode(megaCmdListener);
                                     delete nodeToDelete;
@@ -2989,7 +3007,7 @@ static void process_line(char* l)
                                 {
                                     if (tn->getHandle() == n->getHandle())
                                     {
-                                        LOG_err << "Source and destiny are the same"; CLEAN_err;
+                                        LOG_err << "Source and destiny are the same";
                                     }
                                     else
                                     {
@@ -3013,7 +3031,7 @@ static void process_line(char* l)
                                                 }
                                                 else
                                                 {
-                                                    LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                                    LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                 }
                                             }
                                         }
@@ -3041,7 +3059,7 @@ static void process_line(char* l)
                                                         megaCmdListener->wait(); //TODO: actuponremove ...
                                                         if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
                                                         {
-                                                            LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                                            LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                         }
                                                     }
 
@@ -3056,12 +3074,12 @@ static void process_line(char* l)
                                                     }
                                                     else
                                                     {
-                                                        LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                                        LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                     }
                                                 }
                                                 else
                                                 {
-                                                    LOG_fatal << "Destiny node is orphan!!!"; CLEAN_fatal;
+                                                    LOG_fatal << "Destiny node is orphan!!!";
                                                 }
                                             }
                                             else // target is a folder
@@ -3107,7 +3125,7 @@ static void process_line(char* l)
                                 {
                                     if (tn->getHandle() == n->getHandle())
                                     {
-                                        LOG_err << "Source and destiny are the same"; CLEAN_err;
+                                        LOG_err << "Source and destiny are the same";
                                     }
                                     else
                                     {
@@ -3136,7 +3154,7 @@ static void process_line(char* l)
                                                 }
                                                 else
                                                 {
-                                                    LOG_err << " Couldn't find new node created upon cp"; CLEAN_err;
+                                                    LOG_err << " Couldn't find new node created upon cp";
                                                 }
                                             }
                                         }
@@ -3161,12 +3179,12 @@ static void process_line(char* l)
                                                         megaCmdListener->wait(); //TODO: actuponremove ...
                                                         if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
                                                         {
-                                                            LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode(); CLEAN_err;
+                                                            LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                         }
                                                     }
                                                     else
                                                     {
-                                                        LOG_fatal << "Destiny node is orphan!!!"; CLEAN_fatal;
+                                                        LOG_fatal << "Destiny node is orphan!!!";
                                                     }
                                                 }
                                                 else
@@ -3459,7 +3477,7 @@ static void process_line(char* l)
 
                                     if (n->getType() == MegaNode::TYPE_FILE)
                                     {
-                                        LOG_err << words[2] << ": Remote sync root must be folder."; CLEAN_err;
+                                        LOG_err << words[2] << ": Remote sync root must be folder.";
                                     }
                                     else
                                     {
@@ -3470,20 +3488,20 @@ static void process_line(char* l)
                                         }
                                         else
                                         {
-                                            LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString() ;CLEAN_err
+                                            LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString();
                                         }
 
                                     }
                                 }
                                 else
                                 {
-                                    LOG_err << words[2] << ": Syncing requires full access to path, current acces: " << api->getAccess(n); CLEAN_err;
+                                    LOG_err << words[2] << ": Syncing requires full access to path, current acces: " << api->getAccess(n);
                                 }
                                 delete n;
                             }
                             else
                             {
-                                LOG_err << "Couldn't find remote folder: " << words[2]; CLEAN_err;
+                                LOG_err << "Couldn't find remote folder: " << words[2];
                             }
                         }
                         else if (words.size() == 2)
@@ -3526,7 +3544,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << (*itr).second; CLEAN_err
+                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << (*itr).second;
                                 }
                             }
 //                            for (int i=0;i<m)
@@ -3647,7 +3665,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            OUTSTREAM << "Already logged in. Please log OUTSTREAM first." << endl;
+                            OUTSTREAM << "Already logged in. Please log out first." << endl;
                         }
 
                         return;
@@ -3866,7 +3884,7 @@ static void process_line(char* l)
                                         MegaNode *existing_node = api->getChildNode(currentnode,newfoldername.c_str());
                                         if (!existing_node)
                                         {
-                                            LOG_verbose << "Creating (sub)folder: " << newfoldername; CLEAN_verbose;
+                                            LOG_verbose << "Creating (sub)folder: " << newfoldername;
                                             api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
                                             actUponCreateFolder(megaCmdListener);
                                             MegaNode *prevcurrentNode=currentnode;
@@ -3874,7 +3892,7 @@ static void process_line(char* l)
                                             delete prevcurrentNode;
                                             if (!currentnode)
                                             {
-                                                LOG_err << "Couldn't get node for created subfolder: " << newfoldername; CLEAN_err;
+                                                LOG_err << "Couldn't get node for created subfolder: " << newfoldername;
                                                 break;
                                             }
                                         }
@@ -3886,7 +3904,7 @@ static void process_line(char* l)
 
                                         if (lastleave && existing_node)
                                         {
-                                            LOG_err << "Folder already exists: " << words[1]; CLEAN_err;
+                                            LOG_err << "Folder already exists: " << words[1];
                                         }
                                     }
 
@@ -3909,7 +3927,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            LOG_err << "Couldn't get node for cwd handle: " << cwd; CLEAN_err;
+                            LOG_err << "Couldn't get node for cwd handle: " << cwd;
                         }
                         return;
                     }
@@ -5165,7 +5183,7 @@ void DemoApp::reload(const char* reason)
 // reload initiated
 void DemoApp::clearing()
 {
-    LOG_debug << "Clearing all nodes/users..."; CLEAN_debug;
+    LOG_debug << "Clearing all nodes/users...";
 }
 
 // nodes have been modified
@@ -5209,7 +5227,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 // nodes now (almost) current, i.e. no server-client notifications pending
 void DemoApp::nodes_current()
 {
-    LOG_debug << "Nodes current."; CLEAN_debug;
+    LOG_debug << "Nodes current.";
 }
 
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
@@ -5435,7 +5453,7 @@ void * doProcessLine(void *pointer)
     //TODO use mutex, and free after accept
 
     if (connectedsocket == -1) {
-        LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno; CLEAN_fatal;
+        LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno;
         return NULL;
     }
 
@@ -5446,22 +5464,22 @@ void * doProcessLine(void *pointer)
 
 
     LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
-         << " socket output: " <<  inf->outSocket ; CLEAN_debug;
+         << " socket output: " <<  inf->outSocket ;
 
     process_line(inf->line);
 
     LOG_debug << " Procesed " << inf->line << " in thread: " << getCurrentThread()
-         << " socket output: " <<  inf->outSocket ; CLEAN_debug;
+         << " socket output: " <<  inf->outSocket ;
 
 
-    LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>"; CLEAN_verbose;
+    LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>";
 
     string sout = s.str();
 
     int n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
     if (n < 0)
     {
-        LOG_err << "ERROR writing to socket: " << errno; CLEAN_err;
+        LOG_err << "ERROR writing to socket: " << errno;
     }
     close(connectedsocket);
     close(inf->outSocket);
@@ -5574,8 +5592,11 @@ void megacmd()
                     rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
                     if (rc < 0)
                     {
-                        LOG_fatal << "Error at select: " << errno; CLEAN_fatal;
-                        //TODO: return?
+                        if (errno  != EINTR) //syscall
+                        {
+                            LOG_fatal << "Error at select: " << errno;
+                            //TODO: return?
+                        }
                     }
 
                     if (FD_ISSET(readline_fd, &fds)) {
@@ -5583,12 +5604,12 @@ void megacmd()
                     }
                     else if (FD_ISSET(cm->getFileDescriptor(), &fds))
                     {
-                        LOG_verbose << "Client connected "; CLEAN_verbose;
+                        LOG_verbose << "Client connected ";
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
                         int socket_out;
                         string petition=cm->getPetition(socket_out);
 
-                        LOG_verbose << "petition registered: " << petition; CLEAN_verbose;
+                        LOG_verbose << "petition registered: " << petition;
 
 
                         //delete finished threads
@@ -5611,13 +5632,13 @@ void megacmd()
                         thread_info_t *inf = new thread_info_t();
 
                         inf->line = strdup(petition.c_str());
-                        LOG_verbose << "petition copied to struct: " << inf->line; CLEAN_verbose;
+                        LOG_verbose << "petition copied to struct: " << inf->line;
 
                         inf->outSocket = socket_out;
 
 //                        inf.stream = OUTSTREAM;
 
-                        LOG_debug << "starting processing: "; CLEAN_debug;
+                        LOG_debug << "starting processing: ";
 
                         petitionThread->start(doProcessLine, (void *)inf);
 //                        delete petitionThread; //TODO: never deleted
