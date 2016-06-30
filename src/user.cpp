@@ -173,7 +173,7 @@ User* User::unserialize(MegaClient* client, string* d)
     {
         attr_t key;
 
-        if (ptr + sizeof ptr > end)
+        if (ptr + sizeof(char) > end)
         {
             client->discarduser(uh);
             return NULL;
@@ -182,7 +182,7 @@ User* User::unserialize(MegaClient* client, string* d)
         l = *ptr++;
         for (int i = 0; i < l; i++)
         {
-            if (ptr + sizeof key >= end)
+            if (ptr + sizeof key + sizeof(ll) > end)
             {
                 client->discarduser(uh);
                 return NULL;
@@ -190,12 +190,6 @@ User* User::unserialize(MegaClient* client, string* d)
 
             key = MemAccess::get<attr_t>(ptr);
             ptr += sizeof key;
-
-            if (ptr + sizeof(ll) > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
