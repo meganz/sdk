@@ -1688,7 +1688,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
             else
             {
                 //TODO: modify using API //TODO: test & delete comments
-                n = rootNode;
+                n = api->getRootNode();
 //                n = client->nodebyhandle(client->rootnodes[0]);
 
                 l = 1;
