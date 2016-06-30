@@ -171,45 +171,56 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     else if (attrVersion == '1')
     {
-        if ((l = *ptr++))
+        attr_t key;
+
+        if (ptr + sizeof ptr > end)
         {
-            attr_t key;
-            while (ptr + sizeof key < end)
+            client->discarduser(uh);
+            return NULL;
+        }
+
+        l = *ptr++;
+        for (int i = 0; i < l; i++)
+        {
+            if (ptr + sizeof key >= end)
             {
-                key = MemAccess::get<attr_t>(ptr);
-                ptr += sizeof key;
+                client->discarduser(uh);
+                return NULL;
+            }
 
-                if (ptr + sizeof(ll) > end)
+            key = MemAccess::get<attr_t>(ptr);
+            ptr += sizeof key;
+
+            if (ptr + sizeof(ll) > end)
+            {
+                client->discarduser(uh);
+                return NULL;
+            }
+
+            ll = MemAccess::get<short>(ptr);
+            ptr += sizeof ll;
+
+            if (ptr + ll + sizeof(ll) > end)
+            {
+                client->discarduser(uh);
+                return NULL;
+            }
+
+            u->attrs[key].assign(ptr, ll);
+            ptr += ll;
+
+            ll = MemAccess::get<short>(ptr);
+            ptr += sizeof ll;
+
+            if (ll)
+            {
+                if (ptr + ll > end)
                 {
                     client->discarduser(uh);
                     return NULL;
                 }
-
-                ll = MemAccess::get<short>(ptr);
-                ptr += sizeof ll;
-
-                if (ptr + ll + sizeof(ll) > end)
-                {
-                    client->discarduser(uh);
-                    return NULL;
-                }
-
-                u->attrs[key].assign(ptr, ll);
+                u->attrsv[key].assign(ptr,ll);
                 ptr += ll;
-
-                ll = MemAccess::get<short>(ptr);
-                ptr += sizeof ll;
-
-                if (ll)
-                {
-                    if (ptr + ll > end)
-                    {
-                        client->discarduser(uh);
-                        return NULL;
-                    }
-                    u->attrsv[key].assign(ptr,ll);
-                    ptr += ll;
-                }
             }
         }
     }
