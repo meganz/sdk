@@ -64,6 +64,8 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
+    l = (unsigned char)attrs.size();
+    d->append((char*)&l, sizeof l);
     for (userattr_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
         d->append((char*)&it->first, sizeof it->first);
@@ -84,8 +86,6 @@ bool User::serialize(string* d)
             d->append((char*)&ll, sizeof ll);
         }
     }
-
-    d->append("", 1);
 
     if (pubk.isvalid())
     {
@@ -171,42 +171,45 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     else if (attrVersion == '1')
     {
-        attr_t key;
-        while (ptr + sizeof key < end)
+        if ((l = *ptr++))
         {
-            key = MemAccess::get<attr_t>(ptr);
-            ptr += sizeof key;
-
-            if (ptr + sizeof(ll) > end)
+            attr_t key;
+            while (ptr + sizeof key < end)
             {
-                client->discarduser(uh);
-                return NULL;
-            }
+                key = MemAccess::get<attr_t>(ptr);
+                ptr += sizeof key;
 
-            ll = MemAccess::get<short>(ptr);
-            ptr += sizeof ll;
-
-            if (ptr + ll + sizeof(ll) > end)
-            {
-                client->discarduser(uh);
-                return NULL;
-            }
-
-            u->attrs[key].assign(ptr, ll);
-            ptr += ll;
-
-            ll = MemAccess::get<short>(ptr);
-            ptr += sizeof ll;
-
-            if (ll)
-            {
-                if (ptr + ll > end)
+                if (ptr + sizeof(ll) > end)
                 {
                     client->discarduser(uh);
                     return NULL;
                 }
-                u->attrsv[key].assign(ptr,ll);
+
+                ll = MemAccess::get<short>(ptr);
+                ptr += sizeof ll;
+
+                if (ptr + ll + sizeof(ll) > end)
+                {
+                    client->discarduser(uh);
+                    return NULL;
+                }
+
+                u->attrs[key].assign(ptr, ll);
                 ptr += ll;
+
+                ll = MemAccess::get<short>(ptr);
+                ptr += sizeof ll;
+
+                if (ll)
+                {
+                    if (ptr + ll > end)
+                    {
+                        client->discarduser(uh);
+                        return NULL;
+                    }
+                    u->attrsv[key].assign(ptr,ll);
+                    ptr += ll;
+                }
             }
         }
     }
