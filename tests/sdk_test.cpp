@@ -1589,11 +1589,15 @@ TEST_F(SdkTest, SdkTestChat)
 
     h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_RW);
+    peers->addPeer(h, PRIV_STANDARD);
     group = true;
 
     chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );    
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) )
+            << "Cannot create a new chat";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Chat update not received after " << maxTimeout << " seconds";
 
@@ -1624,7 +1628,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_FULL);
+    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]) )
             << "Chat invitation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Invitation of chat peer failed (error: " << lastError[0] << ")";

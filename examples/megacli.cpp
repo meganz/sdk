@@ -663,14 +663,12 @@ string DemoApp::getPrivilegeString(privilege_t priv)
 {
     switch (priv)
     {
-    case PRIV_FULL:
-        return "PRIV_FULL (full access)";
-    case PRIV_OPERATOR:
-        return "PRIV_OPERATOR (operator)";
+    case PRIV_STANDARD:
+        return "PRIV_STANDARD (standard access)";
+    case PRIV_MODERATOR:
+        return "PRIV_MODERATOR (moderator)";
     case PRIV_RO:
         return "PRIV_RO (read-only)";
-    case PRIV_RW:
-        return "PRIV_RW (read-write)";
     case PRIV_RM:
         return "PRIV_RM (removed)";
     case PRIV_UNKNOWN:
@@ -1880,8 +1878,8 @@ static void process_line(char* l)
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chatf " << endl;
-                cout << "      chatc group [email ro|rw|full|op]*" << endl;
-                cout << "      chati chatid email ro|rw|full|op" << endl;
+                cout << "      chatc group [email ro|sta|mod]*" << endl;
+                cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
@@ -3221,17 +3219,13 @@ static void process_line(char* l)
                                 {
                                     priv = PRIV_RO;
                                 }
-                                else if (privstr == "rw")
+                                else if (privstr == "sta")
                                 {
-                                    priv = PRIV_RW;
+                                    priv = PRIV_STANDARD;
                                 }
-                                else if (privstr == "full")
+                                else if (privstr == "mod")
                                 {
-                                    priv = PRIV_FULL;
-                                }
-                                else if (privstr == "op")
-                                {
-                                    priv = PRIV_OPERATOR;
+                                    priv = PRIV_MODERATOR;
                                 }
                                 else
                                 {
@@ -3250,7 +3244,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                            cout << "      chatc group [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -3275,17 +3269,13 @@ static void process_line(char* l)
                             {
                                 priv = PRIV_RO;
                             }
-                            else if (privstr == "rw")
+                            else if (privstr == "sta")
                             {
-                                priv = PRIV_RW;
+                                priv = PRIV_STANDARD;
                             }
-                            else if (privstr == "full")
+                            else if (privstr == "mod")
                             {
-                                priv = PRIV_FULL;
-                            }
-                            else if (privstr == "op")
-                            {
-                                priv = PRIV_OPERATOR;
+                                priv = PRIV_MODERATOR;
                             }
                             else
                             {
@@ -3298,7 +3288,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|rw|full|op" << endl;
+                            cout << "      chati chatid email ro|sta|mod" << endl;
                             return;
 
                         }

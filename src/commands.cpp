@@ -4346,7 +4346,7 @@ void CommandChatCreate::procresult()
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
-                        chat->priv = PRIV_OPERATOR;
+                        chat->priv = PRIV_MODERATOR;
                         chat->url = url;
                         chat->shard = shard;
                         chat->userpriv = this->chatPeers;
