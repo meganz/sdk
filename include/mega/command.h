@@ -280,7 +280,8 @@ public:
 class MEGA_API CommandMoveNode : public Command
 {
     handle h;
-    handle pp;
+    handle pp;  // previous parent
+    handle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
 

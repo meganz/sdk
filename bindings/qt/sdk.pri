@@ -56,7 +56,7 @@ CONFIG(USE_LIBUV) {
     DEFINES += HAVE_LIBUV
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv
+        LIBS += -llibuv -lIphlpapi -lUserenv
     }
     else {
         LIBS += -luv
