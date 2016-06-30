@@ -107,7 +107,7 @@ char *EdDSA::genFingerprintHex()
 {
     byte *fp = genFingerprint(true);
 
-    static const char hexchars[] = "0123456789abcdef";
+    static const char hexchars[] = "0123456789ABCDEF";
     ostringstream oss;
     string fpHex;
     for (size_t i = 0; i < 40; ++i)
