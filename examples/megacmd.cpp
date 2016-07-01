@@ -2701,6 +2701,124 @@ int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0)
 
 
 
+// trim from start
+static inline std::string &ltrim(std::string &s, const char &c) {
+    size_t pos = s.find_first_not_of(c);
+    s=s.substr(pos==string::npos?s.length():pos,s.length());
+    return s;
+}
+
+//
+bool setOptionsAndFlags(map<string,string> *opt,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
+{
+    bool discarded = false;
+    //delete finished threads
+//    set<string> vvalidOptions(validOptions,validOptions + sizeof(validOptions)/sizeof(*validOptions));
+
+    for(std::vector<string>::iterator it = ws->begin(); it != ws->end();) {
+        /* std::cout << *it; ... */
+        string w = (string)*it;
+        if (w.length() && w.at(0)=='-') //begins with "-"
+        {
+            if (w.length()>1 && w.at(1)!='-'){ //single character flags!
+                for (int i=1;i<w.length();i++)
+                {
+                    string optname = w.substr(i,1);
+                    if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                    {
+                        (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+                    }
+                    else
+                    {
+                        LOG_err << "Invalid argument: "<< optname;
+                        discarded = true;
+                    }
+                }
+            }
+            else if (w.find_first_of("=") == std::string::npos) //flag
+            {
+                string optname = ltrim(w,'-');
+                if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                {
+                    (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: "<< optname;
+                    discarded = true;
+                }
+            }
+            it=ws->erase(it);
+        }
+        else //not an option/flag
+        {
+            if (global)
+                return discarded; //leave the others
+            ++it;
+        }
+    }
+    return discarded;
+}
+
+
+
+//void setOptionsAndFlags(map<string,string> *opt,map<string,int> *flags,vector<string> *ws, const char *validOptions[], bool discard = false)
+//{
+//    //delete finished threads
+//    set<string> vvalidOptions(validOptions,validOptions + sizeof(validOptions)/sizeof(*validOptions));
+
+//    for(std::vector<string>::iterator it = ws->begin(); it != ws->end();) {
+//        /* std::cout << *it; ... */
+//        string w = (string)*it;
+//        if (w.length() && w.at(0)=='-') //begins with "-"
+//        {
+//            if (w.length()>1 && w.at(1)!='-'){ //single character flags!
+//                for (int i=1;i<w.length();i++)
+//                {
+//                    string optname = w.substr(i,1);
+//                    if (vvalidOptions.find(optname) !=vvalidOptions.end())
+//                    {
+//                        (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+//                    }
+//                    else if (discard)
+//                    {
+//                        LOG_warn << " Option invalid (discarded): "<< optname;
+//                        w.replace(i,1,"_");
+//                    }
+//                }
+//                ++it;
+//            }
+//            else if (w.find_first_of("=") == std::string::npos) //flag
+//            {
+//                string optname = ltrim(w,'-');
+//                if (vvalidOptions.find(optname) !=vvalidOptions.end())
+//                {
+//                    (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+//                    it=ws->erase(it);
+//                }
+//                else if (discard)
+//                {
+//                    LOG_warn << " Option invalid (discarded): "<< optname;
+//                    it=ws->erase(it);
+//                }
+//                else
+//                    ++it;
+//            }
+//        }
+//        else
+//        {
+////            return; //leave the others
+//            ++it;
+//        }
+//    }
+//}
+
+int getFlag(map<string,int> *flags, const char * optname)
+{
+    return flags->count(optname)?(*flags)[optname]:0;
+}
+
+
 // execute command
 static void process_line(char* l)
 {
@@ -2940,6 +3058,24 @@ static void process_line(char* l)
                 return;
             }
 
+            map<string,string> cloptions;
+            map<string,int> clflags;
+
+            string validGlobalParameters[]={"v"};
+            set<string> validParams(validGlobalParameters,validGlobalParameters + sizeof(validGlobalParameters)/sizeof(*validGlobalParameters));
+            if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams,true) ) return;
+
+            string thecommand = words[0];
+
+            if ("ls" == thecommand)
+            {
+                validParams.insert("R");
+            }
+
+            if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
+
+            threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v");
+
             switch (words[0].size()) //TODO: why this???
             {
                 case 2:
@@ -2948,7 +3084,8 @@ static void process_line(char* l)
                     if (words[0] == "ls")
                     {
                         if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return;}
-                        int recursive = words.size() > 1 && words[1] == "-R";
+//                        int recursive = words.size() > 1 && words[1] == "-R";
+                        int recursive = getFlag(&clflags,"R");
 
                         if ((int) words.size() > recursive + 1)
                         {
@@ -2956,10 +3093,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            //TODO: modify using API
                             n = api->getNodeByHandle(cwd);
-//                            n = client->nodebyhandle(cwd);
-                            //TODO: save cwd somewhere?
                         }
 
                         if (n)
@@ -5499,7 +5633,7 @@ void * doProcessLine(void *pointer)
     std::ostringstream   s;
     outstreams[getCurrentThread()]=&s;
 
-    threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR; //TODO: change depending on parameters (-vvv)
+    threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR;
 
 
     LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
@@ -5509,7 +5643,6 @@ void * doProcessLine(void *pointer)
 
     LOG_debug << " Procesed " << inf->line << " in thread: " << getCurrentThread()
          << " socket output: " <<  inf->outSocket ;
-
 
     LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>";
 
