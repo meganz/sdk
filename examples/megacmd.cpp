@@ -2139,8 +2139,8 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
     case MegaRequest::TYPE_FETCH_NODES:
     {
         int rows,cols;
+        rl_resize_terminal();
         rl_get_screen_size (&rows,&cols);
-        char formatString[30];
         char outputString[cols+1];
         for (int i=0;i<cols;i++) outputString[i]='.';
         outputString[cols]='\0';
@@ -2156,10 +2156,10 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
         if (percentFetchnodes <0) percentFetchnodes = 0;
 
         char aux[30];
-        sprintf(aux,"||( %.2f %%)",percentFetchnodes);
+        sprintf(aux,"||( %.2f %%) ",percentFetchnodes);
         sprintf(outputString+cols-strlen(aux),"%s",aux);
 
-        for (int i=0; i< (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
+        for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
 
         rl_message("%s",outputString);
         break;
