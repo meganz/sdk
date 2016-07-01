@@ -3544,6 +3544,11 @@ static void process_line(char* l)
                             if ((u = client->finduser(client->me)))
                             {
                                 cout << "Account e-mail: " << u->email << endl;
+
+                                if (client->signkey)
+                                {
+                                    cout << "Credentials: " << client->signkey->genFingerprintHex() << endl;
+                                }
                             }
 
                             cout << "Retrieving account status..." << endl;
