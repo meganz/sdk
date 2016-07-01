@@ -890,11 +890,25 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
@@ -902,6 +916,13 @@ void DemoApp::getua_result(byte* data, unsigned l)
 
 void DemoApp::getua_result(TLVstore *tlv)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
