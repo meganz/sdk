@@ -710,7 +710,6 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-
     btcs.reset();
     btsc.reset();
     btpfa.reset();
@@ -760,6 +759,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     putmbpscap = 0;
     overquotauntil = 0;
     looprequested = false;
+
+#ifdef ENABLE_CHAT
+    fetchingkeys = false;
+    signkey = NULL;
+    chatkey = NULL;
+#endif
 
     init();
 
@@ -2632,7 +2637,11 @@ void MegaClient::locallogout()
 
     pendingfa.clear();
 
-    // erase master key & session ID
+    // erase keys & session ID
+#ifdef ENABLE_CHAT
+    resetKeyring();
+#endif
+
     key.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
     memset((char*)auth.c_str(), 0, auth.size());
@@ -2649,6 +2658,10 @@ void MegaClient::locallogout()
 
 #ifdef ENABLE_SYNC
     syncadding = 0;
+#endif
+
+#ifdef ENABLE_CHAT
+    fetchingkeys = false;
 #endif
 }
 
@@ -3777,8 +3790,13 @@ void MegaClient::sc_fileattr()
 // server-client user attribute update notification
 void MegaClient::sc_userattr()
 {
-    string ua;
     handle uh = UNDEF;
+    User *u = NULL;
+
+    string ua, uav;
+    string_vector ualist;    // stores attribute names
+    string_vector uavlist;   // stores attribute versions
+    string_vector::const_iterator itua, ituav;
 
     for (;;)
     {
@@ -3789,63 +3807,81 @@ void MegaClient::sc_userattr()
                 break;
 
             case MAKENAMEID2('u', 'a'):
-                if (!ISUNDEF(uh))
+                if (jsonsc.enterarray())
                 {
-                    User* u;
-
-                    if ((u = finduser(uh)))
+                    while (jsonsc.storeobject(&ua))
                     {
-                        if (jsonsc.enterarray())
-                        {
-                            while (jsonsc.storeobject(&ua))
-                            {
-                                if (ua == "+a")     // avatar
-                                {
-                                    u->changed.avatar = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "firstname")
-                                {
-                                    delete u->firstname;
-                                    u->firstname = NULL;
-                                    u->changed.firstname = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "lastname")
-                                {                                    
-                                    delete u->lastname;
-                                    u->lastname = NULL;
-                                    u->changed.lastname = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "*!authring")    // authentication information
-                                {
-                                    u->changed.auth = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "*!lstint")  // timestamp of last interaction
-                                {
-                                    u->changed.lstint = true;
-                                    notifyuser(u);
-                                }
-                                else
-                                {
-                                    LOG_debug << "User attribute not recognized: " << ua;
-                                }
-                            }
-
-                            jsonsc.leavearray();
-                            return;
-                        }
+                        ualist.push_back(ua);
                     }
-
-                    LOG_debug << "User attributes update for non-existing user";
+                    jsonsc.leavearray();
                 }
+                break;
 
-                jsonsc.storeobject();
+            case 'v':
+                if (jsonsc.enterarray())
+                {
+                    while (jsonsc.storeobject(&uav))
+                    {
+                        uavlist.push_back(uav);
+                    }
+                    jsonsc.leavearray();
+                }
                 break;
 
             case EOO:
+                if (ISUNDEF(uh))
+                {
+                    LOG_err << "Failed to parse the user :" << uh;
+                }
+                else if (!(u = finduser(uh)))
+                {
+                    LOG_debug << "User attributes update for non-existing user";
+                }
+                // if no version received (very old actionpacket)...
+                else if ( !uavlist.size() )
+                {
+                    // ...invalidate all of the notified user attributes
+                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
+                    {
+                        attr_t type = User::string2attr(itua->c_str());
+                        u->invalidateattr(type);
+#ifdef ENABLE_CHAT
+                        if (type == ATTR_KEYRING)
+                        {
+                            resetKeyring();
+                        }
+#endif
+                    }
+                    u->setTag(0);
+                    notifyuser(u);
+                }
+                else if (ualist.size() == uavlist.size())
+                {
+                    // invalidate only out-of-date attributes
+                    const string *cacheduav;
+                    for (itua = ualist.begin(), ituav = uavlist.begin();
+                         itua != ualist.end();
+                         itua++, ituav++)
+                    {
+                        attr_t type = User::string2attr(itua->c_str());
+                        if ((cacheduav = u->getattrversion(type)) && (*cacheduav != *ituav))
+                        {
+                            u->invalidateattr(type);
+#ifdef ENABLE_CHAT
+                            if (type == ATTR_KEYRING)
+                            {
+                                resetKeyring();
+                            }
+#endif
+                        }
+                    }
+                    u->setTag(0);
+                    notifyuser(u);
+                }
+                else    // different number of attributes than versions --> error
+                {
+                    LOG_err << "Unpaired user attributes and versions";
+                }
                 return;
 
             default:
@@ -4563,6 +4599,7 @@ void MegaClient::notifypurge(void)
             User *u = usernotify[i];
 
             u->notified = false;
+            u->resetTag();
             memset(&(u->changed), 0, sizeof(u->changed));
         }
 
@@ -6202,6 +6239,11 @@ User* MegaClient::finduser(handle uh, int add)
     }
 }
 
+User *MegaClient::ownuser()
+{
+    return finduser(me);
+}
+
 // add missing mapping (handle or email)
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
@@ -6254,6 +6296,32 @@ void MegaClient::mapuser(handle uh, const char* email)
         Base64::btoa((byte*)&uh, sizeof uh, uid);
         u->uid.assign(uid, 11);
     }
+}
+
+void MegaClient::discarduser(handle uh)
+{
+    User *u = finduser(uh);
+    if (!u)
+    {
+        return;
+    }
+
+    umindex.erase(u->email);
+    users.erase(uhindex[uh]);
+    uhindex.erase(uh);
+}
+
+void MegaClient::discarduser(const char *email)
+{
+    User *u = finduser(email);
+    if (!u)
+    {
+        return;
+    }
+
+    uhindex.erase(u->userhandle);
+    users.erase(umindex[email]);
+    umindex.erase(email);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)
@@ -6312,6 +6380,30 @@ void MegaClient::procsr(JSON* j)
 
     j->leavearray();
 }
+
+#ifdef ENABLE_CHAT
+void MegaClient::clearKeys()
+{
+    User *u = finduser(me);
+
+    u->invalidateattr(ATTR_KEYRING);
+    u->invalidateattr(ATTR_ED25519_PUBK);
+    u->invalidateattr(ATTR_CU25519_PUBK);
+    u->invalidateattr(ATTR_SIG_RSA_PUBK);
+    u->invalidateattr(ATTR_SIG_CU255_PUBK);
+
+    fetchingkeys = false;
+}
+
+void MegaClient::resetKeyring()
+{
+    delete signkey;
+    signkey = NULL;
+
+    delete chatkey;
+    chatkey = NULL;
+}
+#endif
 
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
@@ -6566,50 +6658,85 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * Attributes are stored as base64-encoded binary blobs. They use internal
  * attribute name prefixes:
  *
- * "*" - Private and CBC-encrypted.
- * "+" - Public and plain text.
+ * "*" - Private and encrypted. Use a TLV container (key-value)
+ * "#" - Protected and plain text, accessible only by contacts.
+ * "+" - Public and plain text, accessible by anyone knowing userhandle
  *
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::putua(const char* an, const byte* av, unsigned avl)
+void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 {
     string data;
 
-    if (!strcmp(an, "*!lstint") || !strcmp(an, "*!authring"))
+    if (!av)
     {
-        if (av)
+        if (at == ATTR_AVATAR)  // remove avatar
         {
-            data.assign((const char*)av, avl);
+            data = "none";
         }
 
-        string iv;
+        av = (const byte*) data.data();
+        avl = data.size();
+    }
 
-        PaddedCBC::encrypt(&data, &key, &iv);
+    User *u = ownuser();
+    int needversion = u->needversioning(at);
+    if (needversion == -1)
+    {
+        restag = reqtag;
+        app->putua_result(API_EARGS);   // attribute not recognized
+        return;
+    }
 
-        // Now prepend the data with the (8 byte) IV.
-        iv.append(data);
-        data = iv;
-
-        reqs.add(new CommandPutUA(this, an, (const byte*)data.data(), data.size()));
+    if (!needversion)
+    {
+        reqs.add(new CommandPutUA(this, at, av, avl));
     }
     else
     {
-        if (!av)
+        // if the cached value is outdated, first need to fetch the latest version
+        if (u->getattr(at) && !u->isattrvalid(at))
         {
-            if (!strcmp(an, "+a"))  // remove avatar
-            {
-                data = "none";
-            }
+            restag = reqtag;
+            app->putua_result(API_EEXPIRED);
+            return;
+        }
+        reqs.add(new CommandPutUAVer(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
+    }
+}
 
-            av = (const byte*) data.data();
-            avl = data.size();
+void MegaClient::putua(userattr_map *attrs, int ctag)
+{
+    User *u = ownuser();
+
+    if (!u || !attrs || !attrs->size())
+    {
+        return app->putua_result(API_EARGS);
+    }
+
+    for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
+    {
+        attr_t type = it->first;;
+
+        if (!User::needversioning(type))
+        {
+            restag = reqtag;
+            return app->putua_result(API_EARGS);
         }
 
-        reqs.add(new CommandPutUA(this, an, av, avl));
+        // if the cached value is outdated, first need to fetch the latest version
+        if (u->getattr(type) && !u->isattrvalid(type))
+        {
+            restag = reqtag;
+            return app->putua_result(API_EEXPIRED);
+        }
     }
+
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, (ctag != -1) ? ctag : reqtag));
 }
 
 /**
@@ -6617,29 +6744,61 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
  *
  * @param u User.
  * @param an Attribute name.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const char* an)
+void MegaClient::getua(User* u, const attr_t at, int ctag)
+{
+    if (at != ATTR_UNKNOWN)
+    {
+        // if we can solve those requests locally (cached values)...
+        const string *cachedav = u->getattr(at);
+
+#ifdef ENABLE_CHAT
+        if (!fetchingkeys && cachedav && u->isattrvalid(at))
+#else
+        if (cachedav && u->isattrvalid(at))
+#endif
+        {
+            if (User::scope(at) == '*') // private attribute, TLV encoding
+            {
+                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
+                restag = reqtag;
+                app->getua_result(tlv);
+                delete tlv;
+                return;
+            }
+            else
+            {
+                restag = reqtag;
+                app->getua_result((byte*) cachedav->data(), cachedav->size());
+                return;
+            }
+        }
+        else
+        {
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, (ctag != -1) ? ctag : reqtag));
+        }
+    }
+}
+
+void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
+{
+    if (email_handle && at != ATTR_UNKNOWN)
+    {
+        reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
+    }
+}
+
+#ifdef DEBUG
+void MegaClient::delua(const char *an)
 {
     if (an)
     {
-        // if we can solve those requests locally (runtime cached values)...
-        if (!strcmp(an, "firstname") && u->firstname)
-        {
-            restag = reqtag;
-            app->getua_result((byte*) u->firstname->data(), u->firstname->size());
-            return;
-        }
-        else if (!strcmp(an, "lastname") && u->lastname)
-        {
-            restag = reqtag;
-            app->getua_result((byte*) u->lastname->data(), u->lastname->size());
-            return;
-        }
-
-        reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
+        reqs.add(new CommandDelUA(this, an));
     }
 }
+#endif
 
 // queue node for notification
 void MegaClient::notifynode(Node* n)
@@ -7373,42 +7532,6 @@ void MegaClient::setkeypair()
                                       pubks.size()));
 }
 
-#ifdef USE_SODIUM
-/**
- * @brief Initialises the Ed25519 EdDSA key user properties.
- *
- * A key pair will be added, if not present, yet.
- *
- * @return Error code (default: 1 on success).
- */
-int MegaClient::inited25519()
-{
-    signkey.init();
-
-    // Make the new key pair and their storage arrays.
-    if (!signkey.genKeySeed())
-    {
-        LOG_err << "Error generating an Ed25519 key seed.";
-        return(0);
-    }
-
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-
-    if (!signkey.publicKey(pubKey))
-    {
-        free(pubKey);
-        LOG_err << "Error deriving the Ed25519 public key.";
-        return(0);
-    }
-
-    // Store the key pair to user attributes.
-    putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
-    putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
-    free(pubKey);
-    return(1);
-}
-#endif
-
 bool MegaClient::fetchsc(DbTable* sctable)
 {
     uint32_t id;
@@ -7670,6 +7793,7 @@ void MegaClient::fetchnodes()
     }
     else if (!fetchingnodes)
     {
+
         fetchingnodes = true;
 
         // prevent the processing of previous sc requests
@@ -7689,10 +7813,254 @@ void MegaClient::fetchnodes()
             (*it)->changestate(SYNC_CANCELED);
         }
 #endif
-
+#ifdef ENABLE_CHAT
+        if (loggedin() == FULLACCOUNT)
+        {
+            fetchkeys();
+        }
+#endif
         reqs.add(new CommandFetchNodes(this));
     }
 }
+
+#ifdef ENABLE_CHAT
+void MegaClient::fetchkeys()
+{
+    fetchingkeys = true;
+
+    resetKeyring();
+    discarduser(me);
+    User *u = finduser(me, 1);
+
+    int creqtag = reqtag;
+    reqtag = 0;
+    reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
+    reqtag = creqtag;
+
+    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+    getua(u, ATTR_ED25519_PUBK, 0);
+    getua(u, ATTR_CU25519_PUBK, 0);
+    getua(u, ATTR_SIG_CU255_PUBK, 0);
+    getua(u, ATTR_SIG_RSA_PUBK, 0);   // it triggers MegaClient::initializekeys() --> must be the latest
+}
+
+void MegaClient::initializekeys()
+{
+    User *u = finduser(me);
+
+    // Initialize private keys
+    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+    if (av)
+    {
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
+
+        if (tlvRecords->find(EdDSA::TLV_KEY))
+        {
+            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+            {
+                signkey = new EdDSA((unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
+                {
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
+                }
+            }
+        }
+
+        if (tlvRecords->find(ECDH::TLV_KEY))
+        {
+            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            {
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
+                {
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
+                }
+            }
+        }
+        delete tlvRecords;
+    }
+
+    string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
+    string puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
+    string sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
+    string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+
+    if (chatkey && signkey)    // THERE ARE KEYS
+    {
+        // Check Ed25519 public key against derived version
+        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(puEd255.data(), signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+        {
+            LOG_warn << "Public key for Ed25519 mismatch.";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99417, "Ed25519 public key mismatch");
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+
+        // Check Cu25519 public key against derive version
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
+        {
+            LOG_warn << "Public key for Cu25519 mismatch.";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99412, "Cu25519 public key mismatch");
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+
+        // Verify signatures for Cu25519
+        if (!sigCu255.size() ||
+                !signkey->verifyKey((unsigned char*) puCu255.data(),
+                                    puCu255.size(),
+                                    &sigCu255,
+                                    (unsigned char*) puEd255.data()))
+        {
+            LOG_warn << "Signature of public key for Cu25519 not found or mismatch";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99413, "Signature of Cu25519 public key mismatch");
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+
+        // Verify signature for RSA public key
+        string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+        string pubkstr;
+        if (pubk.isvalid())
+        {
+            pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
+        }
+        if (!pubkstr.size() || !sigPubk.size() ||
+                !signkey->verifyKey((unsigned char*) pubkstr.data(),
+                                    pubkstr.size(),
+                                    &sigPubk,
+                                    (unsigned char*) puEd255.data()))
+        {
+            LOG_warn << "Signature of public key for RSA not found or mismatch";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99414, "Signature of RSA public key mismatch");
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+
+        // if we reached this point, everything is OK
+        LOG_info << "Keypairs and signatures loaded successfully";
+        fetchingkeys = false;
+        return;
+    }
+    else if (!signkey && !chatkey)       // THERE ARE NO KEYS
+    {
+        // Check completeness of keypairs
+        if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
+        {
+            LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99415, "Incomplete keypair detected");
+            reqtag = creqtag;
+
+            clearKeys();
+            return;
+        }
+        else    // No keys were set --> generate keypairs and related attributes
+        {
+            // generate keypairs
+            EdDSA *signkey = new EdDSA();
+            ECDH *chatkey = new ECDH();
+
+            if (!chatkey->initializationOK || !signkey->initializationOK)
+            {
+                LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+                clearKeys();
+                resetKeyring();
+                return;
+
+            }
+
+            // prepare the TLV for private keys
+            TLVstore tlvRecords;
+            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            string *tlvContainer = tlvRecords.tlvRecordsToContainer(&key);
+
+            // prepare signatures
+            string pubkStr;
+            pubk.serializekeyforjs(&pubkStr, AsymmCipher::PUBKEY);
+            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
+
+            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
+            userattr_map attrs;
+            string buf;
+
+            buf.assign(tlvContainer->data(), tlvContainer->size());
+            attrs[ATTR_KEYRING] = buf;
+
+            buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+            attrs[ATTR_ED25519_PUBK] = buf;
+
+            buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+            attrs[ATTR_CU25519_PUBK] = buf;
+
+            buf.assign(sigPubk.data(), sigPubk.size());
+            attrs[ATTR_SIG_RSA_PUBK] = buf;
+
+            buf.assign(sigCu255.data(), sigCu255.size());
+            attrs[ATTR_SIG_CU255_PUBK] = buf;
+
+            putua(&attrs, 0);
+
+            delete tlvContainer;
+            delete chatkey;
+            delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
+
+            LOG_info << "Creating new keypairs and signatures";
+            fetchingkeys = false;
+            return;
+        }
+    }
+    else    // there is chatkey but no signing key, or viceversa
+    {
+        LOG_warn << "Keyring exists, but it's incomplete.";
+
+        int creqtag = reqtag;
+        reqtag = 0;
+        sendevent(99416, "Incomplete keyring detected");
+        reqtag = creqtag;
+
+        resetKeyring();
+        clearKeys();
+        return;
+    }
+}
+#endif  // ENABLE_CHAT
 
 void MegaClient::purgenodesusersabortsc()
 {
@@ -7749,9 +8117,25 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+
+#ifndef ENABLE_CHAT
     users.clear();
     uhindex.clear();
     umindex.clear();
+#else
+    for (user_map::iterator it = users.begin(); it != users.end(); )
+    {
+        User *u = &(it->second);
+        it++;
+        if (u->userhandle != me)
+        {
+            discarduser(u->userhandle);
+        }
+    }
+
+    assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
+#endif
+
     pcrindex.clear();
 
     *scsn = 0;

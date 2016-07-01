@@ -138,3 +138,4 @@
 
 ../../tests/sdktests.cpp
 ../../tests/sdk_test.h
+../../tests/crypto_test.cpp

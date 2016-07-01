@@ -482,6 +482,24 @@ void DemoApp::users_updated(User** u, int count)
     {
         cout << count << " users received or updated" << endl;
     }
+
+    if (u)
+    {
+        User* user;
+        for (int i = 0; i < count; i++)
+        {
+            user = u[i];
+            cout << "User " << user->email;
+            if (user->getTag()) // false if external change
+            {
+                cout << " has been changed by your own client" << endl;
+            }
+            else
+            {
+                cout << " has been changed externally" << endl;
+            }
+        }
+    }
 }
 
 #ifdef ENABLE_CHAT
@@ -872,15 +890,83 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
 }
+
+void DemoApp::getua_result(TLVstore *tlv)
+{
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
+    if (!tlv)
+    {
+        cout << "Error getting private user attribute" << endl;
+    }
+    else
+    {
+        cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+
+        vector<string> *keys = tlv->getKeys();
+        vector<string>::const_iterator it;
+        unsigned valuelen;
+        string value, key;
+        char *buf;
+        for (it=keys->begin(); it != keys->end(); it++)
+        {
+            key = (*it).empty() ? "(no key)" : *it;
+            value = tlv->get(*it);
+            valuelen = value.length();
+
+            buf = new char[valuelen * 4 / 3 + 4];
+            Base64::btoa((const byte *) value.data(), valuelen, buf);
+
+            cout << "\t" << key << "\t" << buf << endl;
+
+            delete [] buf;
+        }
+        delete keys;
+    }
+}
+
+#ifdef DEBUG
+void DemoApp::delua_result(error e)
+{
+    if (e)
+    {
+        cout << "User attribute removal failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Success." << endl;
+    }
+}
+#endif
+
 
 void DemoApp::notify_retry(dstime dsdelta)
 {
@@ -1794,6 +1880,9 @@ static void process_line(char* l)
                 cout << "      users [email del]" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
+#ifdef DEBUG
+                cout << "      delua attrname" << endl;
+#endif
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
@@ -2868,7 +2957,8 @@ static void process_line(char* l)
                             // get other user's attribute
                             if (!(u = client->finduser(words[2].c_str())))
                             {
-                                cout << words[2] << ": Unknown user." << endl;
+                                cout << "Retrieving user attribute for unknown user: " << words[2] << endl;
+                                client->getua(words[2].c_str(), User::string2attr(words[1].c_str()));
                                 return;
                             }
                         }
@@ -2881,59 +2971,69 @@ static void process_line(char* l)
                         if (!u)
                         {
                             // get logged in user's attribute
-                            if (!(u = client->finduser(client->me)))
+                            if (!(u = client->ownuser()))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
                                 return;
                             }
                         }
 
-                        client->getua(u, words[1].c_str());
+                        client->getua(u, User::string2attr(words[1].c_str()));
 
                         return;
                     }
                     else if (words[0] == "putua")
                     {
-                        if (words.size() == 2)
+                        if (words.size() >= 2)
                         {
-                            // delete attribute
-                            client->putua(words[1].c_str());
-
-                            return;
-                        }
-                        else if (words.size() == 3)
-                        {
-                            if (words[2] == "del")
+                            attr_t attrtype = User::string2attr(words[1].c_str());
+                            if (attrtype == ATTR_UNKNOWN)
                             {
-                                client->putua(words[1].c_str());
+                                cout << "Attribute not recognized" << endl;
+                                return;
+                            }
+
+                            if (words.size() == 2)
+                            {
+                                // delete attribute
+                                client->putua(attrtype);
 
                                 return;
                             }
-                        }
-                        else if (words.size() == 4)
-                        {
-                            if (words[2] == "set")
+                            else if (words.size() == 3)
                             {
-                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
+                                if (words[2] == "del")
+                                {
+                                    client->putua(attrtype);
 
-                                return;
+                                    return;
+                                }
                             }
-                            else if (words[2] == "load")
+                            else if (words.size() == 4)
                             {
-                                string data, localpath;
-
-                                client->fsaccess->path2local(&words[3], &localpath);
-
-                                if (loadfile(&localpath, &data))
+                                if (words[2] == "set")
                                 {
-                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
-                                }
-                                else
-                                {
-                                    cout << "Cannot read " << words[3] << endl;
-                                }
+                                    client->putua(attrtype, (const byte*) words[3].c_str(), words[3].size());
 
-                                return;
+                                    return;
+                                }
+                                else if (words[2] == "load")
+                                {
+                                    string data, localpath;
+
+                                    client->fsaccess->path2local(&words[3], &localpath);
+
+                                    if (loadfile(&localpath, &data))
+                                    {
+                                        client->putua(attrtype, (const byte*) data.data(), data.size());
+                                    }
+                                    else
+                                    {
+                                        cout << "Cannot read " << words[3] << endl;
+                                    }
+
+                                    return;
+                                }
                             }
                         }
 
@@ -2941,6 +3041,20 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef DEBUG
+                    else if (words[0] == "delua")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->delua(words[1].c_str());
+                            return;
+                        }
+
+                        cout << "      delua attrname" << endl;
+
+                        return;
+                    }
+#endif
                     else if (words[0] == "pause")
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
@@ -3346,31 +3460,38 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        if (client->finduser(client->me)->email.compare(words[1]))
+                        if (client->loggedin() != FULLACCOUNT)
                         {
-                            int del = words.size() == 3 && words[2] == "del";
-                            int rmd = words.size() == 3 && words[2] == "rmd";
-                            if (words.size() == 2 || words.size() == 3)
+                            cout << "Not logged in." << endl;
+                        }
+                        else
+                        {
+                            if (client->ownuser()->email.compare(words[1]))
                             {
-                                if (del || rmd)
+                                int del = words.size() == 3 && words[2] == "del";
+                                int rmd = words.size() == 3 && words[2] == "rmd";
+                                if (words.size() == 2 || words.size() == 3)
                                 {
-                                    client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                    if (del || rmd)
+                                    {
+                                        client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                    }
+                                    else
+                                    {
+                                        // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                        // to have the invite come from a specific email
+                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                    }
                                 }
                                 else
                                 {
-                                    // Original email is not required, but can be used if this account has multiple email addresses associated,
-                                    // to have the invite come from a specific email
-                                    client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                    cout << "      invite dstemail [origemail|del|rmd]" << endl;
                                 }
                             }
                             else
                             {
-                                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                                cout << "Cannot send invitation to your own user" << endl;
                             }
-                        }
-                        else
-                        {
-                            cout << "Cannot send invitation to your own user" << endl;
                         }
 
                         return;
@@ -3444,6 +3565,11 @@ static void process_line(char* l)
                             if ((u = client->finduser(client->me)))
                             {
                                 cout << "Account e-mail: " << u->email << endl;
+
+                                if (client->signkey)
+                                {
+                                    cout << "Credentials: " << client->signkey->genFingerprintHex() << endl;
+                                }
                             }
 
                             cout << "Retrieving account status..." << endl;
