@@ -94,6 +94,16 @@ struct DemoApp : public MegaApp
     void confirmsignuplink_result(error);
     void setkeypair_result(error);
 
+    virtual void getrecoverylink_result(error);
+    virtual void queryrecoverylink_result(error);
+    virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);    
+    virtual void getprivatekey_result(error,  const byte *privk, const size_t len_privk);
+    virtual void confirmrecoverylink_result(error);
+    virtual void confirmcancellink_result(error);
+    virtual void validatepassword_result(error);
+    virtual void getemaillink_result(error);
+    virtual void confirmemaillink_result(error);
+
     void users_updated(User**, int);
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);
@@ -135,7 +145,7 @@ struct DemoApp : public MegaApp
 
     void putfa_result(handle, fatype, error);
 
-    void invite_result(error);
+    void removecontact_result(error);
     void putua_result(error);
     void getua_result(error);
     void getua_result(byte*, unsigned);

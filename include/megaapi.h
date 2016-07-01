@@ -1600,7 +1600,7 @@ class MegaRequest
             TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
             TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
             TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-            TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+            TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
@@ -1614,7 +1614,10 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
+            TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
+            TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK
         };
 
         virtual ~MegaRequest();
@@ -1812,7 +1815,6 @@ class MegaRequest
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
-         * - MegaApi::addContact - Returns the email of the contact
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
@@ -2430,6 +2432,18 @@ class MegaTransfer
          * @return Tag of the associated folder transfer.
          */
         virtual int getFolderTransferTag() const;
+
+        /**
+         * @brief Returns the application data associated with this transfer
+         *
+         * You can set the data returned by this function in MegaApi::startDownload
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
+         *
+         * @return Application data associated with this transfer
+         */
+        virtual const char* getAppData() const;
 };
 
 /**
@@ -3629,7 +3643,8 @@ class MegaApi
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8,
-            PAYMENT_METHOD_CENTILI = 9
+            PAYMENT_METHOD_CENTILI = 9,
+            PAYMENT_METHOD_WINDOWS_STORE = 13
         };
 
         enum {
@@ -3975,6 +3990,24 @@ class MegaApi
          */
         static void addEntropy(char* data, unsigned int size);
 
+#ifdef WINDOWS_PHONE
+        /**
+         * @brief Set the ID for statistics
+         *
+         * This function is not thread-safe so it must be used before
+         * the creation of instances of MegaApi to not interfere with
+         * the internal thread. Otherwise, the behavior of this
+         * function is undefined and it could even crash.
+         *
+         * Only the first call to this function will correctly set the ID.
+         * If you call this function more times, it won't have any effect.
+         *
+         * The id parameter is hashed before being used
+         *
+         * @param id ID for statistics
+         */
+        static void setStatsID(const char *id);
+#endif
 
         /**
          * @brief Retry all pending requests
@@ -4312,6 +4345,153 @@ class MegaApi
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Initialize the reset of the existing password, with and without the Master Key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOVERY_LINK.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
+         *
+         * If this request succeed, a recovery link will be sent to the user.
+         * If no account is registered under the provided email, you will get the error code
+         * MegaError::API_ENOENT in onRequestFinish
+         *
+         * @param email Email used to register the account whose password wants to be reset.
+         * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a recovery link created by MegaApi::resetPassword.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link Recovery link (#recover)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a new password for the account pointed by the recovery link.
+         *
+         * Recovery links are created by calling MegaApi::resetPassword and may or may not
+         * require to provide the Master Key.
+         *
+         * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         * - MegaRequest::getPrivateKey - Returns the Master Key, when provided
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param newPwd The new password to be set.
+         * @param masterKey Base64-encoded string containing the master key (optional).
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeed, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @see MegaApi::confirmCancelAccount
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelAccount(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively parks the user's account without creating a new fresh account.
+         *
+         * The contents of the account will then be purged after 60 days. Once the account is
+         * parked, the user needs to contact MEGA support to restore the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CANCEL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Cancellation link sent to the user's email address;
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the change of the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         *
+         * If this request succeed, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeEmail(const char *email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a change-email link created by MegaApi::changeEmail.
+         *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link (#verify)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryChangeEmailLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively changes the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         * - MegaRequest::getPassword - Returns the password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link sent to the user's email address.
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set proxy settings
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
@@ -4424,7 +4604,7 @@ class MegaApi
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
          * the log level is the same or lower than the active log level (MegaApi::setLogLevel)
          *
-         * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+         * The third and the fouth parameter are optional. You may want to use  __FILE__ and __LINE__
          * to complete them.
          *
          * @param logLevel Log level for this message
@@ -4776,6 +4956,34 @@ class MegaApi
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+         *  is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function always returns the same color.
+         */
+        char *getUserAvatarColor(MegaUser *user);
+
+        /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function  always returns the same color.
+         */
+        char *getUserAvatarColor(const char *userhandle);
+
+        /**
          * @brief Get an attribute of a MegaUser.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -4913,13 +5121,15 @@ class MegaApi
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set the avatar of the MEGA account
+         * @brief Set/Remove the avatar of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getFile - Returns the source path (optional)
          *
-         * @param srcFilePath Source path of the file that will be set as avatar
+         * @param srcFilePath Source path of the file that will be set as avatar.
+         * If NULL, the existing avatar will be removed (if any).
+         * In case the avatar never existed before, removing the avatar returns MegaError::API_ENOENT
          * @param listener MegaRequestListener to track this request
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -5149,6 +5359,7 @@ class MegaApi
          * Currently supported payment gateways are:
          * - MegaApi::PAYMENT_METHOD_ITUNES = 2
          * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -5226,6 +5437,7 @@ class MegaApi
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
          * - https://mega.nz/#recovery
+         * - MegaApi::resetPassword()
          *
          * You take the ownership of the returned value.
          *
@@ -5246,20 +5458,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Add a new contact to the MEGA account
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_CONTACT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email of the contact
-         *
-         * @param email Email of the new contact
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated: This way to add contacts will be removed in future updates. Please use MegaApi::inviteContact.
-         */
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Invite another person to be your MEGA contact
@@ -5478,6 +5676,20 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startDownload(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -7860,6 +8072,7 @@ public:
      * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
      * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
      * - MegaApi::PAYMENT_METHOD_CENTILI = 9
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @return Method of the purchase
      */

@@ -78,6 +78,27 @@ void HttpReqCommandPutFA::procresult()
         }
         else
         {
+            if (e == API_EACCESS)
+            {
+                // create a custom attribute indicating thumbnail can't be restored from this account
+                Node *n = client->nodebyhandle(th);
+
+                char me64[12];
+                Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+
+                if (n && client->checkaccess(n, FULL) &&
+                        (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
+                {
+                    LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
+                    n->attrs.map['f'] = me64;
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->setattr(n);
+                    client->reqtag = creqtag;
+                }
+            }
+
             status = REQ_SUCCESS;
             return client->app->putfa_result(th, type, e);
         }
@@ -266,6 +287,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         arg("ssl", 2);
     }
 
+    arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }
@@ -1019,6 +1041,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
 {
     h = n->nodehandle;
     syncdel = csyncdel;
+    np = t->nodehandle;
     pp = prevparent;
     syncop = pp != UNDEF;
 
@@ -1117,6 +1140,46 @@ void CommandMoveNode::procresult()
             }
         }
 #endif
+        // Movement of shares and pending shares into Rubbish should remove them
+        Node *n = client->nodebyhandle(h);
+        if (n && (n->pendingshares || n->outshares))
+        {
+            Node *rootnode = client->nodebyhandle(np);
+            while (rootnode)
+            {
+                if (!rootnode->parent)
+                {
+                    break;
+                }
+                rootnode = rootnode->parent;
+            }
+            if (rootnode->type == RUBBISHNODE)
+            {
+                share_map::iterator it;
+                if (n->pendingshares)
+                {
+                    for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                    {
+                        client->newshares.push_back(new NewShare(
+                                                        n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                        0, NULL, NULL, it->first, false));
+                    }
+                }
+
+                if (n->outshares)
+                {
+                    for (it = n->outshares->begin(); it != n->outshares->end(); it++)
+                    {
+                        client->newshares.push_back(new NewShare(
+                                                        n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
+                                                        0, NULL, NULL, UNDEF, false));
+                    }
+                }
+
+                client->mergenewshares(1);
+            }
+        }
+
         client->app->rename_result(h, e);
     }
     else
@@ -1262,6 +1325,32 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     if (client->cachedscsn != UNDEF)
     {
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
+    }
+
+    string id;
+    if (!MegaClient::statsid)
+    {
+        client->fsaccess->statsid(&id);
+        if (id.size())
+        {
+            int len = id.size() + 1;
+            char *buff = new char[len];
+            memcpy(buff, id.c_str(), len);
+            MegaClient::statsid = buff;
+        }
+    }
+    else
+    {
+        id = MegaClient::statsid;
+    }
+
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), id.size());
+        hasher.get(&hash);
+        arg("si", (const byte*)hash.data(), hash.size());
     }
 
     tag = client->reqtag;
@@ -1696,8 +1785,7 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         case OPCA_REMIND:
             arg("aa", "r");
             break;
-        case OPCA_ADD:          
-        default:
+        case OPCA_ADD:
             arg("aa", "a");
             break;
     }
@@ -1707,36 +1795,127 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
+    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    {
+        notself(client);
+    }
+
     tag = client->reqtag;
     this->action = action;
+    this->temail = temail;
 }
 
 void CommandSetPendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->setpcr_result(UNDEF, (error)client->json.getint(), this->action);
+        error e = (error)client->json.getint();
+
+        handle pcrhandle = UNDEF;
+        if (!e) // response for delete & remind actions is always numeric
+        {
+            // find the PCR by email
+            PendingContactRequest *pcr = NULL;
+            for (handlepcr_map::iterator it = client->pcrindex.begin();
+                 it != client->pcrindex.end(); it++)
+            {
+                if (it->second->targetemail == temail)
+                {
+                    pcr = it->second;
+                    pcrhandle = pcr->id;
+                    break;
+                }
+            }
+
+            if (!pcr)
+            {
+                LOG_err << "Reminded/deleted PCR not found";
+            }
+            else if (action == OPCA_DELETE)
+            {
+                pcr->changed.deleted = true;
+                client->notifypcr(pcr);
+
+                // remove pending shares related to the deleted PCR
+                Node *n;
+                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                {
+                    n = it->second;
+                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
+                    {
+                        client->newshares.push_back(
+                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                 0, NULL, NULL, pcr->id, false));
+                    }
+                }
+
+                client->mergenewshares(1);
+            }
+        }
+
+        return client->app->setpcr_result(pcrhandle, e, this->action);
     }
 
-    handle p = UNDEF;
+    // if the PCR has been added, the response contains full details
+    handle p = UNDEF;    
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
+    PendingContactRequest *pcr = NULL;
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'p':
                 p = client->json.gethandle(MegaClient::PCRHANDLE);  
-                break;              
+                break;
+            case 'm':
+                m = client->json.getvalue();
+                break;
+            case 'e':
+                e = client->json.getvalue();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = client->json.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = client->json.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = client->json.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = client->json.getint();
+                break;
             case EOO:
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
                     client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                    return;
                 }
-                else
+
+                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
                 {
-                    client->app->setpcr_result(p, API_OK, this->action);
+                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
                 }
+
+                pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                client->mappcr(p, pcr);
+
+                client->notifypcr(pcr);
+                client->app->setpcr_result(p, API_OK, this->action);
                 return;
+
             default:
                 if (!client->json.storeobject())
                 {
@@ -1997,16 +2176,16 @@ void CommandPurchaseCheckout::procresult()
     }
 }
 
-CommandUserRequest::CommandUserRequest(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
-    cmd("ur");
+    cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
 
     tag = client->reqtag;
 }
 
-void CommandUserRequest::procresult()
+void CommandRemoveContact::procresult()
 {
     error e;
 
@@ -2020,7 +2199,7 @@ void CommandUserRequest::procresult()
         e = API_OK;
     }
 
-    client->app->invite_result(e);
+    client->app->removecontact_result(e);
 }
 
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)
@@ -3613,6 +3792,283 @@ void CommandCleanRubbishBin::procresult()
         client->app->cleanrubbishbin_result(API_EINTERNAL);
     }
 }
+
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+{
+    cmd("erm");
+    arg("m", email);
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandGetRecoveryLink::procresult()
+{    
+    if (client->json.isnumeric())
+    {
+        client->app->getrecoverylink_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->getrecoverylink_result(API_EINTERNAL);
+    }
+}
+
+CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const char *linkcode)
+{
+    cmd("erv");
+    arg("c", linkcode);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryRecoveryLink::procresult()
+{
+    // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]
+
+    client->json.enterarray();
+
+    int type;
+    string email;
+    string ip;
+    time_t ts;
+    handle uh;
+
+    if (!client->json.isnumeric() || ((type = client->json.getint()) < 0))   // error
+    {
+        return client->app->queryrecoverylink_result((error)type);
+    }
+
+    if ( !client->json.storeobject(&email)  ||
+         !client->json.storeobject(&ip)     ||
+         ((ts = client->json.getint()) == -1) ||
+         !(uh = client->json.gethandle(MegaClient::USERHANDLE)) )
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    string tmp;
+    vector<string> emails;
+
+    // read emails registered for this account
+    client->json.enterarray();
+    while (client->json.storeobject(&tmp))
+    {
+        emails.push_back(tmp);
+        if (*client->json.pos == ']')
+        {
+            break;
+        }
+    }
+    client->json.leavearray();  // emails array
+    client->json.leavearray();  // response array
+
+    if (!emails.size()) // there should be at least one email
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
+}
+
+CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
+{
+    cmd("erx");
+    arg("r", "gk");
+    arg("c", code);
+
+    tag = client->reqtag;
+}
+
+void CommandGetPrivateKey::procresult()
+{
+    if (client->json.isnumeric())   // error
+    {
+        return client->app->getprivatekey_result((error)client->json.getint());
+    }
+    else
+    {
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        int len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
+
+        // account has RSA keypair: decrypt server-provided session ID
+        if (len_privk < 256)
+        {
+            return client->app->getprivatekey_result(API_EINTERNAL);
+        }
+        else
+        {
+            return client->app->getprivatekey_result((error)API_OK, privkbuf, len_privk);
+        }
+    }
+}
+
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, uint64_t newLoginHash, const byte *encMasterKey, const byte *initialSession)
+{
+    cmd("erx");
+
+    if (!initialSession)
+    {
+        arg("r", "sk");
+    }
+
+    arg("c", code);
+
+    arg("x", encMasterKey, SymmCipher::KEYLENGTH);
+    arg("y", (byte*)&newLoginHash, sizeof newLoginHash);
+
+    if (initialSession)
+    {
+        arg("z", initialSession, 2 * SymmCipher::KEYLENGTH);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmRecoveryLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->confirmrecoverylink_result((error)client->json.getint());
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmrecoverylink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const char *code)
+{
+    cmd("erx");
+    arg("c", code);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmCancelLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        MegaApp *app = client->app;
+        app->confirmcancellink_result(e);
+        if (!e)
+        {
+            app->request_error(API_ESID);
+        }
+        return;
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+{
+    cmd("us");
+    arg("user", email);
+    arg("uh", (byte*)&emailhash, sizeof emailhash);
+
+    tag = client->reqtag;
+}
+
+void CommandValidatePassword::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->validatepassword_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        return client->app->validatepassword_result((error)API_OK);
+    }
+}
+
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+{
+    cmd("se");
+
+    if (add)
+    {
+        arg("aa", "a");     // add
+    }
+    else
+    {
+        arg("aa", "r");     // remove
+    }
+    arg("e", email);    
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandGetEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getemaillink_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        return client->app->getemaillink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, uint64_t newLoginHash, bool replace)
+{
+    this->email = email;
+    this->replace = replace;
+
+    cmd("sec");
+
+    arg("c", code);
+    arg("e", email);
+    arg("uh", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (replace)
+    {
+        arg("r", 1);    // replace the current email address by this one
+    }
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmEmailLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+
+        if (!e)
+        {
+            User *u = client->finduser(client->me);
+
+            if (replace)
+            {
+                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
+
+                client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+                u->changed.email = true;
+                client->notifyuser(u);
+            }
+            // TODO: once we manage multiple emails, add the new email to the list of emails
+        }
+
+        return client->app->confirmemaillink_result(e);
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmemaillink_result((error)API_EINTERNAL);
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)

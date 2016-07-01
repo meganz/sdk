@@ -133,9 +133,9 @@ bool Transfer::serialize(string *d)
     char hasUltoken;
     if (ultoken)
     {
-        hasUltoken = 1;
+        hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN + 1);
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -259,22 +259,23 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ptr += sizeof(m_time_t);
 
 
-    bool hasUltoken = MemAccess::get<char>(ptr);
+    char hasUltoken = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    ll = hasUltoken ? NewNode::UPLOADTOKENLEN + 1 : 0;
-    if (ptr + ll + sizeof(unsigned short) > end)
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    if (hasUltoken < 0 || hasUltoken > 2
+            || (ptr + ll + sizeof(unsigned short) > end))
     {
-        LOG_err << "Transfer unserialization failed - ultoken too long";
+        LOG_err << "Transfer unserialization failed - invalid ultoken";
         delete t;
         return NULL;
     }
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN + 1];
-        memcpy(t->ultoken, ptr, NewNode::UPLOADTOKENLEN + 1);
-        ptr += (NewNode::UPLOADTOKENLEN + 1);
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
+        memcpy(t->ultoken, ptr, ll);
+        ptr += ll;
     }
 
     ll = MemAccess::get<unsigned short>(ptr);
@@ -417,7 +418,7 @@ void Transfer::complete()
                 }
                 else
                 {
-                    if (fingerprint.size == this->size)
+                    if (success && fingerprint.size == this->size)
                     {
                         fixfingerprint = true;
                     }
@@ -436,9 +437,9 @@ void Transfer::complete()
 #endif
         delete fa;
 
-        int missingattr = 0;
-        handle attachh;
-        SymmCipher* symmcipher;
+        char me64[12];
+        Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+        set<handle> nodes;
 
         if (!transient_error)
         {
@@ -447,13 +448,25 @@ void Transfer::complete()
             {
                 if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname))
+                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                     {
+                        int missingattr = 0;
+                        nodes.insert(n->nodehandle);
+
                         // check for missing imagery
                         if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
                         if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
-                        attachh = n->nodehandle;
-                        symmcipher = n->nodecipher();
+
+                        if (missingattr)
+                        {
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                client->gfx->gendimensionsputfa(NULL, &localfilename, n->nodehandle, n->nodecipher(), missingattr);
+                            }
+                        }
                     }
 
                     if (fingerprint.isvalid && (!n->isvalid || fixfingerprint)
@@ -470,12 +483,6 @@ void Transfer::complete()
             if (fingerprint.isvalid && fixfingerprint)
             {
                 (*(FileFingerprint*)this) = fingerprint;
-            }
-
-            if (missingattr)
-            {
-                // FIXME: do this while file is still open
-                client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, symmcipher, missingattr);
             }
 
             // ...and place it in all target locations. first, update the files'

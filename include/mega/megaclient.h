@@ -99,6 +99,9 @@ public:
     // session login: binary session, bytecount
     void login(const byte*, int);
 
+    // check password
+    error validatepwd(const byte *);
+
     // get user data
     void getuserdata();
 
@@ -211,8 +214,8 @@ public:
     // queue a user attribute retrieval
     void getua(User* u, const char* an = NULL);
 
-    // add new contact (by e-mail address)
-    error invite(const char*, visibility_t = VISIBLE);
+    // delete or block an existing contact
+    error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
@@ -361,6 +364,9 @@ public:
 
     // account auth for public folders
     string accountauth;
+
+    // stats id
+    static char* statsid;
 
 private:
     BackoffTimer btcs;
@@ -909,6 +915,30 @@ public:
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);
+
+    // request a link to recover account
+    void getrecoverylink(const char *email, bool hasMasterkey);
+
+    // query information about recovery link
+    void queryrecoverylink(const char *link);
+
+    // request private key for integrity checking the masterkey
+    void getprivatekey(const char *code);
+
+    // confirm a recovery link to restore the account
+    void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
+
+    // request a link to cancel the account
+    void getcancellink(const char *email);
+
+    // confirm a link to cancel the account
+    void confirmcancellink(const char *code);
+
+    // get a link to change the email address
+    void getemaillink(const char *email);
+
+    // confirm a link to change the email address
+    void confirmemaillink(const char *code, const char *email, const byte *pwkey);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

@@ -19,8 +19,9 @@
  * program.
  */
 
-#ifndef __MegaLib__CGMegaGFX__
-#define __MegaLib__CGMegaGFX__
+#ifdef USE_IOS
+#ifndef GFX_CLASS
+#define GFX_CLASS GfxProcCG
 
 #include "mega.h"
 #include <ImageIO/CGImageSource.h>
@@ -43,4 +44,7 @@ public:
     ~GfxProcCG();
 };
 
-#endif /* defined(__MegaLib__CGMegaGFX__) */
+void ios_statsid(std::string *statsid);
+
+#endif
+#endif

@@ -22,8 +22,9 @@
 #include "mega.h"
 #include "mega/thread/win32thread.h"
 
-namespace mega {
 
+namespace mega {
+//Thread
 Win32Thread::Win32Thread()
 {
 
@@ -40,23 +41,23 @@ void Win32Thread::start(void *(*start_routine)(void*), void *parameter)
     this->start_routine = start_routine;
     this->pointer = parameter;
 
-	hThread = CreateThread(NULL, 0, Win32Thread::run, this, 0, NULL);
+    hThread = CreateThread(NULL, 0, Win32Thread::run, this, 0, NULL);
 }
 
 void Win32Thread::join()
 {
-	WaitForSingleObject(hThread, INFINITE);
+    WaitForSingleObject(hThread, INFINITE);
 }
 
 Win32Thread::~Win32Thread()
 {
-	CloseHandle(hThread);
+    CloseHandle(hThread);
 }
 
-
+//Mutex
 Win32Mutex::Win32Mutex()
 {
-	InitializeCriticalSection(&mutex);
+    InitializeCriticalSection(&mutex);
 }
 
 void Win32Mutex::init(bool recursive)
@@ -66,17 +67,68 @@ void Win32Mutex::init(bool recursive)
 
 void Win32Mutex::lock()
 {
-	EnterCriticalSection(&mutex);
+    EnterCriticalSection(&mutex);
 }
 
 void Win32Mutex::unlock()
 {
-	LeaveCriticalSection(&mutex);
+    LeaveCriticalSection(&mutex);
 }
 
 Win32Mutex::~Win32Mutex()
 {
-	DeleteCriticalSection(&mutex);
+    DeleteCriticalSection(&mutex);
+}
+
+//Semaphore
+Win32Semaphore::Win32Semaphore()
+{
+    semaphore = CreateSemaphore(NULL, 0, INT_MAX, NULL);
+    if (semaphore == NULL)
+    {
+        LOG_fatal << "Error creating semaphore: " << GetLastError();
+    }
+}
+
+void Win32Semaphore::release()
+{
+    if (!ReleaseSemaphore(semaphore, 1, NULL))
+    {
+        LOG_fatal << "Error in ReleaseSemaphore: " << GetLastError();
+    }
+}
+
+void Win32Semaphore::wait()
+{
+    DWORD ret = WaitForSingleObject(semaphore, INFINITE);
+    if (ret == WAIT_OBJECT_0)
+    {
+        return;
+    }
+
+    LOG_fatal << "Error in WaitForSingleObject: " << GetLastError();
+}
+
+int Win32Semaphore::timedwait(int milliseconds)
+{
+    DWORD ret = WaitForSingleObject(semaphore, milliseconds);
+    if (ret == WAIT_OBJECT_0)
+    {
+        return 0;
+    }
+
+    if (ret == WAIT_TIMEOUT)
+    {
+        return -1;
+    }
+
+    LOG_err << "Error in WaitForSingleObject: " << GetLastError();
+    return -2;
+}
+
+Win32Semaphore::~Win32Semaphore()
+{
+    CloseHandle(semaphore);
 }
 
 } // namespace

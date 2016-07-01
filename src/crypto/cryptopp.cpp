@@ -548,6 +548,14 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
     return decodeintarray(key, numints, data, len);
 }
 
+void AsymmCipher::resetkey()
+{
+    for (int i = 0; i < PRIVKEY; i++)
+    {
+        key[i] = Integer::Zero();
+    }
+}
+
 void AsymmCipher::serializekey(string* d, int keytype)
 {
     serializeintarray(key, keytype, d);
@@ -610,9 +618,22 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
     return i == numints && len - p < 16;
 }
 
-int AsymmCipher::isvalid()
+int AsymmCipher::isvalid(int keytype)
 {
-    return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
+    if (keytype == PUBKEY)
+    {
+        return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
+    }
+
+    if (keytype == PRIVKEY)
+    {
+        return key[PRIV_P].BitCount() &&
+                key[PRIV_Q].BitCount() &&
+                key[PRIV_D].BitCount() &&
+                key[PRIV_U].BitCount();
+    }
+
+    return 0;
 }
 
 // adapted from CryptoPP, rsa.cpp

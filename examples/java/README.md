@@ -48,7 +48,7 @@ You have two options, using a prebuilt native library or building it by yourself
 ### To use a prebuilt library (the easy way), follow these steps:
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!UtkgFZbS!v9aL5DpDyw5jmQljAx3Ns-wvjbYPOsQn-eQKZMx3qqE).
+2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!zws2WBjR!NKvG-k_5UeW0R6oo2XWHrThUwQ9YlRXOmKDAi7I7nHg).
 3. Extract the content into `sdk/examples/java/`, keeping the folder structure.
 
 ### To build the library by yourself
@@ -82,6 +82,7 @@ Notes:
 ```
 set PATH=%PATH%;<sdkpath>\examples\java\libs
 ```
+- If setting the `PATH` environment variable doesn't solve the solve the problem loading the library, you may try moving `mega.dll` and all its dependencies to the working directory.
 
 - A 64 bit version of all required libraries is provided in the `x64` folder inside the `libs` folder of our package with prebuilt libraries. 
 You can replace the 32-bit DLLs with the 64-bit ones to run the example app in a 64 bit environment.

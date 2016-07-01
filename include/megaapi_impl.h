@@ -22,8 +22,6 @@
 #ifndef MEGAAPI_IMPL_H
 #define MEGAAPI_IMPL_H
 
-#include <inttypes.h>
-
 #include "mega.h"
 #include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
@@ -48,10 +46,6 @@
 #include <fcntl.h>
 #endif
 
-#if TARGET_OS_IPHONE
-#include "mega/gfx/GfxProcCG.h"
-#endif
-
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -74,15 +68,19 @@ namespace mega
 #ifdef USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+typedef QtSemaphore MegaSemaphore;
 #elif USE_PTHREAD
 typedef PosixThread MegaThread;
 typedef PosixMutex MegaMutex;
+typedef PosixSemaphore MegaSemaphore;
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
 typedef Win32Thread MegaThread;
 typedef Win32Mutex MegaMutex;
+typedef Win32Semaphore MegaSemaphore;
 #else
 typedef CppThread MegaThread;
 typedef CppMutex MegaMutex;
+typedef CppSemaphore MegaSemaphore;
 #endif
 
 #ifdef USE_QT
@@ -409,6 +407,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
+        virtual void setAppData(const char *data);
+        virtual const char* getAppData() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -446,6 +446,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         Transfer *transfer;
         MegaError lastError;
         int folderTransferTag;
+        const char* appData;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -1166,11 +1167,13 @@ class MegaApiImpl : public MegaApp
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
+        static handle base64ToUserHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
+        static void setStatsID(const char *id);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -1192,6 +1195,13 @@ class MegaApiImpl : public MegaApp
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
+        void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+        void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
+        void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void cancelAccount(MegaRequestListener *listener = NULL);
+        void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+        void changeEmail(const char *email, MegaRequestListener *listener = NULL);
+        void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
@@ -1226,6 +1236,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        char* getUserAvatarColor(MegaUser *user);
+        char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
@@ -1250,7 +1262,6 @@ class MegaApiImpl : public MegaApp
         char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();
@@ -1271,7 +1282,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, MegaTransferListener *listener);
+        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
@@ -1660,7 +1671,7 @@ protected:
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
 
         // user invites/attributes
-        virtual void invite_result(error);
+        virtual void removecontact_result(error);
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
@@ -1690,6 +1701,16 @@ protected:
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);
+
+        virtual void getrecoverylink_result(error);
+        virtual void queryrecoverylink_result(error);
+        virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);
+        virtual void getprivatekey_result(error, const byte *privk = NULL, const size_t len_privk = 0);
+        virtual void confirmrecoverylink_result(error);
+        virtual void confirmcancellink_result(error);
+        virtual void validatepassword_result(error);
+        virtual void getemaillink_result(error);
+        virtual void confirmemaillink_result(error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -1753,7 +1774,8 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
+        char *getAvatarColor(handle userhandle);
 };
 
 class MegaHashSignatureImpl

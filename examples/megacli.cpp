@@ -44,6 +44,18 @@ static string signupcode;
 // signup password challenge and encrypted master key
 static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
 
+// password recovery e-mail address and code being confirmed
+static string recoveryemail, recoverycode;
+
+// password recovery code requires MK or not
+static bool hasMasterKey;
+
+// master key for password recovery
+static byte masterkey[SymmCipher::KEYLENGTH];
+
+// change email link to be confirmed
+static string changeemail, changecode;
+
 // local console
 Console* console;
 
@@ -834,11 +846,11 @@ void DemoApp::putfa_result(handle, fatype, error e)
     }
 }
 
-void DemoApp::invite_result(error e)
+void DemoApp::removecontact_result(error e)
 {
     if (e)
     {
-        cout << "Invitation failed (" << errorstring(e) << ")" << endl;
+        cout << "Contact removal failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
@@ -1365,12 +1377,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
 };
 
 static prompttype prompt = COMMAND;
@@ -1577,6 +1589,14 @@ static void process_line(char* l)
 
                 signupcode.clear();
             }
+            else if (recoverycode.size())   // cancelling account --> check password
+            {
+                client->validatepwd(pwkey);
+            }
+            else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
+            {
+                client->validatepwd(pwkey);
+            }
             else
             {
                 client->login(login.c_str(), pwkey);
@@ -1611,7 +1631,7 @@ static void process_line(char* l)
         case PASSWORDCONFIRM:
             client->pw_key(l, pwkeybuf);
 
-            if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+            if (memcmp(pwkeybuf, newpwkey, sizeof pwkeybuf))
             {
                 cout << endl << "Mismatch, please try again" << endl;
             }
@@ -1622,6 +1642,24 @@ static void process_line(char* l)
                 if (signupemail.size())
                 {
                     client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
+                else if (recoveryemail.size() && recoverycode.size())
+                {
+                    cout << endl << "Reseting password..." << endl;
+
+                    if (hasMasterKey)
+                    {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, masterkey);
+                    }
+                    else
+                    {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, NULL);
+                    }
+
+                    recoverycode.clear();
+                    recoveryemail.clear();
+                    hasMasterKey = false;
+                    memset(masterkey, 0, sizeof masterkey);
                 }
                 else
                 {
@@ -1639,6 +1677,13 @@ static void process_line(char* l)
 
             setprompt(COMMAND);
             signupemail.clear();
+            return;
+
+        case MASTERKEY:
+            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key..." << endl;
+
+            Base64::atob(l, masterkey, sizeof masterkey);
+            client->getprivatekey(recoverycode.c_str());
             return;
 
         case COMMAND:
@@ -1746,13 +1791,17 @@ static void process_line(char* l)
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
-                cout << "      users" << endl;
+                cout << "      users [email del]" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
+                cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
+                cout << "      recover recoverylink" << endl;
+                cout << "      cancel [cancellink]" << endl;
+                cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -2635,49 +2684,60 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "users")
                     {
-                        for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+                        if (words.size() == 1)
                         {
-                            if (it->second.email.size())
+                            for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
                             {
-                                cout << "\t" << it->second.email;
+                                if (it->second.email.size())
+                                {
+                                    cout << "\t" << it->second.email;
 
-                                if (it->second.userhandle == client->me)
-                                {
-                                    cout << ", session user";
-                                }
-                                else if (it->second.show == VISIBLE)
-                                {
-                                    cout << ", visible";
-                                }
-                                else if (it->second.show == HIDDEN)
-                                {
-                                    cout << ", hidden";
-                                }
-                                else if (it->second.show == INACTIVE)
-                                {
-                                    cout << ", inactive";
-                                }
-                                else if (it->second.show == BLOCKED)
-                                {
-                                    cout << ", blocked";
-                                }
-                                else
-                                {
-                                    cout << ", unknown visibility (" << it->second.show << ")";
-                                }
+                                    if (it->second.userhandle == client->me)
+                                    {
+                                        cout << ", session user";
+                                    }
+                                    else if (it->second.show == VISIBLE)
+                                    {
+                                        cout << ", visible";
+                                    }
+                                    else if (it->second.show == HIDDEN)
+                                    {
+                                        cout << ", hidden";
+                                    }
+                                    else if (it->second.show == INACTIVE)
+                                    {
+                                        cout << ", inactive";
+                                    }
+                                    else if (it->second.show == BLOCKED)
+                                    {
+                                        cout << ", blocked";
+                                    }
+                                    else
+                                    {
+                                        cout << ", unknown visibility (" << it->second.show << ")";
+                                    }
 
-                                if (it->second.sharing.size())
-                                {
-                                    cout << ", sharing " << it->second.sharing.size() << " folder(s)";
-                                }
+                                    if (it->second.sharing.size())
+                                    {
+                                        cout << ", sharing " << it->second.sharing.size() << " folder(s)";
+                                    }
 
-                                if (it->second.pubk.isvalid())
-                                {
-                                    cout << ", public key cached";
-                                }
+                                    if (it->second.pubk.isvalid())
+                                    {
+                                        cout << ", public key cached";
+                                    }
 
-                                cout << endl;
+                                    cout << endl;
+                                }
                             }
+                        }
+                        else if (words.size() == 3 && words[2] == "del")
+                        {
+                            client->removecontact(words[1].c_str(), HIDDEN);
+                        }
+                        else
+                        {
+                            cout << "      users [email del]" << endl;
                         }
 
                         return;
@@ -2994,6 +3054,48 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "email")
+                    {
+                        if (words.size() == 1)
+                        {
+                            User *u = client->finduser(client->me);
+                            if (u)
+                            {
+                                cout << "Your current email address is " << u->email << endl;
+                            }
+                            else
+                            {
+                                cout << "Please, login first" << endl;
+                            }
+                        }
+                        else if (words.size() == 2)
+                        {
+                            if (words[1].find("@") != words[1].npos)    // get change email link
+                            {
+                                client->getemaillink(words[1].c_str());
+                            }
+                            else    // confirm change email link
+                            {
+                                string link = words[1];
+
+                                size_t pos = link.find("#verify");
+                                if (pos == link.npos)
+                                {
+                                    cout << "Invalid email change link." << endl;
+                                    return;
+                                }
+
+                                changecode.assign(link.substr(pos+strlen("#verify")));
+                                client->queryrecoverylink(changecode.c_str());
+                            }
+                        }
+                        else
+                        {
+                            cout << "      email [newemail|emaillink]" << endl;
+                        }
+
+                        return;
+                    }
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatf")
                     {
@@ -3162,6 +3264,25 @@ static void process_line(char* l)
                         }
                     }
 #endif
+                    else if (words[0] == "reset")
+                    {
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2 ||
+                            (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
+                        {
+                            recoveryemail = words[1];
+                            client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
+                        }
+                        else
+                        {
+                            cout << "      reset email [mk]" << endl;
+                        }
+                        return;
+                    }
+
                     break;
 
                 case 6:
@@ -3455,7 +3576,46 @@ static void process_line(char* l)
                         }
                     }
 #endif
+                    else if (words[0] == "cancel")
+                    {
+                        if (client->loggedin() != FULLACCOUNT)
+                        {
+                            cout << "Please, login into your account first." << endl;
+                            return;
+                        }
+
+                        if (words.size() == 1)  // get link
+                        {
+                            User *u = client->finduser(client->me);
+                            if (!u)
+                            {
+                                cout << "Error retrieving logged user." << endl;
+                                return;
+                            }
+                            client->getcancellink(u->email.c_str());
+                        }
+                        else if (words.size() == 2) // link confirmation
+                        {
+                            string link = words[1];
+
+                            size_t pos = link.find("#cancel");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid cancellation link." << endl;
+                                return;
+                            }
+
+                            recoverycode.assign(link.substr(pos+strlen("#cancel")));
+                            setprompt(LOGINPASSWORD);
+                        }
+                        else
+                        {
+                            cout << "       cancel [link]" << endl;
+                        }
+                        return;
+                    }
                     break;
+
 
                 case 7:
                     if (words[0] == "confirm")
@@ -3470,6 +3630,31 @@ static void process_line(char* l)
                             cout << "No signup confirmation pending." << endl;
                         }
 
+                        return;
+                    }
+                    else if (words[0] == "recover")
+                    {
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2)
+                        {
+                            string link = words[1];
+
+                            size_t pos = link.find("#recover");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid recovery link." << endl;
+                            }
+
+                            recoverycode.assign(link.substr(pos+strlen("#recover")));
+                            client->queryrecoverylink(recoverycode.c_str());
+                        }
+                        else
+                        {
+                            cout << "      recover recoverylink" << endl;
+                        }
                         return;
                     }
                     else if (words[0] == "session")
@@ -3758,6 +3943,167 @@ void DemoApp::setkeypair_result(error e)
     else
     {
         cout << "RSA keypair added. Account setup complete." << endl;
+    }
+}
+
+void DemoApp::getrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command \"recover\" / \"cancel\" followed by the link." << endl;
+    }
+}
+
+void DemoApp::queryrecoverylink_result(error e)
+{
+        cout << "The link is invalid (" << errorstring(e) << ")." << endl;
+}
+
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
+{
+    recoveryemail = email ? email : "";
+    hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
+
+    cout << "The link is valid";
+
+    if (type == RECOVER_WITH_MASTERKEY)
+    {
+        cout <<  " to reset the password for " << email << " with masterkey." << endl;
+
+        setprompt(MASTERKEY);
+    }
+    else if (type == RECOVER_WITHOUT_MASTERKEY)
+    {
+        cout <<  " to reset the password for " << email << " without masterkey." << endl;
+
+        setprompt(NEWPASSWORD);
+    }
+    else if (type == CANCEL_ACCOUNT)
+    {
+        cout << " to cancel the account for " << email << "." << endl;
+    }
+    else if (type == CHANGE_EMAIL)
+    {
+        cout << " to change the email from " << client->finduser(client->me)->email << " to " << email << "." << endl;
+
+        changeemail = email ? email : "";
+        setprompt(LOGINPASSWORD);
+    }
+}
+
+void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len_privk)
+{
+    if (e)
+    {
+        cout << "Unable to get private key (" << errorstring(e) << ")" << endl;
+        setprompt(COMMAND);
+    }
+    else
+    {
+        // check the private RSA is valid after decryption with master key
+        SymmCipher key;
+        key.setkey(masterkey);
+
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        memcpy(privkbuf, privk, len_privk);
+        key.ecb_decrypt(privkbuf, len_privk);
+
+        AsymmCipher uk;
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+        {
+            cout << "The master key doesn't seem to be correct." << endl;
+
+            recoverycode.clear();
+            recoveryemail.clear();
+            hasMasterKey = false;
+            memset(masterkey, 0, sizeof masterkey);
+
+            setprompt(COMMAND);
+        }
+        else
+        {
+            cout << "Private key successfully retrieved for integrity check masterkey." << endl;
+            setprompt(NEWPASSWORD);
+        }
+    }
+}
+
+void DemoApp::confirmrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to reset the password (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Password changed successfully." << endl;
+    }
+}
+
+void DemoApp::confirmcancellink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to cancel the account (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Account cancelled successfully." << endl;
+    }
+}
+
+void DemoApp::validatepassword_result(error e)
+{
+    if (e)
+    {
+        cout << "Wrong password (" << errorstring(e) << ")" << endl;
+        setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        if (recoverycode.size())
+        {
+            cout << "Password is correct, cancelling account..." << endl;
+
+            client->confirmcancellink(recoverycode.c_str());
+            recoverycode.clear();
+        }
+        else if (changecode.size())
+        {
+            cout << "Password is correct, changing email..." << endl;
+
+            client->confirmemaillink(changecode.c_str(), changeemail.c_str(), pwkey);
+            changecode.clear();
+            changeemail.clear();
+        }
+    }
+}
+
+void DemoApp::getemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command \"email\" followed by the link." << endl;
+    }
+}
+
+void DemoApp::confirmemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to change the email address (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Email address changed successfully to " << changeemail << "." << endl;
     }
 }
 

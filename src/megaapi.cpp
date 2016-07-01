@@ -778,6 +778,11 @@ int MegaTransfer::getFolderTransferTag() const
     return 0;
 }
 
+const char *MegaTransfer::getAppData() const
+{
+    return NULL;
+}
+
 
 MegaError::MegaError(int errorCode)
 {
@@ -1160,6 +1165,13 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     MegaApiImpl::addEntropy(data, size);
 }
 
+#ifdef WINDOWS_PHONE
+void MegaApi::setStatsID(const char *id)
+{
+    MegaApiImpl::setStatsID(id);
+}
+#endif
+
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);
@@ -1243,6 +1255,46 @@ void MegaApi::confirmAccount(const char* link, const char *password, MegaRequest
 void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastConfirmAccount(link, base64pwkey, listener);
+}
+
+void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
+{
+    pImpl->resetPassword(email, hasMasterKey, listener);
+}
+
+void MegaApi::queryResetPasswordLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
+void MegaApi::confirmResetPassword(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
+{
+    pImpl->confirmResetPasswordLink(link, newPwd, masterKey, listener);
+}
+
+void MegaApi::cancelAccount(MegaRequestListener *listener)
+{
+    pImpl->cancelAccount(listener);
+}
+
+void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    pImpl->confirmCancelAccount(link, pwd, listener);
+}
+
+void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
+{
+    pImpl->changeEmail(email, listener);
+}
+
+void MegaApi::queryChangeEmailLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
+void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener)
+{
+    pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
 void MegaApi::setProxySettings(MegaProxy *proxySettings)
@@ -1368,6 +1420,16 @@ void MegaApi::getUserAvatar(const char* email_or_handle, const char *dstFilePath
 void MegaApi::getUserAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getUserAvatar((MegaUser*)NULL, dstFilePath, listener);
+}
+
+char *MegaApi::getUserAvatarColor(MegaUser *user)
+{
+    return pImpl->getUserAvatarColor(user);
+}
+
+char *MegaApi::getUserAvatarColor(const char *userhandle)
+{
+    return pImpl->getUserAvatarColor(userhandle);
 }
 
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
@@ -1525,11 +1587,6 @@ bool MegaApi::usingHttpsOnly()
     return pImpl->usingHttpsOnly();
 }
 
-void MegaApi::addContact(const char* email, MegaRequestListener* listener)
-{
-    pImpl->addContact(email, listener);
-}
-
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
     pImpl->inviteContact(email, message, action, listener);
@@ -1644,6 +1701,11 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
 {
     pImpl->startDownload(node, localFolder, listener);
+}
+
+void MegaApi::startDownload(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
+{
+    pImpl->startDownload(node, localPath, 0, 0, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)

@@ -56,6 +56,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
+// stats id
+char* MegaClient::statsid = NULL;
+
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
@@ -558,6 +561,82 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
     return true;
 }
 
+void MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
+{
+    reqs.add(new CommandGetRecoveryLink(this, email,
+                hasMasterkey ? RECOVER_WITH_MASTERKEY : RECOVER_WITHOUT_MASTERKEY));
+}
+
+void MegaClient::queryrecoverylink(const char *code)
+{
+    reqs.add(new CommandQueryRecoveryLink(this, code));
+}
+
+void MegaClient::getprivatekey(const char *code)
+{
+    reqs.add(new CommandGetPrivateKey(this, code));
+}
+
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+{
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+    if (masterkey)
+    {
+        // encrypt provided masterkey using the new password
+        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+        pwcipher.ecb_encrypt(encryptedMasterKey);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+    }
+    else
+    {
+        // create a new masterkey
+        byte masterkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(masterkey, sizeof masterkey);
+
+        // generate a new session
+        byte initialSession[2 * SymmCipher::KEYLENGTH];
+        PrnGen::genblock(initialSession, sizeof initialSession);
+        key.setkey(masterkey);
+        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+        // and encrypt the master key to the new password
+        pwcipher.ecb_encrypt(masterkey);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
+    }
+}
+
+void MegaClient::getcancellink(const char *email)
+{
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
+}
+
+void MegaClient::confirmcancellink(const char *code)
+{
+    reqs.add(new CommandConfirmCancelLink(this, code));
+}
+
+void MegaClient::getemaillink(const char *email)
+{
+    reqs.add(new CommandGetEmailLink(this, email, 1));
+}
+
+void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
+{
+    SymmCipher pwcipher(pwkey);
+
+    string emailstr = email;
+    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -571,10 +650,12 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
-// returns the first matching child node by UTF-8 name (does not resolve name clashes)
+// returns a matching child node by UTF-8 name (does not resolve name clashes)
+// folder nodes take precedence over file nodes
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
+    Node *found = NULL;
 
     fsaccess->normalize(&nname);
 
@@ -582,11 +663,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            return *it;
+            if ((*it)->type == FOLDERNODE)
+            {
+                return *it;
+            }
+
+            found = *it;
         }
     }
 
-    return NULL;
+    return found;
 }
 
 void MegaClient::init()
@@ -2548,6 +2634,7 @@ void MegaClient::locallogout()
 
     // erase master key & session ID
     key.setkey(SymmCipher::zeroiv);
+    asymkey.resetkey();
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
@@ -3932,7 +4019,7 @@ void MegaClient::sc_opc()
 
                 pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
 
-                if (dts != 0)
+                if (dts != 0) // delete PCR
                 {
                     // this is a delete, find the existing object in state
                     if (pcr)
@@ -3941,48 +4028,29 @@ void MegaClient::sc_opc()
                         pcr->changed.deleted = true;
                     }
                 }
-                else if (pcr)
+                else if (!e || !m || ts == 0 || uts == 0)
                 {
-                    // reminder
-                    if (uts == 0)
-                    {
-                        LOG_err << "uts element not provided";
-                        break;
-                    }
+                    LOG_err << "Pending Contact Request is incomplete.";
+                    break;
+                }
+                else if (ts == uts) // add PCR
+                {
+                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                    mappcr(p, pcr);
+                }
+                else    // remind PCR
+                {
                     if (rts == 0)
                     {
-                        LOG_err << "rts element not provided";
-                        break;
-                    }
-                    pcr->uts = uts;
-                    pcr->changed.reminded = true;
-                }
-                else
-                {
-                    // new
-                    if (!e)
-                    {
-                        LOG_err << "e element not provided";
-                        break;
-                    }
-                    if (!m)
-                    {
-                        LOG_err << "m element not provided";
-                        break;
-                    }
-                    if (ts == 0)
-                    {
-                        LOG_err << "ts element not provided";
-                        break;
-                    }
-                    if (uts == 0)
-                    {
-                        LOG_err << "uts element not provided";
+                        LOG_err << "Pending Contact Request is incomplete (rts element).";
                         break;
                     }
 
-                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-                    mappcr(p, pcr);
+                    if (pcr)
+                    {
+                        pcr->uts = rts;
+                        pcr->changed.reminded = true;
+                    }
                 }
                 notifypcr(pcr);
 
@@ -4475,6 +4543,7 @@ void MegaClient::notifypurge(void)
             else
             {
                 pcr->notified = false;
+                memset(&(pcr->changed), 0, sizeof(pcr->changed));
             }
         }
 
@@ -5883,6 +5952,26 @@ void MegaClient::login(const byte* session, int size)
     }
 }
 
+// check password's integrity
+error MegaClient::validatepwd(const byte *pwkey)
+{
+    User *u = finduser(me);
+    if (!u)
+    {
+        return API_EACCESS;
+    }
+
+    SymmCipher pwcipher(pwkey);
+    pwcipher.setkey((byte*)pwkey);
+
+    string lcemail(u->email.c_str());
+    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+
+    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
+
+    return API_OK;
+}
+
 int MegaClient::dumpsession(byte* session, size_t size)
 {
     if (loggedin() == NOTLOGGEDIN)
@@ -6458,15 +6547,15 @@ void MegaClient::getpaymentmethods()
     reqs.add(new CommandGetPaymentMethods(this));
 }
 
-// add new contact (by e-mail address)
-error MegaClient::invite(const char* email, visibility_t show)
+// delete or block an existing contact
+error MegaClient::removecontact(const char* email, visibility_t show)
 {
-    if (!strchr(email, '@'))
+    if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandUserRequest(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show));
 
     return API_OK;
 }
@@ -8567,11 +8656,16 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                                     if (missingattr && checkaccess(ll->node, OWNER))
                                     {
-                                        LOG_debug << "Restoring missing attributes: " << ll->name;
-                                        string localpath;
-                                        ll->getlocalpath(&localpath);
-                                        SymmCipher*symmcipher = ll->node->nodecipher();
-                                        gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        char me64[12];
+                                        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+                                        if (ll->node->attrs.map.find('f') == ll->node->attrs.map.end() || ll->node->attrs.map['f'] != me64)
+                                        {
+                                            LOG_debug << "Restoring missing attributes: " << ll->name;
+                                            string localpath;
+                                            ll->getlocalpath(&localpath);
+                                            SymmCipher*symmcipher = ll->node->nodecipher();
+                                            gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        }
                                     }
                                 }
                                 */
@@ -8977,7 +9071,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
             }
         }
 
-        if (e && nn[nni].localnode && nn[nni].localnode->sync)
+        if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
         {
             nn[nni].localnode->sync->errorcode = e;
             nn[nni].localnode->sync->changestate(SYNC_FAILED);
@@ -9109,13 +9203,13 @@ void MegaClient::execmovetosyncdebris()
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris
-    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)))
+    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
     {
         tn = n;
         target = SYNCDEL_DEBRIS;
 
         // locate //bin/SyncDebris/yyyy-mm-dd
-        if ((n = childnodebyname(tn, buf)))
+        if ((n = childnodebyname(tn, buf)) && n->type == FOLDERNODE)
         {
             tn = n;
             target = SYNCDEL_DEBRISDAY;
