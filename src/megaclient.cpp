@@ -710,10 +710,6 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-#ifdef ENABLE_CHAT
-    resetKeyring();
-#endif
-
     btcs.reset();
     btsc.reset();
     btpfa.reset();
@@ -2641,7 +2637,11 @@ void MegaClient::locallogout()
 
     pendingfa.clear();
 
-    // erase master key & session ID
+    // erase keys & session ID
+#ifdef ENABLE_CHAT
+    resetKeyring();
+#endif
+
     key.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
     memset((char*)auth.c_str(), 0, auth.size());
@@ -7828,6 +7828,8 @@ void MegaClient::fetchkeys()
 {
     fetchingkeys = true;
 
+    resetKeyring();
+    discarduser(me);
     User *u = finduser(me, 1);
 
     int creqtag = reqtag;
@@ -8113,9 +8115,25 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+
+#ifndef ENABLE_CHAT
     users.clear();
     uhindex.clear();
     umindex.clear();
+#else
+    for (user_map::iterator it = users.begin(); it != users.end(); )
+    {
+        User *u = &(it->second);
+        it++;
+        if (u->userhandle != me)
+        {
+            discarduser(u->userhandle);
+        }
+    }
+
+    assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
+#endif
+
     pcrindex.clear();
 
     *scsn = 0;
