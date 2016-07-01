@@ -46,12 +46,14 @@ using namespace mega;
 // different outstreams for every thread. to gather all the output data
 map<int,ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
 std::vector<MegaThread *> petitionThreads;
+map<int,int> threadLogLevel;
 
 int getCurrentThread(){
     //return std::this_thread::get_id();
     //return std::thread::get_id();
     return MegaThread::currentThreadId();//TODO: create this in thread class
 }
+
 
 ostream &getCurrentOut(){
     int currentThread=getCurrentThread();
@@ -62,6 +64,15 @@ ostream &getCurrentOut(){
     }
 }
 
+
+int getCurrentThreadLogLevel(){
+    int currentThread=getCurrentThread();
+    if ( threadLogLevel.find(currentThread) == threadLogLevel.end() ) {
+      return -1;
+    } else {
+      return threadLogLevel[currentThread];
+    }
+}
 //void clear_display(){
 //    rl_forced_update_display();
 //}
@@ -105,17 +116,23 @@ public:
             if (loglevel<=cmdLoggerLevel)
             {
                 *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-                if (&OUTSTREAM != output) //TODO: ERRSTREAM? (2 sockets?)
-                    OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
             }
+
+            int currentThreadLogLevel = getCurrentThreadLogLevel();
+            if (currentThreadLogLevel < 0) currentThreadLogLevel=cmdLoggerLevel;
+            if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //TODO: ERRSTREAM? (2 sockets?)
+                OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
         }
         else{
             if (loglevel<=apiLoggerLevel)
             {
                 *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-                if (&OUTSTREAM != output) //since it happens in the sdk thread, this shall be false
-                    OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
             }
+
+            int currentThreadLogLevel = getCurrentThreadLogLevel();
+            if (currentThreadLogLevel < 0) currentThreadLogLevel=apiLoggerLevel;
+            if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //since it happens in the sdk thread, this shall be false
+                OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
         }
     }
 
@@ -5481,6 +5498,8 @@ void * doProcessLine(void *pointer)
 
     std::ostringstream   s;
     outstreams[getCurrentThread()]=&s;
+
+    threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR; //TODO: change depending on parameters (-vvv)
 
 
     LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
