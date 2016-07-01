@@ -2267,6 +2267,7 @@ void CommandPutMultipleUAVer::procresult()
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
 
+#ifdef ENABLE_CHAT
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
@@ -2306,6 +2307,7 @@ void CommandPutMultipleUAVer::procresult()
 
                 delete tlvRecords;
             }
+#endif
         }
     }
 
