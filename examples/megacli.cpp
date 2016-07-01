@@ -3565,11 +3565,12 @@ static void process_line(char* l)
                             if ((u = client->finduser(client->me)))
                             {
                                 cout << "Account e-mail: " << u->email << endl;
-
+#ifdef ENABLE_CHAT
                                 if (client->signkey)
                                 {
-                                    cout << "Credentials: " << client->signkey->genFingerprintHex() << endl;
+                                    cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
                                 }
+#endif
                             }
 
                             cout << "Retrieving account status..." << endl;
