@@ -2266,6 +2266,46 @@ void CommandPutMultipleUAVer::procresult()
         {
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
+
+            if (type == ATTR_KEYRING)
+            {
+                TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
+
+                if (tlvRecords->find(EdDSA::TLV_KEY))
+                {
+                    string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+                    if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                    {
+                        client->signkey = new EdDSA((unsigned char *) prEd255.data());
+                    }
+                }
+
+                if (tlvRecords->find(ECDH::TLV_KEY))
+                {
+                    string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+                    if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                    {
+                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                    }
+                }
+
+                if (!client->chatkey || !client->chatkey->initializationOK ||
+                        !client->signkey || !client->signkey->initializationOK)
+                {
+                    client->resetKeyring();
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->sendevent(99418, "Failed to load attached keys");
+                    client->reqtag = creqtag;
+                }
+                else
+                {
+                    LOG_info << "Signing key and chat key successfully loaded";
+                }
+
+                delete tlvRecords;
+            }
         }
     }
 

@@ -7992,8 +7992,8 @@ void MegaClient::initializekeys()
         else    // No keys were set --> generate keypairs and related attributes
         {
             // generate keypairs
-            signkey = new EdDSA();
-            chatkey = new ECDH();
+            EdDSA *signkey = new EdDSA();
+            ECDH *chatkey = new ECDH();
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
@@ -8038,6 +8038,8 @@ void MegaClient::initializekeys()
             putua(&attrs, 0);
 
             delete tlvContainer;
+            delete chatkey;
+            delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
             LOG_info << "Creating new keypairs and signatures";
             fetchingkeys = false;
