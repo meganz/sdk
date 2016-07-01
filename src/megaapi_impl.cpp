@@ -11495,7 +11495,17 @@ void MegaApiImpl::sendPendingRequests()
 
             string attrvalue;
 
-            if (type == ATTR_AVATAR)
+            if (type == ATTR_KEYRING                ||
+                    type == ATTR_AUTHRING           ||
+                    type == ATTR_CU25519_PUBK       ||
+                    type == ATTR_ED25519_PUBK       ||
+                    type == ATTR_SIG_CU255_PUBK     ||
+                    type == ATTR_SIG_RSA_PUBK)
+            {
+                e = API_EACCESS;
+                break;
+            }
+            else if (type == ATTR_AVATAR)
             {
                 // read the attribute value from file
                 if (file)
