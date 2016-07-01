@@ -21,6 +21,7 @@
 
 #include "mega/user.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 User::User(const char* cemail)
@@ -228,14 +229,36 @@ User* User::unserialize(MegaClient* client, string* d)
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
             client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+            if (!client->signkey->initializationOK)
+            {
+                delete client->signkey;
+                client->signkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Signing key loaded from local cache.";
+            }
         }
 
         if (tlvRecords->find(ECDH::TLV_KEY))
         {
             client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+            if (!client->chatkey->initializationOK)
+            {
+                delete client->chatkey;
+                client->chatkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Chat key succesfully loaded from local cache.";
+            }
         }
 
         delete tlvRecords;
+
+
     }
 #endif
 
