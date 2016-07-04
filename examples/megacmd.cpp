@@ -2343,8 +2343,9 @@ void finalize()
     LOG_info << "closing application ..." ;
     delete cm;
     delete console;
-    delete loggerCMD;
     delete api;
+    delete loggerCMD;
+
     OUTSTREAM << "resources have been cleaned ..."  << endl;
 
 }
