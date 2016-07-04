@@ -3072,6 +3072,16 @@ void MegaApi::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, 
     pImpl->removeAccessInChat(chatid, n, uh, listener);
 }
 
+void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    pImpl->updateChatPermissions(chatid, uh, privilege, listener);
+}
+
+void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
+{
+    pImpl->truncateChat(chatid, messageid, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
