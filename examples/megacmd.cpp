@@ -5872,11 +5872,18 @@ public:
     const NulStreambuf* rdbuf() const { return this; }
 };
 
-
+class NullBuffer : public std::streambuf
+{
+public:
+  int overflow(int c) { return c; }
+};
 int main()
 {
+    NullBuffer null_buffer;
+    std::ostream null_stream(&null_buffer);
+    SimpleLogger::setAllOutputs(&null_stream);
 //    SimpleLogger::setAllOutputs(&cout);
-    SimpleLogger::setAllOutputs(new NulOStream());
+//    SimpleLogger::setAllOutputs(new NulOStream());
 
 
     // instantiate app components: the callback processor (DemoApp),
