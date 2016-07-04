@@ -76,3 +76,8 @@ int MUser::getChanges()
 {
     return megaUser ? megaUser->getChanges() : 0;
 }
+
+int MUser::isOwnChange()
+{
+    return megaUser ? megaUser->isOwnChange() : 0;
+}
