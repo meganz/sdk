@@ -854,7 +854,11 @@ void WinFileSystemAccess::statsid(string *id) const
     LONG hr;
     HKEY hKey = NULL;
     hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
-                      KEY_QUERY_VALUE | KEY_WOW64_64KEY, &hKey);
+                      KEY_QUERY_VALUE 
+#ifdef KEY_WOW64_64KEY
+		      | KEY_WOW64_64KEY
+#endif		      
+		      , &hKey);
     if (hr == ERROR_SUCCESS)
     {
         WCHAR pszData[256];
