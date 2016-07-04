@@ -2359,6 +2359,29 @@ public class MegaApiJava {
     }
 
     /**
+     * Generate a temporary public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * @param node MegaNode to get the public link
+     * @param expireTime Unix timestamp until the public link will be valid
+     * @param listener MegaRequestListener to track this request
+     *
+     * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+     */
+
+    public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
+        megaApi.exportNode(node, expireTime, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Stop sharing a file/folder.
      * 
      * The associated request type with this request is MegaRequest.TYPE_EXPORT.
