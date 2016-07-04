@@ -629,8 +629,8 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
 }
 
-// listener for all actions with the api
-MegaCmdListener* megaCmdListener;
+//// listener for all actions with the api
+//MegaCmdListener* megaCmdListener;
 
 // global listener
 MegaCmdGlobalListener* megaCmdGlobalListener;
@@ -2857,8 +2857,10 @@ static void process_line(char* l)
 //            {
                 //TODO: modify using API
 //                client->login(login.c_str(), pwkey);
+                  MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                   api->login(login.c_str(), l,megaCmdListener);
                   actUponLogin(megaCmdListener);
+                  delete megaCmdListener;
 //            }
 
             setprompt(COMMAND);
@@ -3145,6 +3147,7 @@ static void process_line(char* l)
                                 if (nodeToDelete)
                                 {
                                     LOG_verbose << "Deleting recursively: " << words[i];
+                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                     api->remove(nodeToDelete, megaCmdListener);
                                     actUponDeleteNode(megaCmdListener);
                                     delete nodeToDelete;
@@ -3194,12 +3197,16 @@ static void process_line(char* l)
                                             }
                                             else //move and rename!
                                             {
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                 api->moveNode(n,tn,megaCmdListener);
                                                 megaCmdListener->wait(); // TODO: act upon move. log access denied...
+                                                delete megaCmdListener;
                                                 if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
                                                 {
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                     api->renameNode(n,newname.c_str(),megaCmdListener);
                                                     megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                    delete megaCmdListener;
                                                 }
                                                 else
                                                 {
@@ -3219,16 +3226,20 @@ static void process_line(char* l)
                                                     delete tnParentNode;
 
                                                     //move into the parent of target node
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                     api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
                                                     megaCmdListener->wait(); //TODO: do actuponmove...
+                                                    delete megaCmdListener;
 
                                                     const char* name_to_replace = tn->getName();
 
                                                     //remove (replaced) target node
                                                     if (n != tn) //just in case moving to same location
                                                     {
+                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                         api->remove(tn,megaCmdListener); //remove target node
                                                         megaCmdListener->wait(); //TODO: actuponremove ...
+                                                        delete megaCmdListener;
                                                         if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
                                                         {
                                                             LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
@@ -3240,8 +3251,10 @@ static void process_line(char* l)
                                                     {
                                                         if (!strcmp(name_to_replace,n->getName()))
                                                         {
+                                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                             api->renameNode(n,name_to_replace,megaCmdListener);
                                                             megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                            delete megaCmdListener;
                                                         }
                                                     }
                                                     else
@@ -3257,8 +3270,10 @@ static void process_line(char* l)
                                             else // target is a folder
                                             {
     //                                            e = client->checkmove(n, tn);
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                 api->moveNode(n,tn,megaCmdListener);
                                                 megaCmdListener->wait();
+                                                delete megaCmdListener;
                                                 //TODO: act upon...
                                             }
                                         }
@@ -3306,22 +3321,28 @@ static void process_line(char* l)
                                             if (n->getType() == MegaNode::TYPE_FILE)
                                             {
                                                 //copy with new name
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                 api->copyNode(n,tn,newname.c_str(),megaCmdListener); //only works for files
                                                 megaCmdListener->wait();//TODO: actupon...
+                                                delete megaCmdListener;
 
                                                 //TODO: newname is ignored in case of public node!!!!
                                             }
                                             else//copy & rename
                                             {
                                                 //copy with new name
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                 api->copyNode(n,tn,megaCmdListener);
                                                 megaCmdListener->wait();//TODO: actupon...
+                                                delete megaCmdListener;
 
                                                 MegaNode * newNode=api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
                                                 if (newNode)
                                                 {
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                     api->renameNode(newNode,newname.c_str(),megaCmdListener);
                                                     megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                    delete megaCmdListener;
                                                     delete newNode;
                                                 }
                                                 else
@@ -3342,13 +3363,17 @@ static void process_line(char* l)
                                                     {
                                                         const char* name_to_replace = tn->getName();
                                                         //copy with new name
+                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                         api->copyNode(n,tnParentNode,name_to_replace,megaCmdListener);
                                                         megaCmdListener->wait();//TODO: actupon...
+                                                        delete megaCmdListener;
                                                         delete tnParentNode;
 
                                                         //remove target node
+                                                        megaCmdListener = new MegaCmdListener(api,NULL);
                                                         api->remove(tn,megaCmdListener);
                                                         megaCmdListener->wait(); //TODO: actuponremove ...
+                                                        delete megaCmdListener;
                                                         if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
                                                         {
                                                             LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
@@ -3367,8 +3392,10 @@ static void process_line(char* l)
                                             }
                                             else //copying into folder
                                             {
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                                 api->copyNode(n,tn,megaCmdListener);
                                                 megaCmdListener->wait();//TODO: actupon...
+                                                delete megaCmdListener;
                                             }
                                         }
                                     }
@@ -3642,8 +3669,10 @@ static void process_line(char* l)
                                     //                                    string localname;
                                     ////                                    client->fsaccess->path2local(&words[1], &localname);
 
+                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                     api->syncFolder(words[1].c_str(),n,megaCmdListener);
                                     megaCmdListener->wait();//TODO: actuponsyncfolder
+                                    delete megaCmdListener;
                                     //TODO:  api->addSyncListener();
 
 
@@ -3780,9 +3809,12 @@ static void process_line(char* l)
                                     if (words.size() > 2)
                                     {
                                         //TODO: validate & delete
+                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                         api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
                                         actUponLogin(megaCmdListener);
+                                        delete megaCmdListener;
 
+//                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
 //                                        api->login(words[1].c_str(),words[2].c_str(),megaCmdListener);
 //                                        megaCmdListener->wait(); //TODO: use a constant here
 //                                        api->fetchNodes(megaCmdListener);
@@ -3817,8 +3849,11 @@ static void process_line(char* l)
 //                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
 
                                             OUTSTREAM << "Resuming session..." << endl;
-                                            return api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                            api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
                                             megaCmdListener->wait();
+                                            delete megaCmdListener;
+                                            return;
                                             //TODO: implement actUponFastlogin (https://ci.developers.mega.co.nz/view/SDK/job/megasdk-doc/ws/doc/api/html/classmega_1_1_mega_api.html#a074f01b631eab8e504f8cfae890e830c)
                                         }
                                     }
@@ -4057,8 +4092,10 @@ static void process_line(char* l)
                                         if (!existing_node)
                                         {
                                             LOG_verbose << "Creating (sub)folder: " << newfoldername;
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
                                             actUponCreateFolder(megaCmdListener);
+                                            delete megaCmdListener;
                                             MegaNode *prevcurrentNode=currentnode;
                                             currentnode = api->getChildNode(currentnode,newfoldername.c_str());
                                             delete prevcurrentNode;
@@ -4699,8 +4736,10 @@ static void process_line(char* l)
                         if (u)
                         {
                             OUTSTREAM << "Account e-mail: " << u->getEmail() << endl;
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                             api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
                             actUponGetExtendedAccountDetails(megaCmdListener);
+                            delete megaCmdListener;
                             delete u;
                         }
                         else
@@ -4794,15 +4833,19 @@ static void process_line(char* l)
                     else if (words[0] == "reload")
                     {
                         OUTSTREAM << "Reloading account..." << endl;
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                         api->fetchNodes(megaCmdListener);
                         actUponFetchNodes(megaCmdListener);
+                        delete megaCmdListener;
                         return;
                     }
                     else if (words[0] == "logout")
                     {
                         OUTSTREAM << "Logging off..." << endl;
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                         api->logout(megaCmdListener);
                         actUponLogout(megaCmdListener);
+                        delete megaCmdListener;
                         return;
                     }
 #ifdef ENABLE_CHAT
@@ -5899,7 +5942,6 @@ int main()
 
     //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
 
-    megaCmdListener = new MegaCmdListener(api,NULL); //TODO: never deleted (or deleted via megaapi?)
     megaCmdGlobalListener =  new MegaCmdGlobalListener(); //TODO: never deleted
 
     api->addGlobalListener(megaCmdGlobalListener);
