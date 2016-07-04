@@ -128,14 +128,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_EXPORT:
-        if (request->getAccess())
-            link.assign(request->getLink());
-        h = request->getNodeHandle();
+        if (lastError[apiIndex] == API_OK)
+        {
+            h = request->getNodeHandle();
+            if (request->getAccess())
+            {
+                link.assign(request->getLink());
+            }
+        }
         break;
 
     case MegaRequest::TYPE_GET_PUBLIC_NODE:
         if (lastError[apiIndex] == API_OK)
+        {
             publicNode = request->getPublicMegaNode();
+        }
         break;
 
     case MegaRequest::TYPE_IMPORT_LINK:
@@ -144,15 +151,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
         if ( (lastError[apiIndex] == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+        {
             attributeValue = request->getText();
+        }
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (lastError[apiIndex] == API_OK)
+            {
                 attributeValue = "Avatar changed";
+            }
 
             if (lastError[apiIndex] == API_ENOENT)
+            {
                 attributeValue = "Avatar not found";
+            }
         }
         break;
 
@@ -568,14 +581,22 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Folder sharing failed (error: " << lastError[0] << ")" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(MegaNode *n, int timeout)
+void SdkTest::createPublicLink(MegaNode *n, m_time_t expireDate, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi[0]->exportNode(n);
+    megaApi[0]->exportNode(n, expireDate);
 
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
             << "Public link creation not finished after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
+    if (!expireDate)
+    {
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
+    }
+    else
+    {
+        bool res = MegaError::API_OK != lastError[0];
+        ASSERT_TRUE(res) << "Public link creation with expire time on free account (" << email[0] << ") succeed, and it mustn't";
+    }
 }
 
 void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout)
@@ -1345,7 +1366,6 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete nNoAuth;
     delete nAuth;
-    return;
 
     // Initialize a test scenario: create a new contact to share to
 
@@ -1499,6 +1519,13 @@ TEST_F(SdkTest, SdkTestShares)
     nfile1 = megaApi[0]->getNodeByHandle(hfile1);
     ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
+
+
+    // Try to update the expiration time of an existing link (only for PRO accounts are allowed, otherwise -11
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1, 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
+    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
+    ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
+    ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
 
 
     // --- Import a public link ---
