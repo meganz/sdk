@@ -187,10 +187,12 @@ private:
             LOG_fatal << "ERROR opening socket";
         }
 
+
+
         char socket_path[60];
         *sockId=get_next_outSocket_id();
         bzero(socket_path,sizeof(socket_path)*sizeof(*socket_path));
-        sprintf(socket_path, "/tmp/megaCMDsrv_%d", *sockId);
+        sprintf(socket_path, "/tmp/megaCMD/srv_%d", *sockId);
 
         struct sockaddr_un addr;
         socklen_t saddrlen = sizeof(addr);
@@ -240,6 +242,18 @@ public:
     void initialize(){
         mtx->init(false);
 
+        MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+        string socketsFolder = "/tmp/megaCMD";
+        int oldPermissions = fsAccess->getdefaultfolderpermissions();
+        fsAccess->setdefaultfolderpermissions(0700);
+        fsAccess->rmdirlocal(&socketsFolder);
+        if ( !fsAccess->mkdirlocal(&socketsFolder,false))
+        {
+            LOG_fatal << "ERROR CREATING sockets folder";
+        }
+        fsAccess->setdefaultfolderpermissions(oldPermissions);
+
+
 //        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 //        sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
         sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -262,7 +276,7 @@ public:
         socklen_t saddrlen = sizeof(addr);
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        const char * socketPath = "/tmp/megaCMDsrv";
+        const char * socketPath = "/tmp/megaCMD/srv";
         strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
 
 
