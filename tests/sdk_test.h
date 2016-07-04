@@ -147,7 +147,7 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(MegaNode *n, int timeout = maxTimeout);
+    void createPublicLink(MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
     void importPublicLink(string link, MegaNode *parent, int timeout = maxTimeout);
     void getPublicNode(string link, int timeout = maxTimeout);
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
