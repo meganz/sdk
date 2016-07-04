@@ -857,6 +857,8 @@ void WinFileSystemAccess::statsid(string *id) const
                       KEY_QUERY_VALUE 
 #ifdef KEY_WOW64_64KEY
 		      | KEY_WOW64_64KEY
+#else		      
+		      | 0x0100
 #endif		      
 		      , &hKey);
     if (hr == ERROR_SUCCESS)
