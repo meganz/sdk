@@ -41,6 +41,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+//getpwuid_r
+#include <sys/types.h>
+#include <pwd.h>
+
+#include <fstream>
+
 using namespace mega;
 
 // different outstreams for every thread. to gather all the output data
@@ -63,7 +69,6 @@ ostream &getCurrentOut(){
       return *outstreams[currentThread];
     }
 }
-
 
 int getCurrentThreadLogLevel(){
     int currentThread=getCurrentThread();
@@ -1524,6 +1529,123 @@ static void process_line(char *);
 static char* line;
 
 
+
+bool is_file_exist(const char *fileName)
+{
+    std::ifstream infile(fileName);
+    return infile.good();
+}
+
+
+class ConfigurationManager{
+private:
+    static string configFolder;
+
+    static void loadConfigDir(){
+        const char *homedir = NULL; // TODO:place outside
+        homedir = getenv("HOME");
+        if (!homedir) {
+
+            struct passwd pd;
+            struct passwd* pwdptr=&pd;
+            struct passwd* tempPwdPtr;
+            char pwdbuffer[200];
+            int  pwdlinelen = sizeof(pwdbuffer);
+
+            if ((getpwuid_r(22,pwdptr,pwdbuffer,pwdlinelen,&tempPwdPtr))!=0)
+            {
+                LOG_fatal << "Couldnt get HOME folder";
+                return;
+            }
+            else
+            {
+                homedir = pwdptr->pw_dir;
+            }
+        }
+
+        stringstream sconfigDir;
+        sconfigDir << homedir << "/" << ".megaCmd";
+
+        MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+        configFolder = sconfigDir.str();
+
+        int oldPermissions = fsAccess->getdefaultfolderpermissions();
+        fsAccess->setdefaultfolderpermissions(0700);
+        if ( !is_file_exist (configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder,false))
+        {
+            LOG_err << "Config folder not created";
+            return;
+        }
+        fsAccess->setdefaultfolderpermissions(oldPermissions);
+   }
+
+
+public:
+
+    static bool isConfigurationLoaded()
+    {
+        return configFolder.size();
+    }
+
+    static void loadConfiguration(){
+        stringstream sessionfile;
+        if (!configFolder.size()) loadConfigDir();
+        if (configFolder.size()){
+            sessionfile << configFolder << "/" << "session";
+            LOG_debug << "Session file: " << sessionfile.str();
+
+            ifstream fi(sessionfile.str().c_str(), ios::out);
+            if (fi.is_open())
+            {
+                string line;
+                getline (fi,line);
+                {
+                    const char *session = line.c_str();
+                    LOG_debug << "Session read from configuration: " << line.substr(0,5) << "...";
+                    //login?
+                    stringstream logLine;
+                    logLine << "login " << session;
+                    LOG_debug << "Executing ..." << logLine.str();
+
+                    process_line((char *)logLine.str().c_str());
+                }
+                fi.close();
+            }
+        }
+        else
+        {
+            LOG_err << "Couldnt access configuration folder ";
+        }
+    }
+
+    static void saveSession(const char*session){
+        stringstream sessionfile;
+        if (!configFolder.size()) loadConfigDir();
+        if (configFolder.size()){
+            sessionfile << configFolder << "/" << "session";
+            LOG_debug << "Session file: " << sessionfile.str();
+
+            ofstream fo(sessionfile.str().c_str(), ios::out);
+
+            if(fo.is_open())
+            {
+                fo << session;
+                fo.close();
+            }
+        }
+        else
+        {
+            LOG_err << "Couldnt access configuration folder ";
+        }
+    }
+};
+
+string ConfigurationManager::configFolder;
+
+
+
+
+
 static void nodestats(int* c, const char* action)
 {
     if (c[FILENODE])
@@ -2097,15 +2219,12 @@ void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request){
 
     LOG_verbose << "onRequestStart request->getType(): " << request->getType();
 
-    switch(request->getType())
-    {
-        case MegaRequest::TYPE_LOGIN:
-            LOG_debug << "onRequestStart login email: " << request->getEmail();
-            break;
-        default:
-            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType();
-            break;
-    }
+//    switch(request->getType())
+//    {
+//        default:
+//            LOG_debug << "onRequestStart of unregistered type of request: " << request->getType();
+//            break;
+//    }
 
     //clear_display();
 }
@@ -2169,9 +2288,14 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
     {
     case MegaRequest::TYPE_FETCH_NODES:
     {
-        int rows,cols;
-        rl_resize_terminal();
-        rl_get_screen_size (&rows,&cols);
+#if defined(RL_ISSTATE) && defined(RL_STATE_INITIALIZED)
+        int rows = 1,cols = 80;
+
+        if (RL_ISSTATE(RL_STATE_INITIALIZED))
+        {
+            rl_resize_terminal();
+            rl_get_screen_size (&rows,&cols);
+        }
         char outputString[cols+1];
         for (int i=0;i<cols;i++) outputString[i]='.';
         outputString[cols]='\0';
@@ -2191,9 +2315,22 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
         sprintf(outputString+cols-strlen(aux),"%s",aux);
 
         for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
+        {
+            if (RL_ISSTATE(RL_STATE_INITIALIZED))
+            {
+                rl_message("%s",outputString);
+            }
+            else
+            {
+                cout << outputString << endl; //too verbose
+            }
+        }
 
-        rl_message("%s",outputString);
+
+#endif
+
         break;
+
     }
     default:
         LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType();
@@ -2608,7 +2745,10 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
         }
     }
 
-    LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail();
+    LOG_debug << "actUponLogin login";
+
+    if (srl->getRequest()->getEmail())
+        LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail();
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
         LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString();
@@ -2618,6 +2758,7 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
 
         session = srl->getApi()->dumpSession();
+        ConfigurationManager::saveSession(session);
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
     }
@@ -3865,7 +4006,7 @@ static void process_line(char* l)
                                             OUTSTREAM << "Resuming session..." << endl;
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
-                                            megaCmdListener->wait();
+                                            actUponLogin(megaCmdListener);
                                             delete megaCmdListener;
                                             return;
                                             //TODO: implement actUponFastlogin (https://ci.developers.mega.co.nz/view/SDK/job/megasdk-doc/ws/doc/api/html/classmega_1_1_mega_api.html#a074f01b631eab8e504f8cfae890e830c)
@@ -5733,7 +5874,6 @@ void megacmd()
 
     fd_set fds;
 
-
     for (;;)
     {
         if (prompt == COMMAND)
@@ -5950,7 +6090,8 @@ int main()
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
@@ -5978,6 +6119,12 @@ int main()
 #endif
 
     atexit(finalize);
+
+    rl_callback_handler_install(NULL,NULL); //this initializes readline somehow,
+            // so that we can use rl_message or rl_resize_terminal safely before ever
+            // prompting anything.
+
+    ConfigurationManager::loadConfiguration();
 
     megacmd();
 }
