@@ -177,10 +177,10 @@ class MegaFolderDownloadController : public MegaTransferListener
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start();
+    void start(MegaNode *node);
 
 protected:
-    void downloadFolderNode(Node *node, string *path);
+    void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
 
     MegaApiImpl *megaApi;
@@ -241,9 +241,11 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isTakenDown();
         virtual bool isForeign();
         virtual std::string* getPrivateAuth();
+        virtual MegaNodeList *getChildren();
         virtual void setPrivateAuth(const char *privateAuth);
         void setPublicAuth(const char *publicAuth);
         void setForeign(bool foreign);
+        void setChildren(MegaNodeList *children);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
@@ -286,6 +288,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        MegaNodeList *children;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -1437,6 +1440,7 @@ class MegaApiImpl : public MegaApp
                                          const char *privateauth, const char *publicauth);
 
         MegaNode *authorizeNode(MegaNode *node);
+        void authorizeMegaNodePrivate(MegaNodePrivate *node);
 
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 

@@ -382,6 +382,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+MegaNodeList *MegaNode::getChildren()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
