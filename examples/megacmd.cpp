@@ -5853,25 +5853,6 @@ void megacmd()
     }
 }
 
-
-class NulStreambuf : public std::streambuf
-{
-    char                dummyBuffer[ 64 ];
-protected:
-    virtual int         overflow( int c )
-    {
-        setp( dummyBuffer, dummyBuffer + sizeof( dummyBuffer ) );
-        return (c == traits_type::eof()) ? '\0' : c;
-    }
-};
-
-class NulOStream : private NulStreambuf, public std::ostream
-{
-public:
-    NulOStream() : std::ostream( this ) {}
-    const NulStreambuf* rdbuf() const { return this; }
-};
-
 class NullBuffer : public std::streambuf
 {
 public:
