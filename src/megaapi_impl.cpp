@@ -6568,6 +6568,11 @@ long long MegaApiImpl::getSize(MegaNode *n)
 {
     if(!n) return 0;
 
+    if (n->getType() == MegaNode::TYPE_FILE)
+    {
+       return n->getSize();
+    }
+
     sdkMutex.lock();
     Node *node = client->nodebyhandle(n->getHandle());
     if(!node)
