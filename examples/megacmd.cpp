@@ -159,6 +159,7 @@ typedef struct sync_struct{
     MegaHandle handle;
     bool active;
     string localpath;
+    long long fingerprint;
 } sync_struct;
 
 //Syncs
@@ -1661,6 +1662,7 @@ private:
 
 
 public:
+    static map<string,sync_struct *> configuredSyncs;
 
     static bool isConfigurationLoaded()
     {
@@ -1674,7 +1676,9 @@ public:
             sessionfile << configFolder << "/" << "session";
             LOG_debug << "Session file: " << sessionfile.str();
 
-            ifstream fi(sessionfile.str().c_str(), ios::out);
+            stringstream logLine;
+
+            ifstream fi(sessionfile.str().c_str(), ios::in);
             if (fi.is_open())
             {
                 string line;
@@ -1683,19 +1687,104 @@ public:
                     const char *session = line.c_str();
                     LOG_debug << "Session read from configuration: " << line.substr(0,5) << "...";
                     //login?
-                    stringstream logLine;
-                    logLine << "login " << session;
-                    LOG_debug << "Executing ..." << logLine.str();
 
-                    process_line((char *)logLine.str().c_str());
+                    logLine << "login " << session;
                 }
                 fi.close();
+            }
+
+
+
+            stringstream syncsfile;
+            if (!configFolder.size()) loadConfigDir();
+            if (configFolder.size()){
+                syncsfile << configFolder << "/" << "syncs";
+                LOG_debug << "Syncs file: " << syncsfile.str();
+
+                ifstream fi(syncsfile.str().c_str(), ios::in | ios::binary);
+
+                if(fi.is_open())
+                {
+
+                    if (fi.fail())
+                    {
+                        LOG_err << "fail with sync file";
+                    }
+
+//                    while (!(fi && fi.peek() == EOF))
+                    while (!(fi.peek() == EOF))
+//                    while(fi)
+                    {
+                        sync_struct *thesync = new sync_struct;
+                        //Load syncs
+                        fi.read((char *)&thesync->fingerprint, sizeof(long long));
+                        fi.read((char *)&thesync->handle, sizeof(MegaHandle));
+                        size_t lengthLocalPath;
+                        fi.read((char *)&lengthLocalPath, sizeof(size_t));
+                        char localPath[lengthLocalPath+1];
+                        fi.read((char *)localPath, sizeof(char)*lengthLocalPath);
+                        localPath[lengthLocalPath]='\0';
+                        thesync->localpath=string(localPath);
+
+                        configuredSyncs[localPath] = thesync;
+                    }
+                    if (fi.bad())
+                    {
+                        LOG_err << "fail with sync file  at the end";
+                    }
+
+                    fi.close();
+                }
+            }
+
+            LOG_debug << "Executing ..." << logLine.str();
+            process_line((char *)logLine.str().c_str());
+
+            //api->resumeSync(localpath,megaHandle,localFingerprint,listener);
+        }
+        else
+        {
+            LOG_err << "Couldnt access configuration folder ";
+        }
+    }
+
+    static void saveSyncs(map<string,sync_struct *> syncmap)
+    {
+        stringstream syncsfile;
+        if (!configFolder.size()) loadConfigDir();
+        if (configFolder.size()){
+            syncsfile << configFolder << "/" << "syncs";
+            LOG_debug << "Syncs file: " << syncsfile.str();
+
+            ofstream fo(syncsfile.str().c_str(), ios::out | ios::binary);
+
+            if(fo.is_open())
+            {
+                // TODO: protect syncsmap with mutex
+                map<string,sync_struct *>::iterator itr;
+                int i =0;
+                for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)
+                {
+                    sync_struct *thesync = ((sync_struct *)(*itr).second);
+                    MegaNode * n = api->getNodeByHandle(thesync->handle);
+
+                   fo.write((char *)&thesync->fingerprint, sizeof(long long));
+                   fo.write((char *)&thesync->handle, sizeof(MegaHandle));
+                   const char * localPath = thesync->localpath.c_str();
+                   size_t lengthLocalPath = thesync->localpath.size();
+                   fo.write((char *)&lengthLocalPath, sizeof(size_t));
+                   fo.write((char *)localPath, sizeof(char)*lengthLocalPath);
+                }
+
+                fo.close();
             }
         }
         else
         {
             LOG_err << "Couldnt access configuration folder ";
         }
+
+
     }
 
     static void saveSession(const char*session){
@@ -1721,7 +1810,7 @@ public:
 };
 
 string ConfigurationManager::configFolder;
-
+map<string,sync_struct *> ConfigurationManager::configuredSyncs;
 
 
 
@@ -2343,9 +2432,34 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
 //                LOG_err << "onRequestFinish failed to logout";
 //            }
 //        break;
-//    case MegaRequest::TYPE_FETCH_NODES:
-//            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
-//        break;
+        case MegaRequest::TYPE_FETCH_NODES:
+        {
+            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
+            map<string,sync_struct *>::iterator itr;
+            int i =0;
+            for(itr = ConfigurationManager::configuredSyncs.begin(); itr != ConfigurationManager::configuredSyncs.end(); ++itr,i++)
+            {
+                sync_struct *thesync = ((sync_struct *)(*itr).second);
+
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                MegaNode * node = api->getNodeByHandle(thesync->handle);
+
+                api->resumeSync(thesync->localpath.c_str(), node, thesync->fingerprint,megaCmdListener);
+                megaCmdListener->wait();
+                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                {
+                    thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
+                    thesync->active = true;
+
+                    syncsmap[thesync->localpath]=thesync;
+                    LOG_info << "Loaded sync: " << thesync->localpath << " to " << api->getNodePath(node);
+                }
+
+                delete megaCmdListener;
+                delete node;
+            }
+            break;
+        }
         default:
             LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
 //            rl_message("");
@@ -3941,6 +4055,7 @@ static void process_line(char* l)
                                             thesync->active = true;
                                             thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
                                             thesync->localpath = string(megaCmdListener->getRequest()->getFile());
+                                            thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
                                             syncsmap[megaCmdListener->getRequest()->getFile()] = thesync;
                                         }
                                         else
@@ -4002,6 +4117,11 @@ static void process_line(char* l)
                                             if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
                                             {
                                                 thesync->active = !thesync->active;
+                                                if (thesync->active) //syncFolder
+                                                {
+                                                    if (megaCmdListener->getRequest()->getNumber())
+                                                        thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
+                                                }
                                             }
                                             delete megaCmdListener;
                                         }
@@ -4144,7 +4264,9 @@ static void process_line(char* l)
                         else
                         {
                             OUTSTREAM << "      " << getUsageStr("sync") << endl;
+                            return;
                         }
+                        ConfigurationManager::saveSyncs(syncsmap);
                         return;
                     }
 #endif
@@ -6291,8 +6413,8 @@ int main()
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
