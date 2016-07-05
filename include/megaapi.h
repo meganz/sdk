@@ -5214,9 +5214,10 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
-         * - MegaRequest::getText - Returns the longitude and latitude, with 6 decimal digits and a semicolon as separator
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to [0, 2^24)
          *
          * @param node Node that will receive the information.
          * @param latitude Latitude in signed decimal degrees notation

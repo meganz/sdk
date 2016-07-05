@@ -732,7 +732,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
     string filename1 = UPFILE;
-    createFile(filename1);
+    createFile(filename1, false);
     transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
     megaApi[0]->startUpload(filename1.data(), rootnode);
     waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);

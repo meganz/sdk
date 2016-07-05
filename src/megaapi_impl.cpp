@@ -222,29 +222,35 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                    }
                }
            }
-           else if (it->first == AttrMap::string2nameid("gps"))
+           else if (it->first == AttrMap::string2nameid("l"))
            {
                if (node->type == FILENODE)
                {
                    string coords = it->second;
-                   size_t separator = coords.find_first_of(';');
-                   if (separator != coords.npos && (separator + 1 < coords.size()))
+                   if (coords.size() != 8)
                    {
-                       const char *ptr = coords.substr(0, separator).c_str();
-                       char *endptr = NULL;
-                       latitude = std::strtod(ptr, &endptr);
-                       if ((latitude == 0 && endptr == ptr) || (latitude == HUGE_VAL))
-                       {
-                           latitude = INVALID_COORDINATE;
-                       }
+                       LOG_warn << "Malformed GPS coordinates attribute";
+                   }
+                   else
+                   {
+                       byte buf[3];
+                       int number = 0;
+                       Base64::atob((const char *) coords.substr(0, 4).data(), buf, sizeof buf);
+                       number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                       latitude = -90 + 90 * (double) number / 16777215;
 
-                       ptr = coords.substr(separator+1, coords.length()).c_str();
-                       endptr = NULL;
-                       longitude = std::strtod(ptr, &endptr);
-                       if ((longitude == 0 && endptr == ptr) || (longitude == HUGE_VAL))
-                       {
-                           longitude = INVALID_COORDINATE;
-                       }
+                       Base64::atob((const char *) coords.substr(4, 4).data(), buf, sizeof buf);
+                       number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                       longitude = -180 + 360 * (double) number / 16777216;
+                   }
+
+                   if (longitude < -180 || longitude > 180)
+                   {
+                       longitude = INVALID_COORDINATE;
+                   }
+                   if (latitude < -90 || latitude > 90)
+                   {
+                       latitude = INVALID_COORDINATE;
                    }
                }
            }
@@ -4142,18 +4148,27 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
 void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
-    if(node) request->setNodeHandle(node->getHandle());
+
+    if(node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    int lat = latitude;
+    if (latitude != MegaNode::INVALID_COORDINATE)
+    {
+        lat = (latitude + 90) / 90 * 16777215;      // 3 bytes, no wrapping here
+    }
+
+    int lon = longitude;
+    if (longitude != MegaNode::INVALID_COORDINATE)
+    {
+        lon = (longitude + 180) / 360 * 16777216;   // 3 bytes, wrapping occurs
+    }
+
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
-
-    // calculate the required size of the string containing both values
-    size_t size = 0;
-    std::ostringstream strs;
-    strs << (int) latitude << (int) longitude;
-    size = strs.str().length() + 1 + 7 * 2 + 1;
-
-    char coords[size];     // <lat>;<lon>
-    snprintf(coords, size, "%.6f;%.6f", latitude, longitude);
-    request->setText(coords);
+    request->setTransferTag(lat);
+    request->setNumDetails(lon);
     request->setFlag(true);     // is official attribute?
     requestQueue.push(request);
     waiter->notify();
@@ -11405,50 +11420,32 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    string coordsValue = request->getText();
-                    nameid coordsName = AttrMap::string2nameid("gps");
+                    int longitude = request->getNumDetails();
+                    int latitude = request->getTransferTag();
+                    nameid coordsName = AttrMap::string2nameid("l");
 
-                    size_t separator = coordsValue.find_first_of(';');
-                    if ((separator == coordsValue.npos) || (separator + 1 >= coordsValue.size()))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-
-                    double latValue = MegaNode::INVALID_COORDINATE;
-                    double lonValue = MegaNode::INVALID_COORDINATE;
-
-                    const char *ptr = coordsValue.substr(0, separator).c_str();
-                    char *endptr = NULL;
-                    latValue = std::strtod(ptr, &endptr);
-                    if ((latValue == 0 && endptr == ptr) || (latValue == HUGE_VAL))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-
-                    ptr = coordsValue.substr(separator+1, coordsValue.length()).c_str();
-                    endptr = NULL;
-                    lonValue = std::strtod(ptr, &endptr);
-                    if ((lonValue == 0 && endptr == ptr) || (lonValue == HUGE_VAL))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-
-                    if (lonValue == MegaNode::INVALID_COORDINATE &&
-                            latValue == MegaNode::INVALID_COORDINATE)
+                    if (longitude == MegaNode::INVALID_COORDINATE && latitude == MegaNode::INVALID_COORDINATE)
                     {
                         node->attrs.map.erase(coordsName);
                     }
                     else
                     {
-                        if (lonValue < -180 || lonValue > +180 ||
-                                latValue < -90 || latValue > +90)
+
+                        if (longitude < 0 || longitude > 16777216 || latitude < 0 || latitude > 16777215)
                         {
                             e = API_EARGS;
                             break;
                         }
+
+                        string latValue;
+                        latValue.resize(sizeof latitude * 4 / 3 + 4);
+                        latValue.resize(Base64::btoa((const byte*) &latitude, 3, (char*)latValue.data()));
+
+                        string lonValue;
+                        lonValue.resize(sizeof longitude * 4 / 3 + 4);
+                        lonValue.resize(Base64::btoa((const byte*) &longitude, 3, (char*)lonValue.data()));
+
+                        string coordsValue = latValue + lonValue;
 
                         node->attrs.map[coordsName] = coordsValue;
                     }
