@@ -343,7 +343,7 @@ public:
     string getPetition(int &socket_out){
 
         clilen = sizeof(cli_addr);
-//        recv(sockfd,buffer,1023,MSG_PEEK)
+
         newsockfd = accept(sockfd,
                            (struct sockaddr *) &cli_addr,
                            &clilen);
@@ -368,10 +368,7 @@ public:
             return "ERROR";
         }
 
-//        sprintf(buffer,"%d",socket_out);
-
-        //n = write(newsockfd,buffer,sizeof(buffer)*sizeof(char));
-
+        //TODO: investigate possible failure in case client disconects!
         n = write(newsockfd,&socket_id,sizeof(socket_id));
         if (n < 0){
             LOG_fatal << "ERROR writing to socket: errno = " << errno;
@@ -550,6 +547,7 @@ int * getNumFolderFiles(MegaNode *n){
     delete totalnodes;
     return nFolderFiles;
 }
+
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
     if (users)
@@ -688,6 +686,17 @@ const char* getAccessLevelStr(int level){
         case MegaShare::ACCESS_READWRITE: return "read/write access"; break;
         case MegaShare::ACCESS_FULL: return "full access"; break;
         case MegaShare::ACCESS_OWNER: return "owner access"; break;
+    };
+    return "undefined";
+}
+
+const char* getSyncStateStr(int state){
+    switch (state){
+    case 0: return "NONE"; break;
+    case MegaApi::STATE_SYNCED: return "Synced"; break;
+    case MegaApi::STATE_PENDING: return "Pending"; break;
+    case MegaApi::STATE_SYNCING: return "Syncing"; break;
+    case MegaApi::STATE_IGNORED: return "Ignored"; break;
     };
     return "undefined";
 }
@@ -2496,6 +2505,7 @@ void finalize()
     delete console;
     delete api;
     delete loggerCMD;
+    delete megaCmdGlobalListener;
 
     OUTSTREAM << "resources have been cleaned ..."  << endl;
 
@@ -2861,6 +2871,22 @@ int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0)
 static inline std::string &ltrim(std::string &s, const char &c) {
     size_t pos = s.find_first_not_of(c);
     s=s.substr(pos==string::npos?s.length():pos,s.length());
+    return s;
+}
+
+// trim at the end
+static inline std::string &rtrim(std::string &s, const char &c) {
+    size_t pos = s.find_last_of(c);
+    size_t last=pos==string::npos?s.length():pos;
+    if (last < s.length()-1)
+    {
+        if (s.at(last+1) != c)
+        {
+            last = s.length();
+        }
+    }
+
+    s=s.substr(0,last);
     return s;
 }
 
@@ -3827,7 +3853,6 @@ static void process_line(char* l)
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                     api->syncFolder(words[1].c_str(),n,megaCmdListener);
                                     megaCmdListener->wait();//TODO: actuponsyncfolder
-                                    delete megaCmdListener;
                                     //TODO:  api->addSyncListener();
 
 
@@ -3846,8 +3871,8 @@ static void process_line(char* l)
                                         {
                                             LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString();
                                         }
-
                                     }
+                                    delete megaCmdListener;
                                 }
                                 else
                                 {
@@ -3881,17 +3906,29 @@ static void process_line(char* l)
                         {
                             map<string,MegaHandle>::const_iterator itr;
                             int i =0;
-                            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr){
-
-
-                                OUTSTREAM << "Key: " << (*itr).first << " Value: " << (*itr).second;
+                            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr)
+                            {
                                 MegaNode * n = api->getNodeByHandle((*itr).second);
                                 if (n)
                                 {
+                                    int nfiles=0;
+                                    int nfolders=0;
+                                    nfolders++; //add the share itself
+                                    int *nFolderFiles = getNumFolderFiles(n);
+                                    nfolders+=nFolderFiles[0];
+                                    nfiles+=nFolderFiles[1];
+                                    delete []nFolderFiles;
+
 //                                    nodepath((*it)->localroot.node->nodehandle, &remotepath);
 //                                    client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
 
-                                    OUTSTREAM << i++ << ": " << (*itr).first << " to " << api->getNodePath(n) << endl;
+                                    OUTSTREAM << i++ << ": " << (*itr).first << " to " << api->getNodePath(n);
+                                    string sstate((*itr).first);
+                                    sstate = rtrim(sstate,'/');
+                                    int state = api->syncPathState(&sstate);
+                                    OUTSTREAM << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
+                                    OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
+                                    OUTSTREAM << nfiles << " file(s) and " <<  nfolders << " folder(s)" << endl;
 //                                         << " - "
 //                                         << n->syncstatenames[(*it)->state] << ", " << (*it)->localbytes
 //                                         << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
@@ -6090,14 +6127,13 @@ int main()
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+//    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
-    //TODO: use apiLogger for megacmd and keep on using the SimpleLogger for megaapi
-
-    megaCmdGlobalListener =  new MegaCmdGlobalListener(); //TODO: never deleted
+    megaCmdGlobalListener =  new MegaCmdGlobalListener();
 
     api->addGlobalListener(megaCmdGlobalListener);
 
