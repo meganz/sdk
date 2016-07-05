@@ -154,8 +154,15 @@ public:
 MegaApi *api;
 MegaCMDLogger *loggerCMD;
 
+
+typedef struct sync_struct{
+    MegaHandle handle;
+    bool active;
+    string localpath;
+} sync_struct;
+
 //Syncs
-map<string,MegaHandle> syncsmap;
+map<string,sync_struct *> syncsmap;
 
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
@@ -701,60 +708,124 @@ const char* getSyncStateStr(int state){
     return "undefined";
 }
 
-//const char* errorstring(error e)
-//{
-//    switch (e)
-//    {
-//        case API_OK:
-//            return "No error";
-//        case API_EINTERNAL:
-//            return "Internal error";
-//        case API_EARGS:
-//            return "Invalid argument";
-//        case API_EAGAIN:
-//            return "Request failed, retrying";
-//        case API_ERATELIMIT:
-//            return "Rate limit exceeded";
-//        case API_EFAILED:
-//            return "Transfer failed";
-//        case API_ETOOMANY:
-//            return "Too many concurrent connections or transfers";
-//        case API_ERANGE:
-//            return "Out of range";
-//        case API_EEXPIRED:
-//            return "Expired";
-//        case API_ENOENT:
-//            return "Not found";
-//        case API_ECIRCULAR:
-//            return "Circular linkage detected";
-//        case API_EACCESS:
-//            return "Access denied";
-//        case API_EEXIST:
-//            return "Already exists";
-//        case API_EINCOMPLETE:
-//            return "Incomplete";
-//        case API_EKEY:
-//            return "Invalid key/integrity check failed";
-//        case API_ESID:
-//            return "Bad session ID";
-//        case API_EBLOCKED:
-//            return "Blocked";
-//        case API_EOVERQUOTA:
-//            return "Over quota";
-//        case API_ETEMPUNAVAIL:
-//            return "Temporarily not available";
-//        case API_ETOOMANYCONNECTIONS:
-//            return "Connection overflow";
-//        case API_EWRITE:
-//            return "Write error";
-//        case API_EREAD:
-//            return "Read error";
-//        case API_EAPPKEY:
-//            return "Invalid application key";
-//        default:
-//            return "Unknown error";
-//    }
-//}
+
+const char* errorstring(int e)
+{
+    switch (e)
+    {
+        case API_OK:
+            return "No error";
+        case API_EINTERNAL:
+            return "Internal error";
+        case API_EARGS:
+            return "Invalid argument";
+        case API_EAGAIN:
+            return "Request failed, retrying";
+        case API_ERATELIMIT:
+            return "Rate limit exceeded";
+        case API_EFAILED:
+            return "Transfer failed";
+        case API_ETOOMANY:
+            return "Too many concurrent connections or transfers";
+        case API_ERANGE:
+            return "Out of range";
+        case API_EEXPIRED:
+            return "Expired";
+        case API_ENOENT:
+            return "Not found";
+        case API_ECIRCULAR:
+            return "Circular linkage detected";
+        case API_EACCESS:
+            return "Access denied";
+        case API_EEXIST:
+            return "Already exists";
+        case API_EINCOMPLETE:
+            return "Incomplete";
+        case API_EKEY:
+            return "Invalid key/integrity check failed";
+        case API_ESID:
+            return "Bad session ID";
+        case API_EBLOCKED:
+            return "Blocked";
+        case API_EOVERQUOTA:
+            return "Over quota";
+        case API_ETEMPUNAVAIL:
+            return "Temporarily not available";
+        case API_ETOOMANYCONNECTIONS:
+            return "Connection overflow";
+        case API_EWRITE:
+            return "Write error";
+        case API_EREAD:
+            return "Read error";
+        case API_EAPPKEY:
+            return "Invalid application key";
+        default:
+            return "Unknown error";
+    }
+}
+
+
+const char * getErrorCodeStr(MegaError *e)
+{
+    if (e) return errorstring(e->getErrorCode());
+    return "NullError";
+}
+
+
+const char * getUsageStr(const char *command)
+{
+    if("login" == command) return "login [email [password] | exportedfolderurl#key | session";
+    if("begin" == command) return "begin [ephemeralhandle#ephemeralpw]";
+    if("signup" == command) return "signup [email name|confirmationlink]";
+    if("confirm" == command) return "confirm";
+    if("session" == command) return "session";
+    if("mount" == command) return "mount";
+    if("ls" == command) return "ls [-R] [remotepath]";
+    if("cd" == command) return "cd [remotepath]";
+    if("pwd" == command) return "pwd";
+    if("lcd" == command) return "lcd [localpath]";
+    if("import" == command) return "import exportedfilelink#key";
+    if("put" == command) return "put localpattern [dstremotepath|dstemail:]";
+    if("putq" == command) return "putq [cancelslot]";
+    if("get" == command) return "get remotepath [offset [length]]";
+    if("get" == command) return "get exportedfilelink#key [offset [length]]";
+    if("getq" == command) return "getq [cancelslot]";
+    if("pause" == command) return "pause [get|put] [hard] [status]";
+    if("getfa" == command) return "getfa type [path] [cancel]";
+    if("mkdir" == command) return "mkdir remotepath";
+    if("rm" == command) return "rm remotepath";
+    if("mv" == command) return "mv srcremotepath dstremotepath";
+    if("cp" == command) return "cp srcremotepath dstremotepath|dstemail:";
+    if("sync" == command) return "sync [localpath dstremotepath| [-ds] cancelslot]";
+    if("export" == command) return "export remotepath [expireTime|del]";
+    if("share" == command) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+    if("invite" == command) return "invite dstemail [origemail|del|rmd]";
+    if("ipc" == command) return "ipc handle a|d|i";
+    if("showpcr" == command) return "showpcr";
+    if("users" == command) return "users";
+    if("getua" == command) return "getua attrname [email]";
+    if("putua" == command) return "putua attrname [del|set string|load file]";
+    if("putbps" == command) return "putbps [limit|auto|none]";
+    if("killsession" == command) return "killsession [all|sessionid]";
+    if("whoami" == command) return "whoami";
+    if("passwd" == command) return "passwd";
+    if("retry" == command) return "retry";
+    if("recon" == command) return "recon";
+    if("reload" == command) return "reload";
+    if("logout" == command) return "logout";
+    if("locallogout" == command) return "locallogout";
+    if("symlink" == command) return "symlink";
+    if("version" == command) return "version";
+    if("debug" == command) return "debug";
+    if("chatf" == command) return "chatf ";
+    if("chatc" == command) return "chatc group [email ro|rw|full|op]*";
+    if("chati" == command) return "chati chatid email ro|rw|full|op";
+    if("chatr" == command) return "chatr chatid [email]";
+    if("chatu" == command) return "chatu chatid";
+    if("chatga" == command) return "chatga chatid nodehandle uid";
+    if("chatra" == command) return "chatra chatid nodehandle uid";
+    if("quit" == command) return "quit";
+}
 
 //AppFile::AppFile()
 //{
@@ -3181,63 +3252,61 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-                OUTSTREAM << "      login email [password]" << endl;
-                OUTSTREAM << "      login exportedfolderurl#key" << endl;
-                OUTSTREAM << "      login session" << endl;
-                OUTSTREAM << "      begin [ephemeralhandle#ephemeralpw]" << endl;
-                OUTSTREAM << "      signup [email name|confirmationlink]" << endl;
-                OUTSTREAM << "      confirm" << endl;
-                OUTSTREAM << "      session" << endl;
-                OUTSTREAM << "      mount" << endl;
-                OUTSTREAM << "      ls [-R] [remotepath]" << endl;
-                OUTSTREAM << "      cd [remotepath]" << endl;
-                OUTSTREAM << "      pwd" << endl;
-                OUTSTREAM << "      lcd [localpath]" << endl;
-                OUTSTREAM << "      import exportedfilelink#key" << endl;
-                OUTSTREAM << "      put localpattern [dstremotepath|dstemail:]" << endl;
-                OUTSTREAM << "      putq [cancelslot]" << endl;
-                OUTSTREAM << "      get remotepath [offset [length]]" << endl;
-                OUTSTREAM << "      get exportedfilelink#key [offset [length]]" << endl;
-                OUTSTREAM << "      getq [cancelslot]" << endl;
-                OUTSTREAM << "      pause [get|put] [hard] [status]" << endl;
-                OUTSTREAM << "      getfa type [path] [cancel]" << endl;
-                OUTSTREAM << "      mkdir remotepath" << endl;
-                OUTSTREAM << "      rm remotepath" << endl;
-                OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
-                OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
-#ifdef ENABLE_SYNC
-                OUTSTREAM << "      sync [localpath dstremotepath|cancelslot]" << endl;
-#endif
-                OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
-                OUTSTREAM << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                OUTSTREAM << "      invite dstemail [origemail|del|rmd]" << endl;
-                OUTSTREAM << "      ipc handle a|d|i" << endl;
-                OUTSTREAM << "      showpcr" << endl;
-                OUTSTREAM << "      users" << endl;
-                OUTSTREAM << "      getua attrname [email]" << endl;
-                OUTSTREAM << "      putua attrname [del|set string|load file]" << endl;
-                OUTSTREAM << "      putbps [limit|auto|none]" << endl;
-                OUTSTREAM << "      killsession [all|sessionid]" << endl;
-                OUTSTREAM << "      whoami" << endl;
-                OUTSTREAM << "      passwd" << endl;
-                OUTSTREAM << "      retry" << endl;
-                OUTSTREAM << "      recon" << endl;
-                OUTSTREAM << "      reload" << endl;
-                OUTSTREAM << "      logout" << endl;
-                OUTSTREAM << "      locallogout" << endl;
-                OUTSTREAM << "      symlink" << endl;
-                OUTSTREAM << "      version" << endl;
-                OUTSTREAM << "      debug" << endl;
-#ifdef ENABLE_CHAT
-                OUTSTREAM << "      chatf " << endl;
-                OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
-                OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
-                OUTSTREAM << "      chatr chatid [email]" << endl;
-                OUTSTREAM << "      chatu chatid" << endl;
-                OUTSTREAM << "      chatga chatid nodehandle uid" << endl;
-                OUTSTREAM << "      chatra chatid nodehandle uid" << endl;
-#endif
-                OUTSTREAM << "      quit" << endl;
+                OUTSTREAM << "      " << getUsageStr("login") << endl;
+                OUTSTREAM << "      " << getUsageStr("begin") << endl;
+                OUTSTREAM << "      " << getUsageStr("signup") << endl;
+                OUTSTREAM << "      " << getUsageStr("confirm") << endl;
+                OUTSTREAM << "      " << getUsageStr("session") << endl;
+                OUTSTREAM << "      " << getUsageStr("mount") << endl;
+                OUTSTREAM << "      " << getUsageStr("ls") << endl;
+                OUTSTREAM << "      " << getUsageStr("cd") << endl;
+                OUTSTREAM << "      " << getUsageStr("pwd") << endl;
+                OUTSTREAM << "      " << getUsageStr("lcd") << endl;
+                OUTSTREAM << "      " << getUsageStr("import") << endl;
+                OUTSTREAM << "      " << getUsageStr("put") << endl;
+                OUTSTREAM << "      " << getUsageStr("putq") << endl;
+                OUTSTREAM << "      " << getUsageStr("get") << endl;
+                OUTSTREAM << "      " << getUsageStr("get") << endl;
+                OUTSTREAM << "      " << getUsageStr("getq") << endl;
+                OUTSTREAM << "      " << getUsageStr("pause") << endl;
+                OUTSTREAM << "      " << getUsageStr("getfa") << endl;
+                OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
+                OUTSTREAM << "      " << getUsageStr("rm") << endl;
+                OUTSTREAM << "      " << getUsageStr("mv") << endl;
+                OUTSTREAM << "      " << getUsageStr("cp") << endl;
+                #ifdef ENABLE_SYNC
+                OUTSTREAM << "      " << getUsageStr("sync") << endl;
+                #endif
+                OUTSTREAM << "      " << getUsageStr("export") << endl;
+                OUTSTREAM << "      " << getUsageStr("share") << endl;
+                OUTSTREAM << "      " << getUsageStr("invite") << endl;
+                OUTSTREAM << "      " << getUsageStr("ipc") << endl;
+                OUTSTREAM << "      " << getUsageStr("showpcr") << endl;
+                OUTSTREAM << "      " << getUsageStr("users") << endl;
+                OUTSTREAM << "      " << getUsageStr("getua") << endl;
+                OUTSTREAM << "      " << getUsageStr("putua") << endl;
+                OUTSTREAM << "      " << getUsageStr("putbps") << endl;
+                OUTSTREAM << "      " << getUsageStr("killsession") << endl;
+                OUTSTREAM << "      " << getUsageStr("whoami") << endl;
+                OUTSTREAM << "      " << getUsageStr("passwd") << endl;
+                OUTSTREAM << "      " << getUsageStr("retry") << endl;
+                OUTSTREAM << "      " << getUsageStr("recon") << endl;
+                OUTSTREAM << "      " << getUsageStr("reload") << endl;
+                OUTSTREAM << "      " << getUsageStr("logout") << endl;
+                OUTSTREAM << "      " << getUsageStr("locallogout") << endl;
+                OUTSTREAM << "      " << getUsageStr("symlink") << endl;
+                OUTSTREAM << "      " << getUsageStr("version") << endl;
+                OUTSTREAM << "      " << getUsageStr("debug") << endl;
+                #ifdef ENABLE_CHAT
+                OUTSTREAM << "      " << getUsageStr("chatf") << endl;
+                OUTSTREAM << "      " << getUsageStr("chatc") << endl;
+                OUTSTREAM << "      " << getUsageStr("chati") << endl;
+                OUTSTREAM << "      " << getUsageStr("chatr") << endl;
+                OUTSTREAM << "      " << getUsageStr("chatu") << endl;
+                OUTSTREAM << "      " << getUsageStr("chatga") << endl;
+                OUTSTREAM << "      " << getUsageStr("chatra") << endl;
+                #endif
+                OUTSTREAM << "      " << getUsageStr("quit") << endl;
 
                 return;
             }
@@ -3254,6 +3323,11 @@ static void process_line(char* l)
             if ("ls" == thecommand)
             {
                 validParams.insert("R");
+            }
+            else if ("sync" == thecommand)
+            {
+                validParams.insert("d");
+                validParams.insert("s");
             }
 
             if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
@@ -3855,7 +3929,6 @@ static void process_line(char* l)
                                     megaCmdListener->wait();//TODO: actuponsyncfolder
                                     //TODO:  api->addSyncListener();
 
-
                                     if (n->getType() == MegaNode::TYPE_FILE)
                                     {
                                         LOG_err << words[2] << ": Remote sync root must be folder.";
@@ -3864,8 +3937,11 @@ static void process_line(char* l)
                                     {
                                         if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK )
                                         {
-                                            //TODO: save sync
-                                            syncsmap[megaCmdListener->getRequest()->getFile()] = megaCmdListener->getRequest()->getNodeHandle();
+                                            sync_struct *thesync = new sync_struct;
+                                            thesync->active = true;
+                                            thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
+                                            thesync->localpath = string(megaCmdListener->getRequest()->getFile());
+                                            syncsmap[megaCmdListener->getRequest()->getFile()] = thesync;
                                         }
                                         else
                                         {
@@ -3887,6 +3963,93 @@ static void process_line(char* l)
                         }
                         else if (words.size() == 2)
                         {
+                            int id = atoi(words[1].c_str()); //TODO: check if not a number and look by path
+
+                            // TODO: protect syncsmap with mutex
+                            map<string,sync_struct *>::iterator itr;
+                            int i =0;
+                            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)
+                            {
+                                sync_struct *thesync = ((sync_struct *)(*itr).second);
+                                MegaNode * n = api->getNodeByHandle(thesync->handle);
+
+                                if (n)
+                                {
+                                    if (id == i)
+                                    {
+                                        int nfiles=0;
+                                        int nfolders=0;
+                                        nfolders++; //add the share itself
+                                        int *nFolderFiles = getNumFolderFiles(n);
+                                        nfolders+=nFolderFiles[0];
+                                        nfiles+=nFolderFiles[1];
+                                        delete []nFolderFiles;
+
+                                        if (getFlag(&clflags,"s"))
+                                        {
+                                            OUTSTREAM << "Stopping (disabling) sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                            if (thesync->active)
+                                            {
+                                                api->disableSync(n,megaCmdListener);
+                                            }
+                                            else
+                                            {
+                                                api->syncFolder(thesync->localpath.c_str(),n,megaCmdListener);
+                                            }
+
+                                            megaCmdListener->wait();//TODO: actupon...
+                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                            {
+                                                thesync->active = !thesync->active;
+                                            }
+                                            delete megaCmdListener;
+                                        }
+                                        else if(getFlag(&clflags,"d"))
+                                        {
+                                            OUTSTREAM << "Removing sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                            if (thesync->active)  //if not active, removeSync will fail.)
+                                            {
+                                                api->removeSync(n,megaCmdListener);
+                                                megaCmdListener->wait();//TODO: actupon...
+                                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                                {
+                                                    syncsmap.erase(itr);
+                                                    delete (thesync);
+                                                }
+                                                else
+                                                {
+                                                    LOG_err << "Couldn't remove sync, errorCode = " << getErrorCodeStr(megaCmdListener->getError());
+                                                }
+                                            }
+                                            else //if !active simply remove
+                                            {
+                                                //TODO: if the sdk ever provides a way to clean cache, call it
+                                                syncsmap.erase(itr);
+                                                delete (thesync);
+                                            }
+                                            delete megaCmdListener;
+                                        }
+                                        else{
+                                            OUTSTREAM << i << ": " << (*itr).first << " to " << api->getNodePath(n);
+                                            string sstate((*itr).first);
+                                            sstate = rtrim(sstate,'/');
+                                            int state = api->syncPathState(&sstate);
+                                            OUTSTREAM << " - " << (thesync->active?"Active":"Disabled") << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
+                                            OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
+                                            OUTSTREAM << nfiles << " file(s) and " <<  nfolders << " folder(s)" << endl;
+                                        }
+                                    }
+                                    delete n;
+                                }
+                                else
+                                {
+                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << thesync->handle;
+                                }
+                            }
+
+
 
 //                            int i = 0, cancel = atoi(words[1].c_str());
 
@@ -3904,11 +4067,13 @@ static void process_line(char* l)
                         }
                         else if (words.size() == 1)
                         {
-                            map<string,MegaHandle>::const_iterator itr;
+                            map<string,sync_struct *>::const_iterator itr;
                             int i =0;
                             for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr)
                             {
-                                MegaNode * n = api->getNodeByHandle((*itr).second);
+                                sync_struct *thesync = ((sync_struct *)(*itr).second);
+                                MegaNode * n = api->getNodeByHandle(thesync->handle);
+
                                 if (n)
                                 {
                                     int nfiles=0;
@@ -3926,7 +4091,7 @@ static void process_line(char* l)
                                     string sstate((*itr).first);
                                     sstate = rtrim(sstate,'/');
                                     int state = api->syncPathState(&sstate);
-                                    OUTSTREAM << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
+                                    OUTSTREAM << " - " << ((thesync->active)?"Active":"Disabled") << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
                                     OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
                                     OUTSTREAM << nfiles << " file(s) and " <<  nfolders << " folder(s)" << endl;
 //                                         << " - "
@@ -3937,7 +4102,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << (*itr).second;
+                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << thesync->handle;
                                 }
                             }
 //                            for (int i=0;i<m)
@@ -3978,7 +4143,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            OUTSTREAM << "      sync [localpath dstremotepath|cancelslot]" << endl;
+                            OUTSTREAM << "      " << getUsageStr("sync") << endl;
                         }
                         return;
                     }
@@ -4057,9 +4222,7 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                OUTSTREAM << "      login email [password]" << endl
-                                     << "      login exportedfolderurl#key" << endl
-                                     << "      login session" << endl;
+                                OUTSTREAM << "      " << getUsageStr("login") << endl;
                             }
                         }
                         else
