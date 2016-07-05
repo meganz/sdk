@@ -34,8 +34,6 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
-    static CryptoPP::AutoSeededRandomPool rng;
-
     EdDSA() : keySeed(NULL) {}
 
     unsigned char* keySeed;
@@ -62,7 +60,7 @@ public:
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(unsigned char* msg, unsigned long long msglen, char* sig);
+    int sign(unsigned char* msg, unsigned long long msglen, unsigned char* sig);
 
     /**
      * @brief Verifies the signature of a message.
