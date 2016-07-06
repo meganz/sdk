@@ -599,6 +599,11 @@ char *MegaNodePrivate::getBase64Key()
         key = new char[FOLDERNODEKEYLENGTH*4/3+3];
         memcpy(key, sharekey.data(), FOLDERNODEKEYLENGTH*4/3+3);
     }
+    else
+    {
+        key = new char;
+        key[0] = 0;
+    }
 
     return key;
 }
