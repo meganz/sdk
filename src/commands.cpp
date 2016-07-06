@@ -2178,6 +2178,9 @@ void CommandPurchaseCheckout::procresult()
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
+    this->email = m ? m : "";
+    this->v = show;
+
     cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
@@ -2197,6 +2200,12 @@ void CommandRemoveContact::procresult()
     {
         client->json.storeobject();
         e = API_OK;
+
+        User *u = client->finduser(email.c_str());
+        if (u)
+        {
+            u->show = v;
+        }
     }
 
     client->app->removecontact_result(e);
