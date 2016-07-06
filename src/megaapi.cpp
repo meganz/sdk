@@ -382,6 +382,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+string *MegaNode::getSharekey()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
