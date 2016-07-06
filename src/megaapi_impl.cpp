@@ -138,6 +138,11 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+
+        if (type == FOLDERNODE)
+        {
+            this->sharekey = *node->getSharekey();
+        }
     }
     else
     {
@@ -285,6 +290,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
         this->sharekey.assign(key, sizeof key);
     }
+}
+
+string* MegaNodePrivate::getSharekey()
+{
+    return &sharekey;
 }
 
 MegaNode *MegaNodePrivate::copy()
