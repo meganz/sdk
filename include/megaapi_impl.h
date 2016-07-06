@@ -286,6 +286,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        std::string sharekey;   // for plinks of folders
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
