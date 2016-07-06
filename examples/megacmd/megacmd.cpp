@@ -90,10 +90,9 @@ static handle cwd = UNDEF;
 static MegaNode* rootNode = NULL;
 static char *session;
 
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
+static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
+
+static const char* rootnodepaths[] = { "/", "//in", "//bin" };
 
 
 #include "megaapi_impl.h"
@@ -460,57 +459,58 @@ const char * getErrorCodeStr(MegaError *e)
 
 const char * getUsageStr(const char *command)
 {
-    if("login" == command) return "login [email [password] | exportedfolderurl#key | session";
-    if("begin" == command) return "begin [ephemeralhandle#ephemeralpw]";
-    if("signup" == command) return "signup [email name|confirmationlink]";
-    if("confirm" == command) return "confirm";
-    if("session" == command) return "session";
-    if("mount" == command) return "mount";
-    if("ls" == command) return "ls [-R] [remotepath]";
-    if("cd" == command) return "cd [remotepath]";
-    if("pwd" == command) return "pwd";
-    if("lcd" == command) return "lcd [localpath]";
-    if("import" == command) return "import exportedfilelink#key";
-    if("put" == command) return "put localpattern [dstremotepath|dstemail:]";
-    if("putq" == command) return "putq [cancelslot]";
-    if("get" == command) return "get remotepath [offset [length]]";
-    if("get" == command) return "get exportedfilelink#key [offset [length]]";
-    if("getq" == command) return "getq [cancelslot]";
-    if("pause" == command) return "pause [get|put] [hard] [status]";
-    if("getfa" == command) return "getfa type [path] [cancel]";
-    if("mkdir" == command) return "mkdir remotepath";
-    if("rm" == command) return "rm remotepath";
-    if("mv" == command) return "mv srcremotepath dstremotepath";
-    if("cp" == command) return "cp srcremotepath dstremotepath|dstemail:";
-    if("sync" == command) return "sync [localpath dstremotepath| [-ds] cancelslot]";
-    if("export" == command) return "export remotepath [expireTime|del]";
-    if("share" == command) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
-    if("invite" == command) return "invite dstemail [origemail|del|rmd]";
-    if("ipc" == command) return "ipc handle a|d|i";
-    if("showpcr" == command) return "showpcr";
-    if("users" == command) return "users";
-    if("getua" == command) return "getua attrname [email]";
-    if("putua" == command) return "putua attrname [del|set string|load file]";
-    if("putbps" == command) return "putbps [limit|auto|none]";
-    if("killsession" == command) return "killsession [all|sessionid]";
-    if("whoami" == command) return "whoami";
-    if("passwd" == command) return "passwd";
-    if("retry" == command) return "retry";
-    if("recon" == command) return "recon";
-    if("reload" == command) return "reload";
-    if("logout" == command) return "logout";
-    if("locallogout" == command) return "locallogout";
-    if("symlink" == command) return "symlink";
-    if("version" == command) return "version";
-    if("debug" == command) return "debug";
-    if("chatf" == command) return "chatf ";
-    if("chatc" == command) return "chatc group [email ro|rw|full|op]*";
-    if("chati" == command) return "chati chatid email ro|rw|full|op";
-    if("chatr" == command) return "chatr chatid [email]";
-    if("chatu" == command) return "chatu chatid";
-    if("chatga" == command) return "chatga chatid nodehandle uid";
-    if("chatra" == command) return "chatra chatid nodehandle uid";
-    if("quit" == command) return "quit";
+    if(!strcmp(command,"login") ) return "login [email [password] | exportedfolderurl#key | session";
+    if(!strcmp(command,"begin") ) return "begin [ephemeralhandle#ephemeralpw]";
+    if(!strcmp(command,"signup") ) return "signup [email name|confirmationlink]";
+    if(!strcmp(command,"confirm") ) return "confirm";
+    if(!strcmp(command,"session") ) return "session";
+    if(!strcmp(command,"mount") ) return "mount";
+    if(!strcmp(command,"ls") ) return "ls [-R] [remotepath]";
+    if(!strcmp(command,"cd") ) return "cd [remotepath]";
+    if(!strcmp(command,"pwd") ) return "pwd";
+    if(!strcmp(command,"lcd") ) return "lcd [localpath]";
+    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
+    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
+    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
+    if(!strcmp(command,"get") ) return "get remotepath [offset [length]]";
+    if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
+    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
+    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
+    if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
+    if(!strcmp(command,"mkdir") ) return "mkdir remotepath";
+    if(!strcmp(command,"rm") ) return "rm remotepath";
+    if(!strcmp(command,"mv") ) return "mv srcremotepath dstremotepath";
+    if(!strcmp(command,"cp") ) return "cp srcremotepath dstremotepath|dstemail:";
+    if(!strcmp(command,"sync") ) return "sync [localpath dstremotepath| [-ds] cancelslot]";
+    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
+    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
+    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
+    if(!strcmp(command,"showpcr") ) return "showpcr";
+    if(!strcmp(command,"users") ) return "users";
+    if(!strcmp(command,"getua") ) return "getua attrname [email]";
+    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
+    if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
+    if(!strcmp(command,"killsession") ) return "killsession [all|sessionid]";
+    if(!strcmp(command,"whoami") ) return "whoami";
+    if(!strcmp(command,"passwd") ) return "passwd";
+    if(!strcmp(command,"retry") ) return "retry";
+    if(!strcmp(command,"recon") ) return "recon";
+    if(!strcmp(command,"reload") ) return "reload";
+    if(!strcmp(command,"logout") ) return "logout";
+    if(!strcmp(command,"locallogout") ) return "locallogout";
+    if(!strcmp(command,"symlink") ) return "symlink";
+    if(!strcmp(command,"version") ) return "version";
+    if(!strcmp(command,"debug") ) return "debug";
+    if(!strcmp(command,"chatf") ) return "chatf ";
+    if(!strcmp(command,"chatc") ) return "chatc group [email ro|rw|full|op]*";
+    if(!strcmp(command,"chati") ) return "chati chatid email ro|rw|full|op";
+    if(!strcmp(command,"chatr") ) return "chatr chatid [email]";
+    if(!strcmp(command,"chatu") ) return "chatu chatid";
+    if(!strcmp(command,"chatga") ) return "chatga chatid nodehandle uid";
+    if(!strcmp(command,"chatra") ) return "chatra chatid nodehandle uid";
+    if(!strcmp(command,"quit") ) return "quit";
+    return "command not found";
 }
 
 //AppFile::AppFile()
@@ -565,23 +565,23 @@ const char * getUsageStr(const char *command)
 //{
 //}
 
-static void displaytransferdetails(Transfer* t, const char* action)
-{
-    string name;
+//static void displaytransferdetails(Transfer* t, const char* action)
+//{
+//    string name;
 
-    for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
-    {
-        if (it != t->files.begin())
-        {
-            OUTSTREAM << "/";
-        }
+//    for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+//    {
+//        if (it != t->files.begin())
+//        {
+//            OUTSTREAM << "/";
+//        }
 
-        (*it)->displayname(&name);
-        OUTSTREAM << name.c_str();
-    }
+//        (*it)->displayname(&name);
+//        OUTSTREAM << name.c_str();
+//    }
 
-    OUTSTREAM << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
-}
+//    OUTSTREAM << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+//}
 
 
 /*
@@ -1298,26 +1298,26 @@ static char* line;
 
 
 
-static void nodestats(int* c, const char* action)
-{
-    if (c[FILENODE])
-    {
-        OUTSTREAM << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
-    }
-    if (c[FILENODE] && c[FOLDERNODE])
-    {
-        OUTSTREAM << " and ";
-    }
-    if (c[FOLDERNODE])
-    {
-        OUTSTREAM << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
-    }
+//static void nodestats(int* c, const char* action)
+//{
+//    if (c[FILENODE])
+//    {
+//        OUTSTREAM << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
+//    }
+//    if (c[FILENODE] && c[FOLDERNODE])
+//    {
+//        OUTSTREAM << " and ";
+//    }
+//    if (c[FOLDERNODE])
+//    {
+//        OUTSTREAM << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
+//    }
 
-    if (c[FILENODE] || c[FOLDERNODE])
-    {
-        OUTSTREAM << " " << action << endl;
-    }
-}
+//    if (c[FILENODE] || c[FOLDERNODE])
+//    {
+//        OUTSTREAM << " " << action << endl;
+//    }
+//}
 
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
@@ -1848,6 +1848,7 @@ static void setprompt(prompttype p)
 #ifdef __linux__
 void sigint_handler(int signum)
 {
+    LOG_verbose << "Received signal: " << signum;
     rl_replace_line("", 0); //clean contents of actual command
     rl_crlf(); //move to nextline
 
@@ -2426,7 +2427,10 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
     LOG_debug << "actUponLogin login";
 
     if (srl->getRequest()->getEmail())
+    {
         LOG_debug << "actUponLogin login email: " << srl->getRequest()->getEmail();
+    }
+
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
         LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString();
@@ -2571,7 +2575,7 @@ bool setOptionsAndFlags(map<string,string> *opt,map<string,int> *flags,vector<st
         if (w.length() && w.at(0)=='-') //begins with "-"
         {
             if (w.length()>1 && w.at(1)!='-'){ //single character flags!
-                for (int i=1;i<w.length();i++)
+                for (uint i=1;i<w.length();i++)
                 {
                     string optname = w.substr(i,1);
                     if (vvalidOptions.find(optname) !=vvalidOptions.end())
@@ -2750,7 +2754,7 @@ static void process_line(char* l)
             }
             else
             {
-                error e;
+//                error e;
 
                 if (signupemail.size())
                 {
@@ -2993,7 +2997,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            for (int i=1;i<words.size();i++ )
+                            for (uint i=1;i<words.size();i++ )
                             {
                                 MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                                 if (nodeToDelete)
@@ -3745,19 +3749,15 @@ static void process_line(char* l)
                                     else
                                     {
                                         byte session[64];
-                                        int size;
 
                                         if (words[1].size() < sizeof session * 4 / 3)
                                         {
-//                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
-
                                             OUTSTREAM << "Resuming session..." << endl;
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                            api->fastLogin(words[1].c_str(),megaCmdListener);//TODO: pass listener once created
+                                            api->fastLogin(words[1].c_str(),megaCmdListener);
                                             actUponLogin(megaCmdListener);
                                             delete megaCmdListener;
                                             return;
-                                            //TODO: implement actUponFastlogin (https://ci.developers.mega.co.nz/view/SDK/job/megasdk-doc/ws/doc/api/html/classmega_1_1_mega_api.html#a074f01b631eab8e504f8cfae890e830c)
                                         }
                                     }
 
@@ -3821,11 +3821,11 @@ static void process_line(char* l)
                             case 1:		// list all shares (incoming and outgoing)
                                 {
 //                                    TreeProcListOutShares listoutshares;
-                                    Node* n;
+//                                    Node* n;
 
-                                    OUTSTREAM << "Shared folders:" << endl;
+//                                    OUTSTREAM << "Shared folders:" << endl;
 
-                                    //TODO: modify using API
+//                                    //TODO: modify using API
 //                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
 //                                    {
 //                                        if ((n = client->nodebyhandle(client->rootnodes[i])))

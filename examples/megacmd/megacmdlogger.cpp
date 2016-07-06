@@ -39,3 +39,31 @@ void setCurrentThreadLogLevel(int level){
 void setCurrentThreadOutStream(ostream *s){
     outstreams[getCurrentThread()]=s;
 }
+
+
+void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)
+{
+    if (strstr(source, "megacmd") != NULL) //TODO: warning: what if new files are added
+    {
+        if (loglevel<=cmdLoggerLevel)
+        {
+            *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+        }
+
+        int currentThreadLogLevel = getCurrentThreadLogLevel();
+        if (currentThreadLogLevel < 0) currentThreadLogLevel=cmdLoggerLevel;
+        if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //TODO: ERRSTREAM? (2 sockets?)
+            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+    }
+    else{
+        if (loglevel<=apiLoggerLevel)
+        {
+            *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+        }
+
+        int currentThreadLogLevel = getCurrentThreadLogLevel();
+        if (currentThreadLogLevel < 0) currentThreadLogLevel=apiLoggerLevel;
+        if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //since it happens in the sdk thread, this shall be false
+            OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
+    }
+}
