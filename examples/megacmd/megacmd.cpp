@@ -93,6 +93,9 @@ void destroy_thread_info_t(petition_info_t *t)
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
 private:
+    fd_set fds;
+
+
     //Create socket to hear for commands
     int sockfd, newsockfd;
     socklen_t clilen;
@@ -169,6 +172,10 @@ private:
         }
 
         return 0;
+    }
+
+    int getFileDescriptor(){
+        return sockfd;
     }
 
 public:
@@ -263,14 +270,67 @@ public:
         }
     }
 
-    int getFileDescriptor(){
-        return sockfd;
+    bool receivedReadlineInput (int readline_fd){
+        return FD_ISSET(readline_fd, &fds);
+    }
+
+    bool receivedPetition()
+    {
+        return FD_ISSET(getFileDescriptor(), &fds);
+    }
+
+    void waitForPetitionOrReadlineInput(int readline_fd)
+    {
+        FD_ZERO(&fds);
+        FD_SET(readline_fd, &fds);
+        if (getFileDescriptor())
+            FD_SET(getFileDescriptor(), &fds);
+        int rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
+        if (rc < 0)
+        {
+            if (errno  != EINTR) //syscall
+            {
+                LOG_fatal << "Error at select: " << errno;
+                //TODO: return?
+            }
+        }
+    }
+
+    /**
+     * @brief returnAndClosePetition
+     * I will clean struct and close the socket within
+     */
+    void returnAndClosePetition(petition_info_t *inf,std::ostringstream *s){
+
+        sockaddr_in cliAddr;
+        socklen_t cliLength = sizeof(cliAddr);
+        int connectedsocket = accept(inf->outSocket,(struct sockaddr *) &cliAddr,&cliLength); //TODO: check errors
+
+        //TODO use mutex, and free after accept
+
+        if (connectedsocket == -1) {
+            LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno;
+            destroy_thread_info_t(inf);
+            delete inf;
+            return;
+        }
+        string sout = s->str();
+
+        int n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
+        if (n < 0)
+        {
+            LOG_err << "ERROR writing to socket: " << errno;
+        }
+        close(connectedsocket);
+        close(inf->outSocket);
+        destroy_thread_info_t(inf);
+        delete inf;
     }
 
 
     /**
      * @brief getPetition
-     * @return pointer to new petition_info_t. It is the responsability of the caller to clean struct and close the socket within
+     * @return pointer to new petition_info_t. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
      */
     petition_info_t *getPetition(){
         petition_info_t *inf = new petition_info_t();
@@ -5797,50 +5857,25 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 
 void * doProcessLine(void *pointer)
 {
-
-    //TODO: think about moving socket code to CommunicationManager
     petition_info_t *inf = (petition_info_t *) pointer;
-
-    sockaddr_in cliAddr;
-    socklen_t cliLength = sizeof(cliAddr);
-    int connectedsocket = accept(inf->outSocket,(struct sockaddr *) &cliAddr,&cliLength); //TODO: check errors
-
-    //TODO use mutex, and free after accept
-
-    if (connectedsocket == -1) {
-        LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno;
-        return NULL;
-    }
-
-////
 
     std::ostringstream   s;
     setCurrentThreadOutStream(&s);
-
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
 
 
-    LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
-         << " socket output: " <<  inf->outSocket ;
+    LOG_verbose << " Processing " << inf->line << " in thread: " << getCurrentThread()
+              << " socket output: " <<  inf->outSocket ;
 
     process_line(inf->line);
 
-    LOG_debug << " Procesed " << inf->line << " in thread: " << getCurrentThread()
-         << " socket output: " <<  inf->outSocket ;
+    LOG_verbose << " Procesed " << inf->line << " in thread: " << getCurrentThread()
+              << " socket output: " <<  inf->outSocket ;
 
-    LOG_verbose << " to output in socket " <<inf->outSocket << ": <<" << s.str() << ">>";
+    LOG_verbose << "Output to write in socket " <<inf->outSocket << ": <<" << s.str() << ">>";
 
-    string sout = s.str();
+    cm->returnAndClosePetition(inf,&s);
 
-    int n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
-    if (n < 0)
-    {
-        LOG_err << "ERROR writing to socket: " << errno;
-    }
-    close(connectedsocket);
-    close(inf->outSocket);
-    destroy_thread_info_t(inf);
-    delete inf;
     return NULL;
 }
 
@@ -5871,7 +5906,7 @@ void megacmd()
 //    int readline_fd = fileno(rl_instream);
     int readline_fd = STDIN_FILENO;//stdin
 
-    fd_set fds;
+
 
     for (;;)
     {
@@ -5941,7 +5976,7 @@ void megacmd()
             rl_point = saved_point;
             rl_redisplay();
         }
-        int rc = -1;
+//        int rc = -1;
 
         // command editing loop - exits when a line is submitted or the engine requires the CPU
         for (;;)
@@ -5954,25 +5989,15 @@ void megacmd()
             {
                 if (prompt == COMMAND)
                 {
-                    FD_ZERO(&fds);
-                    FD_SET(readline_fd, &fds);
-                    if (cm->getFileDescriptor())
-                        FD_SET(cm->getFileDescriptor(), &fds);
-                    rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
-                    if (rc < 0)
-                    {
-                        if (errno  != EINTR) //syscall
-                        {
-                            LOG_fatal << "Error at select: " << errno;
-                            //TODO: return?
-                        }
-                    }
+                    cm->waitForPetitionOrReadlineInput(readline_fd);
 
-                    if (FD_ISSET(readline_fd, &fds)) {
+                    if (cm->receivedReadlineInput(readline_fd)) {
                         rl_callback_read_char();
                     }
-                    else if (FD_ISSET(cm->getFileDescriptor(), &fds))
+                    else if (cm->receivedPetition())
                     {
+                        //TODO: seguir por aqui **** meter codigo de turno dentor de doProcessLine en cm
+
                         LOG_verbose << "Client connected ";
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
 
