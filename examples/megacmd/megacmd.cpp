@@ -79,6 +79,17 @@ MegaMutex mtxSyncMap;
 std::vector<MegaThread *> petitionThreads;
 
 
+struct petition_info_t {
+    char * line = NULL;
+    int outSocket;
+};
+
+void destroy_thread_info_t(petition_info_t *t)
+{
+    if (t && t->line !=NULL)
+        free(t->line);
+}
+
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
 private:
@@ -259,10 +270,10 @@ public:
 
     /**
      * @brief getPetition
-     * @param socket_out socket for output. It is the responsability of the caller to close this socket
-     * @return
+     * @return pointer to new petition_info_t. It is the responsability of the caller to clean struct and close the socket within
      */
-    string getPetition(int *socket_out){
+    petition_info_t *getPetition(){
+        petition_info_t *inf = new petition_info_t();
 
         clilen = sizeof(cli_addr);
 
@@ -273,31 +284,40 @@ public:
         {
             LOG_fatal << "ERROR on accept";
             sleep (1);
-            return "ERROR";
+            inf->line=strdup("ERROR");
+            return inf;
         }
         bzero(buffer,1024);
         n = read(newsockfd,buffer,1023);
         if (n < 0) {
             LOG_fatal << "ERROR reading from socket";
-            return "ERROR";
+            inf->line=strdup("ERROR");
+            return inf;
         }
 
         int socket_id = 0;
-        *socket_out = create_new_socket(&socket_id);
-        if (!*socket_out || !socket_id)
+        inf->outSocket = create_new_socket(&socket_id);
+        if (!inf->outSocket || !socket_id)
         {
             LOG_fatal << "ERROR creating output socket";
-            return "ERROR";
+            inf->line=strdup("ERROR");
+            return inf;
         }
 
         //TODO: investigate possible failure in case client disconects!
         n = write(newsockfd,&socket_id,sizeof(socket_id));
         if (n < 0){
             LOG_fatal << "ERROR writing to socket: errno = " << errno;
-            return "ERROR";
+            inf->line=strdup("ERROR");
+            return inf;
         }
         close (newsockfd);
-        return string(buffer);
+
+
+        inf->line=strdup(buffer);
+
+        return inf;
+
     }
 
 
@@ -5774,22 +5794,12 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 */
 
-struct thread_info_t {
-    char * line = NULL;
-    int outSocket;
-};
-
-void destroy_thread_info_t(thread_info_t *t)
-{
-    if (t && t->line !=NULL)
-        free(t->line);
-}
 
 void * doProcessLine(void *pointer)
 {
 
     //TODO: think about moving socket code to CommunicationManager
-    thread_info_t *inf = (thread_info_t *) pointer;
+    petition_info_t *inf = (petition_info_t *) pointer;
 
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof(cliAddr);
@@ -5965,10 +5975,10 @@ void megacmd()
                     {
                         LOG_verbose << "Client connected ";
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
-                        int socket_out;
-                        string petition=cm->getPetition(&socket_out);
 
-                        LOG_verbose << "petition registered: " << petition;
+                        petition_info_t *inf = cm->getPetition();
+
+                        LOG_verbose << "petition registered: " << inf->line;
 
                         delete_finished_threads();
 
@@ -5976,20 +5986,8 @@ void megacmd()
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
 
-                        thread_info_t *inf = new thread_info_t();
-
-                        inf->line = strdup(petition.c_str());
-                        LOG_verbose << "petition copied to struct: " << inf->line;
-
-                        inf->outSocket = socket_out;
-
-//                        inf.stream = OUTSTREAM;
-
                         LOG_debug << "starting processing: ";
-
                         petitionThread->start(doProcessLine, (void *)inf);
-//                        delete petitionThread; //TODO: never deleted
-                        //TODO: cpetition never freed (should be done after joining petitionThread). save map with threads/stuff to clean
                     }
                 }
                 else
