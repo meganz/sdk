@@ -29,9 +29,11 @@ else {
 
 SOURCES += ../../../examples/megacmd/megacmd.cpp \
     ../../../examples/megacmd/megacmdlogger.cpp \
-    ../../../examples/megacmd/configurationmanager.cpp
+    ../../../examples/megacmd/configurationmanager.cpp \
+    ../../../examples/megacmd/comunicationsmanager.cpp
 HEADERS += ../../../examples/megacmd/megacmd.h \
     ../../../examples/megacmd/megacmdlogger.h \
-    ../../../examples/megacmd/configurationmanager.h
+    ../../../examples/megacmd/configurationmanager.h \
+    ../../../examples/megacmd/comunicationsmanager.h
 
 include(../../../bindings/qt/sdk.pri)
