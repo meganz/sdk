@@ -27,6 +27,6 @@ else {
     SOURCES += ../../../src/posix/consolewaiter.cpp
 }
 
-SOURCES += ../../../examples/megacmd.cpp
-HEADERS += ../../../examples/megacmd.h
+SOURCES += ../../../examples/megacmd/megacmd.cpp
+HEADERS += ../../../examples/megacmd/megacmd.h
 include(../../../bindings/qt/sdk.pri)
