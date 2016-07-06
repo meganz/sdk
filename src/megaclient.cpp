@@ -3864,15 +3864,23 @@ void MegaClient::sc_userattr()
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        if ((cacheduav = u->getattrversion(type)) && (*cacheduav != *ituav))
+                        cacheduav = u->getattrversion(type);
+                        if (cacheduav)
                         {
-                            u->invalidateattr(type);
-#ifdef ENABLE_CHAT
-                            if (type == ATTR_KEYRING)
+                            if (*cacheduav != *ituav)
                             {
-                                resetKeyring();
-                            }
+                                u->invalidateattr(type);
+#ifdef ENABLE_CHAT
+                                if (type == ATTR_KEYRING)
+                                {
+                                    resetKeyring();
+                                }
 #endif
+                            }
+                        }
+                        else
+                        {
+                            u->setChanged(type);
                         }
                     }
                     u->setTag(0);
