@@ -87,7 +87,6 @@ void ConfigurationManager::saveSyncs(map<string,sync_struct *> syncsmap)
 
         if(fo.is_open())
         {
-            // TODO: protect syncsmap with mutex
             map<string,sync_struct *>::iterator itr;
             int i =0;
             for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)

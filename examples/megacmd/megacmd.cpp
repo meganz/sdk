@@ -153,6 +153,7 @@ MegaCMDLogger *loggerCMD;
 
 //Syncs
 map<string,sync_struct *> syncsmap;
+MegaMutex mtxSyncMap;
 
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
@@ -3815,41 +3816,39 @@ static void process_line(char* l)
 #ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
+                        mtxSyncMap.lock();
                         if (words.size() == 3)
                         {
                             MegaNode* n = nodebypath(words[2].c_str());
                             if (n)
                             {
-                                if (api->getAccess(n) >= MegaShare::ACCESS_FULL)
+                                if (n->getType() == MegaNode::TYPE_FILE)
                                 {
-                                    //                                    string localname;
-                                    ////                                    client->fsaccess->path2local(&words[1], &localname);
-
+                                    LOG_err << words[2] << ": Remote sync root must be folder.";
+                                }
+                                else if (api->getAccess(n) >= MegaShare::ACCESS_FULL)
+                                {
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                     api->syncFolder(words[1].c_str(),n,megaCmdListener);
                                     megaCmdListener->wait();//TODO: actuponsyncfolder
                                     //TODO:  api->addSyncListener();
 
-                                    if (n->getType() == MegaNode::TYPE_FILE)
+                                    if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK )
                                     {
-                                        LOG_err << words[2] << ": Remote sync root must be folder.";
+                                        sync_struct *thesync = new sync_struct;
+                                        thesync->active = true;
+                                        thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
+                                        thesync->localpath = string(megaCmdListener->getRequest()->getFile());
+                                        thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
+                                        syncsmap[megaCmdListener->getRequest()->getFile()] = thesync;
+
+                                        OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << api->getNodePath(n);
                                     }
                                     else
                                     {
-                                        if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK )
-                                        {
-                                            sync_struct *thesync = new sync_struct;
-                                            thesync->active = true;
-                                            thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
-                                            thesync->localpath = string(megaCmdListener->getRequest()->getFile());
-                                            thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
-                                            syncsmap[megaCmdListener->getRequest()->getFile()] = thesync;
-                                        }
-                                        else
-                                        {
-                                            LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString();
-                                        }
+                                        LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString();
                                     }
+
                                     delete megaCmdListener;
                                 }
                                 else
@@ -3866,8 +3865,6 @@ static void process_line(char* l)
                         else if (words.size() == 2)
                         {
                             int id = atoi(words[1].c_str()); //TODO: check if not a number and look by path
-
-                            // TODO: protect syncsmap with mutex
                             map<string,sync_struct *>::iterator itr;
                             int i =0;
                             for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)
@@ -3914,7 +3911,7 @@ static void process_line(char* l)
                                         }
                                         else if(getFlag(&clflags,"d"))
                                         {
-                                            OUTSTREAM << "Removing sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
+                                            LOG_debug << "Removing sync "<< (*itr).first << " to " << api->getNodePath(n);
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             if (thesync->active)  //if not active, removeSync will fail.)
                                             {
@@ -3924,6 +3921,7 @@ static void process_line(char* l)
                                                 {
                                                     syncsmap.erase(itr);
                                                     delete (thesync);
+                                                    OUTSTREAM << "Removed sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
                                                 }
                                                 else
                                                 {
@@ -3955,22 +3953,6 @@ static void process_line(char* l)
                                     LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << thesync->handle;
                                 }
                             }
-
-
-
-//                            int i = 0, cancel = atoi(words[1].c_str());
-
-                            //TODO: modify using API
-//                            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-//                            {
-//                                if ((*it)->state > SYNC_CANCELED && i++ == cancel)
-//                                {
-//                                    client->delsync(*it);
-
-//                                    OUTSTREAM << "Sync " << cancel << " deactivated and removed." << endl;
-//                                    break;
-//                                }
-//                            }
                         }
                         else if (words.size() == 1)
                         {
@@ -3991,9 +3973,6 @@ static void process_line(char* l)
                                     nfiles+=nFolderFiles[1];
                                     delete []nFolderFiles;
 
-//                                    nodepath((*it)->localroot.node->nodehandle, &remotepath);
-//                                    client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
-
                                     OUTSTREAM << i++ << ": " << (*itr).first << " to " << api->getNodePath(n);
                                     string sstate((*itr).first);
                                     sstate = rtrim(sstate,'/');
@@ -4001,10 +3980,6 @@ static void process_line(char* l)
                                     OUTSTREAM << " - " << ((thesync->active)?"Active":"Disabled") << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
                                     OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
                                     OUTSTREAM << nfiles << " file(s) and " <<  nfolders << " folder(s)" << endl;
-//                                         << " - "
-//                                         << n->syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-//                                         << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-//                                         << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
                                     delete n;
                                 }
                                 else
@@ -4012,48 +3987,15 @@ static void process_line(char* l)
                                     LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << thesync->handle;
                                 }
                             }
-//                            for (int i=0;i<m)
-//                            //TODO: modify using API
-//                            if (api->getNumActiveSyncs())
-//                            {
-//                            for (int i=0;i<api->getNumActiveSyncs(); i++)
-//                            {
-//                                //MegaSync * sync = api->getSync(i); //TODO: use this one whenever it is available
-
-//                                int i = 0;
-//                                string remotepath, localpath;
-
-//                                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-//                                {
-//                                    if ((*it)->state > SYNC_CANCELED)
-//                                    {
-//                                        static const char* syncstatenames[] =
-//                                        { "Initial scan, please wait", "Active", "Failed" };
-
-//                                        if ((*it)->localroot.node)
-//                                        {
-//                                            nodepath((*it)->localroot.node->nodehandle, &remotepath);
-//                                            client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
-
-//                                            OUTSTREAM << i++ << ": " << localpath << " to " << remotepath << " - "
-//                                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-//                                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-//                                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "No syncs active at this time." << endl;
-//                            }
                         }
                         else
                         {
                             OUTSTREAM << "      " << getUsageStr("sync") << endl;
+                            mtxSyncMap.unlock();
                             return;
                         }
                         ConfigurationManager::saveSyncs(syncsmap);
+                        mtxSyncMap.unlock();
                         return;
                     }
 #endif
@@ -6172,6 +6114,8 @@ int main()
     SimpleLogger::setAllOutputs(&null_stream);
 //    SimpleLogger::setAllOutputs(&cout);
 //    SimpleLogger::setAllOutputs(new NulOStream());
+
+    mtxSyncMap.init(false);
 
 
     // instantiate app components: the callback processor (DemoApp),
