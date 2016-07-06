@@ -262,7 +262,7 @@ public:
      * @param socket_out socket for output. It is the responsability of the caller to close this socket
      * @return
      */
-    string getPetition(int &socket_out){
+    string getPetition(int *socket_out){
 
         clilen = sizeof(cli_addr);
 
@@ -283,8 +283,8 @@ public:
         }
 
         int socket_id = 0;
-        socket_out = create_new_socket(&socket_id);
-        if (!socket_out || !socket_id)
+        *socket_out = create_new_socket(&socket_id);
+        if (!*socket_out || !socket_id)
         {
             LOG_fatal << "ERROR creating output socket";
             return "ERROR";
@@ -5802,7 +5802,7 @@ void * doProcessLine(void *pointer)
         return NULL;
     }
 
-
+////
 
     std::ostringstream   s;
     setCurrentThreadOutStream(&s);
@@ -5966,10 +5966,9 @@ void megacmd()
                         LOG_verbose << "Client connected ";
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
                         int socket_out;
-                        string petition=cm->getPetition(socket_out);
+                        string petition=cm->getPetition(&socket_out);
 
                         LOG_verbose << "petition registered: " << petition;
-
 
                         delete_finished_threads();
 
