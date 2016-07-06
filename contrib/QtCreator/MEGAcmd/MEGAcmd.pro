@@ -29,4 +29,7 @@ else {
 
 SOURCES += ../../../examples/megacmd/megacmd.cpp
 HEADERS += ../../../examples/megacmd/megacmd.h
+SOURCES += ../../../examples/megacmd/configurationmanager.cpp
+HEADERS += ../../../examples/megacmd/configurationmanager.h
+
 include(../../../bindings/qt/sdk.pri)

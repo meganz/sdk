@@ -19,9 +19,22 @@
  * program.
  */
 
+#ifndef MEGACMD_H
+#define MEGACMD_H
+
 #include "megaapi.h"
 
 using namespace mega;
+
+
+
+typedef struct sync_struct{
+    MegaHandle handle;
+    bool active;
+    std::string localpath;
+    long long fingerprint;
+} sync_struct;
+
 
 
 //extern MegaClient* client;
@@ -189,3 +202,5 @@ extern void read_pw_char(char*, int, int*, char**);
 
     void notify_retry(dstime);
 };*/
+
+#endif
