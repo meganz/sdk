@@ -26,8 +26,6 @@
 
 using namespace mega;
 
-
-
 typedef struct sync_struct{
     MegaHandle handle;
     bool active;

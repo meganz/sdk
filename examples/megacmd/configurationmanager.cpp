@@ -16,7 +16,7 @@ map<string,sync_struct *> ConfigurationManager::configuredSyncs;
 string ConfigurationManager::session;
 
 void ConfigurationManager::loadConfigDir(){
-    const char *homedir = NULL; // TODO:place outside
+    const char *homedir = NULL;
     homedir = getenv("HOME");
     if (!homedir) {
 
@@ -117,7 +117,6 @@ void ConfigurationManager::loadConfiguration(){
         sessionfile << configFolder << "/" << "session";
         LOG_debug << "Session file: " << sessionfile.str();
 
-
         ifstream fi(sessionfile.str().c_str(), ios::in);
         if (fi.is_open())
         {
@@ -130,8 +129,6 @@ void ConfigurationManager::loadConfiguration(){
             }
             fi.close();
         }
-
-
 
         stringstream syncsfile;
         if (!configFolder.size()) loadConfigDir();
@@ -149,9 +146,7 @@ void ConfigurationManager::loadConfiguration(){
                     LOG_err << "fail with sync file";
                 }
 
-//                    while (!(fi && fi.peek() == EOF))
                 while (!(fi.peek() == EOF))
-//                    while(fi)
                 {
                     sync_struct *thesync = new sync_struct;
                     //Load syncs

@@ -27,6 +27,7 @@
 #include "mega.h"
 
 #include "configurationmanager.h"
+#include "megacmdlogger.h"
 #include "megaapi_impl.h" //to use such things as MegaThread
 
 
@@ -38,43 +39,12 @@
 #include <iomanip>
 #include <string>
 
-#define OUTSTREAM getCurrentOut()
-
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
 using namespace mega;
 
-// different outstreams for every thread. to gather all the output data
-map<int,ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
-std::vector<MegaThread *> petitionThreads;
-map<int,int> threadLogLevel;
-
-int getCurrentThread(){
-    //return std::this_thread::get_id();
-    //return std::thread::get_id();
-    return MegaThread::currentThreadId();//TODO: create this in thread class
-}
-
-
-ostream &getCurrentOut(){
-    int currentThread=getCurrentThread();
-    if ( outstreams.find(currentThread) == outstreams.end() ) {
-      return cout;
-    } else {
-      return *outstreams[currentThread];
-    }
-}
-
-int getCurrentThreadLogLevel(){
-    int currentThread=getCurrentThread();
-    if ( threadLogLevel.find(currentThread) == threadLogLevel.end() ) {
-      return -1;
-    } else {
-      return threadLogLevel[currentThread];
-    }
-}
 //void clear_display(){
 //    rl_forced_update_display();
 //}
@@ -98,55 +68,6 @@ int getCurrentThreadLogLevel(){
 //    else \
 //        clear_display();
 
-
-class MegaCMDLogger: public MegaLogger{
-private:
-    int apiLoggerLevel;
-    int cmdLoggerLevel;
-    ostream * output;
-public:
-    MegaCMDLogger(ostream * outstr)
-    {
-        this->output = outstr;
-        this->apiLoggerLevel=MegaApi::LOG_LEVEL_ERROR;
-    }
-
-    void log(const char *time, int loglevel, const char *source, const char *message)
-    {
-        if (strstr(source, "megacmd") != NULL) //TODO: warning: what if new files are added
-        {
-            if (loglevel<=cmdLoggerLevel)
-            {
-                *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-            }
-
-            int currentThreadLogLevel = getCurrentThreadLogLevel();
-            if (currentThreadLogLevel < 0) currentThreadLogLevel=cmdLoggerLevel;
-            if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //TODO: ERRSTREAM? (2 sockets?)
-                OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-        }
-        else{
-            if (loglevel<=apiLoggerLevel)
-            {
-                *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-            }
-
-            int currentThreadLogLevel = getCurrentThreadLogLevel();
-            if (currentThreadLogLevel < 0) currentThreadLogLevel=apiLoggerLevel;
-            if (loglevel<=currentThreadLogLevel && &OUTSTREAM != output) //since it happens in the sdk thread, this shall be false
-                OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
-        }
-    }
-
-    void setApiLoggerLevel(int apiLoggerLevel){
-        this->apiLoggerLevel=apiLoggerLevel;
-    }
-
-    void setCmdLoggerLevel(int cmdLoggerLevel){
-        this->cmdLoggerLevel=cmdLoggerLevel;
-    }
-};
-
 //MegaClient* client;
 MegaApi *api;
 MegaCMDLogger *loggerCMD;
@@ -154,6 +75,9 @@ MegaCMDLogger *loggerCMD;
 //Syncs
 map<string,sync_struct *> syncsmap;
 MegaMutex mtxSyncMap;
+
+std::vector<MegaThread *> petitionThreads;
+
 
 class ComunicationsManager //TODO: do interface somewhere and move this
 {
@@ -3234,7 +3158,7 @@ static void process_line(char* l)
 
             if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
 
-            threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v");
+            setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v"));
 
             switch (words[0].size()) //TODO: why this???
             {
@@ -5881,9 +5805,9 @@ void * doProcessLine(void *pointer)
 
 
     std::ostringstream   s;
-    outstreams[getCurrentThread()]=&s;
+    setCurrentThreadOutStream(&s);
 
-    threadLogLevel[getCurrentThread()]=MegaApi::LOG_LEVEL_ERROR;
+    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
 
 
     LOG_debug << " Processing " << inf->line << " in thread: " << getCurrentThread()
@@ -5910,6 +5834,20 @@ void * doProcessLine(void *pointer)
     return NULL;
 }
 
+void delete_finished_threads()
+{
+    for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
+        /* std::cout << *it; ... */
+        MegaThread *mt = (MegaThread *)*it;
+        if (mt->isFinished())
+        {
+            delete mt;
+            it=petitionThreads.erase(it);
+        }
+        else
+            ++it;
+    }
+}
 
 // main loop
 void megacmd()
@@ -6033,18 +5971,7 @@ void megacmd()
                         LOG_verbose << "petition registered: " << petition;
 
 
-                        //delete finished threads
-                        for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
-                            /* std::cout << *it; ... */
-                            MegaThread *mt = (MegaThread *)*it;
-                            if (mt->isFinished())
-                            {
-                                delete mt;
-                                it=petitionThreads.erase(it);
-                            }
-                            else
-                                ++it;
-                        }
+                        delete_finished_threads();
 
                         //append new one
                         MegaThread * petitionThread = new MegaThread();
@@ -6181,7 +6108,7 @@ int main()
     {
         stringstream logLine;
         logLine << "login " << ConfigurationManager::session;
-        LOG_debug << "Executing ..." << logLine.str();
+        LOG_debug << "Executing ... " << logLine.str();
         process_line((char *)logLine.str().c_str());
     }
 
