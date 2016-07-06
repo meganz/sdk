@@ -1292,10 +1292,11 @@ TEST_F(SdkTest, SdkTestContacts)
  * - Revoke the access to the share
  * - Share a folder with a non registered email
  * - Check the correctness of the pending outgoing share
- * - Create a public link
- * - Import a public link
- * - Get a node from public link
+ * - Create a file public link
+ * - Import a file public link
+ * - Get a node from a file public link
  * - Remove a public link
+ * - Create a folder public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -1501,7 +1502,7 @@ TEST_F(SdkTest, SdkTestShares)
     delete n;
 
 
-    // --- Create a public link ---
+    // --- Create a file public link ---
 
     MegaNode *nfile1 = megaApi[0]->getNodeByHandle(hfile1);
 
@@ -1528,7 +1529,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
 
 
-    // --- Import a public link ---
+    // --- Import a file public link ---
 
     ASSERT_NO_FATAL_FAILURE( importPublicLink(link, rootnode) );
 
@@ -1538,7 +1539,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(rootnode->getHandle(), nimported->getParentHandle()) << "Imported file in wrong path";
 
 
-    // --- Get node from public link ---
+    // --- Get node from file public link ---
 
     ASSERT_NO_FATAL_FAILURE( getPublicNode(link) );
 
@@ -1554,6 +1555,35 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
 
     delete nimported;
+
+
+    // --- Create a folder public link ---
+
+    MegaNode *nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    // The created link is stored in this->link at onRequestFinish()
+
+    delete nfolder1;
+
+    // Get a fresh snapshot of the node and check it's actually exported
+    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
+    ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
+
+    delete nfolder1;
+
+    oldLink = link;
+    link = "";
+    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_STREQ(oldLink.c_str(), nfolder1->getPublicLink()) << "Wrong public link from MegaNode";
+
+    // Regenerate the same link should not trigger a new request
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
+
+    delete nfolder1;
+
 }
 
 #ifdef ENABLE_CHAT
