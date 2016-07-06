@@ -1663,6 +1663,7 @@ private:
 
 public:
     static map<string,sync_struct *> configuredSyncs;
+    static string session;
 
     static bool isConfigurationLoaded()
     {
@@ -1676,7 +1677,6 @@ public:
             sessionfile << configFolder << "/" << "session";
             LOG_debug << "Session file: " << sessionfile.str();
 
-            stringstream logLine;
 
             ifstream fi(sessionfile.str().c_str(), ios::in);
             if (fi.is_open())
@@ -1684,11 +1684,9 @@ public:
                 string line;
                 getline (fi,line);
                 {
-                    const char *session = line.c_str();
+                    session = line;
                     LOG_debug << "Session read from configuration: " << line.substr(0,5) << "...";
                     //login?
-
-                    logLine << "login " << session;
                 }
                 fi.close();
             }
@@ -1736,11 +1734,6 @@ public:
                     fi.close();
                 }
             }
-
-            LOG_debug << "Executing ..." << logLine.str();
-            process_line((char *)logLine.str().c_str());
-
-            //api->resumeSync(localpath,megaHandle,localFingerprint,listener);
         }
         else
         {
@@ -1811,7 +1804,7 @@ public:
 
 string ConfigurationManager::configFolder;
 map<string,sync_struct *> ConfigurationManager::configuredSyncs;
-
+string ConfigurationManager::session;
 
 
 
@@ -6446,6 +6439,13 @@ int main()
             // prompting anything.
 
     ConfigurationManager::loadConfiguration();
+    if (!ConfigurationManager::session.empty())
+    {
+        stringstream logLine;
+        logLine << "login " << ConfigurationManager::session;
+        LOG_debug << "Executing ..." << logLine.str();
+        process_line((char *)logLine.str().c_str());
+    }
 
     megacmd();
 }
