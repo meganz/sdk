@@ -82,6 +82,7 @@ std::vector<MegaThread *> petitionThreads;
 //Comunications Manager
 ComunicationsManager * cm;
 
+MegaFileSystemAccess *fsAccessCMD;
 
 static AccountDetails account;
 
@@ -94,6 +95,26 @@ static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
 
 static const char* rootnodepaths[] = { "/", "//in", "//bin" };
 
+
+bool ifPathAFolder(const char * path){
+    struct stat s;
+    if( stat(path,&s) == 0 )
+    {
+        if( s.st_mode & S_IFDIR )
+        {
+            return true;
+        }
+        else
+        {
+            LOG_verbose << "Path is not a folder: " << path ;
+        }
+    }
+    else
+    {
+        LOG_verbose << "Path not found: " << path;
+    }
+    return false;
+}
 
 #include "megaapi_impl.h"
 /**
@@ -469,6 +490,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"cd") ) return "cd [remotepath]";
     if(!strcmp(command,"pwd") ) return "pwd";
     if(!strcmp(command,"lcd") ) return "lcd [localpath]";
+    if(!strcmp(command,"lpwd") ) return "lpwd";
     if(!strcmp(command,"import") ) return "import exportedfilelink#key";
     if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
     if(!strcmp(command,"putq") ) return "putq [cancelslot]";
@@ -2863,6 +2885,7 @@ static void process_line(char* l)
                 OUTSTREAM << "      " << getUsageStr("cd") << endl;
                 OUTSTREAM << "      " << getUsageStr("pwd") << endl;
                 OUTSTREAM << "      " << getUsageStr("lcd") << endl;
+                OUTSTREAM << "      " << getUsageStr("lpwd") << endl;
                 OUTSTREAM << "      " << getUsageStr("import") << endl;
                 OUTSTREAM << "      " << getUsageStr("put") << endl;
                 OUTSTREAM << "      " << getUsageStr("putq") << endl;
@@ -3442,27 +3465,42 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    else if (words[0] == "lcd")
-//                    {
-//                        if (words.size() > 1)
-//                        {
-//                            string localpath;
+                    else if (words[0] == "lcd") //this only makes sense for interactive mode
+                    {
+                        if (words.size() > 1)
+                        {
+                            string localpath;
 
-//                            //TODO: modify using API
-////                            client->fsaccess->path2local(&words[1], &localpath);
+                            fsAccessCMD->path2local(&words[1], &localpath);
 
-////                            if (!client->fsaccess->chdirlocal(&localpath))
-////                            {
-////                                OUTSTREAM << words[1] << ": Failed" << endl;
-////                            }
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      lcd [localpath]" << endl;
-//                        }
+                            if (fsAccessCMD->chdirlocal(&localpath)) // maybe this is already checked in chdir
+                            {
+                                LOG_debug << "Local folder changed to: "<< localpath;
+                            }
+                            else
+                            {
+                                LOG_err << "Not a valid folder" << words[1];
+                            }
+                        }
+                        else
+                        {
+                            OUTSTREAM << "      " << getUsageStr("lcd") << endl;
+                        }
 
-//                        return;
-//                    }
+                        return;
+                    }
+                    else if (words[0] == "lpwd")
+                    {
+                        char cCurrentPath[FILENAME_MAX]; //TODO: move all this into PosixFileSystemAccess
+                        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
+                        {
+                            LOG_err << "Couldn't read cwd";
+                            return;
+                        }
+
+                        OUTSTREAM <<  cCurrentPath << endl;
+                        return;
+                    }
 //                    else if (words[0] == "ipc")
 //                    {
 //                        // incoming pending contact action
@@ -5752,6 +5790,10 @@ int main()
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
     SimpleLogger::setAllOutputs(&null_stream);
+
+
+    fsAccessCMD = new MegaFileSystemAccess();
+
 //    SimpleLogger::setAllOutputs(&cout);
 //    SimpleLogger::setAllOutputs(new NulOStream());
 
@@ -5788,6 +5830,7 @@ int main()
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
 
     megaCmdGlobalListener =  new MegaCmdGlobalListener();
 
