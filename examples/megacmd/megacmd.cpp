@@ -1363,6 +1363,36 @@ static void listtrees()
     delete (msl);
 }
 
+string getCurrentLocalPath(){ //TODO: move all this into PosixFileSystemAccess
+    char cCurrentPath[FILENAME_MAX];
+    if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
+    {
+        LOG_err << "Couldn't read cwd";
+        return "";
+    };
+
+    return string(cCurrentPath);
+}
+
+/**
+ * @brief expanseLocalPath
+ * Returns the full path
+ * @param path
+ * @return
+ */
+string expanseLocalPath(string path){ //TODO: posix dependent!
+    ostringstream os;
+    if (path.at(0)=='/')
+    {
+        return path;
+    }
+    else
+    {
+        os << getCurrentLocalPath() << "/" << path;
+        return os.str();
+    }
+}
+
 
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
@@ -3491,12 +3521,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "lpwd")
                     {
-                        char cCurrentPath[FILENAME_MAX]; //TODO: move all this into PosixFileSystemAccess
-                        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
-                        {
-                            LOG_err << "Couldn't read cwd";
-                            return;
-                        }
+                        string cCurrentPath = getCurrentLocalPath();
 
                         OUTSTREAM <<  cCurrentPath << endl;
                         return;
@@ -3556,6 +3581,7 @@ static void process_line(char* l)
                         mtxSyncMap.lock();
                         if (words.size() == 3)
                         {
+                            string localpath = expanseLocalPath(words[1]);
                             MegaNode* n = nodebypath(words[2].c_str());
                             if (n)
                             {
@@ -3566,7 +3592,8 @@ static void process_line(char* l)
                                 else if (api->getAccess(n) >= MegaShare::ACCESS_FULL)
                                 {
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                    api->syncFolder(words[1].c_str(),n,megaCmdListener);
+
+                                    api->syncFolder(localpath.c_str(),n,megaCmdListener);
                                     megaCmdListener->wait();//TODO: actuponsyncfolder
                                     //TODO:  api->addSyncListener();
 
@@ -3604,10 +3631,12 @@ static void process_line(char* l)
                             int id = atoi(words[1].c_str()); //TODO: check if not a number and look by path
                             map<string,sync_struct *>::iterator itr;
                             int i =0;
-                            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)
+                            for(itr = syncsmap.begin(); itr != syncsmap.end(); i++)
                             {
+                                string key = (*itr).first;
                                 sync_struct *thesync = ((sync_struct *)(*itr).second);
                                 MegaNode * n = api->getNodeByHandle(thesync->handle);
+                                bool erased = false;
 
                                 if (n)
                                 {
@@ -3623,7 +3652,7 @@ static void process_line(char* l)
 
                                         if (getFlag(&clflags,"s"))
                                         {
-                                            OUTSTREAM << "Stopping (disabling) sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
+                                            OUTSTREAM << "Stopping (disabling) sync "<< key << " to " << api->getNodePath(n) << endl;
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             if (thesync->active)
                                             {
@@ -3648,7 +3677,7 @@ static void process_line(char* l)
                                         }
                                         else if(getFlag(&clflags,"d"))
                                         {
-                                            LOG_debug << "Removing sync "<< (*itr).first << " to " << api->getNodePath(n);
+                                            LOG_debug << "Removing sync "<< key << " to " << api->getNodePath(n);
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             if (thesync->active)  //if not active, removeSync will fail.)
                                             {
@@ -3656,9 +3685,10 @@ static void process_line(char* l)
                                                 megaCmdListener->wait();//TODO: actupon...
                                                 if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
                                                 {
-                                                    syncsmap.erase(itr);
+                                                    syncsmap.erase(itr++);
+                                                    erased = true;
                                                     delete (thesync);
-                                                    OUTSTREAM << "Removed sync "<< (*itr).first << " to " << api->getNodePath(n) << endl;
+                                                    OUTSTREAM << "Removed sync "<< key << " to " << api->getNodePath(n) << endl;
                                                 }
                                                 else
                                                 {
@@ -3668,14 +3698,15 @@ static void process_line(char* l)
                                             else //if !active simply remove
                                             {
                                                 //TODO: if the sdk ever provides a way to clean cache, call it
-                                                syncsmap.erase(itr);
+                                                syncsmap.erase(itr++);
+                                                erased = true;
                                                 delete (thesync);
                                             }
                                             delete megaCmdListener;
                                         }
                                         else{
-                                            OUTSTREAM << i << ": " << (*itr).first << " to " << api->getNodePath(n);
-                                            string sstate((*itr).first);
+                                            OUTSTREAM << i << ": " << key << " to " << api->getNodePath(n);
+                                            string sstate(key);
                                             sstate = rtrim(sstate,'/');
                                             int state = api->syncPathState(&sstate);
                                             OUTSTREAM << " - " << (thesync->active?"Active":"Disabled") << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
@@ -3687,8 +3718,9 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    LOG_err << "Node not found for sync " << (*itr).first << " into handle: " << thesync->handle;
+                                    LOG_err << "Node not found for sync " << key << " into handle: " << thesync->handle;
                                 }
+                                if (!erased) ++itr;
                             }
                         }
                         else if (words.size() == 1)
@@ -5826,8 +5858,8 @@ int main()
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
-//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
