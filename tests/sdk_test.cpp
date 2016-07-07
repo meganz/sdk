@@ -809,12 +809,16 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     delete n1;
     n1 = megaApi[0]->getNodeByHandle(h);
 
-    char buf[12];
-    sprintf(buf, "%.6f", lat);
-    ASSERT_EQ(atof(buf), n1->getLatitude()) << "Latitude value does not match";
+    // do same conversions to lose the same precision
+    int buf = (lat + 90) / 90 * 16777215;      // 3 bytes, no wrapping here
+    double res = -90 + 90 * (double) buf / 16777215;
 
-    sprintf(buf, "%.6f", lon);
-    ASSERT_EQ(atof(buf), n1->getLongitude()) << "Longitude value does not match";
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+
+    buf = (lon + 180) / 360 * 16777216;   // 3 bytes, wrapping occurs
+    res = -180 + 360 * (double) buf / 16777216;
+
+    ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
 
 
     // ___ Set coordinates of a node to origin (0,0) ___
