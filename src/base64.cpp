@@ -123,6 +123,29 @@ int Base64::atob(const char* a, byte* b, int blen)
     return p;
 }
 
+char *Base64::itoa(int64_t val)
+{
+    string result;
+    byte c;
+    int64_t rest = val;
+
+    if (rest == 0)
+    {
+        return strdup("A");
+    }
+
+    while (val)
+    {
+        rest = val % 64;
+        val /= 64;
+
+        c = to64(rest);
+        result.insert(result.begin(), (char) c);
+    }
+
+    return strdup(result.c_str());
+}
+
 int Base64::btoa(const byte* b, int blen, char* a)
 {
     int p = 0;

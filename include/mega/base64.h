@@ -34,6 +34,8 @@ class MEGA_API Base64
 public:
     static int btoa(const byte*, int, char*);
     static int atob(const char*, byte*, int);
+
+    static char* itoa(int64_t);
 };
 
 // lowercase base32 encoding
