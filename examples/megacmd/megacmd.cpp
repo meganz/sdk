@@ -1755,10 +1755,10 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
         if (percentFetchnodes==oldpercent && oldpercent!=0) return;
         if (percentFetchnodes <0) percentFetchnodes = 0;
 
-        char aux[30];
-        sprintf(aux,"||( %.2f %%) ",percentFetchnodes);
+        char aux[40];
+        if (request->getTransferredBytes()==3) return; // after a 100% this happens
+        sprintf(aux,"||(%d/%d MB: %.2f %%) ",request->getTransferredBytes()/1024/1024,request->getTotalBytes()/1024/1024,percentFetchnodes);
         sprintf(outputString+cols-strlen(aux),"%s",aux);
-
         for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
         {
             if (RL_ISSTATE(RL_STATE_INITIALIZED))
@@ -1770,7 +1770,6 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
                 cout << outputString << endl; //too verbose
             }
         }
-
 
 #endif
 
