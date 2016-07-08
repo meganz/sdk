@@ -26,6 +26,7 @@
 #include "megacmd.h"
 #include "mega.h"
 
+#include "megacmdutils.h"
 #include "configurationmanager.h"
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
@@ -86,7 +87,6 @@ MegaFileSystemAccess *fsAccessCMD;
 
 static AccountDetails account;
 
-
 static handle cwd = UNDEF;
 static MegaNode* rootNode = NULL;
 static char *session;
@@ -95,26 +95,46 @@ static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
 
 static const char* rootnodepaths[] = { "/", "//in", "//bin" };
 
+static void store_line(char*);
+static void process_line(char *);
+static char* line;
 
-bool ifPathAFolder(const char * path){
-    struct stat s;
-    if( stat(path,&s) == 0 )
+static char dynamicprompt[128];
+
+static const char* prompts[] =
+{
+    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+};
+
+enum prompttype
+{
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+};
+
+static prompttype prompt = COMMAND;
+
+static char pw_buf[256];
+static int pw_buf_pos;
+
+// local console
+Console* console;
+
+static void setprompt(prompttype p)
+{
+    prompt = p;
+
+    if (p == COMMAND)
     {
-        if( s.st_mode & S_IFDIR )
-        {
-            return true;
-        }
-        else
-        {
-            LOG_verbose << "Path is not a folder: " << path ;
-        }
+        console->setecho(true);
     }
     else
     {
-        LOG_verbose << "Path not found: " << path;
+        pw_buf_pos = 0;
+        OUTSTREAM << prompts[p] << flush;
+        console->setecho(false);
     }
-    return false;
 }
+
 
 #include "megaapi_impl.h"
 /**
@@ -157,7 +177,6 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
             if (megaError) delete megaError; //in case of reused listener
             this->megaError = error->copy();
 
-
             doOnRequestFinish(api,request,error);
             semaphore->release();
         }
@@ -193,9 +212,6 @@ MegaError *SynchronousRequestListener::getError() const
     return megaError;
 }
 
-
-
-
 class MegaCmdListener : public SynchronousRequestListener
 {
 private:
@@ -221,45 +237,7 @@ class MegaCmdGlobalListener : public MegaGlobalListener
 public:
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
-
 };
-
-/**
- * @brief getNumFolderFiles
- *
- * Ownership of returned value belongs to the caller
- * @param n
- * @return
- */
-int * getNumFolderFiles(MegaNode *n){
-
-    int * nFolderFiles = new int[2]();
-//    MegaNodeList *totalnodes = api->getChildren(n,MegaApi::ORDER_DEFAULT_ASC); //sort folders first
-    MegaNodeList *totalnodes = api->getChildren(n);
-    for (int i=0; i<totalnodes->size();i++)
-    {
-        if (totalnodes->get(i)->getType() == MegaNode::TYPE_FILE)
-        {
-//            nFolderFiles[1] = totalnodes->size()-i; //found first file
-//            break;
-            nFolderFiles[1]++;
-        }
-        else
-            nFolderFiles[0]++; //folder
-    }
-    int nfolders = nFolderFiles[0];
-    for (int i=0; i<nfolders;i++)
-    {
-        int * nFolderFilesSub = getNumFolderFiles(totalnodes->get(i));
-
-        nFolderFiles[0]+=  nFolderFilesSub[0];
-        nFolderFiles[1]+=  nFolderFilesSub[1];
-        delete []nFolderFilesSub;
-
-    }
-    delete totalnodes;
-    return nFolderFiles;
-}
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
@@ -320,21 +298,21 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     {
         //TODO: check if log level is info (otherwise, do not count files)
         MegaNode * nodeRoot= api->getRootNode();
-        int * nFolderFiles = getNumFolderFiles(nodeRoot);
+        int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
         delete []nFolderFiles;
         delete nodeRoot;
 
         MegaNode * inboxNode= api->getInboxNode();
-        nFolderFiles = getNumFolderFiles(inboxNode);
+        nFolderFiles = getNumFolderFiles(inboxNode,api);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
         delete []nFolderFiles;
         delete inboxNode;
 
         MegaNode * rubbishNode= api->getRubbishNode();
-        nFolderFiles = getNumFolderFiles(rubbishNode);
+        nFolderFiles = getNumFolderFiles(rubbishNode,api);
         nfolders+=nFolderFiles[0];
         nfiles+=nFolderFiles[1];
         delete []nFolderFiles;
@@ -345,7 +323,7 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
         for (int i=0; i<inshares->size();i++)
         {
             nfolders++; //add the share itself
-            nFolderFiles = getNumFolderFiles(inshares->get(i));
+            nFolderFiles = getNumFolderFiles(inshares->get(i),api);
             nfolders+=nFolderFiles[0];
             nfiles+=nFolderFiles[1];
             delete []nFolderFiles;
@@ -358,9 +336,6 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
     if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
 }
-
-//// listener for all actions with the api
-//MegaCmdListener* megaCmdListener;
 
 // global listener
 MegaCmdGlobalListener* megaCmdGlobalListener;
@@ -377,106 +352,8 @@ static string signupcode;
 //// signup password challenge and encrypted master key
 //static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
 
-// local console
-Console* console;
-
 // loading progress of lengthy API responses
 int responseprogress = -1;
-
-//static const char* accesslevels() =
-//{ "read-only", "read/write", "full access" };
-//map<int,string> accesslevelsmap = {
-//    {MegaShare::ACCESS_UNKNOWN,"Unknown access"},
-//    {MegaShare::ACCESS_READ,"read access"},
-//    {MegaShare::ACCESS_READWRITE,"read/write access"},
-//    {MegaShare::ACCESS_FULL,"full access"},
-//    {MegaShare::ACCESS_OWNER,"owner access"},
-//};
-const char* getAccessLevelStr(int level){
-    switch (level){
-        case MegaShare::ACCESS_UNKNOWN: return "unknown access"; break;
-        case MegaShare::ACCESS_READ: return "read access"; break;
-        case MegaShare::ACCESS_READWRITE: return "read/write access"; break;
-        case MegaShare::ACCESS_FULL: return "full access"; break;
-        case MegaShare::ACCESS_OWNER: return "owner access"; break;
-    };
-    return "undefined";
-}
-
-const char* getSyncStateStr(int state){
-    switch (state){
-    case 0: return "NONE"; break;
-    case MegaApi::STATE_SYNCED: return "Synced"; break;
-    case MegaApi::STATE_PENDING: return "Pending"; break;
-    case MegaApi::STATE_SYNCING: return "Syncing"; break;
-    case MegaApi::STATE_IGNORED: return "Ignored"; break;
-    };
-    return "undefined";
-}
-
-
-const char* errorstring(int e)
-{
-    switch (e)
-    {
-        case API_OK:
-            return "No error";
-        case API_EINTERNAL:
-            return "Internal error";
-        case API_EARGS:
-            return "Invalid argument";
-        case API_EAGAIN:
-            return "Request failed, retrying";
-        case API_ERATELIMIT:
-            return "Rate limit exceeded";
-        case API_EFAILED:
-            return "Transfer failed";
-        case API_ETOOMANY:
-            return "Too many concurrent connections or transfers";
-        case API_ERANGE:
-            return "Out of range";
-        case API_EEXPIRED:
-            return "Expired";
-        case API_ENOENT:
-            return "Not found";
-        case API_ECIRCULAR:
-            return "Circular linkage detected";
-        case API_EACCESS:
-            return "Access denied";
-        case API_EEXIST:
-            return "Already exists";
-        case API_EINCOMPLETE:
-            return "Incomplete";
-        case API_EKEY:
-            return "Invalid key/integrity check failed";
-        case API_ESID:
-            return "Bad session ID";
-        case API_EBLOCKED:
-            return "Blocked";
-        case API_EOVERQUOTA:
-            return "Over quota";
-        case API_ETEMPUNAVAIL:
-            return "Temporarily not available";
-        case API_ETOOMANYCONNECTIONS:
-            return "Connection overflow";
-        case API_EWRITE:
-            return "Write error";
-        case API_EREAD:
-            return "Read error";
-        case API_EAPPKEY:
-            return "Invalid application key";
-        default:
-            return "Unknown error";
-    }
-}
-
-
-const char * getErrorCodeStr(MegaError *e)
-{
-    if (e) return errorstring(e->getErrorCode());
-    return "NullError";
-}
-
 
 const char * getUsageStr(const char *command)
 {
@@ -1312,13 +1189,6 @@ void DemoApp::notify_retry(dstime dsdelta)
     }
 }
 */
-static void store_line(char*);
-static void process_line(char *);
-static char* line;
-
-
-
-
 
 //static void nodestats(int* c, const char* action)
 //{
@@ -1392,7 +1262,6 @@ string expanseLocalPath(string path){ //TODO: posix dependent!
         return os.str();
     }
 }
-
 
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
@@ -1575,9 +1444,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
         }
         else
         {
-            //TODO: modify using API //TODO: test & delete comments
             n = api->getNodeByHandle(cwd);
-//            n = client->nodebyhandle(cwd);
         }
     }
 
@@ -1598,9 +1465,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    //TODO: modify using API //TODO: test & delete comments
                     nn = api->getChildNode(n, c[l].c_str());
-//                    nn = client->childnodebyname(n, c[l].c_str());
 
                     if (!nn) //NOT FOUND
                     {
@@ -1779,24 +1644,6 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
     }
 }
 
-
-static const char * getUserInSharedNode(MegaNode *n)
-{
-    MegaShareList * msl = api->getInSharesList();
-    for (int i=0;i<msl->size();i++)
-    {
-        MegaShare *share = msl->get(i);
-
-        if (share->getNodeHandle() == n->getHandle())
-        {
-            delete (msl);
-            return share->getUser();
-        }
-    }
-    delete (msl);
-    return NULL;
-}
-
 static void nodepath(handle h, string* path)
 {
     path->clear();
@@ -1822,7 +1669,7 @@ static void nodepath(handle h, string* path)
                 {
                     path->insert(0, ":");
 
-                    if (const char * suser=getUserInSharedNode(n))
+                    if (const char * suser=getUserInSharedNode(n,api))
                     {
                         path->insert(0, suser);
                     }
@@ -1862,40 +1709,6 @@ static void nodepath(handle h, string* path)
 }
 
 //appfile_list appxferq[2];
-
-static char dynamicprompt[128];
-
-static const char* prompts[] =
-{
-    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
-};
-
-enum prompttype
-{
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
-};
-
-static prompttype prompt = COMMAND;
-
-static char pw_buf[256];
-static int pw_buf_pos;
-
-static void setprompt(prompttype p)
-{
-    prompt = p;
-
-    if (p == COMMAND)
-    {
-        console->setecho(true);
-    }
-    else
-    {
-        pw_buf_pos = 0;
-        OUTSTREAM << prompts[p] << flush;
-        console->setecho(false);
-    }
-}
-
 
 #ifdef __linux__
 void sigint_handler(int signum)
@@ -1946,28 +1759,6 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
 
     switch(request->getType())
     {
-//        case MegaRequest::TYPE_LOGIN:
-//            LOG_debug << "onRequestFinish login email: " << request->getEmail();
-//            if (e->getErrorCode() == MegaError::API_ENOENT) // failed to login
-//            {
-//                LOG_err << "onRequestFinish login failed: invalid email or password";
-//            }
-//            else //login success:
-//            {
-//                LOG_info << "Login correct ...";
-//            }
-//            break;
-//        case MegaRequest::TYPE_LOGOUT:
-//            LOG_debug << "onRequestFinish logout ..";
-//            if (e->getErrorCode() == MegaError::API_OK) // failed to login
-//            {
-//                LOG_verbose << "onRequestFinish logout ok";
-//            }
-//            else
-//            {
-//                LOG_err << "onRequestFinish failed to logout";
-//            }
-//        break;
         case MegaRequest::TYPE_FETCH_NODES:
         {
             LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
@@ -3645,7 +3436,7 @@ static void process_line(char* l)
                                         int nfiles=0;
                                         int nfolders=0;
                                         nfolders++; //add the share itself
-                                        int *nFolderFiles = getNumFolderFiles(n);
+                                        int *nFolderFiles = getNumFolderFiles(n,api);
                                         nfolders+=nFolderFiles[0];
                                         nfiles+=nFolderFiles[1];
                                         delete []nFolderFiles;
@@ -3737,7 +3528,7 @@ static void process_line(char* l)
                                     int nfiles=0;
                                     int nfolders=0;
                                     nfolders++; //add the share itself
-                                    int *nFolderFiles = getNumFolderFiles(n);
+                                    int *nFolderFiles = getNumFolderFiles(n,api);
                                     nfolders+=nFolderFiles[0];
                                     nfiles+=nFolderFiles[1];
                                     delete []nFolderFiles;
@@ -5757,8 +5548,6 @@ void megacmd()
                     }
                     else if (cm->receivedPetition())
                     {
-                        //TODO: seguir por aqui **** meter codigo de turno dentor de doProcessLine en cm
-
                         LOG_verbose << "Client connected ";
                         //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
 
