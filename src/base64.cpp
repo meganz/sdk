@@ -146,6 +146,40 @@ char *Base64::itoa(int64_t val)
     return strdup(result.c_str());
 }
 
+int64_t Base64::atoi(const char *val)
+{
+    size_t len = strlen(val);
+    if (len == 0 || len > 6)
+    {
+        return 0;
+    }
+
+    size_t pos = 0;
+    int64_t res = 0;
+
+    if (pos + 1 == len)
+    {
+        res = from64(val[pos]);
+    }
+    else
+    {
+        res = from64(val[pos]) * 64;
+
+        while (pos + 1 < len)
+        {
+            pos++;
+            res += from64(val[pos]);
+
+            if (pos + 1 < len)
+            {
+                res *= 64;
+            }
+        }
+    }
+
+    return res;
+}
+
 int Base64::btoa(const byte* b, int blen, char* a)
 {
     int p = 0;
