@@ -30,7 +30,8 @@
 #include "configurationmanager.h"
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
-#include "megaapi_impl.h" //to use such things as MegaThread
+#include "synchronousrequestlistener.h"
+#include "megaapi_impl.h" //to use such things as MegaThread. It might be interesting to move the typedefs to a separate .h file
 
 
 #define USE_VARARGS
@@ -133,83 +134,6 @@ static void setprompt(prompttype p)
         OUTSTREAM << prompts[p] << flush;
         console->setecho(false);
     }
-}
-
-
-#include "megaapi_impl.h"
-/**
- * @brief This abstract class extendes the functionality of MegaRequestListener
- * allowing a synchronous beheviour
- * A virtual method is declared and should be implemented: doOnRequestFinish
- * when onRequestFinish is called by the SDK.
- * A client for this listener may wait() until the request is finished and doOnRequestFinish is completed.
- *
- * @see MegaRequestListener
- */
-class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else
-{
-    private:
-        MegaSemaphore* semaphore;
-    protected:
-        MegaRequestListener *listener = NULL;
-        MegaApi *megaApi = NULL;
-        MegaRequest *megaRequest = NULL;
-        MegaError *megaError = NULL;
-
-    public:
-        SynchronousRequestListener()
-        {
-            semaphore = new MegaSemaphore();
-        }
-        virtual ~SynchronousRequestListener()
-        {
-            delete semaphore;
-            if (megaRequest) delete megaRequest;
-            if (megaError) delete megaError;
-        }
-        virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error) = 0;
-
-        void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
-        {
-            this->megaApi = api;
-            if (megaRequest) delete megaRequest; //in case of reused listener
-            this->megaRequest = request->copy();
-            if (megaError) delete megaError; //in case of reused listener
-            this->megaError = error->copy();
-
-            doOnRequestFinish(api,request,error);
-            semaphore->release();
-        }
-
-        void wait()
-        {
-            semaphore->wait();
-        }
-
-        int trywait(int milliseconds)
-        {
-            return semaphore->timedwait(milliseconds);
-        }
-
-
-        MegaError *getError() const;
-        MegaRequest *getRequest() const;
-        MegaApi *getApi() const;
-};
-
-MegaRequest *SynchronousRequestListener::getRequest() const
-{
-    return megaRequest;
-}
-
-MegaApi *SynchronousRequestListener::getApi() const
-{
-    return megaApi;
-}
-
-MegaError *SynchronousRequestListener::getError() const
-{
-    return megaError;
 }
 
 class MegaCmdListener : public SynchronousRequestListener
@@ -2779,11 +2703,7 @@ static void process_line(char* l)
 
             setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v"));
 
-            switch (words[0].size()) //TODO: why this???
-            {
-                case 2:
-                case 3:
-                case 4:
+
                     if (words[0] == "ls")
                     {
                         if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return;}
@@ -3146,10 +3066,7 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    break;
-
-//                case 3:
-//                    if (words[0] == "get")
+//                    else if (words[0] == "get")
 //                    {
 //                        if (words.size() > 1)
 //                        {
@@ -3351,10 +3268,7 @@ static void process_line(char* l)
 //                        }
 //                        return;
 //                    }
-//                    break;
-
-//                case 4:
-//                    if (words[0] == "putq")
+//                    else if (words[0] == "putq")
 //                    {
 //                        //TODO: modify using API
 ////                        xferq(PUT, words.size() > 1 ? atoi(words[1].c_str()) : -1);
@@ -3559,10 +3473,7 @@ static void process_line(char* l)
                         return;
                     }
 #endif
-//                    break;
-
-                case 5:
-                    if (words[0] == "login")
+                    else if (words[0] == "login")
                     {
 
                         //TODO: modify using API
@@ -4174,171 +4085,168 @@ static void process_line(char* l)
 //                        client->fetchChats();
                         return;
                     }
-                    else if (words[0] == "chatc")
-                    {
-                        unsigned wordscount = words.size();
-                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
-                        {
-                            int group = atoi(words[1].c_str());
-                            userpriv_vector *userpriv = new userpriv_vector;
+//                    else if (words[0] == "chatc")
+//                    {
+//                        unsigned wordscount = words.size();
+//                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
+//                        {
+//                            int group = atoi(words[1].c_str());
+//                            userpriv_vector *userpriv = new userpriv_vector;
 
-                            unsigned numUsers = 0;
-                            while ((numUsers+1)*2 + 2 <= wordscount)
-                            {
-                                string email = words[numUsers*2 + 2];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    OUTSTREAM << "User not found: " << email << endl;
-                                    delete userpriv;
-                                    return;
-                                }
+//                            unsigned numUsers = 0;
+//                            while ((numUsers+1)*2 + 2 <= wordscount)
+//                            {
+//                                string email = words[numUsers*2 + 2];
+//                                User *u = client->finduser(email.c_str(), 0);
+//                                if (!u)
+//                                {
+//                                    OUTSTREAM << "User not found: " << email << endl;
+//                                    delete userpriv;
+//                                    return;
+//                                }
 
-                                string privstr = words[numUsers*2 + 2 + 1];
-                                privilege_t priv;
-                                if (privstr ==  "ro")
-                                {
-                                    priv = PRIV_RO;
-                                }
-                                else if (privstr == "rw")
-                                {
-                                    priv = PRIV_RW;
-                                }
-                                else if (privstr == "full")
-                                {
-                                    priv = PRIV_FULL;
-                                }
-                                else if (privstr == "op")
-                                {
-                                    priv = PRIV_OPERATOR;
-                                }
-                                else
-                                {
-                                    OUTSTREAM << "Unknown privilege for " << email << endl;
-                                    delete userpriv;
-                                    return;
-                                }
+//                                string privstr = words[numUsers*2 + 2 + 1];
+//                                privilege_t priv;
+//                                if (privstr ==  "ro")
+//                                {
+//                                    priv = PRIV_RO;
+//                                }
+//                                else if (privstr == "rw")
+//                                {
+//                                    priv = PRIV_RW;
+//                                }
+//                                else if (privstr == "full")
+//                                {
+//                                    priv = PRIV_FULL;
+//                                }
+//                                else if (privstr == "op")
+//                                {
+//                                    priv = PRIV_OPERATOR;
+//                                }
+//                                else
+//                                {
+//                                    OUTSTREAM << "Unknown privilege for " << email << endl;
+//                                    delete userpriv;
+//                                    return;
+//                                }
 
-                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
-                                numUsers++;
-                            }
+//                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
+//                                numUsers++;
+//                            }
 
-                            client->createChat(group, userpriv);
-                            delete userpriv;
-                            return;
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chati")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+//                            client->createChat(group, userpriv);
+//                            delete userpriv;
+//                            return;
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
+//                            return;
+//                        }
+//                    }
+//                    else if (words[0] == "chati")
+//                    {
+//                        if (words.size() == 4)
+//                        {
+//                            handle chatid;
+//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
 
-                            string email = words[2];
-                            User *u = client->finduser(email.c_str(), 0);
-                            if (!u)
-                            {
-                                OUTSTREAM << "User not found: " << email << endl;
-                                return;
-                            }
+//                            string email = words[2];
+//                            User *u = client->finduser(email.c_str(), 0);
+//                            if (!u)
+//                            {
+//                                OUTSTREAM << "User not found: " << email << endl;
+//                                return;
+//                            }
 
-                            string privstr = words[3];
-                            privilege_t priv;
-                            if (privstr ==  "ro")
-                            {
-                                priv = PRIV_RO;
-                            }
-                            else if (privstr == "rw")
-                            {
-                                priv = PRIV_RW;
-                            }
-                            else if (privstr == "full")
-                            {
-                                priv = PRIV_FULL;
-                            }
-                            else if (privstr == "op")
-                            {
-                                priv = PRIV_OPERATOR;
-                            }
-                            else
-                            {
-                                OUTSTREAM << "Unknown privilege for " << email << endl;
-                                return;
-                            }
+//                            string privstr = words[3];
+//                            privilege_t priv;
+//                            if (privstr ==  "ro")
+//                            {
+//                                priv = PRIV_RO;
+//                            }
+//                            else if (privstr == "rw")
+//                            {
+//                                priv = PRIV_RW;
+//                            }
+//                            else if (privstr == "full")
+//                            {
+//                                priv = PRIV_FULL;
+//                            }
+//                            else if (privstr == "op")
+//                            {
+//                                priv = PRIV_OPERATOR;
+//                            }
+//                            else
+//                            {
+//                                OUTSTREAM << "Unknown privilege for " << email << endl;
+//                                return;
+//                            }
 
-                            client->inviteToChat(chatid, u->uid.c_str(), priv);
-                            return;
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
-                            return;
+//                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+//                            return;
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
+//                            return;
 
-                        }
-                    }
-                    else if (words[0] == "chatr")
-                    {
-                        if (words.size() > 1)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+//                        }
+//                    }
+//                    else if (words[0] == "chatr")
+//                    {
+//                        if (words.size() > 1)
+//                        {
+//                            handle chatid;
+//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
 
-                            if (words.size() == 2)
-                            {
-                                client->removeFromChat(chatid);
-                            }
-                            else if (words.size() == 3)
-                            {
-                                string email = words[2];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    OUTSTREAM << "User not found: " << email << endl;
-                                    return;
-                                }
+//                            if (words.size() == 2)
+//                            {
+//                                client->removeFromChat(chatid);
+//                            }
+//                            else if (words.size() == 3)
+//                            {
+//                                string email = words[2];
+//                                User *u = client->finduser(email.c_str(), 0);
+//                                if (!u)
+//                                {
+//                                    OUTSTREAM << "User not found: " << email << endl;
+//                                    return;
+//                                }
 
-                                client->removeFromChat(chatid, u->uid.c_str());
-                                return;
-                            }
-                            else
-                            {
-                                OUTSTREAM << "      chatr chatid [email]" << endl;
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      chatr chatid [email]" << endl;
-                            return;
-                        }
+//                                client->removeFromChat(chatid, u->uid.c_str());
+//                                return;
+//                            }
+//                            else
+//                            {
+//                                OUTSTREAM << "      chatr chatid [email]" << endl;
+//                                return;
+//                            }
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "      chatr chatid [email]" << endl;
+//                            return;
+//                        }
 
-                    }
-                    else if (words[0] == "chatu")
-                    {
-                        if (words.size() == 2)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+//                    }
+//                    else if (words[0] == "chatu")
+//                    {
+//                        if (words.size() == 2)
+//                        {
+//                            handle chatid;
+//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
 
-                            client->getUrlChat(chatid);
-                            return;
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      chatu chatid" << endl;
-                            return;
-                        }
-                    }
+//                            client->getUrlChat(chatid);
+//                            return;
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "      chatu chatid" << endl;
+//                            return;
+//                        }
+//                    }
 #endif
-                    break;
-
-                case 6:
                     if (words[0] == "passwd")
                     {
                         //TODO: modify using API
@@ -4611,54 +4519,52 @@ static void process_line(char* l)
                         return;
                     }
 #ifdef ENABLE_CHAT
-                    else if (words[0] == "chatga")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+//                    else if (words[0] == "chatga")
+//                    {
+//                        if (words.size() == 4)
+//                        {
+//                            handle chatid;
+//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
 
-                            handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+//                            handle nodehandle;
+//                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
 
-                            const char *uid = words[3].c_str();
+//                            const char *uid = words[3].c_str();
 
-                            client->grantAccessInChat(chatid, nodehandle, uid);
-                            return;
-                        }
-                        else
-                        {
-                            OUTSTREAM << "       chatga chatid nodehandle uid" << endl;
-                            return;
-                        }
+//                            client->grantAccessInChat(chatid, nodehandle, uid);
+//                            return;
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "       chatga chatid nodehandle uid" << endl;
+//                            return;
+//                        }
 
-                    }
-                    else if (words[0] == "chatra")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+//                    }
+//                    else if (words[0] == "chatra")
+//                    {
+//                        if (words.size() == 4)
+//                        {
+//                            handle chatid;
+//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
 
-                            handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+//                            handle nodehandle;
+//                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
 
-                            const char *uid = words[3].c_str();
+//                            const char *uid = words[3].c_str();
 
-                            client->removeAccessInChat(chatid, nodehandle, uid);
-                            return;
-                        }
-                        else
-                        {
-                            OUTSTREAM << "       chatra chatid nodehandle uid" << endl;
-                            return;
-                        }
-                    }
+//                            client->removeAccessInChat(chatid, nodehandle, uid);
+//                            return;
+//                        }
+//                        else
+//                        {
+//                            OUTSTREAM << "       chatra chatid nodehandle uid" << endl;
+//                            return;
+//                        }
+//                    }
 #endif
-                    break;
 
-                case 7:
-                    if (words[0] == "confirm")
+                    else if (words[0] == "confirm")
                     {
                         if (signupemail.size() && signupcode.size())
                         {
@@ -4789,14 +4695,12 @@ static void process_line(char* l)
 //                                incoming.append(")\n");
 //                            }
 //                        }
-                        OUTSTREAM << "Incoming PCRs:" << endl << incoming << endl;
-                        OUTSTREAM << "Outgoing PCRs:" << endl << outgoing << endl;
-                        return;
+//                        OUTSTREAM << "Incoming PCRs:" << endl << incoming << endl;
+//                        OUTSTREAM << "Outgoing PCRs:" << endl << outgoing << endl;
+//                        return;
                     }
-                    break;
 
-                case 11:
-                    if (words[0] == "killsession")
+                    else if (words[0] == "killsession")
                     {
                         if (words.size() == 2)
                         {
@@ -4840,9 +4744,8 @@ static void process_line(char* l)
             }
 
             OUTSTREAM << "?Invalid command" << endl;
-    }
-}
 
+}
 /*
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits
