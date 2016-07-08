@@ -309,6 +309,7 @@ class MegaUserPrivate : public MegaUser
         virtual int64_t getTimestamp();
         virtual bool hasChanged(int changeType);
         virtual int getChanges();
+        virtual int isOwnChange();
 
 	protected:
 		const char *email;
@@ -316,6 +317,7 @@ class MegaUserPrivate : public MegaUser
         int visibility;
         int64_t ctime;
         int changed;
+        int tag;
 };
 
 class MegaSharePrivate : public MegaShare
@@ -622,6 +624,8 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaTextChatList *getMegaTextChatList() const;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
+        virtual MegaStringMap *getMegaStringMap() const;
+        void setMegaStringMap(const MegaStringMap *);
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -664,6 +668,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
 #endif
+        MegaStringMap *stringMap;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -881,6 +886,23 @@ private:
 };
 
 #endif
+
+class MegaStringMapPrivate : public MegaStringMap
+{
+public:
+    MegaStringMapPrivate();
+    MegaStringMapPrivate(const string_map *map, bool toBase64 = false);
+    virtual ~MegaStringMapPrivate();
+    virtual MegaStringMap *copy() const;
+    virtual const char *get(const char* key) const;
+    virtual MegaStringList *getKeys() const;
+    virtual void set(const char *key, const char *value);
+    virtual int size() const;
+
+protected:
+    MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap);
+    string_map strMap;
+};
 
 
 class MegaStringListPrivate : public MegaStringList
@@ -1173,6 +1195,8 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
+        static string userAttributeToString(int);
+        static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 
         //API requests
@@ -1209,6 +1233,9 @@ class MegaApiImpl : public MegaApp
         char* getMyUserHandle();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
+#ifdef ENABLE_CHAT
+        char* getMyFingerprint();
+#endif
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
@@ -1241,6 +1268,7 @@ class MegaApiImpl : public MegaApp
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+        void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -1675,6 +1703,10 @@ protected:
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
+        virtual void getua_result(TLVstore *);
+#ifdef DEBUG
+        virtual void delua_result(error);
+#endif
 
         // file node export result
         virtual void exportnode_result(error);

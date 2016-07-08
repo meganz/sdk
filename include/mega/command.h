@@ -190,25 +190,63 @@ public:
     CommandRemoveContact(MegaClient*, const char*, visibility_t);
 };
 
+// set user attributes with version
+class MEGA_API CommandPutMultipleUAVer : public Command
+{
+    userattr_map attrs;  // attribute values
+
+public:
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+
+    void procresult();
+};
+
+// set user attributes with version
+class MEGA_API CommandPutUAVer : public Command
+{
+    attr_t at;  // attribute type
+    string av;  // attribute value
+
+public:
+    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int);
+
+    void procresult();
+};
+
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
+    attr_t at;  // attribute type
+    string av;  // attribute value
+
 public:
-    CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned);
 
     void procresult();
 };
 
 class MEGA_API CommandGetUA : public Command
 {
-    User* user;
-    string attributename;
+    string uid;
+    attr_t at;  // attribute type
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*);
+    CommandGetUA(MegaClient*, const char*, attr_t, int);
 
     void procresult();
 };
+
+#ifdef DEBUG
+class MEGA_API CommandDelUA : public Command
+{
+    string an;
+
+public:
+    CommandDelUA(MegaClient*, const char*);
+
+    void procresult();
+};
+#endif
 
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command

@@ -20,6 +20,7 @@
  */
 
 #include "mega/utils.h"
+#include "mega/logging.h"
 
 namespace mega {
 Cachable::Cachable()
@@ -359,5 +360,364 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
     return ret;
 }
 #endif
+
+string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting)
+{    
+    // decide nonce/IV and auth. tag lengths based on the `mode`
+    unsigned ivlen = TLVstore::getIvlen(encSetting);
+    unsigned taglen = TLVstore::getTaglen(encSetting);
+    encryptionmode_t encMode = TLVstore::getMode(encSetting);
+
+    if (!ivlen || !taglen || encMode == AES_MODE_UNKNOWN)
+    {
+        return NULL;
+    }
+
+    // serialize the TLV records
+    string *container = tlvRecordsToContainer();
+
+    // generate IV array
+    byte *iv = new byte[ivlen];
+    PrnGen::genblock(iv, ivlen);
+
+    string cipherText;
+
+    // encrypt the bytes using the specified mode
+
+    if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
+    {
+        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
+    }
+    else if (encMode == AES_MODE_GCM)   // then use GCM
+    {
+        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
+    }
+
+    string *result = new string;
+    result->resize(1);
+    result->at(0) = encSetting;
+    result->append((char*) iv, ivlen);
+    result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
+
+    delete [] iv;
+    delete container;
+
+    return result;
+}
+
+string * TLVstore::tlvRecordsToContainer()
+{
+    TLV_map::iterator it;
+    unsigned buflen = 0;
+
+    for (it = tlv.begin(); it != tlv.end(); it++)
+    {
+        // add string length + null char + 2 bytes for length + value length
+        buflen += it->first.length() + 1 + 2 + it->second.length();
+    }
+
+    string * result = new string;
+    unsigned offset = 0;
+    unsigned length;
+
+    for (it = tlv.begin(); it != tlv.end(); it++)
+    {
+        // copy Type
+        result->append(it->first);
+        offset += it->first.length() + 1;   // keep the NULL-char for Type string
+
+        // set Length of value
+        length = it->second.length();
+        result->resize(offset + 2);
+        result->at(offset) = length >> 8;
+        result->at(offset + 1) = length & 0xFF;
+        offset += 2;
+
+        // copy the Value
+        result->append((char*)it->second.data(), it->second.length());
+        offset += it->second.length();
+    }
+
+    return result;
+}
+
+string TLVstore::get(string type)
+{
+    return tlv.at(type);
+}
+
+const TLV_map * TLVstore::getMap() const
+{
+    return &tlv;
+}
+
+vector<string> *TLVstore::getKeys() const
+{
+    vector<string> *keys = new vector<string>;
+    for (string_map::const_iterator it = tlv.begin(); it != tlv.end(); it++)
+    {
+        keys->push_back(it->first);
+    }
+    return keys;
+}
+
+bool TLVstore::find(string type)
+{
+    return (tlv.find(type) != tlv.end());
+}
+
+void TLVstore::set(string type, string value)
+{
+    tlv[type] = value;
+}
+
+size_t TLVstore::size()
+{
+    return tlv.size();
+}
+
+unsigned TLVstore::getTaglen(int mode)
+{
+
+    switch (mode)
+    {
+    case AES_CCM_10_16:
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_GCM_12_16:
+        return 16;
+
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+    case AES_GCM_10_08:
+        return 8;
+
+    default:    // unknown block encryption mode
+        return 0;
+    }
+}
+
+unsigned TLVstore::getIvlen(int mode)
+{
+    switch (mode)
+    {
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_GCM_12_16:
+        return 12;
+
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+    case AES_CCM_10_16:
+    case AES_GCM_10_08:
+        return 10;
+
+    default:    // unknown block encryption mode
+        return 0;
+    }
+}
+
+encryptionmode_t TLVstore::getMode(int mode)
+{
+    switch (mode)
+    {
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_CCM_10_16:
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+        return AES_MODE_CCM;
+
+    case AES_GCM_12_16:
+    case AES_GCM_10_08:
+        return AES_MODE_GCM;
+
+    default:    // unknown block encryption mode
+        return AES_MODE_UNKNOWN;
+    }
+}
+
+TLVstore * TLVstore::containerToTLVrecords(const string *data)
+{
+    if (data->empty())
+    {
+        return NULL;
+    }
+
+    TLVstore *tlv = new TLVstore();
+
+    unsigned offset = 0;
+
+    string type;
+    unsigned typelen;
+    string value;
+    unsigned valuelen;
+    size_t pos;
+
+    unsigned datalen = data->length();
+
+    while (offset < datalen)
+    {
+        // get the length of the Type string
+        pos = data->find('\0', offset);
+        typelen = pos - offset;
+
+        // if no valid TLV record in the container, but remaining bytes...
+        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        {
+            delete tlv;
+            return NULL;
+        }
+
+        // get the Type string
+        type.assign((char*)&(data->data()[offset]), typelen);
+        offset += typelen + 1;        // +1: NULL character
+
+        // get the Length of the value
+        valuelen = data->at(offset) << 8 | data->at(offset + 1);
+        offset += 2;
+
+        // if there's not enough data for value...
+        if (offset + valuelen > datalen)
+        {
+            delete tlv;
+            return NULL;
+        }
+
+        // get the Value
+        value.resize(valuelen);
+        value.assign((char*)&(data->data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
+        offset += valuelen;
+
+        // add it to the map
+        tlv->set(type, value);
+    }
+
+    return tlv;
+}
+
+
+TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
+{
+    if (data->empty())
+    {
+        return NULL;
+    }
+
+    unsigned offset = 0;
+    encryptionsetting_t encSetting = (encryptionsetting_t) data->at(offset);
+    offset++;
+
+    unsigned ivlen = TLVstore::getIvlen(encSetting);
+    unsigned taglen = TLVstore::getTaglen(encSetting);
+    encryptionmode_t encMode = TLVstore::getMode(encSetting);
+
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    {
+        return NULL;
+    }
+
+    byte *iv = new byte[ivlen];
+    memcpy(iv, &(data->data()[offset]), ivlen);
+    offset += ivlen;
+
+    unsigned cipherTextLen = data->length() - offset;
+    string cipherText = data->substr(offset, cipherTextLen);
+
+    unsigned clearTextLen = cipherTextLen - taglen;
+    string clearText;
+
+    if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
+    {
+        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+    }
+    else if (encMode == AES_MODE_GCM)  // GCM
+    {
+        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+    }
+
+    delete [] iv;
+
+    TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
+    if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode
+    {
+        // retry TLV decoding after conversion from 'UTF-8 chars' to 'Unicode chars'
+        LOG_warn << "Retrying TLV records decoding with UTF-8 patch";
+
+        string clearTextUnicode;
+        if (!Utils::utf8toUnicode((const byte*)clearText.data(), clearTextLen, &clearTextUnicode))
+        {
+            LOG_err << "Invalid UTF-8 encoding";
+        }
+        else
+        {
+            tlv = TLVstore::containerToTLVrecords(&clearTextUnicode);
+        }
+    }
+
+    return tlv;
+}
+
+TLVstore::~TLVstore()
+{
+}
+
+bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
+{
+    uint8_t utf8cp1;
+    uint8_t utf8cp2;
+    int32_t unicodecp;
+
+    if (!srclen)
+    {
+        result->clear();
+        return true;
+    }
+
+    byte *res = new byte[srclen];
+    unsigned rescount = 0;
+
+    unsigned i = 0;
+    while (i < srclen)
+    {
+        utf8cp1 = src[i++];
+
+        if (utf8cp1 < 0x80)
+        {
+            res[rescount++] = utf8cp1;
+        }
+        else
+        {
+            if (i < srclen)
+            {
+                utf8cp2 = src[i++];
+
+                // check codepoints are valid
+                if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
+                {
+                    unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
+                    res[rescount++] = unicodecp & 0xFF;
+                }
+                else
+                {
+                    // error: one of the two-bytes UTF-8 char is not a valid UTF-8 char
+                    delete [] res;
+                    return false;
+                }
+            }
+            else
+            {
+                // error: last byte indicates a two-bytes UTF-8 char, but only one left
+                delete [] res;
+                return false;
+            }
+        }
+    }
+
+    result->assign((const char*)res, rescount);
+    delete [] res;
+
+    return true;
+}
 
 } // namespace

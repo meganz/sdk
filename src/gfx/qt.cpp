@@ -349,7 +349,7 @@ bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
 #ifdef _WIN32
     localname->append("", 1);
     QString imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
-    if(imagePath.startsWith(QString::fromAscii("\\\\?\\")))
+    if(imagePath.startsWith(QString::fromUtf8("\\\\?\\")))
         imagePath = imagePath.mid(4);
 #else
     QString imagePath = QString::fromUtf8(localname->c_str());

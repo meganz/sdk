@@ -53,9 +53,7 @@ typedef uint64_t fsfp_t;
 #include "megacrypto.h"
 #endif
 
-#ifdef USE_SODIUM
 #include "mega/crypto/sodium.h"
-#endif
 
 namespace mega {
 using namespace std;
@@ -364,6 +362,48 @@ typedef deque<Notification> notify_deque;
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
+
+// Type-Value (for user attributes)
+typedef vector<string> string_vector;
+typedef map<string, string> string_map;
+typedef string_map TLV_map;
+
+
+// user attribute types
+typedef enum {
+    ATTR_UNKNOWN = -1,
+    ATTR_AVATAR = 0,            // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
+    ATTR_LASTNAME = 2,          // public - char array - non-versioned
+    ATTR_AUTHRING = 3,          // private - byte array
+    ATTR_LAST_INT = 4,          // private - byte array
+    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
+    ATTR_KEYRING = 7,           // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
+    ATTR_COUNTRY = 10,          // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
+//    USER_ATTR_AUTHRSA = 10,
+//    USER_ATTR_AUTHCU255 = 11
+} attr_t;
+typedef map<attr_t, string> userattr_map;
+
+typedef enum {
+
+    AES_CCM_12_16 = 0x00,
+    AES_CCM_10_16 = 0x01,
+    AES_CCM_10_08 = 0x02,
+    AES_GCM_12_16_BROKEN = 0x03, // Same as 0x00 (due to a legacy bug)
+    AES_GCM_10_08_BROKEN = 0x04, // Same as 0x02 (due to a legacy bug)
+    AES_GCM_12_16 = 0x10,
+    AES_GCM_10_08 = 0x11
+
+} encryptionsetting_t;
+
+typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
 #ifdef ENABLE_CHAT
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
