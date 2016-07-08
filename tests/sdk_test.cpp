@@ -744,6 +744,18 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << lastError[0] << ")";
 
 
+    // ___ Set invalid duration of a node ___
+
+    testingInvalidArgs = true;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, -14);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node duration (error: " << lastError[0] << ")";
+
+    testingInvalidArgs = false;
+
+
     // ___ Set duration of a node ___
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
