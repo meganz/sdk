@@ -148,6 +148,11 @@ char *Base64::itoa(int64_t val)
 
 int64_t Base64::atoi(const char *val)
 {
+    if (!val)
+    {
+        return 0;
+    }
+
     size_t len = strlen(val);
     if (len == 0 || len > 6)
     {
