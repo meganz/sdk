@@ -20,7 +20,6 @@
  */
 
 // requirements: linux & qt
-#ifdef USE_QT
 #ifdef __linux__
 
 #include "megacmd.h"
@@ -161,7 +160,10 @@ class MegaCmdGlobalListener : public MegaGlobalListener
 public:
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
+    void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
 };
+
+void MegaCmdGlobalListener::onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*){}
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
@@ -1757,7 +1759,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
 
         char aux[40];
         if (request->getTransferredBytes()==3) return; // after a 100% this happens
-        sprintf(aux,"||(%d/%d MB: %.2f %%) ",request->getTransferredBytes()/1024/1024,request->getTotalBytes()/1024/1024,percentFetchnodes);
+        sprintf(aux,"||(%lld/%lld MB: %.2f %%) ",request->getTransferredBytes()/1024/1024,request->getTotalBytes()/1024/1024,percentFetchnodes);
         sprintf(outputString+cols-strlen(aux),"%s",aux);
         for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
         {
@@ -5338,14 +5340,17 @@ void delete_finished_threads()
     for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
         /* std::cout << *it; ... */
         MegaThread *mt = (MegaThread *)*it;
+#ifdef USE_QT
         if (mt->isFinished())
         {
             delete mt;
             it=petitionThreads.erase(it);
         }
         else
+#endif
             ++it;
     }
+
 }
 
 // main loop
@@ -5595,4 +5600,3 @@ int main()
 }
 
 #endif //linux
-#endif //use qt

@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include <sys/types.h>
 using namespace std;
 
 // different outstreams for every thread. to gather all the output data
@@ -11,7 +12,12 @@ map<int,int> threadLogLevel;
 int getCurrentThread(){
     //return std::this_thread::get_id();
     //return std::thread::get_id();
+#ifdef USE_QT
     return MegaThread::currentThreadId();//TODO: create this in thread class
+#elif USE_PTHREAD
+    return pthread_self();
+#endif
+
 }
 
 ostream &getCurrentOut(){
