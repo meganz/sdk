@@ -1369,14 +1369,14 @@ public:
      * @param i Position of the MegaTextChat that we want to get for the list
      * @return MegaTextChat at the position i in the list
      */
-    virtual const MegaTextChat *get(int i)  const;
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(unsigned int i)  const;
+    virtual MegaTextChat *get(unsigned int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
      * @return Number of MegaTextChats in the list
      */
-    virtual int size() const;
+    virtual size_t size() const;
 };
 
 #endif

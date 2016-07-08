@@ -29,12 +29,12 @@ void SdkTest::SetUp()
     char *buf = getenv("MEGA_EMAIL");
     if (buf)
         email[0].assign(buf);
-    ASSERT_LT(0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
+    ASSERT_LT((size_t)0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
 
     buf = getenv("MEGA_PWD");
     if (buf)
         pwd[0].assign(buf);
-    ASSERT_LT(0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
+    ASSERT_LT((size_t)0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
 
     testingInvalidArgs = false;
 
@@ -486,12 +486,12 @@ void SdkTest::getMegaApiAux()
         buf = getenv("MEGA_EMAIL_AUX");
         if (buf)
             email[1].assign(buf);
-        ASSERT_LT(0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+        ASSERT_LT((size_t) 0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
 
         buf = getenv("MEGA_PWD_AUX");
         if (buf)
             pwd[1].assign(buf);
-        ASSERT_LT(0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+        ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
         getcwd(path, sizeof path);

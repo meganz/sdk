@@ -15542,7 +15542,7 @@ MegaHandle MegaTextChatPrivate::getOriginatingUser() const
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
-    for (int i = 0; i < size(); i++)
+    for (unsigned int i = 0; i < size(); i++)
     {
         delete list.at(i);
     }
@@ -15553,7 +15553,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
     return new MegaTextChatListPrivate(this);
 }
 
-const MegaTextChat *MegaTextChatListPrivate::get(int i) const
+const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 {
     if (i >= size())
     {
@@ -15565,7 +15565,7 @@ const MegaTextChat *MegaTextChatListPrivate::get(int i) const
     }
 }
 
-MegaTextChat *MegaTextChatListPrivate::get(int i)
+MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
 {
     if (i >= size())
     {
@@ -15577,7 +15577,7 @@ MegaTextChat *MegaTextChatListPrivate::get(int i)
     }
 }
 
-int MegaTextChatListPrivate::size() const
+size_t MegaTextChatListPrivate::size() const
 {
     return list.size();
 }
@@ -15591,7 +15591,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *
 {
     MegaTextChatPrivate *chat;
 
-    for (int i = 0; i < list->size(); i++)
+    for (unsigned int i = 0; i < list->size(); i++)
     {
         chat = new MegaTextChatPrivate(list->get(i));
         this->list.push_back(chat);

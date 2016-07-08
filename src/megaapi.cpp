@@ -3711,17 +3711,17 @@ MegaTextChatList *MegaTextChatList::copy() const
     return NULL;
 }
 
-const MegaTextChat *MegaTextChatList::get(int) const
+const MegaTextChat *MegaTextChatList::get(unsigned int) const
 {
     return NULL;
 }
 
-MegaTextChat *MegaTextChatList::get(int)
+MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }
 
-int MegaTextChatList::size() const
+size_t MegaTextChatList::size() const
 {
     return 0;
 }
