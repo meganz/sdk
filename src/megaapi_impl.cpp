@@ -215,11 +215,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
            {
                if (node->type == FILENODE)
                {
-                   istringstream convert(it->second.data());
-                   if (!(convert >> duration))
-                   {
-                       duration = INVALID_DURATION;
-                   }
+                   duration = Base64::atoi(it->second.data());
                }
            }
            else if (it->first == AttrMap::string2nameid("l"))
@@ -11407,9 +11403,9 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        stringstream convert;
-                        convert << secs;
-                        node->attrs.map['d'] = convert.str();
+                        char *attrVal = Base64::itoa(secs);
+                        node->attrs.map['d'] = attrVal;
+                        delete [] attrVal;
                     }
                 }
                 else if (type == MegaApi::NODE_ATTR_COORDINATES)
@@ -11430,7 +11426,6 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-
                         if (longitude < 0 || longitude > 16777216 || latitude < 0 || latitude > 16777215)
                         {
                             e = API_EARGS;
