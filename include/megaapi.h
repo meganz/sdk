@@ -395,8 +395,8 @@ class MegaNode
             CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
-        static const int INVALID_DURATION       = -1;
-        static const double INVALID_COORDINATE  = -200;
+        static const int INVALID_DURATION = -1;
+        static const double INVALID_COORDINATE;
 
         virtual ~MegaNode();
 
@@ -5216,8 +5216,8 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
-         * - MegaRequest::getNumDetails - Returns the longitude, scaled to [0, 2^24]
-         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to [0, 2^24)
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
          *
          * @param node Node that will receive the information.
          * @param latitude Latitude in signed decimal degrees notation

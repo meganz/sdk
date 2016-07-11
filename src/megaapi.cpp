@@ -185,6 +185,8 @@ int MegaShareList::size()
     return 0;
 }
 
+const double MegaNode::INVALID_COORDINATE  = -200;
+
 MegaNode::~MegaNode() { }
 
 MegaNode *MegaNode::copy()

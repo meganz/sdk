@@ -34,7 +34,6 @@
 #include <functional>
 #include <cctype>
 #include <locale>
-#include <cmath>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
