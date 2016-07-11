@@ -1185,11 +1185,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     string firstname = "My firstname";
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
@@ -1207,11 +1205,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Load avatar ---
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
@@ -1236,11 +1232,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Delete avatar ---
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
