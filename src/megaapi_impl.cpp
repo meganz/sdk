@@ -91,6 +91,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->sharekey = NULL;
     this->foreign = isForeign;
 
     if (privateauth)
@@ -134,6 +135,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
+    this->sharekey = NULL;
 
     if (node->isExported())
     {
@@ -142,7 +144,14 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         if (type == FOLDERNODE)
         {
             MegaNodePrivate *n = dynamic_cast<MegaNodePrivate *>(node);
-            this->sharekey = n ? *n->getSharekey() : "";
+            if (n)
+            {
+                string *sk = n->getSharekey();
+                if (sk)
+                {
+                    this->sharekey = new string(*sk);
+                }
+            }
         }
     }
     else
@@ -288,14 +297,17 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         char key[FOLDERNODEKEYLENGTH*4/3+3];
         Base64::btoa(node->sharekey->key, FOLDERNODEKEYLENGTH, key);
-
-        this->sharekey.assign(key, sizeof key);
+        this->sharekey = new string(key);
+    }
+    else
+    {
+        this->sharekey = NULL;
     }
 }
 
 string* MegaNodePrivate::getSharekey()
 {
-    return &sharekey;
+    return sharekey;
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -588,18 +600,16 @@ string *MegaNodePrivate::getNodeKey()
 char *MegaNodePrivate::getBase64Key()
 {
     char *key = NULL;
-    size_t fnklen_ascii = FOLDERNODEKEYLENGTH * 4 / 3 + 3;
 
     // the key
     if (type == FILENODE && nodekey.size() >= FILENODEKEYLENGTH)
     {
-        key = new char[FILENODEKEYLENGTH*4/3+3];
-        Base64::btoa((const byte*)nodekey.data(),FILENODEKEYLENGTH, key);
+        key = new char[FILENODEKEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((const byte*)nodekey.data(), FILENODEKEYLENGTH, key);
     }
-    else if (type == FOLDERNODE && sharekey.size() >= fnklen_ascii)
+    else if (type == FOLDERNODE && sharekey)
     {
-        key = new char[fnklen_ascii];
-        memcpy(key, sharekey.data(), fnklen_ascii);
+        key = MegaApi::strdup(sharekey->c_str());
     }
     else
     {
