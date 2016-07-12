@@ -883,16 +883,6 @@ class MegaNode
          */
         virtual std::string* getPublicAuth();
 
-        /**
-         * @brief Return the share key of this noe
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return The key used to share this node.
-         */
-        virtual std::string *getSharekey();
-
 #ifdef ENABLE_SYNC
         /**
          * @brief Returns true if this node was deleted from the MEGA account by the
