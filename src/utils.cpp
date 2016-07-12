@@ -226,7 +226,7 @@ bool HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
     if (size < h.size())
     {
         // left-pad with 0
-        s.insert(0, h.size() - size, 0);
+        s.insert((size_t)0, h.size() - size, 0);
         s.resize(h.size());
     }
 
@@ -314,8 +314,8 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
 
     //Complete the result (2-byte header + RSA result)
     int reslen = result->size();
-    result->insert(0, 1, (byte)(reslen >> 8));
-    result->insert(1, 1, (byte)(reslen));
+    result->insert((size_t)0, 1, (byte)(reslen >> 8));
+    result->insert((size_t)1, 1, (byte)(reslen));
     return true;
 }
 
@@ -443,7 +443,7 @@ string * TLVstore::tlvRecordsToContainer()
 
 string TLVstore::get(string type)
 {
-    return tlv.at(type);
+    return tlv[type];
 }
 
 const TLV_map * TLVstore::getMap() const
