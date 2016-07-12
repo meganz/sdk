@@ -587,6 +587,7 @@ string *MegaNodePrivate::getNodeKey()
 char *MegaNodePrivate::getBase64Key()
 {
     char *key = NULL;
+    size_t fnklen_ascii = FOLDERNODEKEYLENGTH * 4 / 3 + 3;
 
     // the key
     if (type == FILENODE && nodekey.size() >= FILENODEKEYLENGTH)
@@ -594,14 +595,14 @@ char *MegaNodePrivate::getBase64Key()
         key = new char[FILENODEKEYLENGTH*4/3+3];
         Base64::btoa((const byte*)nodekey.data(),FILENODEKEYLENGTH, key);
     }
-    else if (type == FOLDERNODE)
+    else if (type == FOLDERNODE && sharekey.size() >= fnklen_ascii)
     {
-        key = new char[FOLDERNODEKEYLENGTH*4/3+3];
-        memcpy(key, sharekey.data(), FOLDERNODEKEYLENGTH*4/3+3);
+        key = new char[fnklen_ascii];
+        memcpy(key, sharekey.data(), fnklen_ascii);
     }
     else
     {
-        key = new char;
+        key = new char[1];
         key[0] = 0;
     }
 
