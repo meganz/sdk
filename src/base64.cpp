@@ -123,63 +123,65 @@ int Base64::atob(const char* a, byte* b, int blen)
     return p;
 }
 
-char *Base64::itoa(int64_t val)
+void Base64::itoa(int64_t val, string *result)
 {
-    string result;
     byte c;
-    int64_t rest = val;
-
-    if (rest == 0)
+    int64_t rest;
+    if (!result || val < 0)
     {
-        return strdup("A");
+        return;
     }
 
+    if (!val)
+    {
+        *result = "A";
+        return;
+    }
+
+    result->clear();
     while (val)
     {
         rest = val % 64;
         val /= 64;
-
         c = to64(rest);
-        result.insert(result.begin(), (char) c);
+        result->insert(result->begin(), (char) c);
     }
-
-    return strdup(result.c_str());
 }
 
-int64_t Base64::atoi(const char *val)
+int64_t Base64::atoi(string *val)
 {
     if (!val)
     {
-        return 0;
+        return -1;
     }
 
-    size_t len = strlen(val);
-    if (len == 0 || len > 6)
+    size_t len = val->size();
+    if (len == 0)
     {
-        return 0;
+        return -1;
     }
 
     size_t pos = 0;
     int64_t res = 0;
-
-    if (pos + 1 == len)
+    int valid = 0;
+    while (pos < len)
     {
-        res = from64(val[pos]);
-    }
-    else
-    {
-        res = from64(val[pos]) * 64;
-
-        while (pos + 1 < len)
+        byte b = from64(val->at(pos));
+        if (b == 255)
         {
             pos++;
-            res += from64(val[pos]);
-
-            if (pos + 1 < len)
-            {
-                res *= 64;
-            }
+            continue;
         }
+
+        valid++;
+        res *= 64;
+        res += b;
+        pos++;
+    }
+
+    if (!valid || res < 0)
+    {
+        return -1;
     }
 
     return res;
