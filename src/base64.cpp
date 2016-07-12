@@ -67,12 +67,12 @@ unsigned char Base64::from64(byte c)
         return c - '0' + 52;
     }
 
-    if (c == '-')
+    if (c == '-' || c == '+')
     {
         return 62;
     }
 
-    if (c == '_')
+    if (c == '_' || c == '/')
     {
         return 63;
     }
