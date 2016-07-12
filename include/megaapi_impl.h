@@ -248,7 +248,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
-        virtual std::string* getSharekey();
+        std::string* getSharekey();
 
 
 #ifdef ENABLE_SYNC

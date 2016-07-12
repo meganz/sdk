@@ -141,7 +141,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
         if (type == FOLDERNODE)
         {
-            this->sharekey = *node->getSharekey();
+            MegaNodePrivate *n = dynamic_cast<MegaNodePrivate *>(node);
+            this->sharekey = n ? *n->getSharekey() : "";
         }
     }
     else
