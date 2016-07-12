@@ -196,10 +196,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
-       buf[0] = 0;
-       node->attrs.nameid2string(it->first, buf);
-       if (buf[0] == '_')
-       {
+        buf[0] = 0;
+        node->attrs.nameid2string(it->first, buf);
+        if (buf[0] == '_')
+        {
            if (!customAttrs)
            {
                customAttrs = new attr_map();
@@ -207,37 +207,41 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
            nameid id = AttrMap::string2nameid(&buf[1]);
            (*customAttrs)[id] = it->second;
-       }
-       else
-       {
-           if (it->first == AttrMap::string2nameid("d"))
-           {
+        }
+        else
+        {
+            if (it->first == AttrMap::string2nameid("d"))
+            {
                if (node->type == FILENODE)
                {
                    duration = Base64::atoi(&it->second);
                }
-           }
-           else if (it->first == AttrMap::string2nameid("l"))
-           {
-               if (node->type == FILENODE)
-               {
-                   string coords = it->second;
-                   if (coords.size() != 8)
-                   {
+            }
+            else if (it->first == AttrMap::string2nameid("l"))
+            {
+                if (node->type == FILENODE)
+                {
+                    string coords = it->second;
+                    if (coords.size() != 8)
+                    {
                        LOG_warn << "Malformed GPS coordinates attribute";
-                   }
-                   else
-                   {
-                       byte buf[3];
-                       int number = 0;
-                       Base64::atob((const char *) coords.substr(0, 4).data(), buf, sizeof buf);
-                       number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
-                       latitude = -90 + 90 * (double) number / 16777215;
+                    }
+                    else
+                    {
+                        byte buf[3];
+                        int number = 0;
+                        if (Base64::atob((const char *) coords.substr(0, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                        {
+                            number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                            latitude = -90 + 180 * (double) number / 0x01000000;
+                        }
 
-                       Base64::atob((const char *) coords.substr(4, 4).data(), buf, sizeof buf);
-                       number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
-                       longitude = -180 + 360 * (double) number / 16777216;
-                   }
+                        if (Base64::atob((const char *) coords.substr(4, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                        {
+                            number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                            longitude = -180 + 360 * (double) number / 0x01000000;
+                        }
+                    }
 
                    if (longitude < -180 || longitude > 180)
                    {
@@ -247,9 +251,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                    {
                        latitude = INVALID_COORDINATE;
                    }
+                   if (longitude == INVALID_COORDINATE || latitude == INVALID_COORDINATE)
+                   {
+                       longitude = INVALID_COORDINATE;
+                       latitude = INVALID_COORDINATE;
+                   }
                }
-           }
-       }
+            }
+        }
     }
 
     this->type = node->type;
@@ -4152,13 +4161,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double lon
     int lat = latitude;
     if (latitude != MegaNode::INVALID_COORDINATE)
     {
-        lat = (latitude + 90) / 90 * 16777215;      // 3 bytes, no wrapping here
+        lat = ((latitude + 90) / 180) * 0x01000000;
     }
 
     int lon = longitude;
     if (longitude != MegaNode::INVALID_COORDINATE)
     {
-        lon = (longitude + 180) / 360 * 16777216;   // 3 bytes, wrapping occurs
+        lon = ((longitude + 180) / 360) * 0x01000000;
     }
 
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
@@ -11428,7 +11437,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        if (longitude < 0 || longitude > 16777216 || latitude < 0 || latitude > 16777215)
+                        if (longitude < 0 || longitude > 0x01000000
+                                || latitude < 0 || latitude > 0x01000000)
                         {
                             e = API_EARGS;
                             break;
@@ -11443,7 +11453,6 @@ void MegaApiImpl::sendPendingRequests()
                         lonValue.resize(Base64::btoa((const byte*) &longitude, 3, (char*)lonValue.data()));
 
                         string coordsValue = latValue + lonValue;
-
                         node->attrs.map[coordsName] = coordsValue;
                     }
                 }

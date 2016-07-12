@@ -822,13 +822,13 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     n1 = megaApi[0]->getNodeByHandle(h);
 
     // do same conversions to lose the same precision
-    int buf = (lat + 90) / 90 * 16777215;      // 3 bytes, no wrapping here
-    double res = -90 + 90 * (double) buf / 16777215;
+    int buf = ((lat + 90) / 180) * 0x01000000;
+    double res = -90 + 180 * (double) buf / 0x01000000;
 
     ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
 
-    buf = (lon + 180) / 360 * 16777216;   // 3 bytes, wrapping occurs
-    res = -180 + 360 * (double) buf / 16777216;
+    buf = (lon + 180) / 360 * 0x01000000;
+    res = -180 + 360 * (double) buf / 0x01000000;
 
     ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
 
