@@ -3723,7 +3723,7 @@ MegaTextChat *MegaTextChatList::get(unsigned int)
     return NULL;
 }
 
-size_t MegaTextChatList::size() const
+int MegaTextChatList::size() const
 {
     return 0;
 }

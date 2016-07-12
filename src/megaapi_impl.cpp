@@ -15576,7 +15576,7 @@ MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
     }
 }
 
-size_t MegaTextChatListPrivate::size() const
+int MegaTextChatListPrivate::size() const
 {
     return list.size();
 }

@@ -1376,7 +1376,7 @@ public:
      * @brief Returns the number of MegaTextChats in the list
      * @return Number of MegaTextChats in the list
      */
-    virtual size_t size() const;
+    virtual int size() const;
 };
 
 #endif

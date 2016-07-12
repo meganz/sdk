@@ -877,7 +877,7 @@ public:
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(unsigned int i) const;
     virtual MegaTextChat *get(unsigned int i);
-    virtual size_t size() const;
+    virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
 
