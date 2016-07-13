@@ -47,6 +47,8 @@ static const string DOWNFILE    = "file2.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
+static bool testingInvalidArgs = false;
+
 class MegaLoggerSDK : public MegaLogger {
 
 public:

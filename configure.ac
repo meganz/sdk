@@ -100,6 +100,7 @@ AC_CANONICAL_HOST
 AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
 
 # Check programs
+AC_PROG_OBJCXX
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
   AC_MSG_ERROR([C++ compiler not found !])
@@ -214,6 +215,14 @@ AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
+
+if test -n "$IOSC_TARGET"; then
+#	bu=yes
+    AC_DEFINE(USE_IOS, 1, [Use IOS])
+fi
+AM_CONDITIONAL([USE_IOS], [test  -n "$IOSC_TARGET"])
+
+
 
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,
