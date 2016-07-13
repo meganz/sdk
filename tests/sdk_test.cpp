@@ -29,12 +29,14 @@ void SdkTest::SetUp()
     char *buf = getenv("MEGA_EMAIL");
     if (buf)
         email[0].assign(buf);
-    ASSERT_LT(0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
+    ASSERT_LT((size_t)0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
 
     buf = getenv("MEGA_PWD");
     if (buf)
         pwd[0].assign(buf);
-    ASSERT_LT(0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
+    ASSERT_LT((size_t)0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
+
+    testingInvalidArgs = false;
 
     if (megaApi[0] == NULL)
     {
@@ -58,6 +60,8 @@ void SdkTest::SetUp()
 void SdkTest::TearDown()
 {
     // do some cleanup
+
+    testingInvalidArgs = false;
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
@@ -495,12 +499,12 @@ void SdkTest::getMegaApiAux()
         buf = getenv("MEGA_EMAIL_AUX");
         if (buf)
             email[1].assign(buf);
-        ASSERT_LT(0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+        ASSERT_LT((size_t) 0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
 
         buf = getenv("MEGA_PWD_AUX");
         if (buf)
             pwd[1].assign(buf);
-        ASSERT_LT(0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+        ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
         getcwd(path, sizeof path);
@@ -676,7 +680,7 @@ void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, cons
     sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
     sdklog << message << " (" << source << ")" << endl;
 
-    bool errorLevel = (loglevel == logError);
+    bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
     ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error.";
 }
 
@@ -735,6 +739,190 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
             << "Account creation has failed after " << maxTimeout << " seconds";
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+}
+
+/**
+ * @brief TEST_F SdkTestNodeAttributes
+ *
+ *
+ */
+TEST_F(SdkTest, SdkTestNodeAttributes)
+{
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename1.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
+
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(h);
+    bool null_pointer = (n1 == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid duration of a node ___
+
+    testingInvalidArgs = true;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, -14);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node duration (error: " << lastError[0] << ")";
+
+    testingInvalidArgs = false;
+
+
+    // ___ Set duration of a node ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, 929734);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node duration (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
+
+
+    // ___ Reset duration of a node ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, -1);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot reset node duration (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    testingInvalidArgs = true;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, -1523421.8719987255814, +6349.54);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node coordinates (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, -160.8719987255814, +49.54);    // latitude must be [-90, 90]
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node coordinates (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, MegaNode::INVALID_COORDINATE, +69.54);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error trying to reset only one coordinate (error: " << lastError[0] << ")";
+
+    testingInvalidArgs = false;
+
+
+    // ___ Set coordinates of a node ___
+
+    double lat = -51.8719987255814;
+    double lon = +179.54;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    // do same conversions to lose the same precision
+    int buf = ((lat + 90) / 180) * 0xFFFFFF;
+    double res = -90 + 180 * (double) buf / 0xFFFFFF;
+
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+
+    buf = (lon == 180) ? 0 : (lon + 180) / 360 * 0x01000000;
+    res = -180 + 360 * (double) buf / 0x01000000;
+
+    ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to origin (0,0) ___
+
+    lon = 0;
+    lat = 0;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, 0, 0);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    // do same conversions to lose the same precision
+    buf = ((lat + 90) / 180) * 0xFFFFFF;
+    res = -90 + 180 * (double) buf / 0xFFFFFF;
+
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (90,180) ___
+
+    lat = 90;
+    lon = 180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    bool value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (-90,-180) ___
+
+    lat = -90;
+    lon = -180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
+
+
+    // ___ Reset coordinates of a node ___
+
+    lat = lon = MegaNode::INVALID_COORDINATE;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
 }
 
 /**

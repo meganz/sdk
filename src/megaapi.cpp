@@ -185,6 +185,8 @@ int MegaShareList::size()
     return 0;
 }
 
+const double MegaNode::INVALID_COORDINATE  = -200;
+
 MegaNode::~MegaNode() { }
 
 MegaNode *MegaNode::copy()
@@ -220,6 +222,21 @@ MegaStringList *MegaNode::getCustomAttrNames()
 const char *MegaNode::getCustomAttr(const char* /*attrName*/)
 {
     return NULL;
+}
+
+int MegaNode::getDuration()
+{
+    return -1;
+}
+
+double MegaNode::getLatitude()
+{
+    return INVALID_COORDINATE;
+}
+
+double MegaNode::getLongitude()
+{
+    return INVALID_COORDINATE;
 }
 
 char *MegaNode::getBase64Handle()
@@ -1482,6 +1499,16 @@ void MegaApi::setUserAttribute(int type, const MegaStringMap *value, MegaRequest
 void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
 {
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
+}
+
+void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
+{
+    pImpl->setNodeDuration(node, secs, listener);
+}
+
+void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    pImpl->setNodeCoordinates(node, latitude, longitude, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -3718,12 +3745,12 @@ MegaTextChatList *MegaTextChatList::copy() const
     return NULL;
 }
 
-const MegaTextChat *MegaTextChatList::get(int) const
+const MegaTextChat *MegaTextChatList::get(unsigned int) const
 {
     return NULL;
 }
 
-MegaTextChat *MegaTextChatList::get(int)
+MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }
