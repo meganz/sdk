@@ -848,18 +848,17 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 
 bool MegaApiImpl::is_syncable(const char *name)
 {
+    // Don't sync these system files from OS X
+    if (!strcmp(name, "Icon\x0d"))
+    {
+        return false;
+    }
+
     for (unsigned int i = 0; i < excludedNames.size(); i++)
     {
         if (WildcardMatch(name, excludedNames[i].c_str()))
         {
-            // Don't manage the '?' line a wildcard for the string "Icon?"
-            // because it's added by default in MEGAsync to exclude a system
-            // file with exactly that name. A proper fix will be implemented
-            // when the advanced exclusion of files based on PCRE is finished
-            if (!(excludedNames[i] == "Icon?" && excludedNames[i] != name))
-            {
-                return false;
-            }
+            return false;
         }
     }
 
