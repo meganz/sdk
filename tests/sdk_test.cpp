@@ -822,18 +822,21 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     n1 = megaApi[0]->getNodeByHandle(h);
 
     // do same conversions to lose the same precision
-    int buf = ((lat + 90) / 180) * 0x01000000;
-    double res = -90 + 180 * (double) buf / 0x01000000;
+    int buf = ((lat + 90) / 180) * 0xFFFFFF;
+    double res = -90 + 180 * (double) buf / 0xFFFFFF;
 
     ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
 
-    buf = (lon + 180) / 360 * 0x01000000;
+    buf = (lon == 180) ? 0 : (lon + 180) / 360 * 0x01000000;
     res = -180 + 360 * (double) buf / 0x01000000;
 
     ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
 
 
     // ___ Set coordinates of a node to origin (0,0) ___
+
+    lon = 0;
+    lat = 0;
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
     megaApi[0]->setNodeCoordinates(n1, 0, 0);
@@ -843,8 +846,48 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     delete n1;
     n1 = megaApi[0]->getNodeByHandle(h);
 
-    ASSERT_EQ(0, n1->getLatitude()) << "Latitude value does not match";
-    ASSERT_EQ(0, n1->getLongitude()) << "Longitude value does not match";
+    // do same conversions to lose the same precision
+    buf = ((lat + 90) / 180) * 0xFFFFFF;
+    res = -90 + 180 * (double) buf / 0xFFFFFF;
+
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (90,180) ___
+
+    lat = 90;
+    lon = 180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    bool value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (-90,-180) ___
+
+    lat = -90;
+    lon = -180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
 
 
     // ___ Reset coordinates of a node ___
