@@ -233,7 +233,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                         if (Base64::atob((const char *) coords.substr(0, 4).data(), buf, sizeof(buf)) == sizeof(buf))
                         {
                             number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
-                            latitude = -90 + 180 * (double) number / 0x01000000;
+                            latitude = -90 + 180 * (double) number / 0xFFFFFF;
                         }
 
                         if (Base64::atob((const char *) coords.substr(4, 4).data(), buf, sizeof(buf)) == sizeof(buf))
@@ -4161,13 +4161,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double lon
     int lat = latitude;
     if (latitude != MegaNode::INVALID_COORDINATE)
     {
-        lat = ((latitude + 90) / 180) * 0x01000000;
+        lat = ((latitude + 90) / 180) * 0xFFFFFF;
     }
 
     int lon = longitude;
     if (longitude != MegaNode::INVALID_COORDINATE)
     {
-        lon = ((longitude + 180) / 360) * 0x01000000;
+        lon = (longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000;
     }
 
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
@@ -11437,8 +11437,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        if (longitude < 0 || longitude > 0x01000000
-                                || latitude < 0 || latitude > 0x01000000)
+                        if (longitude < 0 || longitude >= 0x01000000
+                                || latitude < 0 || latitude >= 0x01000000)
                         {
                             e = API_EARGS;
                             break;
