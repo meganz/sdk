@@ -94,6 +94,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->sharekey = NULL;
     this->foreign = isForeign;
 
     if (privateauth)
@@ -140,13 +141,29 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
+    this->sharekey = NULL;
 
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+
+        if (type == FOLDERNODE)
+        {
+            MegaNodePrivate *n = dynamic_cast<MegaNodePrivate *>(node);
+            if (n)
+            {
+                string *sk = n->getSharekey();
+                if (sk)
+                {
+                    this->sharekey = new string(*sk);
+                }
+            }
+        }
     }
     else
+    {
         this->plink = NULL;
+    }
 
     if (node->hasCustomAttrs())
     {
@@ -336,6 +353,21 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
+    if (plink && type == FOLDERNODE && node->sharekey)
+    {
+        char key[FOLDERNODEKEYLENGTH*4/3+3];
+        Base64::btoa(node->sharekey->key, FOLDERNODEKEYLENGTH, key);
+        this->sharekey = new string(key);
+    }
+    else
+    {
+        this->sharekey = NULL;
+    }
+}
+
+string* MegaNodePrivate::getSharekey()
+{
+    return sharekey;
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -647,8 +679,17 @@ char *MegaNodePrivate::getBase64Key()
     // the key
     if (type == FILENODE && nodekey.size() >= FILENODEKEYLENGTH)
     {
-        key = new char[FILENODEKEYLENGTH*4/3+3];
-        Base64::btoa((const byte*)nodekey.data(),FILENODEKEYLENGTH, key);
+        key = new char[FILENODEKEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((const byte*)nodekey.data(), FILENODEKEYLENGTH, key);
+    }
+    else if (type == FOLDERNODE && sharekey)
+    {
+        key = MegaApi::strdup(sharekey->c_str());
+    }
+    else
+    {
+        key = new char[1];
+        key[0] = 0;
     }
 
     return key;
@@ -996,6 +1037,7 @@ MegaNodePrivate::~MegaNodePrivate()
     delete [] fingerprint;
     delete customAttrs;
     delete plink;
+    delete sharekey;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -8927,12 +8969,19 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         // the key
         if (n->type == FILENODE)
         {
-            if(n->nodekey.size()>=FILENODEKEYLENGTH)
+            if(n->nodekey.size() >= FILENODEKEYLENGTH)
+            {
                 Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+            }
             else
+            {
                 key[0]=0;
+            }
         }
-        else if (n->sharekey) Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+        else if (n->sharekey)
+        {
+            Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+        }
         else
         {
             fireOnRequestFinish(request, MegaError(MegaError::API_EKEY));

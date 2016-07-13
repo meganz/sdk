@@ -251,6 +251,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
+        std::string* getSharekey();
+
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -289,6 +291,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        std::string *sharekey;   // for plinks of folders
         int duration;
         double latitude;
         double longitude;

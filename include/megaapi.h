@@ -588,8 +588,6 @@ class MegaNode
         /**
          * @brief Returns the key of the node in a Base64-encoded string
          *
-         * The return value is only valid for nodes of type TYPE_FILE
-         *
          * You take the ownership of the returned string.
          * Use delete [] to free it.
          *
