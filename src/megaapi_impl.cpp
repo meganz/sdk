@@ -962,6 +962,7 @@ MegaNodePrivate::~MegaNodePrivate()
     delete [] fingerprint;
     delete customAttrs;
     delete plink;
+    delete sharekey;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
