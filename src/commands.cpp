@@ -2946,6 +2946,7 @@ void CommandGetUserQuota::procresult()
 
     details->transfer_hist_starttime = 0;
     details->transfer_hist_interval = 3600;
+    details->transfer_hist_valid = true;
     details->transfer_hist.clear();
 
     details->transfer_reserved = 0;
@@ -3094,7 +3095,7 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
 
             case MAKENAMEID3('s', 'g', 'w'):
                 if (client->json.enterarray())
@@ -3105,7 +3106,11 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
+
+            case MAKENAMEID3('r', 't', 't'):
+                details->transfer_hist_valid = !client->json.getint();
+                break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)

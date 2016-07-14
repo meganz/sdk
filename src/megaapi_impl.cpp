@@ -13334,6 +13334,11 @@ long long MegaAccountDetailsPrivate::getTemporalBandwidth()
     return result;
 }
 
+bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
+{
+    return details.transfer_hist_valid;
+}
+
 ExternalLogger::ExternalLogger()
 {
 	mutex.init(true);
