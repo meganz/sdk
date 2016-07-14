@@ -415,7 +415,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 12;
+    static const unsigned MAXTRANSFERS = 24;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);

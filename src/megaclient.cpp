@@ -3327,7 +3327,7 @@ bool MegaClient::moretransfers(direction_t d)
     }
 
     // always blindly dispatch transfers up to MINPIPELINE
-    if (r < MINPIPELINE)
+    if (r < MINPIPELINE || r < total * 131072)
     {
         return true;
     }
