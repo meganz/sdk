@@ -790,6 +790,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual int getTemporalBandwidthInterval();
         virtual long long getTemporalBandwidth();
+        virtual bool isTemporalBandwidthValid();
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);

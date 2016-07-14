@@ -3336,6 +3336,11 @@ long long MegaAccountDetails::getTemporalBandwidth()
     return 0;
 }
 
+bool MegaAccountDetails::isTemporalBandwidthValid()
+{
+    return false;
+}
+
 void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)
 {
 
