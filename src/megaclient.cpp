@@ -4726,6 +4726,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     }
 
     n->changed.attrs = true;
+    n->tag = reqtag;
     notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
@@ -4863,6 +4864,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
     if (n->setparent(p))
     {
         n->changed.parent = true;
+        n->tag = reqtag;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
