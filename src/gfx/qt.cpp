@@ -26,6 +26,7 @@
 #include "mega/gfx/qt.h"
 
 #include <QFileInfo>
+#include <QPainter>
 
 namespace mega {
 
@@ -370,10 +371,16 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
     if(result.isNull()) return false;
     jpegout->clear();
 
+    //Remove transparency
+    QImage finalImage(result.size(), QImage::Format_RGB32);
+    finalImage.fill(QColor(Qt::white).rgb());
+    QPainter painter(&finalImage);
+    painter.drawImage(0, 0, result);
+
     QByteArray ba;
     QBuffer buffer(&ba);
     buffer.open(QIODevice::WriteOnly);
-    result.save(&buffer, "JPG", 85);
+    finalImage.save(&buffer, "JPG", 85);
     jpegout->assign(ba.constData(), ba.size());
     return !!jpegout->size();
 }
