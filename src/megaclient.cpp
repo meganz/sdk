@@ -7328,7 +7328,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        reqs.add(new CommandSetPH(this, n, del, ets));
+        getpubliclink(n, del, ets);
         break;
 
     case FOLDERNODE:
@@ -7336,14 +7336,14 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            getpubliclink(n, del, ets);
             setshare(n, NULL, ACCESS_UNKNOWN);
         }
         else
         {
             // exporting folder - need to create share first
             setshare(n, NULL, RDONLY);
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            // getpubliclink() is called as _result() of the share
         }
 
         break;
@@ -7353,6 +7353,11 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     }
 
     return API_OK;
+}
+
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+{
+    reqs.add(new CommandSetPH(this, n, del, ets));
 }
 
 // open exported file link
