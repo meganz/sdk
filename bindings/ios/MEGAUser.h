@@ -29,12 +29,19 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
-    MEGAUserChangeTypeAuth      = 0x01,
-    MEGAUserChangeTypeLstint    = 0x02,
-    MEGAUserChangeTypeAvatar    = 0x04,
-    MEGAUserChangeTypeFirstname = 0x08,
-    MEGAUserChangeTypeLastname  = 0x10,
-    MEGAUserChangeTypeEmail     = 0x20
+    MEGAUserChangeTypeAuth           = 0x01,
+    MEGAUserChangeTypeLstint         = 0x02,
+    MEGAUserChangeTypeAvatar         = 0x04,
+    MEGAUserChangeTypeFirstname      = 0x08,
+    MEGAUserChangeTypeLastname       = 0x10,
+    MEGAUserChangeTypeEmail          = 0x20,
+    MEGAUserChangeTypeKeyring        = 0x40,
+    MEGAUserChangeTypeCountry        = 0x80,
+    MEGAUserChangeTypeBirthday       = 0x100,
+    MEGAUserChangeTypePubKeyCu255    = 0x200,
+    MEGAUserChangeTypePubKeyEd255    = 0x400,
+    MEGAUserChangeTypeSigPubKeyRsa   = 0x800,
+    MEGAUserChangeTypeSigPubKeyCu255 = 0x1600
 };
 
 /**
@@ -80,17 +87,22 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserVisibilityVisible = 1
  * The contact is currently visible
  *
- * - MEGAUserVisibilityMe = 2
- * The contact is the owner of the account being used by the SDK
+ * - MEGAUserVisibilityInactive = 2
+ * The contact is currently inactive
  *
+ * - MEGAUserVisibilityBlocked = 3
+ * The contact is currently blocked
+ *
+ * @note The visibility of your own user is undefined and shouldn't be used.
+ * @return Current visibility of the contact
  */
-@property (readonly, nonatomic) MEGAUserVisibility access;
+@property (readonly, nonatomic) MEGAUserVisibility visibility;
 
 /**
  * @brief A bit field with the changes of the user
  *
- * This value is only useful for nodes notified by [DelegateMEGAListener onUsersUpdate] or
- * [DelegateMEGAGlobalListener onUsersUpdate] that can notify about user modifications.
+ * This value is only useful for nodes notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
  *
  * The value is an OR combination of these flags:
  *
@@ -111,8 +123,41 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeEmail           = 0x20
  * Check if the user has modified email
+ *
+ * - MEGAUserChangeTypeKeyring         = 0x40
+ * Check if the user has new or modified keyring
+ *
+ * - MEGAUserChangeTypeCountry         = 0x80
+ * Check if the user has new or modified country
+ *
+ * - MEGAUserChangeTypeBirthday        = 0x100
+ * Check if the user has new or modified birthday, birthmonth or birthyear
+ *
+ * - MEGAUserChangeTypePubKeyCu255     = 0x200
+ * Check if the user has new or modified public key for chat
+ *
+ * - MEGAUserChangeTypePubKeyEd255     = 0x400
+ * Check if the user has new or modified public key for signing
+ *
+ * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1600
+ * Check if the user has new or modified signature for Cu25519 public key
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
+
+/**
+ * @brief Indicates if the user is changed by yourself or by another client.
+ *
+ * This value is only useful for users notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
+ *
+ * @return 0 if the change is external. >0 if the change is the result of an
+ * explicit request, -1 if the change is the result of an implicit request
+ * made by the SDK internally.
+ */
+@property (readonly, nonatomic) NSInteger isOwnChange;
 
 /**
  * @brief The timestamp when the contact was added to the contact list (in seconds since the epoch).
@@ -122,8 +167,8 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
 /**
  * @brief Returns YES if this user has an specific change
  *
- * This value is only useful for nodes notified by [DelegateMEGAListener onUsersUpdate] or
- * [DelegateMEGAGlobalListener onUsersUpdate] that can notify about user modifications.
+ * This value is only useful for nodes notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
  *
  * In other cases, the return value of this function will be always false.
  *
@@ -146,6 +191,27 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeEmail           = 0x20
  * Check if the user has modified email
+ *
+ * - MEGAUserChangeTypeKeyring         = 0x40
+ * Check if the user has new or modified keyring
+ *
+ * - MEGAUserChangeTypeCountry         = 0x80
+ * Check if the user has new or modified country
+ *
+ * - MEGAUserChangeTypeBirthday        = 0x100
+ * Check if the user has new or modified birthday, birthmonth or birthyear
+ *
+ * - MEGAUserChangeTypePubKeyCu255     = 0x200
+ * Check if the user has new or modified public key for chat
+ *
+ * - MEGAUserChangeTypePubKeyEd255     = 0x400
+ * Check if the user has new or modified public key for signing
+ *
+ * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1600
+ * Check if the user has new or modified signature for Cu25519 public key
  *
  * @return YES if this user has an specific change
  */

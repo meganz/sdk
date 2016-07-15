@@ -1513,6 +1513,18 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
 
 /**
+ * @brief Get the default color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar.
+ *
+ * @param user MEGAUser to get the color of the avatar. If this parameter is set to nil, the color
+ * is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
+- (NSString *)avatarColorForUser:(MEGAUser *)user;
+
+/**
  * @brief Set the avatar of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
@@ -1558,7 +1570,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Get the lastname of the user
  *
  */
-- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
+- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
 
 
 /**
@@ -1585,7 +1597,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get an attribute of the current account.
@@ -1607,7 +1619,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user
  */
-- (void)getUserAttibuteType:(MEGAUserAttribute)type;
+- (void)getUserAttributeType:(MEGAUserAttribute)type;
 
 /**
  * @brief Get an attribute of the current account.
@@ -1631,7 +1643,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getUserAttibuteType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 
 /**
@@ -1653,7 +1665,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param value New attribute value
  */
-- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value;
+- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
 
 /**
  * @brief Set an attribute of the current user.
@@ -1675,7 +1687,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Account management Requests
 

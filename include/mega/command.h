@@ -184,6 +184,9 @@ public:
 // set visibility
 class MEGA_API CommandRemoveContact : public Command
 {
+    string email;
+    visibility_t v;
+
 public:
     void procresult();
 

@@ -2178,6 +2178,9 @@ void CommandPurchaseCheckout::procresult()
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
+    this->email = m ? m : "";
+    this->v = show;
+
     cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
@@ -2197,6 +2200,12 @@ void CommandRemoveContact::procresult()
     {
         client->json.storeobject();
         e = API_OK;
+
+        User *u = client->finduser(email.c_str());
+        if (u)
+        {
+            u->show = v;
+        }
     }
 
     client->app->removecontact_result(e);
@@ -2235,6 +2244,11 @@ void CommandPutMultipleUAVer::procresult()
 {
     if (client->json.isnumeric())
     {
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        client->sendevent(99419, "Error attaching keys");
+        client->reqtag = creqtag;
+
         return client->app->putua_result((error)client->json.getint());
     }
 
@@ -2302,7 +2316,10 @@ void CommandPutMultipleUAVer::procresult()
                 }
                 else
                 {
-                    LOG_info << "Signing key and chat key successfully loaded";
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->sendevent(99420, "Signing and chat keys attached OK");
+                    client->reqtag = creqtag;
                 }
 
                 delete tlvRecords;

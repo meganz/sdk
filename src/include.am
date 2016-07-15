@@ -73,6 +73,11 @@ if USE_SODIUM
 src_libmega_la_SOURCES += src/crypto/sodium.cpp
 endif
 
+# IOS specific
+if USE_IOS
+src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
+endif
+
 # win32 sources
 if WIN32
 src_libmega_la_SOURCES+= src/win32/fs.cpp

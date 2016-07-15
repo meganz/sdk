@@ -214,6 +214,9 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool hasCustomAttrs();
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
+        virtual int getDuration();
+        virtual double getLatitude();
+        virtual double getLongitude();
         virtual char *getBase64Handle();
         virtual int64_t getSize();
         virtual int64_t getCreationTime();
@@ -248,6 +251,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
+        std::string* getSharekey();
+
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -286,6 +291,10 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        std::string *sharekey;   // for plinks of folders
+        int duration;
+        double latitude;
+        double longitude;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -874,8 +883,8 @@ public:
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
-    virtual const MegaTextChat *get(int i) const;
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(unsigned int i) const;
+    virtual MegaTextChat *get(unsigned int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -1270,6 +1279,8 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
+        void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
