@@ -450,7 +450,10 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = 0;
             curltimeoutreset = 0;
-            LOG_debug << "Disabling cURL timeout";
+            LOG_debug << "cURL timeout expired";
+
+            int dummy;
+            curl_multi_socket_action(curlm, CURL_SOCKET_TIMEOUT, 0, &dummy);
         }
         else
         {
@@ -1425,7 +1428,6 @@ bool CurlHttpIO::doio()
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     curl_multi_perform(curlm, &dummy);
 #else
-    bool active = false;
     for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end();)
     {
         SockInfo &info = (it++)->second;
@@ -1436,7 +1438,6 @@ bool CurlHttpIO::doio()
 
         if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
         {
-            active = true;
             WSAResetEvent(info.handle);
             curl_multi_socket_action(curlm,
                                      info.fd,
@@ -1445,11 +1446,6 @@ bool CurlHttpIO::doio()
                                      &dummy);
             break;
         }
-    }
-
-    if (!active)
-    {
-        curl_multi_socket_action(curlm, CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 #endif
 
