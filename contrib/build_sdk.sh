@@ -768,7 +768,11 @@ build_sdk() {
     if [ $configure_only -eq 0 ]; then
         echo "Building MEGA SDK"
         make clean
-        make -j9 || exit 1
+        if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        	make -j9 || exit 1
+        else
+        	make
+        fi
         make install
     fi
 }
