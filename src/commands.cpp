@@ -4609,7 +4609,6 @@ void CommandChatFetch::procresult()
                             delete userpriv;
                             userpriv = NULL;
                         }
-                        break;
                 }
             }
             client->json.leaveobject();
