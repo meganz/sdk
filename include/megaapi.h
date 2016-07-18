@@ -8092,6 +8092,10 @@ class MegaApi
         /**
          * @brief Fetches the full list of current chats for the requesting user.
          *
+         * This function must be called after MegaApi::login() and before MegaApi::fetchNodes().
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         * If nodes have already been fetched, you will get the error code MegaError::API_EEXPIRED.
+         *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code

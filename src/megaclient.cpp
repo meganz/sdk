@@ -4617,10 +4617,8 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        if (!fetchingnodes)
-        {
-            app->chats_updated(&chatnotify);
-        }
+        // chats are notified even during fetchingnodes
+        app->chats_updated(&chatnotify);
 
         for (i = 0; i < t; i++)
         {
