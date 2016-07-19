@@ -7684,7 +7684,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7762,7 +7762,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
