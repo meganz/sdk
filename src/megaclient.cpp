@@ -7966,17 +7966,37 @@ void MegaClient::initializekeys()
         {
             pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
-        if (!pubkstr.size() || !sigPubk.size() ||
-                !signkey->verifyKey((unsigned char*) pubkstr.data(),
+        if (!pubkstr.size() || !sigPubk.size())
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+
+            if (!pubkstr.size())
+            {
+                LOG_warn << "Error serializing RSA public key";
+                sendevent(99421, "Error serializing RSA public key");
+            }
+            if (!sigPubk.size())
+            {
+                LOG_warn << "Signature of public key for RSA not found";
+                sendevent(99422, "Signature of public key for RSA not found");
+            }
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+        if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Signature of public key for RSA not found or mismatch";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99414, "Signature of RSA public key mismatch");
+            sendevent(99414, "Verification of signature of public key for RSA failed");
             reqtag = creqtag;
 
             clearKeys();
@@ -8067,7 +8087,14 @@ void MegaClient::initializekeys()
 
         int creqtag = reqtag;
         reqtag = 0;
-        sendevent(99416, "Incomplete keyring detected");
+        if (!chatkey)
+        {
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+        }
+        else // !signkey
+        {
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+        }
         reqtag = creqtag;
 
         resetKeyring();
