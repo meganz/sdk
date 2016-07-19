@@ -7966,26 +7966,21 @@ void MegaClient::initializekeys()
         {
             pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
-        if (!pubkstr.size())
+        if (!pubkstr.size() || !sigPubk.size())
         {
-            LOG_warn << "Error serializing RSA public key";
-
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99421, "Error serializing RSA public key");
-            reqtag = creqtag;
 
-            clearKeys();
-            resetKeyring();
-            return;
-        }
-        if (!sigPubk.size())
-        {
-            LOG_warn << "Signature of public key for RSA not found";
-
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99422, "Signature of public key for RSA not found");
+            if (!pubkstr.size())
+            {
+                LOG_warn << "Error serializing RSA public key";
+                sendevent(99421, "Error serializing RSA public key");
+            }
+            if (!sigPubk.size())
+            {
+                LOG_warn << "Signature of public key for RSA not found";
+                sendevent(99422, "Signature of public key for RSA not found");
+            }
             reqtag = creqtag;
 
             clearKeys();
