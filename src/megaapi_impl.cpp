@@ -8391,19 +8391,22 @@ void MegaApiImpl::share_result(error e)
                     (request->getType() != MegaRequest::TYPE_SHARE))) return;
 
     // exportnode_result will be called to end the request.
-    if(!e && request->getType() == MegaRequest::TYPE_EXPORT)
+    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
     {
         Node* node = client->nodebyhandle(request->getNodeHandle());
-        if(!node)
+        if (!node)
         {
-            fireOnRequestFinish(request, API_EARGS);
+            fireOnRequestFinish(request, API_ENOENT);
             return;
         }
 
-        if (request->getAccess())
+        if (!request->getAccess())
         {
-            client->getpubliclink(node, !request->getAccess(), request->getNumber());
+            fireOnRequestFinish(request, API_EINTERNAL);
+            return;
         }
+
+        client->getpubliclink(node, false, request->getNumber());
 		return;
     }
 
