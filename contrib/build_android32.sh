@@ -77,4 +77,4 @@ export LDFLAGS="${LDFLAGS} -L${SYSROOT}/usr/lib -L${TOOLCHAIN_LIB}"
 
 opts="--host=arm-linux-androideabi --with-sysroot=$SYSROOT "
 
-./contrib/build_sdk.sh -n -y -r -f -x "$opts"
+./contrib/build_sdk.sh -q -n -y -r -f -x "$opts"
