@@ -3017,6 +3017,14 @@ static void process_line(char* l)
 
                                     return;
                                 }
+                                else if (words[2] == "set64")
+                                {
+                                    byte value[words[3].size() * 3 / 4 + 3];
+                                    int valuelen = Base64::atob(words[3].data(), value, sizeof(value));
+                                    client->putua(attrtype, value, valuelen);
+
+                                    return;
+                                }
                                 else if (words[2] == "load")
                                 {
                                     string data, localpath;
