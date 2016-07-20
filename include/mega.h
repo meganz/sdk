@@ -77,7 +77,4 @@
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/GfxProcCG.h"
 
-#include <cctype>
-#include <locale>
-
 #endif
