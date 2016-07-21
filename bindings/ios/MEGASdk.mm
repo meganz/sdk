@@ -448,6 +448,70 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->fastConfirmAccount((link != nil) ? [link UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)resetPasswordWithEmail:(NSString *)email hasMasterKey:(BOOL)hasMasterKey delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetPassword((email != nil) ? [email UTF8String] : NULL, hasMasterKey, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetPasswordWithEmail:(NSString *)email hasMasterKey:(BOOL)hasMasterKey {
+    self.megaApi->resetPassword((email != nil) ? [email UTF8String] : NULL, hasMasterKey);
+}
+
+- (void)queryResetPasswordLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryResetPasswordLink((link != nil) ? [link UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)queryResetPasswordLink:(NSString *)link {
+    self.megaApi->queryResetPasswordLink((link != nil) ? [link UTF8String] : NULL);
+}
+
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->confirmResetPassword((link != nil) ? [link UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, (masterKey != nil) ? [masterKey UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey {
+    self.megaApi->confirmResetPassword((link != nil) ? [link UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, (masterKey != nil) ? [masterKey UTF8String] : NULL);
+}
+
+- (void)cancelAccountWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelAccount([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelAccount {
+    self.megaApi->cancelAccount();
+}
+
+- (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password {
+    self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
+- (void)changeEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->changeEmail((email != nil) ? [email UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)changeEmail:(NSString *)email {
+    self.megaApi->changeEmail((email != nil) ? [email UTF8String] : NULL);
+}
+
+- (void)queryChangeEmailLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryChangeEmailLink((link != nil) ? [link UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)queryChangeEmailLink:(NSString *)link {
+    self.megaApi->queryChangeEmailLink((link != nil) ? [link UTF8String] : NULL);
+}
+
+- (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password {
+    self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -489,7 +553,6 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName {
     self.megaApi->renameNode((node != nil) ? [node getCPtr] : NULL, (newName != nil) ? [newName UTF8String] : NULL);
 }
-
 
 - (void)removeNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
