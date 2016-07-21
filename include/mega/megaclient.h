@@ -234,6 +234,7 @@ public:
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t);
+    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -415,7 +416,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 12;
+    static const unsigned MAXTRANSFERS = 24;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);

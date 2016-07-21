@@ -8704,6 +8704,12 @@ public:
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();
+
+    /**
+     * @brief Check if the temporal bandwidth usage is valid after an overquota error
+     * @return True if the temporal bandwidth is valid, otherwise false
+     */
+    virtual bool isTemporalBandwidthValid();
 };
 
 /**

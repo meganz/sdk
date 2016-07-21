@@ -50,7 +50,7 @@ BdbAccess::~BdbAccess()
     }
 }
 
-DbTable* BdbAccess::open(FileSystemAccess* fsaccess, string* name)
+DbTable* BdbAccess::open(FileSystemAccess* fsaccess, string* name, bool)
 {
     if (env)
     {
