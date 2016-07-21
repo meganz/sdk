@@ -185,6 +185,8 @@ int MegaShareList::size()
     return 0;
 }
 
+const double MegaNode::INVALID_COORDINATE  = -200;
+
 MegaNode::~MegaNode() { }
 
 MegaNode *MegaNode::copy()
@@ -220,6 +222,21 @@ MegaStringList *MegaNode::getCustomAttrNames()
 const char *MegaNode::getCustomAttr(const char* /*attrName*/)
 {
     return NULL;
+}
+
+int MegaNode::getDuration()
+{
+    return -1;
+}
+
+double MegaNode::getLatitude()
+{
+    return INVALID_COORDINATE;
+}
+
+double MegaNode::getLongitude()
+{
+    return INVALID_COORDINATE;
 }
 
 char *MegaNode::getBase64Handle()
@@ -431,6 +448,11 @@ int MegaUser::getChanges()
     return 0;
 }
 
+int MegaUser::isOwnChange()
+{
+    return 0;
+}
+
 MegaShare::~MegaShare() { }
 
 MegaShare *MegaShare::copy()
@@ -630,6 +652,11 @@ MegaTextChatList *MegaRequest::getMegaTextChatList() const
     return NULL;
 }
 #endif
+
+MegaStringMap *MegaRequest::getMegaStringMap() const
+{
+    return NULL;
+}
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -1105,6 +1132,13 @@ char *MegaApi::getMyXMPPJid()
     return pImpl->getMyXMPPJid();
 }
 
+#ifdef ENABLE_CHAT
+char *MegaApi::getMyFingerprint()
+{
+    return pImpl->getMyFingerprint();
+}
+#endif
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
@@ -1457,9 +1491,24 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
     pImpl->setUserAttribute(type, value, listener);
 }
 
+void MegaApi::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
+{
+    pImpl->setUserAttribute(type, value, listener);
+}
+
 void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
 {
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
+}
+
+void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
+{
+    pImpl->setNodeDuration(node, secs, listener);
+}
+
+void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    pImpl->setNodeCoordinates(node, latitude, longitude, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -3287,6 +3336,11 @@ long long MegaAccountDetails::getTemporalBandwidth()
     return 0;
 }
 
+bool MegaAccountDetails::isTemporalBandwidthValid()
+{
+    return false;
+}
+
 void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)
 {
 
@@ -3696,12 +3750,12 @@ MegaTextChatList *MegaTextChatList::copy() const
     return NULL;
 }
 
-const MegaTextChat *MegaTextChatList::get(int) const
+const MegaTextChat *MegaTextChatList::get(unsigned int) const
 {
     return NULL;
 }
 
-MegaTextChat *MegaTextChatList::get(int)
+MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }
@@ -3712,3 +3766,34 @@ int MegaTextChatList::size() const
 }
 
 #endif  // ENABLE_CHAT
+
+
+MegaStringMap::~MegaStringMap()
+{
+
+}
+
+MegaStringMap *MegaStringMap::copy() const
+{
+    return NULL;
+}
+
+const char *MegaStringMap::get(const char*) const
+{
+    return NULL;
+}
+
+MegaStringList *MegaStringMap::getKeys() const
+{
+    return NULL;
+}
+
+void MegaStringMap::set(const char *, const char *)
+{
+
+}
+
+int MegaStringMap::size() const
+{
+    return 0;
+}

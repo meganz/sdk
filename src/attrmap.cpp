@@ -112,15 +112,20 @@ void AttrMap::serialize(string* d) const
 }
 
 // read binary serialize, return final offset
-const char* AttrMap::unserialize( const char* ptr )
+const char* AttrMap::unserialize(const char* ptr , const char *end)
 {
     unsigned char l;
     unsigned short ll;
     nameid id;
 
-    while ((l = *ptr++))
+    while ((ptr < end) && (l = *ptr++))
     {
         id = 0;
+
+        if (ptr + l + sizeof ll > end)
+        {
+            return NULL;
+        }
 
         while (l--)
         {
@@ -129,6 +134,12 @@ const char* AttrMap::unserialize( const char* ptr )
 
         ll = MemAccess::get<short>(ptr);
         ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
         map[id].assign(ptr, ll);
         ptr += ll;
     }

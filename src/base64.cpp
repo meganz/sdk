@@ -67,12 +67,12 @@ unsigned char Base64::from64(byte c)
         return c - '0' + 52;
     }
 
-    if (c == '-')
+    if (c == '-' || c == '+')
     {
         return 62;
     }
 
-    if (c == '_')
+    if (c == '_' || c == '/')
     {
         return 63;
     }
@@ -121,6 +121,70 @@ int Base64::atob(const char* a, byte* b, int blen)
     }
 
     return p;
+}
+
+void Base64::itoa(int64_t val, string *result)
+{
+    byte c;
+    int64_t rest;
+    if (!result || val < 0)
+    {
+        return;
+    }
+
+    if (!val)
+    {
+        *result = "A";
+        return;
+    }
+
+    result->clear();
+    while (val)
+    {
+        rest = val % 64;
+        val /= 64;
+        c = to64(rest);
+        result->insert(result->begin(), (char) c);
+    }
+}
+
+int64_t Base64::atoi(string *val)
+{
+    if (!val)
+    {
+        return -1;
+    }
+
+    size_t len = val->size();
+    if (len == 0)
+    {
+        return -1;
+    }
+
+    size_t pos = 0;
+    int64_t res = 0;
+    int valid = 0;
+    while (pos < len)
+    {
+        byte b = from64(val->at(pos));
+        if (b == 255)
+        {
+            pos++;
+            continue;
+        }
+
+        valid++;
+        res *= 64;
+        res += b;
+        pos++;
+    }
+
+    if (!valid || res < 0)
+    {
+        return -1;
+    }
+
+    return res;
 }
 
 int Base64::btoa(const byte* b, int blen, char* a)
