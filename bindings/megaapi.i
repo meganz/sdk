@@ -24,8 +24,16 @@
                     try {
                         System.load(System.getProperty("user.dir") + "/libs/mega.dll");
                     } catch (UnsatisfiedLinkError e4) {
-                        System.err.println("Native code library failed to load. \n" + e1 + "\n" + e2 + "\n" + e3 + "\n" + e4);
-                        System.exit(1);
+                        try {
+                            System.load(System.getProperty("user.dir") + "/libmega.dylib");
+                        } catch (UnsatisfiedLinkError e5) {
+                            try {
+                                System.load(System.getProperty("user.dir") + "/libs/libmegajava.dylib");
+                            } catch (UnsatisfiedLinkError e6) {
+                                System.err.println("Native code library failed to load. \n" + e1 + "\n" + e2 + "\n" + e3 + "\n" + e4 + "\n" + e5 + "\n" + e6);
+                                System.exit(1);
+                            }
+                        }
                     }
                 }
             }
