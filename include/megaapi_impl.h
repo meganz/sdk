@@ -145,6 +145,20 @@ private:
 };
 
 class MegaTransferPrivate;
+class MegaFolderProcTree : public MegaTreeProcessor
+{
+public:
+    NewNode* nn;
+    unsigned nc;
+
+    MegaFolderProcTree(MegaClient *client);
+    virtual bool processMegaNode(MegaNode* node);
+    void allocnodes(void);
+
+protected:
+    MegaClient *client;
+};
+
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
 {
 public:

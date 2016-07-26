@@ -6327,8 +6327,18 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 	Node *node = client->nodebyhandle(n->getHandle());
 	if(!node)
 	{
+        if (n->getType() != FILENODE)
+        {
+            MegaNodeList *nList = n->getChildren();
+            for (int i = 0; i < nList->size(); i++)
+            {
+                MegaNode *child = nList->get(i);
+                processMegaTree(child, processor);
+            }
+        }
+        bool result = processor->processMegaNode(n);
         sdkMutex.unlock();
-		return true;
+        return result;
 	}
 
 	if (node->type != FILENODE)
@@ -11172,63 +11182,93 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!node)
             {
-                NewNode *newnode = new NewNode[1];
-                newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
-                newnode->attrstring = new string;
-
-                if (publicNode->isPublic())
+                if (publicNode->getType() != FILENODE)
                 {
-                    newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
-                    newnode->source = NEW_PUBLIC;
-                }
-                else
-                {
-                    SymmCipher key;
-                    AttrMap attrs;
-
-                    key.setkey((const byte*)publicNode->getNodeKey()->data(), FILENODE);
-                    string sname = publicNode->getName();
-                    fsAccess->normalize(&sname);
-                    attrs.map['n'] = sname;
-
-                    const char *fingerprint = publicNode->getFingerprint();
-                    if (fingerprint && fingerprint[0])
+                    unsigned nc;
+                    MegaFolderProcTree *ptree = new MegaFolderProcTree(client);
+                    this->processMegaTree(publicNode, ptree);
+                    ptree->allocnodes();
+                    nc = ptree->nc;
+                    // build new nodes array
+                    this->processMegaTree(publicNode, ptree);
+                    if (!nc)
                     {
-                        m_off_t size = 0;
-                        unsigned int fsize = strlen(fingerprint);
-                        unsigned int ssize = fingerprint[0] - 'A';
-                        if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
-                        {
-                            int len =  sizeof(size) + 1;
-                            byte *buf = new byte[len];
-                            Base64::atob(fingerprint + 1, buf, len);
-                            int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-                            delete [] buf;
-                            if (l > 0)
-                            {
-                                attrs.map['c'] = fingerprint + ssize + 1;
-                            }
-                        }
+                        e = API_EARGS;
+                        break;
                     }
 
-                    string attrstring;
-                    attrs.getjson(&attrstring);
-                    client->makeattr(&key,newnode->attrstring, attrstring.c_str());
-                    newnode->source = NEW_NODE;
-                }
-
-                newnode->nodehandle = publicNode->getHandle();
-                newnode->type = FILENODE;
-                newnode->parenthandle = UNDEF;
-
-                if(target)
-                {
-                    client->putnodes(target->nodehandle, newnode, 1);
+                    if (target)
+                    {
+                        client->putnodes(target->nodehandle, ptree->nn, nc);
+                    }
+                    else
+                    {
+                        client->putnodes(email, ptree->nn, nc);
+                    }
+                    delete ptree;
                 }
                 else
                 {
-                    client->putnodes(email, newnode, 1);
+                    NewNode *newnode = new NewNode[1];
+                    newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
+                    newnode->attrstring = new string;
+
+                    if (publicNode->isPublic())
+                    {
+                        newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                        newnode->source = NEW_PUBLIC;
+                    }
+                    else
+                    {
+                        SymmCipher key;
+                        AttrMap attrs;
+
+                        key.setkey((const byte*)publicNode->getNodeKey()->data(), publicNode->getType());
+                        string sname = publicNode->getName();
+                        fsAccess->normalize(&sname);
+                        attrs.map['n'] = sname;
+
+                        const char *fingerprint = publicNode->getFingerprint();
+                        if (fingerprint && fingerprint[0])
+                        {
+                            m_off_t size = 0;
+                            unsigned int fsize = strlen(fingerprint);
+                            unsigned int ssize = fingerprint[0] - 'A';
+                            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
+                            {
+                                int len =  sizeof(size) + 1;
+                                byte *buf = new byte[len];
+                                Base64::atob(fingerprint + 1, buf, len);
+                                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+                                delete [] buf;
+                                if (l > 0)
+                                {
+                                    attrs.map['c'] = fingerprint + ssize + 1;
+                                }
+                            }
+                        }
+
+                        string attrstring;
+                        attrs.getjson(&attrstring);
+                        client->makeattr(&key,newnode->attrstring, attrstring.c_str());
+                        newnode->source = NEW_NODE;
+                    }
+
+                    newnode->nodehandle = publicNode->getHandle();
+                    newnode->type = (nodetype_t)publicNode->getType();
+                    newnode->parenthandle = UNDEF;
+
+                    if(target)
+                    {
+                        client->putnodes(target->nodehandle, newnode, 1);
+                    }
+                    else
+                    {
+                        client->putnodes(email, newnode, 1);
+                    }
+
                 }
+
             }
             else
             {
@@ -13808,6 +13848,84 @@ FileInputStream::~FileInputStream()
 
 }
 
+MegaFolderProcTree::MegaFolderProcTree(MegaClient *client)
+{
+    nn = NULL;
+    nc = 0;
+    this->client = client;
+}
+
+void MegaFolderProcTree::allocnodes()
+{
+    if (nc)
+    {
+       nn = new NewNode[nc];
+    }
+}
+bool MegaFolderProcTree::processMegaNode(MegaNode *n)
+{
+    if (nn)
+    {
+        string attrstring;
+        SymmCipher key;
+        AttrMap attrs;
+        NewNode* t = nn+--nc;
+
+        // copy node
+        t->source = NEW_NODE;
+        t->type = (nodetype_t)n->getType();
+        t->nodehandle = n->getHandle();
+        t->parenthandle = n->getParentHandle() ? n->getParentHandle() : UNDEF;
+
+        // copy key (if file) or generate new key (if folder)
+        if (n->getType() == FILENODE)
+        {
+            t->nodekey = *(n->getNodeKey());
+        }
+        else
+        {
+            byte buf[FOLDERNODEKEYLENGTH];
+            PrnGen::genblock(buf,sizeof buf);
+            t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+        }
+
+        // attach attributes
+        string sname = n->getName();
+        client->fsaccess->normalize(&sname);
+        attrs.map['n'] = sname;
+
+        const char *fingerprint = n->getFingerprint();
+        if (fingerprint && fingerprint[0])
+        {
+            m_off_t size = 0;
+            unsigned int fsize = strlen(fingerprint);
+            unsigned int ssize = fingerprint[0] - 'A';
+            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
+            {
+                int len =  sizeof(size) + 1;
+                byte *buf = new byte[len];
+                Base64::atob(fingerprint + 1, buf, len);
+                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+                delete [] buf;
+                if (l > 0)
+                {
+                    attrs.map['c'] = fingerprint + ssize + 1;
+                }
+            }
+        }
+
+        key.setkey((const byte*)t->nodekey.data(),n->getType());
+
+        t->attrstring = new string;
+        attrs.getjson(&attrstring);
+        client->makeattr(&key,t->attrstring, attrstring.c_str());
+    }
+    else
+    {
+        nc++;
+    }
+
+}
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
