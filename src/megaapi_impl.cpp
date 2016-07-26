@@ -115,7 +115,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
-    this->children = NULL;
+    this->children = node->getChildren();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -934,7 +934,6 @@ MegaNodePrivate::~MegaNodePrivate()
     delete [] fingerprint;
     delete customAttrs;
     delete plink;
-    delete children;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -10781,7 +10780,7 @@ void MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
-                if (!transfer->isStreamingTransfer() && node && node->type != FILENODE)
+                if (!transfer->isStreamingTransfer() && ((node && node->type != FILENODE) || publicNode->getType() == FOLDERNODE))
                 {
                     // Folder download
                     transferMap[nextTag] = transfer;
