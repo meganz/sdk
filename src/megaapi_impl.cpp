@@ -14184,35 +14184,35 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         {
             pendingTransfers++;
             FileAccess *fa = NULL;
-            Node *childNode = NULL;
-            if (!child->isForeign())
-            {
-                childNode = client->nodebyhandle(child->getHandle());
-                fa = client->fsaccess->newfileaccess();
-            }
+            fa = client->fsaccess->newfileaccess();
 
-            if (childNode && fa->fopen(&localpath, true, false) && fa->type == FILENODE)
+            if (child && fa->fopen(&localpath, true, false) && fa->type == FILENODE)
             {
-                FileFingerprint fp;
-                fp.genfingerprint(fa);
-                if ((fp.isvalid && childNode->isvalid && fp == *(FileFingerprint *)childNode)
-                        || (!childNode->isvalid && fa->size == childNode->size && fa->mtime == childNode->mtime))
+                const char *fpLocal = megaApi->getFingerprint(localpath.c_str());
+                const char *fpRemote = megaApi->getFingerprint(child);
+
+                if ((fpLocal && fpRemote && !strcmp(fpLocal,fpRemote))
+                        || (!fpRemote && child->getSize() == fa->size
+                            && child->getModificationTime() == fa->mtime))
                 {
+                    delete [] fpLocal;
+                    delete [] fpRemote;
+
                     LOG_debug << "Already downloaded file detected: " << utf8path;
                     int nextTag = client->nextreqtag();
                     MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, this);
 
                     t->setPath(utf8path.data());
-                    t->setNodeHandle(childNode->nodehandle);
+                    t->setNodeHandle(child->getHandle());
 
                     t->setTag(nextTag);
                     t->setFolderTransferTag(tag);
-                    t->setTotalBytes(childNode->size);
+                    t->setTotalBytes(child->getSize());
                     megaApi->transferMap[nextTag] = t;
                     megaApi->fireOnTransferStart(t);
 
-                    t->setTransferredBytes(childNode->size);
-                    t->setDeltaSize(childNode->size);
+                    t->setTransferredBytes(child->getSize());
+                    t->setDeltaSize(child->getSize());
                     megaApi->fireOnTransferFinish(t, MegaError(API_OK));
                     localpath.resize(l);
                     delete fa;
