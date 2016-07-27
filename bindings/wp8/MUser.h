@@ -60,6 +60,7 @@ namespace mega
 		uint64 getTimestamp();
         bool hasChanged(int changeType);
         int getChanges();
+        int isOwnChange();
 
 	private:
 		MUser(MegaUser *megaUser, bool cMemoryOwn);

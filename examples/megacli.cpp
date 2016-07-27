@@ -56,6 +56,11 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
+// chained folder link creation
+static handle h = UNDEF;
+static int del = 0;
+static int ets = 0;
+
 // local console
 Console* console;
 
@@ -794,6 +799,26 @@ void DemoApp::share_result(error e)
     if (e)
     {
         cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (h != UNDEF && !del)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (!n)
+            {
+                char buf[sizeof h * 4 / 3 + 3];
+                Base64::btoa((byte *)&h, sizeof h, buf);
+
+                cout << "Node was not found. (" << buf << ")" << endl;
+
+                h = UNDEF;
+                del = ets = 0;
+                return;
+            }
+
+            client->getpubliclink(n, del, ets);
+        }
     }
 }
 
@@ -3584,27 +3609,37 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
+                            h = UNDEF;
+                            del = ets = 0;
+
                             Node* n;
-                            int del = 0;
-                            int ets = 0;
+                            int deltmp = 0;
+                            int etstmp = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (words.size() > 2)
                                 {
-                                    del = (words[2] == "del");
-                                    if (!del)
+                                    deltmp = (words[2] == "del");
+                                    if (!deltmp)
                                     {
-                                        ets = atol(words[2].c_str());
+                                        etstmp = atol(words[2].c_str());
                                     }
                                 }
+
 
                                 cout << "Exporting..." << endl;
 
                                 error e;
-                                if ((e = client->exportnode(n, del, ets)))
+                                if ((e = client->exportnode(n, deltmp, etstmp)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+                                }
+                                else
+                                {
+                                    h = n->nodehandle;
+                                    ets = etstmp;
+                                    del = deltmp;
                                 }
                             }
                             else
@@ -4267,6 +4302,9 @@ void DemoApp::exportnode_result(error e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -4297,6 +4335,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
         else
         {
             cout << "No key available for exported folder" << endl;
+
+            del = ets = 0;
+            h = UNDEF;
             return;
         }
 
@@ -4306,6 +4347,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 // the requested link could not be opened

@@ -122,6 +122,7 @@ TEST(Crypto, AES_CCM)
     ASSERT_STREQ(result.data(), plainText.data()) << "CCM decryption: plain text doesn't match the expected value";
 }
 
+#ifdef ENABLE_CHAT
 // Test functions of Ed25519:
 // - Binary & Hex fingerprints of public key
 // - Creation of signature for RSA public key
@@ -276,6 +277,6 @@ TEST(Crypto, Ed25519_Signing)
                                       &sigRSAbin, (unsigned char*) puEd255bin.data()))
                 << "Verification of signature failed for a random key.";
     }
-
 }
 
+#endif

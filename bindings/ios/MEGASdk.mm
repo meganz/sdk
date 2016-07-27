@@ -615,6 +615,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
+- (NSString *)avatarColorForUser:(MEGAUser *)user {
+    if (user == nil) return nil;
+    
+    const char *val = self.megaApi->getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -623,27 +635,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
-- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type {
+- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type {
     self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type);
 }
 
-- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getUserAttibuteType:(MEGAUserAttribute)type {
+- (void)getUserAttributeType:(MEGAUserAttribute)type {
     self.megaApi->getUserAttribute(type);
 }
 
-- (void)getUserAttibuteType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getUserAttribute(type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value {
+- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value {
     self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL);
 }
 
-- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 

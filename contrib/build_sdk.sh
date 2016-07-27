@@ -651,9 +651,9 @@ readline_win_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Readline"
-    local readline_ver="5.0"
-    local readline_url="http://gnuwin32.sourceforge.net/downlinks/readline-bin-zip.php"
-    local readline_md5="33c8fb279e981274f485fd91da77e94a"
+    local readline_ver="5.0.1"
+    local readline_url="http://downloads.sourceforge.net/project/gnuwin32/readline/5.0-1/readline-5.0-1-bin.zip?r=&ts=1468492036&use_mirror=freefr"
+    local readline_md5="91beae8726edd7ad529f67d82153e61a"
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
@@ -768,7 +768,11 @@ build_sdk() {
     if [ $configure_only -eq 0 ]; then
         echo "Building MEGA SDK"
         make clean
-        make -j9 || exit 1
+        if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        	make -j9 || exit 1
+        else
+        	make
+        fi
         make install
     fi
 }

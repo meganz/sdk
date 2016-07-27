@@ -3327,7 +3327,7 @@ bool MegaClient::moretransfers(direction_t d)
     }
 
     // always blindly dispatch transfers up to MINPIPELINE
-    if (r < MINPIPELINE)
+    if (r < MINPIPELINE || r < total * 131072)
     {
         return true;
     }
@@ -3864,15 +3864,23 @@ void MegaClient::sc_userattr()
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        if ((cacheduav = u->getattrversion(type)) && (*cacheduav != *ituav))
+                        cacheduav = u->getattrversion(type);
+                        if (cacheduav)
                         {
-                            u->invalidateattr(type);
-#ifdef ENABLE_CHAT
-                            if (type == ATTR_KEYRING)
+                            if (*cacheduav != *ituav)
                             {
-                                resetKeyring();
-                            }
+                                u->invalidateattr(type);
+#ifdef ENABLE_CHAT
+                                if (type == ATTR_KEYRING)
+                                {
+                                    resetKeyring();
+                                }
 #endif
+                            }
+                        }
+                        else
+                        {
+                            u->setChanged(type);
                         }
                     }
                     u->setTag(0);
@@ -4718,6 +4726,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     }
 
     n->changed.attrs = true;
+    n->tag = reqtag;
     notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
@@ -4855,6 +4864,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
     if (n->setparent(p))
     {
         n->changed.parent = true;
+        n->tag = reqtag;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -7320,7 +7330,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        reqs.add(new CommandSetPH(this, n, del, ets));
+        getpubliclink(n, del, ets);
         break;
 
     case FOLDERNODE:
@@ -7328,14 +7338,14 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            getpubliclink(n, del, ets);
             setshare(n, NULL, ACCESS_UNKNOWN);
         }
         else
         {
             // exporting folder - need to create share first
             setshare(n, NULL, RDONLY);
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            // getpubliclink() is called as _result() of the share
         }
 
         break;
@@ -7345,6 +7355,11 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     }
 
     return API_OK;
+}
+
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+{
+    reqs.add(new CommandSetPH(this, n, del, ets));
 }
 
 // open exported file link
@@ -7674,7 +7689,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7752,7 +7767,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7951,17 +7966,37 @@ void MegaClient::initializekeys()
         {
             pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
-        if (!pubkstr.size() || !sigPubk.size() ||
-                !signkey->verifyKey((unsigned char*) pubkstr.data(),
+        if (!pubkstr.size() || !sigPubk.size())
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+
+            if (!pubkstr.size())
+            {
+                LOG_warn << "Error serializing RSA public key";
+                sendevent(99421, "Error serializing RSA public key");
+            }
+            if (!sigPubk.size())
+            {
+                LOG_warn << "Signature of public key for RSA not found";
+                sendevent(99422, "Signature of public key for RSA not found");
+            }
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+        if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Signature of public key for RSA not found or mismatch";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99414, "Signature of RSA public key mismatch");
+            sendevent(99414, "Verification of signature of public key for RSA failed");
             reqtag = creqtag;
 
             clearKeys();
@@ -8052,7 +8087,14 @@ void MegaClient::initializekeys()
 
         int creqtag = reqtag;
         reqtag = 0;
-        sendevent(99416, "Incomplete keyring detected");
+        if (!chatkey)
+        {
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+        }
+        else // !signkey
+        {
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+        }
         reqtag = creqtag;
 
         resetKeyring();
@@ -9689,7 +9731,7 @@ void MegaClient::execmovetosyncdebris()
         }
 
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, 0,
+                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
                                         PUTNODES_SYNCDEBRIS));
     }
 }

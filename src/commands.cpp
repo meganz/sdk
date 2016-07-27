@@ -2178,6 +2178,9 @@ void CommandPurchaseCheckout::procresult()
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
 {
+    this->email = m ? m : "";
+    this->v = show;
+
     cmd("ur2");
     arg("u", m);
     arg("l", (int)show);
@@ -2197,6 +2200,12 @@ void CommandRemoveContact::procresult()
     {
         client->json.storeobject();
         e = API_OK;
+
+        User *u = client->finduser(email.c_str());
+        if (u)
+        {
+            u->show = v;
+        }
     }
 
     client->app->removecontact_result(e);
@@ -2235,6 +2244,11 @@ void CommandPutMultipleUAVer::procresult()
 {
     if (client->json.isnumeric())
     {
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        client->sendevent(99419, "Error attaching keys");
+        client->reqtag = creqtag;
+
         return client->app->putua_result((error)client->json.getint());
     }
 
@@ -2302,7 +2316,10 @@ void CommandPutMultipleUAVer::procresult()
                 }
                 else
                 {
-                    LOG_info << "Signing key and chat key successfully loaded";
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->sendevent(99420, "Signing and chat keys attached OK");
+                    client->reqtag = creqtag;
                 }
 
                 delete tlvRecords;
@@ -2929,6 +2946,7 @@ void CommandGetUserQuota::procresult()
 
     details->transfer_hist_starttime = 0;
     details->transfer_hist_interval = 3600;
+    details->transfer_hist_valid = true;
     details->transfer_hist.clear();
 
     details->transfer_reserved = 0;
@@ -3077,7 +3095,7 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
 
             case MAKENAMEID3('s', 'g', 'w'):
                 if (client->json.enterarray())
@@ -3088,7 +3106,11 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
+
+            case MAKENAMEID3('r', 't', 't'):
+                details->transfer_hist_valid = !client->json.getint();
+                break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)
