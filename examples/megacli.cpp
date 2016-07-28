@@ -1018,6 +1018,7 @@ static char* line;
 static AccountDetails account;
 
 static handle cwd = UNDEF;
+static handle hfolder = UNDEF;
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -1073,6 +1074,16 @@ static void listtrees()
             }
         }
     }
+
+    if (clientFolder && !ISUNDEF(hfolder))
+    {
+        Node *n = clientFolder->nodebyhandle(hfolder);
+
+        char buf[sizeof(handle) * 4 / 3 + 3];
+        Base64::btoa((byte*) &n->nodehandle, sizeof(handle), buf);
+
+        cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
+    }
 }
 
 // returns node pointer determined by path relative to cwd
@@ -1083,6 +1094,7 @@ static void listtrees()
 // * //bin is in RUBBISH
 // * X: is user X's INBOX
 // * X:SHARE is share SHARE from user X
+// * Y:name is folder in FOLDERLINK
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
@@ -1093,6 +1105,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
+    int folderlink = 0;
     Node* n;
     Node* nn;
 
@@ -1176,7 +1189,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     if (remote)
     {
         // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c[1].size())
+        if (c.size() == 2 && c[0].find("@") != string::npos && !c[1].size())
         {
             if (user)
             {
@@ -1186,27 +1199,37 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             return NULL;
         }
 
-        User* u;
-
-        if ((u = client->finduser(c[0].c_str())))
+        // target is not a user, but a public link
+        if (c.size() == 2 && c[0].find("@") == string::npos)
         {
-            // locate matching share from this user
-            handle_set::iterator sit;
-            string name;
-            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-            {
-                if ((n = client->nodebyhandle(*sit)))
-                {
-                    if(!name.size())
-                    {
-                        name =  c[1];
-                        n->client->fsaccess->normalize(&name);
-                    }
+            n = clientFolder->nodebyhandle(hfolder);
+            l = 1;
+            folderlink = 1;
+        }
+        else
+        {
+            User* u;
 
-                    if (!strcmp(name.c_str(), n->displayname()))
+            if ((u = client->finduser(c[0].c_str())))
+            {
+                // locate matching share from this user
+                handle_set::iterator sit;
+                string name;
+                for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+                {
+                    if ((n = client->nodebyhandle(*sit)))
                     {
-                        l = 2;
-                        break;
+                        if(!name.size())
+                        {
+                            name =  c[1];
+                            n->client->fsaccess->normalize(&name);
+                        }
+
+                        if (!strcmp(name.c_str(), n->displayname()))
+                        {
+                            l = 2;
+                            break;
+                        }
                     }
                 }
             }
@@ -5001,5 +5024,10 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
 
     cout << "The folder link contains ";
     nodestats(c[1], "");
+
+    if (ISUNDEF(hfolder))
+    {
+        hfolder = clientFolder->rootnodes[0];
+    }
 }
 
