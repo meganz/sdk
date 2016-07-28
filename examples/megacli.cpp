@@ -31,6 +31,7 @@
 using namespace mega;
 
 MegaClient* client;
+MegaClient* clientFolder;
 
 // login e-mail address
 static string login;
@@ -771,6 +772,10 @@ void DemoApp::fetchnodes_result(error e)
             if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
             {
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+            else
+            {
+                cout << "Folder link loaded correctly." << endl;
             }
         }
     }
@@ -1883,6 +1888,7 @@ static void process_line(char* l)
                 cout << "      pwd" << endl;
                 cout << "      lcd [localpath]" << endl;
                 cout << "      import exportedfilelink#key" << endl;
+                cout << "      open exportedfolderlink#key" << endl;
                 cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
                 cout << "      putq [cancelslot]" << endl;
                 cout << "      get remotepath [offset [length]]" << endl;
@@ -2504,6 +2510,48 @@ static void process_line(char* l)
                     else if (words[0] == "getq")
                     {
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }
+                    else if (words[0] == "open")
+                    {
+                        if (words.size() > 1)
+                        {
+                            const char* ptr;
+                            if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
+                            {
+                                if (!clientFolder)
+                                {
+                                    // create a new MegaClient with a different MegaApp to process callbacks
+                                    // from the client logged into a folder. Reuse the waiter and httpio
+                                    clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
+                                                                    client->httpio, new FSACCESS_CLASS,
+                                        #ifdef DBACCESS_CLASS
+                                                                    new DBACCESS_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                        #ifdef GFX_CLASS
+                                                                    new GFX_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                                                    "SDKSAMPLE",
+                                                                    "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MINOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MICRO_VERSION));
+                                }
+
+                                return clientFolder->app->login_result(clientFolder->folderaccess(words[1].c_str()));
+                            }
+                            else
+                            {
+                                cout << "Invalid folder link." << endl;
+                            }
+                        }
+                        else
+                        {
+                             cout << "      open exportedfolderlink#key" << endl;
+                        }
                         return;
                     }
 #ifdef ENABLE_SYNC
@@ -4823,6 +4871,7 @@ void megacli()
             {
                 break;
             }
+
         }
 
         // save line
@@ -4844,6 +4893,11 @@ void megacli()
 
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (clientFolder)
+        {
+            clientFolder->exec();
+        }
     }
 }
 
@@ -4870,7 +4924,82 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
+    clientFolder = NULL;    // additional for folder links
+
     console = new CONSOLE_CLASS;
 
     megacli();
 }
+
+
+void DemoAppFolder::login_result(error e)
+{
+    if (e)
+    {
+        cout << "Failed to load the folder link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Folder link loaded, retrieving account..." << endl;
+        clientFolder->fetchnodes();
+    }
+}
+
+void DemoAppFolder::fetchnodes_result(error e)
+{
+    if (e)
+    {
+        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = clientFolder->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = clientFolder->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+        }
+        else
+        {
+            cout << "Failed to load folder link" << endl;
+
+            delete clientFolder;
+            clientFolder = NULL;
+        }
+    }
+}
+
+void DemoAppFolder::nodes_updated(Node **n, int count)
+{
+    int c[2][6] = { { 0 } };
+
+    if (n)
+    {
+        while (count--)
+        {
+            if ((*n)->type < 6)
+            {
+                c[!(*n)->changed.removed][(*n)->type]++;
+                n++;
+            }
+        }
+    }
+    else
+    {
+        for (node_map::iterator it = clientFolder->nodes.begin(); it != clientFolder->nodes.end(); it++)
+        {
+            if (it->second->type < 6)
+            {
+                c[1][it->second->type]++;
+            }
+        }
+    }
+
+    cout << "The folder link contains ";
+    nodestats(c[1], "");
+}
+
