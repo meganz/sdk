@@ -53,6 +53,9 @@ void SdkTest::SetUp()
         megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Initializing test (SetUp()) ___");
 
         ASSERT_NO_FATAL_FAILURE( login(0) );
+#ifdef ENABLE_CHAT
+        ASSERT_NO_FATAL_FAILURE( fetchChats() );
+#endif
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
     }
 }
@@ -177,14 +180,25 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CHAT_FETCH:
         if (lastError[apiIndex] == API_OK)
         {
-            chats = request->getMegaTextChatList()->copy();
+            MegaTextChatList *list = request->getMegaTextChatList()->copy();
+            for (int i = 0; i < list->size(); i++)
+            {
+                chats[list->get(i)->getHandle()] = list->get(i);
+            }
         }
         break;
 
     case MegaRequest::TYPE_CHAT_CREATE:
         if (lastError[apiIndex] == API_OK)
         {
-            chats = request->getMegaTextChatList()->copy();
+            MegaTextChat *chat = request->getMegaTextChatList()->copy()->get(0);
+
+            chatid = chat->getHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                delete chats[chatid];
+            }
+            this->chats[chatid] = chat;
         }
         break;
 
@@ -309,6 +323,21 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     if (api == megaApi[0])
     {
         apiIndex = 0;
+
+        MegaTextChatList *list = chats->copy();
+        for (int i = 0; i < list->size(); i++)
+        {
+            handle chatid = list->get(i)->getHandle();
+            if (this->chats.find(chatid) != this->chats.end())
+            {
+                delete this->chats[chatid];
+                this->chats[chatid] = list->get(i);
+            }
+            else
+            {
+                this->chats[chatid] = list->get(i);
+            }
+        }
     }
     else if (api == megaApi[1])
     {
@@ -341,10 +370,10 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     megaApi[0]->createChat(group, peers);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE], timeout);
     if (timeout)
     {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Chat creation not finished after " << timeout  << " seconds";
+        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) << "Chat creation not finished after " << timeout  << " seconds";
     }
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
@@ -1814,10 +1843,9 @@ TEST_F(SdkTest, SdkTestChat)
     delete cr[1];   cr[1] = NULL;
 
 
-    // --- Fetch list of available chats ---
+    // --- Check list of available chats --- (fetch is done at SetUp())
 
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    uint numChats = chats->size();      // permanent chats cannot be deleted, so they're kept forever
+    uint numChats = chats.size();      // permanent chats cannot be deleted, so they're kept forever
 
 
     // --- Create a group chat ---
@@ -1828,7 +1856,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_RW);
+    peers->addPeer(h, PRIV_FULL);
     group = true;
 
     chatUpdated[1] = false;
@@ -1836,17 +1864,16 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Chat update not received after " << maxTimeout << " seconds";
 
+    MegaHandle chatid = this->chatid;   // set at onRequestFinish() of chat creation request
+
     delete peers;
 
     // check the new chat information
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    ASSERT_EQ(chats->size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_EQ(chats.size(), ++numChats) << "Unexpected received number of chats";
     ASSERT_TRUE(chatUpdated[1]) << "The peer didn't receive notification of the chat creation";
 
 
     // --- Remove a peer from the chat ---
-
-    handle chatid = chats->get(numChats - 1)->getHandle();
 
     chatUpdated[0] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;

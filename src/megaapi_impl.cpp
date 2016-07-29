@@ -12811,6 +12811,18 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_CHAT_FETCH:
         {
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            if (client->fetchingnodes || client->nodes.size())
+            {
+                e = API_EEXPIRED;
+                break;
+            }
+
             client->fetchChats();
             break;
         }

@@ -91,7 +91,8 @@ public:
 
 #ifdef ENABLE_CHAT
     bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
-    MegaTextChatList *chats;    // received in response of requests
+    map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
+    MegaHandle chatid;          // last chat added
 #endif
 
     MegaLoggerSDK *logger;
