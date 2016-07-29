@@ -1078,11 +1078,10 @@ static void listtrees()
     if (clientFolder && !ISUNDEF(hfolder))
     {
         Node *n = clientFolder->nodebyhandle(hfolder);
-
-        char buf[sizeof(handle) * 4 / 3 + 3];
-        Base64::btoa((byte*) &n->nodehandle, sizeof(handle), buf);
-
-        cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
+        if (n)
+        {
+            cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
+        }
     }
 }
 
@@ -1094,7 +1093,7 @@ static void listtrees()
 // * //bin is in RUBBISH
 // * X: is user X's INBOX
 // * X:SHARE is share SHARE from user X
-// * Y:name is folder in FOLDERLINK
+// * Y:name is folder in FOLDERLINK, Y is the public handle
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
@@ -1199,37 +1198,39 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             return NULL;
         }
 
-        // target is not a user, but a public link
-        if (c.size() == 2 && c[0].find("@") == string::npos)
+        // target is not a user, but a public folder link
+        if (c.size() >= 2 && c[0].find("@") == string::npos)
         {
             n = clientFolder->nodebyhandle(hfolder);
-            l = 1;
+            if (c.size() == 2 && c[1].empty())
+            {
+                return n;
+            }
+            l = 1;   // <folder_name>:[/<subfolder>][/<file>]
             folderlink = 1;
         }
-        else
+
+        User* u;
+
+        if ((u = client->finduser(c[0].c_str())))
         {
-            User* u;
-
-            if ((u = client->finduser(c[0].c_str())))
+            // locate matching share from this user
+            handle_set::iterator sit;
+            string name;
+            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
             {
-                // locate matching share from this user
-                handle_set::iterator sit;
-                string name;
-                for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+                if ((n = client->nodebyhandle(*sit)))
                 {
-                    if ((n = client->nodebyhandle(*sit)))
+                    if(!name.size())
                     {
-                        if(!name.size())
-                        {
-                            name =  c[1];
-                            n->client->fsaccess->normalize(&name);
-                        }
+                        name =  c[1];
+                        n->client->fsaccess->normalize(&name);
+                    }
 
-                        if (!strcmp(name.c_str(), n->displayname()))
-                        {
-                            l = 2;
-                            break;
-                        }
+                    if (!strcmp(name.c_str(), n->displayname()))
+                    {
+                        l = 2;
+                        break;
                     }
                 }
             }
@@ -1293,7 +1294,14 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = client->childnodebyname(n, c[l].c_str());
+                    if (folderlink)
+                    {
+                        nn = clientFolder->childnodebyname(n, c[l].c_str());
+                    }
+                    else
+                    {
+                        nn = client->childnodebyname(n, c[l].c_str());
+                    }
 
                     if (!nn)
                     {
