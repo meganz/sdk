@@ -1018,7 +1018,6 @@ static char* line;
 static AccountDetails account;
 
 static handle cwd = UNDEF;
-static handle hfolder = UNDEF;
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -1075,9 +1074,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !ISUNDEF(hfolder))
+    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
     {
-        Node *n = clientFolder->nodebyhandle(hfolder);
+        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1201,7 +1200,12 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
         // target is not a user, but a public folder link
         if (c.size() >= 2 && c[0].find("@") == string::npos)
         {
-            n = clientFolder->nodebyhandle(hfolder);
+            if (!clientFolder)
+            {
+                return NULL;
+            }
+
+            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -2571,6 +2575,10 @@ static void process_line(char* l)
                                                                     "." TOSTRING(MEGA_MINOR_VERSION)
                                                                     "." TOSTRING(MEGA_MICRO_VERSION));
                                 }
+                                else
+                                {
+                                    clientFolder->logout();
+                                }
 
                                 return clientFolder->app->login_result(clientFolder->folderaccess(words[1].c_str()));
                             }
@@ -3189,7 +3197,7 @@ static void process_line(char* l)
                             {
                                 if (!client->xferpaused[GET] && !client->xferpaused[PUT])
                                 {
-                                    cout << "Transfers not paused at the moment.";
+                                    cout << "Transfers not paused at the moment." << endl;
                                 }
                                 else
                                 {
@@ -3769,6 +3777,13 @@ static void process_line(char* l)
 
                         cwd = UNDEF;
                         client->logout();
+
+                        if (clientFolder)
+                        {
+                            clientFolder->logout();
+                            delete clientFolder;
+                            clientFolder = NULL;
+                        }
 
                         return;
                     }
@@ -5032,10 +5047,5 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
 
     cout << "The folder link contains ";
     nodestats(c[1], "");
-
-    if (ISUNDEF(hfolder))
-    {
-        hfolder = clientFolder->rootnodes[0];
-    }
 }
 
