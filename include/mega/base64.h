@@ -22,7 +22,7 @@
 #ifndef MEGA_BASE64_H
 #define MEGA_BASE64_H 1
 
-#include "types.h"
+#include <mega/types.h>
 
 namespace mega {
 // modified base64 encoding/decoding (unpadded, -_ instead of +/)
