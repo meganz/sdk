@@ -7067,10 +7067,13 @@ bool SearchTreeProcessor::processNode(Node* node)
 	if(!node) return true;
 	if(!search) return false;
 
-	if(strcasestr(node->displayname(), search)!=NULL)
-		results.push_back(node);
+    if (node->type < ROOTNODE)
+    {
+        if(strcasestr(node->displayname(), search)!=NULL)
+            results.push_back(node);
+    }
 
-	return true;
+    return true;
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()
