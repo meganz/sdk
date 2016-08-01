@@ -2382,14 +2382,15 @@ static void process_line(char* l)
                                         // node from public folder link
                                         if (words[1].find(":") != string::npos)
                                         {
-                                            handle h = clientFolder->getrootpublicfolder();
+                                            handle h = clientFolder->getpublicfolderhandle();
                                             char *pubauth = new char[12];
                                             Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
 
-                                            f->pubauth = string(pubauth);
-                                            f->hprivate = false;
+                                            f->hprivate = true;
                                             f->hforeign = true;
                                             memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+
+                                            client->setfolderauth(h);
                                         }
 
                                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);

@@ -444,6 +444,12 @@ void MegaClient::setrootnode(handle h)
     }
 }
 
+void MegaClient::setfolderauth(handle h)
+{
+    accountauth = auth.substr(5);   // discard &sid=
+    setrootnode(h);
+}
+
 handle MegaClient::getrootpublicfolder()
 {
     // if we logged into a folder...
@@ -455,6 +461,11 @@ handle MegaClient::getrootpublicfolder()
     {
         return UNDEF;
     }
+}
+
+handle MegaClient::getpublicfolderhandle()
+{
+    return publichandle;
 }
 
 // set server-client sequence number
