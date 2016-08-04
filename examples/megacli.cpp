@@ -4044,7 +4044,6 @@ void DemoApp::login_result(error e)
     {
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
-        //client->fetchnodes();
     }
 }
 
