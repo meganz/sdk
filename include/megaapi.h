@@ -1771,7 +1771,8 @@ class MegaRequest
             TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
-            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
+            TYPE_WHY_AM_I_BLOCKED
         };
 
         virtual ~MegaRequest();
@@ -4699,6 +4700,23 @@ class MegaApi
          * @return 0 if not logged in, Otherwise, a number >= 0
          */
         int isLoggedIn();
+
+        /**
+         * @brief Check the reason of being blocked.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
+         *
+         * This request can be sent internally at anytime (whenever an account gets blocked), so
+         * a MegaGlobalListener should process the result, show the reason and logout.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_EBLOCKED:
+         * - MegaRequest::getText - Returns the reason
+         *
+         * If the error code in the MegaRequest object received in onRequestFinish
+         * is MegaError::API_OK, the user is not blocked.
+         */
+        void whyAmIBlocked(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account

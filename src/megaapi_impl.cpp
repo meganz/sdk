@@ -2534,6 +2534,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONFIRM_CANCEL_LINK: return "TYPE_CONFIRM_CANCEL_LINK";
         case TYPE_GET_CHANGE_EMAIL_LINK: return "TYPE_GET_CHANGE_EMAIL_LINK";
         case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "TYPE_CONFIRM_CHANGE_EMAIL_LINK";
+        case TYPE_WHY_AM_I_BLOCKED: return "TYPE_WHY_AM_I_BLOCKED";
     }
     return "UNKNOWN";
 }
@@ -3484,7 +3485,14 @@ int MegaApiImpl::isLoggedIn()
     sdkMutex.lock();
     int result = client->loggedin();
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::whyAmIBlocked(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 char* MegaApiImpl::getMyEmail()
@@ -8792,6 +8800,13 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
+    if (e == API_EBLOCKED)
+    {
+        whyAmIBlocked();
+        // logout on the corresponding callback
+        return;
+    }
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
@@ -8806,7 +8821,6 @@ void MegaApiImpl::request_error(error e)
         client->removecaches();
         client->locallogout();
     }
-
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9383,6 +9397,46 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
     }
 
     client->reqtag = creqtag;
+}
+
+void MegaApiImpl::whyamiblocked_result(int code)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_WHY_AM_I_BLOCKED)))
+    {
+        return;
+    }
+
+    if (code <= 0)
+    {
+        MegaError megaError(code);
+        fireOnRequestFinish(request, megaError);
+    }
+    else
+    {
+        string reason = "You have been suspended due to repeated copyright infringement.";
+
+        if (code == 100)
+        {
+            reason = "You have been suspended due to excess data usage.";
+        }
+        else if (code == 300)
+        {
+            reason = "You have been suspended due to Terms of Service violations.";
+        }
+
+        request->setText(reason.c_str());
+        fireOnRequestFinish(request, API_EBLOCKED);
+
+        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+        request->setFlag(false);
+        requestQueue.push(request);
+        waiter->notify();
+    }
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -12902,6 +12956,11 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
+        {
+            client->whyamiblocked();
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;

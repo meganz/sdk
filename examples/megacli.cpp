@@ -4008,6 +4008,12 @@ void DemoApp::request_error(error e)
         client->locallogout();
         return;
     }
+    else if (e == API_EBLOCKED)
+    {
+        cout << "Your account is blocked." << endl;
+        client->whyamiblocked();
+        return;
+    }
 
     cout << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
 
@@ -4038,6 +4044,7 @@ void DemoApp::login_result(error e)
     {
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
+        //client->fetchnodes();
     }
 }
 
@@ -4280,6 +4287,37 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     cout << buf << endl;
 
     client->fetchnodes();
+}
+
+void DemoApp::whyamiblocked_result(int code)
+{
+    if (code < 0)
+    {
+        error e = (error) code;
+        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+    }
+    else if (code == 0)
+    {
+        cout << "You're not blocked" << endl;
+    }
+    else
+    {
+        string reason = "You have been suspended due to repeated copyright infringement.";
+
+        if (code == 100)
+        {
+            reason = "You have been suspended due to excess data usage.";
+        }
+        else if (code == 300)
+        {
+            reason = "You have been suspended due to Terms of Service violations.";
+        }
+
+        cout << "Reason: " << reason << endl;
+        cout << "Logging out..." << endl;
+
+        client->locallogout();
+    }
 }
 
 // password change result
