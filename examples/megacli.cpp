@@ -4010,8 +4010,15 @@ void DemoApp::request_error(error e)
     }
     else if (e == API_EBLOCKED)
     {
-        cout << "Your account is blocked." << endl;
-        client->whyamiblocked();
+        if (client->sid.size())
+        {
+            cout << "Your account is blocked." << endl;
+            client->whyamiblocked();
+        }
+        else
+        {
+            cout << "The link has been blocked." << endl;
+        }
         return;
     }
 

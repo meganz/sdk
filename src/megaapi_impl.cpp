@@ -8800,7 +8800,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
-    if (e == API_EBLOCKED)
+    if (e == API_EBLOCKED && client->sid.size())
     {
         whyAmIBlocked();
         // logout on the corresponding callback
