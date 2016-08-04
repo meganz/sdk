@@ -1112,7 +1112,7 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
-void mega::MegaApi::whyAmIBlocked(MegaRequestListener *listener)
+void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
     return pImpl->whyAmIBlocked(listener);
 }
