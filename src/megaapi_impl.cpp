@@ -6711,7 +6711,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    processTree(node, &searchProcessor, recursive);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    {
+        processTree(*it++, &searchProcessor, recursive);
+    }
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
@@ -7064,13 +7067,19 @@ char *strcasestr(const char *string, const char *substring)
 
 bool SearchTreeProcessor::processNode(Node* node)
 {
-	if(!node) return true;
-	if(!search) return false;
-
-    if (node->type < ROOTNODE)
+    if (!node)
     {
-        if(strcasestr(node->displayname(), search)!=NULL)
-            results.push_back(node);
+        return true;
+    }
+
+    if (!search)
+    {
+        return false;
+    }
+
+    if (strcasestr(node->displayname(), search)!=NULL)
+    {
+        results.push_back(node);
     }
 
     return true;
