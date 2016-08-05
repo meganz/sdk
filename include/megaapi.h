@@ -4711,7 +4711,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_EBLOCKED:
-         * - MegaRequest::getText - Returns the reason
+         * - MegaRequest::getText - Returns the reason string (in English)
+         * - MegaRequest::getNumber - Returns the reason code
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.

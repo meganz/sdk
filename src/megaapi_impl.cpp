@@ -9429,6 +9429,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
             reason = "You have been suspended due to Terms of Service violations.";
         }
 
+        request->setNumber(code);
         request->setText(reason.c_str());
         fireOnRequestFinish(request, API_EBLOCKED);
 
