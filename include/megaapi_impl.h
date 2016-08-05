@@ -1239,6 +1239,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void whyAmIBlocked(MegaRequestListener *listener = NULL);
         char* getMyEmail();
         char* getMyUserHandle();
         MegaUser *getMyUser();
@@ -1645,6 +1646,9 @@ protected:
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
         virtual void ephemeral_result(handle, const byte*);
+
+        // check the reason of being blocked
+        virtual void whyamiblocked_result(int);
 
         // account creation
         virtual void sendsignuplink_result(error);

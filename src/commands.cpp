@@ -3500,6 +3500,28 @@ void CommandResumeEphemeralSession::procresult()
     }
 }
 
+CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
+{
+    cmd("whyamiblocked");
+
+    tag = client->reqtag;
+}
+
+void CommandWhyAmIblocked::procresult()
+{
+    client->restag = tag;
+
+    if (client->json.isnumeric())
+    {
+        return client->app->whyamiblocked_result(client->json.getint());
+    }
+
+    client->json.storeobject();
+
+    client->app->whyamiblocked_result(API_EINTERNAL);
+
+}
+
 CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* email, const char* name, byte* c)
 {
     cmd("uc");

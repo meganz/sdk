@@ -1112,6 +1112,11 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
+void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
+{
+    return pImpl->whyAmIBlocked(listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
