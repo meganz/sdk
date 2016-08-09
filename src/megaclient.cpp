@@ -4617,14 +4617,18 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        // chats are notified even during fetchingnodes
-        app->chats_updated(&chatnotify);
-
-        for (i = 0; i < t; i++)
+        if (!fetchingnodes)
         {
-            delete chatnotify[i];
+            // chats are not cached by SDK, so we only notify after fetchnodes, so the
+            // karere-native can first get the list of users
+            app->chats_updated(&chatnotify);
+
+            for (i = 0; i < t; i++)
+            {
+                delete chatnotify[i];
+            }
+            chatnotify.clear();
         }
-        chatnotify.clear();
     }
 #endif
 }
