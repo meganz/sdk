@@ -53,9 +53,6 @@ void SdkTest::SetUp()
         megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Initializing test (SetUp()) ___");
 
         ASSERT_NO_FATAL_FAILURE( login(0) );
-#ifdef ENABLE_CHAT
-        ASSERT_NO_FATAL_FAILURE( fetchChats() );
-#endif
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
     }
 }

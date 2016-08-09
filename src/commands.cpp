@@ -3701,6 +3701,12 @@ void CommandFetchNodes::procresult()
                 client->procph(&client->json);
                 break;
 
+#ifdef ENABLE_CHAT
+            case MAKENAMEID3('m', 'c', 'f'):
+                // List of chatrooms
+                client->procmcf(&client->json);
+                break;
+#endif
             case EOO:
             {
                 if (!*client->scsn)

@@ -826,6 +826,8 @@ public:
     void procsnk(JSON*);
     void procsuk(JSON*);
 
+    void procmcf(JSON*);
+
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
 
