@@ -2284,7 +2284,6 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::createChat - Returns the new chat's information
-         * - MegaApi::fetchChat - Returns the list of chats
          *
          * @return List of chats
          */
@@ -3438,6 +3437,8 @@ class MegaGlobalListener
 #ifdef ENABLE_CHAT
         /**
          * @brief This function is called when there are new or updated chats
+         *
+         * This callback is also used to initialize the list of chats available during the fetchnodes request.
          *
          * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
          * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
@@ -8088,23 +8089,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Fetches the full list of current chats for the requesting user.
-         *
-         * This function must be called after MegaApi::login() and before MegaApi::fetchNodes().
-         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
-         * If nodes have already been fetched, you will get the error code MegaError::API_EEXPIRED.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaTextChatList - Returns the list of chats
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchChats(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

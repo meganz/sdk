@@ -10113,11 +10113,6 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::fetchChats()
-{
-    reqs.add(new CommandChatFetch(this));
-}
-
 void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
 {
     reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));

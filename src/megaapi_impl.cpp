@@ -6059,13 +6059,6 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::fetchChats(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_FETCH, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
@@ -7767,22 +7760,6 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
         chatList.push_back(chat);
 
         MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
-        request->setMegaTextChatList(megaChatList);
-    }
-
-    fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::chatfetch_result(textchat_vector *chatList, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
-
-    if (!e)
-    {
-        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
         request->setMegaTextChatList(megaChatList);
     }
 
@@ -12791,23 +12768,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->createChat(group, userpriv);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_FETCH:
-        {
-            if (client->loggedin() != FULLACCOUNT)
-            {
-                e = API_EACCESS;
-                break;
-            }
-
-            if (client->fetchingnodes || client->nodes.size())
-            {
-                e = API_EEXPIRED;
-                break;
-            }
-
-            client->fetchChats();
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:

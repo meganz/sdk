@@ -307,9 +307,6 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
 
-    // fetch the list of chats
-    void fetchChats();
-
     // invite a user to a chat
     void inviteToChat(handle chatid, const char *uid, int priv);
 

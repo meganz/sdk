@@ -723,15 +723,6 @@ public:
     CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
 };
 
-class MEGA_API CommandChatFetch : public Command
-{
-    MegaClient *client;
-public:
-    void procresult();
-
-    CommandChatFetch(MegaClient*);
-};
-
 class MEGA_API CommandChatInvite : public Command
 {
     MegaClient *client;

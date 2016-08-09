@@ -429,20 +429,6 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     chatUpdated[apiIndex] = true;
 }
 
-void SdkTest::fetchChats(int timeout)
-{
-    requestFlags[0][MegaRequest::TYPE_CHAT_FETCH] = false;
-    megaApi[0]->fetchChats();
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
-
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Fetching chats not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Fetching list of chats failed (error: " << lastError[0] << ")";
-}
-
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;

@@ -160,7 +160,6 @@ public:
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
-    void fetchChats(int timeout = maxTimeout);
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
 };
