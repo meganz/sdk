@@ -7137,6 +7137,7 @@ void MegaClient::procsuk(JSON* j)
     }
 }
 
+#ifdef ENABLE_CHAT
 void MegaClient::procmcf(JSON *j)
 {
     if (j->enterobject() && j->getnameid() == 'c' && j->enterarray())
@@ -7236,6 +7237,7 @@ void MegaClient::procmcf(JSON *j)
     j->leavearray();
     j->leaveobject();
 }
+#endif
 
 // add node to vector, return position, deduplicate
 unsigned MegaClient::addnode(node_vector* v, Node* n) const
