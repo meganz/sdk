@@ -67,12 +67,16 @@ using namespace mega;
     return self.megaUser ? self.megaUser->getHandle() : mega::INVALID_HANDLE;
 }
 
-- (MEGAUserVisibility)access {
+- (MEGAUserVisibility)visibility {
     return (MEGAUserVisibility) (self.megaUser ? self.megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
 }
 
 - (MEGAUserChangeType)changes {
     return (MEGAUserChangeType) (self.megaUser ? self.megaUser->getChanges() : 0);
+}
+
+- (NSInteger)isOwnChange {
+    return self.megaUser ? self.megaUser->isOwnChange() : 0;
 }
 
 - (NSDate *)timestamp {

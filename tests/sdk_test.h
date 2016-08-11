@@ -47,6 +47,8 @@ static const string DOWNFILE    = "file2.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
+static bool testingInvalidArgs = false;
+
 class MegaLoggerSDK : public MegaLogger {
 
 public:
@@ -89,7 +91,8 @@ public:
 
 #ifdef ENABLE_CHAT
     bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
-    MegaTextChatList *chats;    // received in response of requests
+    map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
+    MegaHandle chatid;          // last chat added
 #endif
 
     MegaLoggerSDK *logger;
@@ -147,7 +150,7 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(MegaNode *n, int timeout = maxTimeout);
+    void createPublicLink(MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
     void importPublicLink(string link, MegaNode *parent, int timeout = maxTimeout);
     void getPublicNode(string link, int timeout = maxTimeout);
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
@@ -157,7 +160,6 @@ public:
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
-    void fetchChats(int timeout = maxTimeout);
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
 };

@@ -56,6 +56,11 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
+// chained folder link creation
+static handle h = UNDEF;
+static int del = 0;
+static int ets = 0;
+
 // local console
 Console* console;
 
@@ -518,31 +523,6 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
     }
 }
 
-void DemoApp::chatfetch_result(textchat_vector *chats, error e)
-{
-    if (e)
-    {
-        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat received or updated" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats received or updated" << endl;
-        }
-
-        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
-        {
-            printChatInformation(*it);
-            cout << endl;
-        }
-    }
-}
-
 void DemoApp::chatinvite_result(error e)
 {
     if (e)
@@ -793,6 +773,26 @@ void DemoApp::share_result(error e)
     {
         cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
     }
+    else
+    {
+        if (h != UNDEF && !del)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (!n)
+            {
+                char buf[sizeof h * 4 / 3 + 3];
+                Base64::btoa((byte *)&h, sizeof h, buf);
+
+                cout << "Node was not found. (" << buf << ")" << endl;
+
+                h = UNDEF;
+                del = ets = 0;
+                return;
+            }
+
+            client->getpubliclink(n, del, ets);
+        }
+    }
 }
 
 void DemoApp::share_result(int, error e)
@@ -888,11 +888,25 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
@@ -900,6 +914,13 @@ void DemoApp::getua_result(byte* data, unsigned l)
 
 void DemoApp::getua_result(TLVstore *tlv)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
@@ -3188,11 +3209,6 @@ static void process_line(char* l)
                         return;
                     }
 #ifdef ENABLE_CHAT
-                    else if (words[0] == "chatf")
-                    {
-                        client->fetchChats();
-                        return;
-                    }
                     else if (words[0] == "chatc")
                     {
                         unsigned wordscount = words.size();
@@ -3534,6 +3550,12 @@ static void process_line(char* l)
                             if ((u = client->finduser(client->me)))
                             {
                                 cout << "Account e-mail: " << u->email << endl;
+#ifdef ENABLE_CHAT
+                                if (client->signkey)
+                                {
+                                    cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                                }
+#endif
                             }
 
                             cout << "Retrieving account status..." << endl;
@@ -3547,27 +3569,37 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
+                            h = UNDEF;
+                            del = ets = 0;
+
                             Node* n;
-                            int del = 0;
-                            int ets = 0;
+                            int deltmp = 0;
+                            int etstmp = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (words.size() > 2)
                                 {
-                                    del = (words[2] == "del");
-                                    if (!del)
+                                    deltmp = (words[2] == "del");
+                                    if (!deltmp)
                                     {
-                                        ets = atol(words[2].c_str());
+                                        etstmp = atol(words[2].c_str());
                                     }
                                 }
+
 
                                 cout << "Exporting..." << endl;
 
                                 error e;
-                                if ((e = client->exportnode(n, del, ets)))
+                                if ((e = client->exportnode(n, deltmp, etstmp)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+                                }
+                                else
+                                {
+                                    h = n->nodehandle;
+                                    ets = etstmp;
+                                    del = deltmp;
                                 }
                             }
                             else
@@ -4230,6 +4262,9 @@ void DemoApp::exportnode_result(error e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -4260,6 +4295,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
         else
         {
             cout << "No key available for exported folder" << endl;
+
+            del = ets = 0;
+            h = UNDEF;
             return;
         }
 
@@ -4269,6 +4307,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 // the requested link could not be opened

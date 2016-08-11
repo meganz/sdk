@@ -75,6 +75,9 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->name = MegaApi::strdup(name);
     this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
+    this->duration = -1;
+    this->latitude = INVALID_COORDINATE;
+    this->longitude = INVALID_COORDINATE;
     this->type = type;
     this->size = size;
     this->ctime = ctime;
@@ -91,6 +94,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->sharekey = NULL;
     this->foreign = isForeign;
 
     if (privateauth)
@@ -114,6 +118,9 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
+    this->duration = node->getDuration();
+    this->latitude = node->getLatitude();
+    this->longitude = node->getLongitude();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -134,13 +141,29 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
+    this->sharekey = NULL;
 
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+
+        if (type == FOLDERNODE)
+        {
+            MegaNodePrivate *n = dynamic_cast<MegaNodePrivate *>(node);
+            if (n)
+            {
+                string *sk = n->getSharekey();
+                if (sk)
+                {
+                    this->sharekey = new string(*sk);
+                }
+            }
+        }
     }
     else
+    {
         this->plink = NULL;
+    }
 
     if (node->hasCustomAttrs())
     {
@@ -182,15 +205,18 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
 
+    this->duration = -1;
+    this->latitude = INVALID_COORDINATE;
+    this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
-       buf[0] = 0;
-       node->attrs.nameid2string(it->first, buf);
-       if (buf[0] == '_')
-       {
+        buf[0] = 0;
+        node->attrs.nameid2string(it->first, buf);
+        if (buf[0] == '_')
+        {
            if (!customAttrs)
            {
                customAttrs = new attr_map();
@@ -198,7 +224,58 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
            nameid id = AttrMap::string2nameid(&buf[1]);
            (*customAttrs)[id] = it->second;
-       }
+        }
+        else
+        {
+            if (it->first == AttrMap::string2nameid("d"))
+            {
+               if (node->type == FILENODE)
+               {
+                   duration = Base64::atoi(&it->second);
+               }
+            }
+            else if (it->first == AttrMap::string2nameid("l"))
+            {
+                if (node->type == FILENODE)
+                {
+                    string coords = it->second;
+                    if (coords.size() != 8)
+                    {
+                       LOG_warn << "Malformed GPS coordinates attribute";
+                    }
+                    else
+                    {
+                        byte buf[3];
+                        int number = 0;
+                        if (Base64::atob((const char *) coords.substr(0, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                        {
+                            number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                            latitude = -90 + 180 * (double) number / 0xFFFFFF;
+                        }
+
+                        if (Base64::atob((const char *) coords.substr(4, 4).data(), buf, sizeof(buf)) == sizeof(buf))
+                        {
+                            number = (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+                            longitude = -180 + 360 * (double) number / 0x01000000;
+                        }
+                    }
+
+                   if (longitude < -180 || longitude > 180)
+                   {
+                       longitude = INVALID_COORDINATE;
+                   }
+                   if (latitude < -90 || latitude > 90)
+                   {
+                       latitude = INVALID_COORDINATE;
+                   }
+                   if (longitude == INVALID_COORDINATE || latitude == INVALID_COORDINATE)
+                   {
+                       longitude = INVALID_COORDINATE;
+                       latitude = INVALID_COORDINATE;
+                   }
+               }
+            }
+        }
     }
 
     this->type = node->type;
@@ -276,6 +353,21 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
+    if (plink && type == FOLDERNODE && node->sharekey)
+    {
+        char key[FOLDERNODEKEYLENGTH*4/3+3];
+        Base64::btoa(node->sharekey->key, FOLDERNODEKEYLENGTH, key);
+        this->sharekey = new string(key);
+    }
+    else
+    {
+        this->sharekey = NULL;
+    }
+}
+
+string* MegaNodePrivate::getSharekey()
+{
+    return sharekey;
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -535,6 +627,21 @@ const char *MegaNodePrivate::getCustomAttr(const char *attrName)
     return it->second.c_str();
 }
 
+int MegaNodePrivate::getDuration()
+{
+    return duration;
+}
+
+double MegaNodePrivate::getLatitude()
+{
+    return latitude;
+}
+
+double MegaNodePrivate::getLongitude()
+{
+    return longitude;
+}
+
 int64_t MegaNodePrivate::getSize()
 {
 	return size;
@@ -572,8 +679,17 @@ char *MegaNodePrivate::getBase64Key()
     // the key
     if (type == FILENODE && nodekey.size() >= FILENODEKEYLENGTH)
     {
-        key = new char[FILENODEKEYLENGTH*4/3+3];
-        Base64::btoa((const byte*)nodekey.data(),FILENODEKEYLENGTH, key);
+        key = new char[FILENODEKEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((const byte*)nodekey.data(), FILENODEKEYLENGTH, key);
+    }
+    else if (type == FOLDERNODE && sharekey)
+    {
+        key = MegaApi::strdup(sharekey->c_str());
+    }
+    else
+    {
+        key = new char[1];
+        key[0] = 0;
     }
 
     return key;
@@ -732,9 +848,15 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 
 bool MegaApiImpl::is_syncable(const char *name)
 {
-    for(unsigned int i=0; i< excludedNames.size(); i++)
+    // Don't sync these system files from OS X
+    if (!strcmp(name, "Icon\x0d"))
     {
-        if(WildcardMatch(name, excludedNames[i].c_str()))
+        return false;
+    }
+
+    for (unsigned int i = 0; i < excludedNames.size(); i++)
+    {
+        if (WildcardMatch(name, excludedNames[i].c_str()))
         {
             return false;
         }
@@ -914,6 +1036,7 @@ MegaNodePrivate::~MegaNodePrivate()
     delete [] fingerprint;
     delete customAttrs;
     delete plink;
+    delete sharekey;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -3549,6 +3672,15 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
     return h;
 }
 
+handle MegaApiImpl::base64ToUserHandle(const char *base64Handle)
+{
+    if(!base64Handle) return UNDEF;
+
+    handle h = 0;
+    Base64::atob(base64Handle,(byte*)&h,MegaClient::USERHANDLE);
+    return h;
+}
+
 char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
@@ -4266,6 +4398,16 @@ void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFile
     getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
+char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
+{
+    return getAvatarColor(user ? (handle) user->getHandle() : client->me);
+}
+
+char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
+{
+    return getAvatarColor(userhandle ? MegaApiImpl::base64ToUserHandle(userhandle) : client->me);
+}
+
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
@@ -4307,6 +4449,47 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     if(node) request->setNodeHandle(node->getHandle());
     request->setName(attrName);
     request->setText(value);
+    request->setFlag(false);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_DURATION);
+    request->setNumber(secs);
+    request->setFlag(true);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+
+    if(node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    int lat = latitude;
+    if (latitude != MegaNode::INVALID_COORDINATE)
+    {
+        lat = ((latitude + 90) / 180) * 0xFFFFFF;
+    }
+
+    int lon = longitude;
+    if (longitude != MegaNode::INVALID_COORDINATE)
+    {
+        lon = (longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000;
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
+    request->setTransferTag(lat);
+    request->setNumDetails(lon);
+    request->setFlag(true);     // is official attribute?
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4691,6 +4874,31 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
+}
+
+char *MegaApiImpl::getAvatarColor(handle userhandle)
+{
+    string colors[] = {        
+        "#69F0AE",
+        "#13E03C",
+        "#31B500",
+        "#00897B",
+        "#00ACC1",
+        "#61D2FF",
+        "#2BA6DE",
+        "#FFD300",
+        "#FFA500",
+        "#FF6F00",
+        "#E65100",
+        "#FF5252",
+        "#FF1A53",
+        "#C51162",
+        "#880E4F"
+    };
+
+    int index = userhandle % sizeof(colors)/sizeof(colors[0]);
+
+    return MegaApi::strdup(colors[index].c_str());
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
@@ -5851,13 +6059,6 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::fetchChats(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_FETCH, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
@@ -6522,7 +6723,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    processTree(node, &searchProcessor, recursive);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    {
+        processTree(*it++, &searchProcessor, recursive);
+    }
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
@@ -6535,6 +6739,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
 long long MegaApiImpl::getSize(MegaNode *n)
 {
     if(!n) return 0;
+
+    if (n->getType() == MegaNode::TYPE_FILE)
+    {
+       return n->getSize();
+    }
 
     sdkMutex.lock();
     Node *node = client->nodebyhandle(n->getHandle());
@@ -6870,13 +7079,22 @@ char *strcasestr(const char *string, const char *substring)
 
 bool SearchTreeProcessor::processNode(Node* node)
 {
-	if(!node) return true;
-	if(!search) return false;
+    if (!node)
+    {
+        return true;
+    }
 
-	if(strcasestr(node->displayname(), search)!=NULL)
-		results.push_back(node);
+    if (!search)
+    {
+        return false;
+    }
 
-	return true;
+    if (strcasestr(node->displayname(), search)!=NULL)
+    {
+        results.push_back(node);
+    }
+
+    return true;
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()
@@ -7579,22 +7797,6 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatfetch_result(textchat_vector *chatList, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
-
-    if (!e)
-    {
-        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
-        request->setMegaTextChatList(megaChatList);
-    }
-
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::chatinvite_result(error e)
 {
     MegaError megaError(e);
@@ -8226,9 +8428,25 @@ void MegaApiImpl::share_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
                     (request->getType() != MegaRequest::TYPE_SHARE))) return;
 
-    //exportnode_result will be called to end the request.
-	if(request->getType() == MegaRequest::TYPE_EXPORT)
+    // exportnode_result will be called to end the request.
+    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
+    {
+        Node* node = client->nodebyhandle(request->getNodeHandle());
+        if (!node)
+        {
+            fireOnRequestFinish(request, API_ENOENT);
+            return;
+        }
+
+        if (!request->getAccess())
+        {
+            fireOnRequestFinish(request, API_EINTERNAL);
+            return;
+        }
+
+        client->getpubliclink(node, false, request->getNumber());
 		return;
+    }
 
     fireOnRequestFinish(request, megaError);
 }
@@ -8804,12 +9022,19 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         // the key
         if (n->type == FILENODE)
         {
-            if(n->nodekey.size()>=FILENODEKEYLENGTH)
+            if(n->nodekey.size() >= FILENODEKEYLENGTH)
+            {
                 Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+            }
             else
+            {
                 key[0]=0;
+            }
         }
-        else if (n->sharekey) Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+        else if (n->sharekey)
+        {
+            Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+        }
         else
         {
             fireOnRequestFinish(request, MegaError(MegaError::API_EKEY));
@@ -11077,7 +11302,31 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((e = client->checkmove(node, newParent)))
             {
-                if (!client->checkaccess(newParent, RDWR))
+                // If it's not possible to move the node, try copy-delete,
+                // but only when it's not possible due to access rights
+                // the node and the target are from different node trees,
+                // it's possible to put nodes in the target folder
+                // and also to remove the source node
+                if (e != API_EACCESS)
+                {
+                    break;
+                }
+
+                Node *nodeRoot = node;
+                while (nodeRoot->parent)
+                {
+                    nodeRoot = nodeRoot->parent;
+                }
+
+                Node *parentRoot = newParent;
+                while (parentRoot->parent)
+                {
+                    parentRoot = parentRoot->parent;
+                }
+
+                if ((nodeRoot == parentRoot)
+                        || !client->checkaccess(node, FULL)
+                        || !client->checkaccess(newParent, RDWR))
                 {
                     break;
                 }
@@ -11469,7 +11718,17 @@ void MegaApiImpl::sendPendingRequests()
 
             string attrvalue;
 
-            if (type == ATTR_AVATAR)
+            if (type == ATTR_KEYRING                ||
+                    type == ATTR_AUTHRING           ||
+                    type == ATTR_CU25519_PUBK       ||
+                    type == ATTR_ED25519_PUBK       ||
+                    type == ATTR_SIG_CU255_PUBK     ||
+                    type == ATTR_SIG_RSA_PUBK)
+            {
+                e = API_EACCESS;
+                break;
+            }
+            else if (type == ATTR_AVATAR)
             {
                 // read the attribute value from file
                 if (file)
@@ -11590,10 +11849,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_ATTR_NODE:
         {
             Node *node = client->nodebyhandle(request->getNodeHandle());
-            const char* attrName = request->getName();
-            const char* attrValue = request->getText();
+            bool isOfficial = request->getFlag();
 
-            if (!node || !attrName || !attrName[0] || strlen(attrName) > 7)
+            if (!node)
             {
                 e = API_EARGS;
                 break;
@@ -11605,23 +11863,108 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            string sname = attrName;
-            fsAccess->normalize(&sname);
-            sname.insert(0, "_");
-            nameid attr = AttrMap::string2nameid(sname.c_str());
-
-            if (attrValue)
+            if (isOfficial)
             {
-                string svalue = attrValue;
-                fsAccess->normalize(&svalue);
-                node->attrs.map[attr] = svalue;
+                int type = request->getParamType();
+                if (type == MegaApi::NODE_ATTR_DURATION)
+                {
+                    int secs = request->getNumber();
+                    if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    if (secs == MegaNode::INVALID_DURATION)
+                    {
+                        node->attrs.map.erase('d');
+                    }
+                    else
+                    {
+                        string attrVal;
+                        Base64::itoa(secs, &attrVal);
+                        if (attrVal.size())
+                        {
+                            node->attrs.map['d'] = attrVal;
+                        }
+                    }
+                }
+                else if (type == MegaApi::NODE_ATTR_COORDINATES)
+                {
+                    if (node->type != FILENODE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    int longitude = request->getNumDetails();
+                    int latitude = request->getTransferTag();
+                    nameid coordsName = AttrMap::string2nameid("l");
+
+                    if (longitude == MegaNode::INVALID_COORDINATE && latitude == MegaNode::INVALID_COORDINATE)
+                    {
+                        node->attrs.map.erase(coordsName);
+                    }
+                    else
+                    {
+                        if (longitude < 0 || longitude >= 0x01000000
+                                || latitude < 0 || latitude >= 0x01000000)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
+
+                        string latValue;
+                        latValue.resize(sizeof latitude * 4 / 3 + 4);
+                        latValue.resize(Base64::btoa((const byte*) &latitude, 3, (char*)latValue.data()));
+
+                        string lonValue;
+                        lonValue.resize(sizeof longitude * 4 / 3 + 4);
+                        lonValue.resize(Base64::btoa((const byte*) &longitude, 3, (char*)lonValue.data()));
+
+                        string coordsValue = latValue + lonValue;
+                        node->attrs.map[coordsName] = coordsValue;
+                    }
+                }
+                else
+                {
+                    e = API_EARGS;
+                    break;
+                }
             }
-            else
+            else    // custom attribute, not official
             {
-                node->attrs.map.erase(attr);
+                const char* attrName = request->getName();
+                const char* attrValue = request->getText();
+
+                if (!attrName || !attrName[0] || strlen(attrName) > 7)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string sname = attrName;
+                fsAccess->normalize(&sname);
+                sname.insert(0, "_");
+                nameid attr = AttrMap::string2nameid(sname.c_str());
+
+                if (attrValue)
+                {
+                    string svalue = attrValue;
+                    fsAccess->normalize(&svalue);
+                    node->attrs.map[attr] = svalue;
+                }
+                else
+                {
+                    node->attrs.map.erase(attr);
+                }
             }
 
-            e = client->setattr(node);
+            if (!e)
+            {
+                e = client->setattr(node);
+            }
+
             break;
         }
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
@@ -12304,7 +12647,8 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getNumber();
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
-                            && type != MegaApi::PAYMENT_METHOD_ITUNES))
+                            && type != MegaApi::PAYMENT_METHOD_ITUNES
+                            && type != MegaApi::PAYMENT_METHOD_WINDOWS_STORE))
             {
                 e = API_EARGS;
                 break;
@@ -12317,14 +12661,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string base64receipt;
-            if(type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET)
+            if (type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
+                    || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE)
             {
                 int len = strlen(receipt);
                 base64receipt.resize(len * 4 / 3 + 4);
                 base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
-                 // MegaApi::PAYMENT_METHOD_WINDOWS_STORE
             {
                 base64receipt = receipt;
             }
@@ -12502,11 +12846,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->createChat(group, userpriv);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_FETCH:
-        {
-            client->fetchChats();
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -13075,6 +13414,11 @@ long long MegaAccountDetailsPrivate::getTemporalBandwidth()
         result += details.transfer_hist[i];
     }
     return result;
+}
+
+bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
+{
+    return details.transfer_hist_valid;
 }
 
 ExternalLogger::ExternalLogger()
@@ -15712,7 +16056,7 @@ MegaHandle MegaTextChatPrivate::getOriginatingUser() const
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
-    for (int i = 0; i < size(); i++)
+    for (unsigned int i = 0; i < size(); i++)
     {
         delete list.at(i);
     }
@@ -15723,7 +16067,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
     return new MegaTextChatListPrivate(this);
 }
 
-const MegaTextChat *MegaTextChatListPrivate::get(int i) const
+const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 {
     if (i >= size())
     {
@@ -15735,7 +16079,7 @@ const MegaTextChat *MegaTextChatListPrivate::get(int i) const
     }
 }
 
-MegaTextChat *MegaTextChatListPrivate::get(int i)
+MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
 {
     if (i >= size())
     {
@@ -15761,7 +16105,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *
 {
     MegaTextChatPrivate *chat;
 
-    for (int i = 0; i < list->size(); i++)
+    for (unsigned int i = 0; i < list->size(); i++)
     {
         chat = new MegaTextChatPrivate(list->get(i));
         this->list.push_back(chat);

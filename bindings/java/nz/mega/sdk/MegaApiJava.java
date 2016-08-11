@@ -1952,7 +1952,38 @@ public class MegaApiJava {
     public void getUserAvatar(String dstFilePath) {
     	megaApi.getUserAvatar(dstFilePath);
     }
-    
+
+    /**
+     * Get the default color for the avatar.
+     *
+     * This color should be used only when the user doesn't have an avatar.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+     *  is obtained for the active account.
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     * If the user is not found, this function returns NULL.
+     */
+    public String getUserAvatarColor(MegaUser user){
+        return megaApi.getUserAvatarColor(user);
+    }
+
+    /**
+     * Get the default color for the avatar.
+     *
+     * This color should be used only when the user doesn't have an avatar.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+     * set to NULL, the avatar is obtained for the active account
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     * If the user is not found (invalid userhandle), this function returns NULL.
+     */
+    public String getUserAvatarColor(String userhandle){
+        return megaApi.getUserAvatarColor(userhandle);
+    }
 
     /**
      * Get an attribute of a MegaUser.
@@ -2297,6 +2328,49 @@ public class MegaApiJava {
     }
 
     /**
+     * Set the duration of audio/video files as a node attribute.
+     *
+     * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumber - Returns the number of seconds for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+     *
+     * @param node Node that will receive the information.
+     * @param duration Length of the audio/video in seconds.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeDuration(MegaNode node, int duration,  MegaRequestListenerInterface listener){
+        megaApi.setNodeDuration(node, duration, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set the GPS coordinates of image files as a node attribute.
+     *
+     * To remove the existing coordinates, set both the latitude and longitud to
+     * the value MegaNode::INVALID_COORDINATE.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+     * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+     * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+     *
+     * @param node Node that will receive the information.
+     * @param latitude Latitude in signed decimal degrees notation
+     * @param longitude Longitude in signed decimal degrees notation
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeCoordinates(MegaNode node, double latitude, double longitude,  MegaRequestListenerInterface listener){
+        megaApi.setNodeCoordinates(node, latitude, longitude, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Generate a public link of a file/folder in MEGA.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_EXPORT
@@ -2325,6 +2399,29 @@ public class MegaApiJava {
      */
     public void exportNode(MegaNode node) {
         megaApi.exportNode(node);
+    }
+
+    /**
+     * Generate a temporary public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * @param node MegaNode to get the public link
+     * @param expireTime Unix timestamp until the public link will be valid
+     * @param listener MegaRequestListener to track this request
+     *
+     * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+     */
+
+    public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
+        megaApi.exportNode(node, expireTime, createDelegateRequestListener(listener));
     }
 
     /**

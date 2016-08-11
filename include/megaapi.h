@@ -395,6 +395,9 @@ class MegaNode
             CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
+        static const int INVALID_DURATION = -1;
+        static const double INVALID_COORDINATE;
+
         virtual ~MegaNode();
 
         /**
@@ -499,6 +502,35 @@ class MegaNode
         virtual const char *getCustomAttr(const char* attrName);
 
         /**
+         * @brief Get the attribute of the node representing its duration.
+         *
+         * The purpose of this attribute is to store the duration of audio/video files.
+         *
+         * @return The number of seconds, or -1 if this attribute is not set.
+         */
+        virtual int getDuration();
+
+        /**
+         * @brief Get the attribute of the node representing the latitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The latitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLatitude();
+
+        /**
+         * @brief Get the attribute of the node representing the longitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The longitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLongitude();
+
+        /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
@@ -555,8 +587,6 @@ class MegaNode
 
         /**
          * @brief Returns the key of the node in a Base64-encoded string
-         *
-         * The return value is only valid for nodes of type TYPE_FILE
          *
          * You take the ownership of the returned string.
          * Use delete [] to free it.
@@ -1397,8 +1427,8 @@ public:
      * @param i Position of the MegaTextChat that we want to get for the list
      * @return MegaTextChat at the position i in the list
      */
-    virtual const MegaTextChat *get(int i)  const;
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(unsigned int i)  const;
+    virtual MegaTextChat *get(unsigned int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -2254,7 +2284,6 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::createChat - Returns the new chat's information
-         * - MegaApi::fetchChat - Returns the list of chats
          *
          * @return List of chats
          */
@@ -3409,6 +3438,8 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated chats
          *
+         * This callback is also used to initialize the list of chats available during the fetchnodes request.
+         *
          * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
          * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
          * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
@@ -3777,6 +3808,11 @@ class MegaApi
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9 // public - byte array
 //            USER_ATTR_AUTHRSA = 8,
 //            USER_ATTR_AUTHCU255 =
+        };
+
+        enum {
+            NODE_ATTR_DURATION = 0,
+            NODE_ATTR_COORDINATES = 1
         };
 
         enum {
@@ -5115,6 +5151,34 @@ class MegaApi
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+         *  is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function always returns the same color.
+         */
+        char *getUserAvatarColor(MegaUser *user);
+
+        /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function  always returns the same color.
+         */
+        char *getUserAvatarColor(const char *userhandle);
+
+        /**
          * @brief Get an attribute of a MegaUser.
          *
          * User attributes can be private or public. Private attributes are accessible only by
@@ -5376,7 +5440,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
          * - MegaRequest::getName - Returns the name of the custom attribute
-         * - MegaRequest::getText - Returns the tezt for the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns false (not official attribute)
          *
          * The attribute name must be an UTF8 string with between 1 and 7 bytes
          * If the attribute already has a value, it will be replaced
@@ -5389,6 +5454,45 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the duration of audio/video files as a node attribute.
+         *
+         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumber - Returns the number of seconds for the node
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+         *
+         * @param node Node that will receive the information.
+         * @param duration Length of the audio/video in seconds.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDuration(MegaNode *node, int duration,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the GPS coordinates of image files as a node attribute.
+         *
+         * To remove the existing coordinates, set both the latitude and longitud to
+         * the value MegaNode::INVALID_COORDINATE.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+         *
+         * @param node Node that will receive the information.
+         * @param latitude Latitude in signed decimal degrees notation
+         * @param longitude Longitude in signed decimal degrees notation
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude,  MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -7987,19 +8091,6 @@ class MegaApi
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Fetches the full list of current chats for the requesting user.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaTextChatList - Returns the list of chats
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchChats(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat.
          *
@@ -8637,6 +8728,12 @@ public:
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();
+
+    /**
+     * @brief Check if the temporal bandwidth usage is valid after an overquota error
+     * @return True if the temporal bandwidth is valid, otherwise false
+     */
+    virtual bool isTemporalBandwidthValid();
 };
 
 /**

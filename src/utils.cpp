@@ -574,7 +574,8 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         offset += typelen + 1;        // +1: NULL character
 
         // get the Length of the value
-        valuelen = data->at(offset) << 8 | data->at(offset + 1);
+        valuelen = (unsigned char)data->at(offset) << 8
+                 | (unsigned char)data->at(offset + 1);
         offset += 2;
 
         // if there's not enough data for value...
@@ -585,7 +586,6 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         }
 
         // get the Value
-        value.resize(valuelen);
         value.assign((char*)&(data->data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
         offset += valuelen;
 

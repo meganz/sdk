@@ -234,6 +234,7 @@ public:
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t);
+    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -306,9 +307,6 @@ public:
 
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
-
-    // fetch the list of chats
-    void fetchChats();
 
     // invite a user to a chat
     void inviteToChat(handle chatid, const char *uid, int priv);
@@ -421,7 +419,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 12;
+    static const unsigned MAXTRANSFERS = 24;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);
@@ -831,6 +829,8 @@ public:
 
     void procsnk(JSON*);
     void procsuk(JSON*);
+
+    void procmcf(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);

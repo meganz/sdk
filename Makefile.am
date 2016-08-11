@@ -33,6 +33,11 @@ else
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/posix
 endif
 
+if USE_IOS
+AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/gfx
+AM_LIBTOOLFLAGS="--tag=CXX"
+endif
+
 VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 
 CLEANFILES=

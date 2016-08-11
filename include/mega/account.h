@@ -105,6 +105,9 @@ struct MEGA_API AccountDetails
                                         // overage will be drawn from account
                                         // quota)
 
+    bool transfer_hist_valid;           // transfer hist valid for overquota
+                                        // accounts
+
     vector<AccountBalance> balances;
     vector<AccountSession> sessions;
     vector<AccountPurchase> purchases;

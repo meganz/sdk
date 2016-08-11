@@ -214,6 +214,9 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool hasCustomAttrs();
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
+        virtual int getDuration();
+        virtual double getLatitude();
+        virtual double getLongitude();
         virtual char *getBase64Handle();
         virtual int64_t getSize();
         virtual int64_t getCreationTime();
@@ -248,6 +251,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
+        std::string* getSharekey();
+
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -286,6 +291,10 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        std::string *sharekey;   // for plinks of folders
+        int duration;
+        double latitude;
+        double longitude;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -781,6 +790,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual int getTemporalBandwidthInterval();
         virtual long long getTemporalBandwidth();
+        virtual bool isTemporalBandwidthValid();
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
@@ -874,8 +884,8 @@ public:
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
-    virtual const MegaTextChat *get(int i) const;
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(unsigned int i) const;
+    virtual MegaTextChat *get(unsigned int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -1189,6 +1199,7 @@ class MegaApiImpl : public MegaApp
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
+        static handle base64ToUserHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
@@ -1262,11 +1273,15 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        char* getUserAvatarColor(MegaUser *user);
+        char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
+        void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -1498,7 +1513,6 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -1746,7 +1760,6 @@ protected:
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
         virtual void chatcreate_result(TextChat *, error);
-        virtual void chatfetch_result(textchat_vector *chatList, error);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
@@ -1808,6 +1821,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
+        char *getAvatarColor(handle userhandle);
 };
 
 class MegaHashSignatureImpl

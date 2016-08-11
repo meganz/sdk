@@ -184,6 +184,9 @@ public:
 // set visibility
 class MEGA_API CommandRemoveContact : public Command
 {
+    string email;
+    visibility_t v;
+
 public:
     void procresult();
 
@@ -280,7 +283,8 @@ public:
 class MEGA_API CommandMoveNode : public Command
 {
     handle h;
-    handle pp;
+    handle pp;  // previous parent
+    handle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
 
@@ -717,15 +721,6 @@ public:
     void procresult();
 
     CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
-};
-
-class MEGA_API CommandChatFetch : public Command
-{
-    MegaClient *client;
-public:
-    void procresult();
-
-    CommandChatFetch(MegaClient*);
 };
 
 class MEGA_API CommandChatInvite : public Command

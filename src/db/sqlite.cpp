@@ -35,7 +35,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
+DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB)
 {
     //Each table will use its own database object and its own file
     sqlite3* db;
@@ -46,6 +46,13 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     legacyoss << LEGACY_DB_VERSION;
     legacyoss << "_" << *name << ".db";
     string legacydbpath = legacyoss.str();
+
+    ostringstream newoss;
+    newoss << dbpath;
+    newoss << "megaclient_statecache";
+    newoss << DB_VERSION;
+    newoss << "_" << *name << ".db";
+    string currentdbpath = newoss.str();
 
     string locallegacydbpath;
     FileAccess *fa = fsaccess->newfileaccess();
@@ -62,21 +69,46 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         }
         else
         {
-            LOG_debug << "Legacy DB is outdated. Deleting.";
-            fsaccess->unlinklocal(&locallegacydbpath);
+            if (!recycleLegacyDB)
+            {
+                LOG_debug << "Legacy DB is outdated. Deleting.";
+                fsaccess->unlinklocal(&locallegacydbpath);
+            }
+            else
+            {
+                LOG_debug << "Trying to recycle a legacy DB";
+                string localcurrentdbpath;
+                fsaccess->path2local(&currentdbpath, &localcurrentdbpath);
+                if (fsaccess->renamelocal(&locallegacydbpath, &localcurrentdbpath, false))
+                {
+                    string suffix = "-shm";
+                    string localsuffix;
+                    fsaccess->path2local(&suffix, &localsuffix);
+
+                    string oldfile = locallegacydbpath + localsuffix;
+                    string newfile = localcurrentdbpath + localsuffix;
+                    fsaccess->renamelocal(&oldfile, &newfile, true);
+
+                    suffix = "-wal";
+                    fsaccess->path2local(&suffix, &localsuffix);
+                    oldfile = locallegacydbpath + localsuffix;
+                    newfile = localcurrentdbpath + localsuffix;
+                    fsaccess->renamelocal(&oldfile, &newfile, true);
+                    LOG_debug << "Legacy DB recycled";
+                }
+                else
+                {
+                    LOG_debug << "Unable to recycle legacy DB. Deleting.";
+                    fsaccess->unlinklocal(&locallegacydbpath);
+                }
+            }
         }
     }
 
     if (!dbfile.size())
     {
-        ostringstream newoss;
-        newoss << dbpath;
-        newoss << "megaclient_statecache";
-        newoss << DB_VERSION;
-        newoss << "_" << *name << ".db";
-
         LOG_debug << "Using an upgraded DB";
-        dbfile = newoss.str();
+        dbfile = currentdbpath;
         currentDbVersion = DB_VERSION;
     }
 

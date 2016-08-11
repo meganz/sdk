@@ -111,7 +111,6 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error);
-    void chatfetch_result(textchat_vector *chats, error);
     void chatinvite_result(error);
     void chatremove_result(error);
     void chaturl_result(string *, error);

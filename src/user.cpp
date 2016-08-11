@@ -21,6 +21,7 @@
 
 #include "mega/user.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 User::User(const char* cemail)
@@ -64,6 +65,8 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
+    l = (unsigned char)attrs.size();
+    d->append((char*)&l, sizeof l);
     for (userattr_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
         d->append((char*)&it->first, sizeof it->first);
@@ -84,8 +87,6 @@ bool User::serialize(string* d)
             d->append((char*)&ll, sizeof ll);
         }
     }
-
-    d->append("", 1);
 
     if (pubk.isvalid())
     {
@@ -172,16 +173,24 @@ User* User::unserialize(MegaClient* client, string* d)
     else if (attrVersion == '1')
     {
         attr_t key;
-        while (ptr + sizeof key < end)
-        {
-            key = MemAccess::get<attr_t>(ptr);
-            ptr += sizeof key;
 
-            if (ptr + sizeof(ll) > end)
+        if (ptr + sizeof(char) > end)
+        {
+            client->discarduser(uh);
+            return NULL;
+        }
+
+        l = *ptr++;
+        for (int i = 0; i < l; i++)
+        {
+            if (ptr + sizeof key + sizeof(ll) > end)
             {
                 client->discarduser(uh);
                 return NULL;
             }
+
+            key = MemAccess::get<attr_t>(ptr);
+            ptr += sizeof key;
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
@@ -220,14 +229,36 @@ User* User::unserialize(MegaClient* client, string* d)
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
             client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+            if (!client->signkey->initializationOK)
+            {
+                delete client->signkey;
+                client->signkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Signing key loaded from local cache.";
+            }
         }
 
         if (tlvRecords->find(ECDH::TLV_KEY))
         {
             client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+            if (!client->chatkey->initializationOK)
+            {
+                delete client->chatkey;
+                client->chatkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Chat key succesfully loaded from local cache.";
+            }
         }
 
         delete tlvRecords;
+
+
     }
 #endif
 

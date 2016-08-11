@@ -710,10 +710,6 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-#ifdef ENABLE_CHAT
-    resetKeyring();
-#endif
-
     btcs.reset();
     btsc.reset();
     btpfa.reset();
@@ -2641,7 +2637,11 @@ void MegaClient::locallogout()
 
     pendingfa.clear();
 
-    // erase master key & session ID
+    // erase keys & session ID
+#ifdef ENABLE_CHAT
+    resetKeyring();
+#endif
+
     key.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
     memset((char*)auth.c_str(), 0, auth.size());
@@ -3327,7 +3327,7 @@ bool MegaClient::moretransfers(direction_t d)
     }
 
     // always blindly dispatch transfers up to MINPIPELINE
-    if (r < MINPIPELINE)
+    if (r < MINPIPELINE || r < total * 131072)
     {
         return true;
     }
@@ -3864,15 +3864,23 @@ void MegaClient::sc_userattr()
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        if ((cacheduav = u->getattrversion(type)) && (*cacheduav != *ituav))
+                        cacheduav = u->getattrversion(type);
+                        if (cacheduav)
                         {
-                            u->invalidateattr(type);
-#ifdef ENABLE_CHAT
-                            if (type == ATTR_KEYRING)
+                            if (*cacheduav != *ituav)
                             {
-                                resetKeyring();
-                            }
+                                u->invalidateattr(type);
+#ifdef ENABLE_CHAT
+                                if (type == ATTR_KEYRING)
+                                {
+                                    resetKeyring();
+                                }
 #endif
+                            }
+                        }
+                        else
+                        {
+                            u->setChanged(type);
                         }
                     }
                     u->setTag(0);
@@ -4609,10 +4617,8 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        if (!fetchingnodes)
-        {
-            app->chats_updated(&chatnotify);
-        }
+        // chats are notified even during fetchingnodes
+        app->chats_updated(&chatnotify);
 
         for (i = 0; i < t; i++)
         {
@@ -4718,6 +4724,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     }
 
     n->changed.attrs = true;
+    n->tag = reqtag;
     notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
@@ -4855,6 +4862,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
     if (n->setparent(p))
     {
         n->changed.parent = true;
+        n->tag = reqtag;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -7129,6 +7137,108 @@ void MegaClient::procsuk(JSON* j)
     }
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::procmcf(JSON *j)
+{
+    if (j->enterobject() && j->getnameid() == 'c' && j->enterarray())
+    {
+        while(j->enterobject())   // while there are more chats to read...
+        {
+            handle chatid = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+            string url;
+            int shard = -1;
+            userpriv_vector *userpriv = NULL;
+            bool group = false;
+
+            bool readingChat = true;
+            while(readingChat) // read the chat information
+            {
+                switch (j->getnameid())
+                {
+                case MAKENAMEID2('i','d'):
+                    chatid = j->gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case 'p':
+                    priv = (privilege_t) j->getint();
+                    break;
+
+                case MAKENAMEID3('u','r','l'):
+                    j->storeobject(&url);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = j->getint();
+                    break;
+
+                case 'u':   // list of users participating in the chat (+privileges)
+                    userpriv = readuserpriv(j);
+                    break;
+
+                case 'g':
+                    group = j->getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
+                            && shard != -1)
+                    {
+                        TextChat *chat = new TextChat();
+                        chat->id = chatid;
+                        chat->priv = priv;
+                        chat->url = url;
+                        chat->shard = shard;
+                        chat->group = group;
+
+                        // remove yourself from the list of users (only peers matter)
+                        if (userpriv)
+                        {
+                            userpriv_vector::iterator upvit;
+                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    userpriv->erase(upvit);
+                                    if (userpriv->empty())
+                                    {
+                                        delete userpriv;
+                                        userpriv = NULL;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        chat->userpriv = userpriv;
+                        notifychat(chat);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse chat information";
+                    }
+                    readingChat = false;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        LOG_err << "Failed to parse chat information";
+                        readingChat = false;
+                        delete userpriv;
+                        userpriv = NULL;
+                    }
+                    break;
+                }
+            }
+            j->leaveobject();
+        }
+    }
+
+    j->leavearray();
+    j->leaveobject();
+}
+#endif
+
 // add node to vector, return position, deduplicate
 unsigned MegaClient::addnode(node_vector* v, Node* n) const
 {
@@ -7320,7 +7430,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        reqs.add(new CommandSetPH(this, n, del, ets));
+        getpubliclink(n, del, ets);
         break;
 
     case FOLDERNODE:
@@ -7328,14 +7438,14 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            getpubliclink(n, del, ets);
             setshare(n, NULL, ACCESS_UNKNOWN);
         }
         else
         {
             // exporting folder - need to create share first
             setshare(n, NULL, RDONLY);
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            // getpubliclink() is called as _result() of the share
         }
 
         break;
@@ -7345,6 +7455,11 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     }
 
     return API_OK;
+}
+
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+{
+    reqs.add(new CommandSetPH(this, n, del, ets));
 }
 
 // open exported file link
@@ -7674,7 +7789,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7752,7 +7867,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7828,6 +7943,8 @@ void MegaClient::fetchkeys()
 {
     fetchingkeys = true;
 
+    resetKeyring();
+    discarduser(me);
     User *u = finduser(me, 1);
 
     int creqtag = reqtag;
@@ -7949,17 +8066,37 @@ void MegaClient::initializekeys()
         {
             pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
-        if (!pubkstr.size() || !sigPubk.size() ||
-                !signkey->verifyKey((unsigned char*) pubkstr.data(),
+        if (!pubkstr.size() || !sigPubk.size())
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+
+            if (!pubkstr.size())
+            {
+                LOG_warn << "Error serializing RSA public key";
+                sendevent(99421, "Error serializing RSA public key");
+            }
+            if (!sigPubk.size())
+            {
+                LOG_warn << "Signature of public key for RSA not found";
+                sendevent(99422, "Signature of public key for RSA not found");
+            }
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+        if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Signature of public key for RSA not found or mismatch";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99414, "Signature of RSA public key mismatch");
+            sendevent(99414, "Verification of signature of public key for RSA failed");
             reqtag = creqtag;
 
             clearKeys();
@@ -7990,8 +8127,8 @@ void MegaClient::initializekeys()
         else    // No keys were set --> generate keypairs and related attributes
         {
             // generate keypairs
-            signkey = new EdDSA();
-            chatkey = new ECDH();
+            EdDSA *signkey = new EdDSA();
+            ECDH *chatkey = new ECDH();
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
@@ -8036,6 +8173,8 @@ void MegaClient::initializekeys()
             putua(&attrs, 0);
 
             delete tlvContainer;
+            delete chatkey;
+            delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
             LOG_info << "Creating new keypairs and signatures";
             fetchingkeys = false;
@@ -8048,7 +8187,14 @@ void MegaClient::initializekeys()
 
         int creqtag = reqtag;
         reqtag = 0;
-        sendevent(99416, "Incomplete keyring detected");
+        if (!chatkey)
+        {
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+        }
+        else // !signkey
+        {
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+        }
         reqtag = creqtag;
 
         resetKeyring();
@@ -8113,9 +8259,25 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+
+#ifndef ENABLE_CHAT
     users.clear();
     uhindex.clear();
     umindex.clear();
+#else
+    for (user_map::iterator it = users.begin(); it != users.end(); )
+    {
+        User *u = &(it->second);
+        it++;
+        if (u->userhandle != me)
+        {
+            discarduser(u->userhandle);
+        }
+    }
+
+    assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
+#endif
+
     pcrindex.clear();
 
     *scsn = 0;
@@ -9669,7 +9831,7 @@ void MegaClient::execmovetosyncdebris()
         }
 
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, 0,
+                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
                                         PUTNODES_SYNCDEBRIS));
     }
 }
@@ -9985,11 +10147,6 @@ void MegaClient::cleanrubbishbin()
 void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
 {
     reqs.add(new CommandChatCreate(this, group, userpriv));
-}
-
-void MegaClient::fetchChats()
-{
-    reqs.add(new CommandChatFetch(this));
 }
 
 void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)

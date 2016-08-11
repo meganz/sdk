@@ -998,7 +998,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+                        && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
 
