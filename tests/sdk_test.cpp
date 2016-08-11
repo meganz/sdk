@@ -174,16 +174,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
 #ifdef ENABLE_CHAT
-    case MegaRequest::TYPE_CHAT_FETCH:
-        if (lastError[apiIndex] == API_OK)
-        {
-            MegaTextChatList *list = request->getMegaTextChatList()->copy();
-            for (int i = 0; i < list->size(); i++)
-            {
-                chats[list->get(i)->getHandle()] = list->get(i);
-            }
-        }
-        break;
 
     case MegaRequest::TYPE_CHAT_CREATE:
         if (lastError[apiIndex] == API_OK)
