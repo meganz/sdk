@@ -10231,6 +10231,16 @@ void MegaClient::removeAccessInChat(handle chatid, handle h, const char *uid)
     reqs.add(new CommandChatRemoveAccess(this, chatid, h, uid));
 }
 
+void MegaClient::updateChatPermissions(handle chatid, const char *uid, int priv)
+{
+    reqs.add(new CommandChatUpdatePermissions(this, chatid, uid, (privilege_t) priv));
+}
+
+void MegaClient::truncateChat(handle chatid, handle messageid)
+{
+    reqs.add(new CommandChatTruncate(this, chatid, messageid));
+}
+
 #endif
 
 } // namespace

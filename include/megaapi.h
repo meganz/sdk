@@ -1256,9 +1256,8 @@ public:
         PRIV_UNKNOWN = -2,
         PRIV_RM = -1,
         PRIV_RO = 0,
-        PRIV_RW = 1,
-        PRIV_FULL = 2,
-        PRIV_OPERATOR = 3
+        PRIV_STANDARD = 2,
+        PRIV_MODERATOR = 3
     };
 
     /**
@@ -1771,7 +1770,8 @@ class MegaRequest
             TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
-            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE
         };
 
         virtual ~MegaRequest();
@@ -8106,7 +8106,6 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
          * - MegaTextChatPeerList::PRIV_RM = -1
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_RW = 1
          * - MegaTextChatPeerList::PRIV_FULL = 2
          * - MegaTextChatPeerList::PRIV_OPERATOR = 3
          * @param listener MegaRequestListener to track this request
@@ -8178,6 +8177,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to adjust the permissions on any other user
+         * in their group chat. This does not work for a 1:1 chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user whose permission
+         * is to be upgraded
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the existing peer. Valid values are:
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to truncate their chat, i.e. to clear
+         * the entire chat history up to a certain message. All earlier messages are wiped,
+         * but his specific message gets overridden with an API message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_TRUNCATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the message identifier to truncate from.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param messageid MegaHandle that identifies the message to truncate from
+         * @param listener MegaRequestListener to track this request
+         */
+        void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
 #endif
 
 private:

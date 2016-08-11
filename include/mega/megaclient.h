@@ -325,6 +325,12 @@ public:
 
     // revoke access to a chat peer to one specific node
     void removeAccessInChat(handle chatid, handle h, const char *uid);
+
+    // update permissions of a peer in a chat
+    void updateChatPermissions(handle chatid, const char *uid, int priv);
+
+    // truncate chat from message id
+    void truncateChat(handle chatid, handle messageid);
 #endif
 
     // toggle global debug flag

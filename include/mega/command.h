@@ -771,6 +771,26 @@ public:
 
     CommandChatRemoveAccess(MegaClient*, handle, handle, const char *);
 };
+
+class MEGA_API CommandChatUpdatePermissions : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatUpdatePermissions(MegaClient*, handle, const char *, privilege_t);
+};
+
+class MEGA_API CommandChatTruncate : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatTruncate(MegaClient*, handle, handle);
+};
 #endif
 
 

@@ -1866,6 +1866,7 @@ TEST_F(SdkTest, SdkTestShares)
  * - Remove a peer from the chat
  * - Invite a contact to a chat
  * - Get the user-specific URL for the chat
+ * - Update permissions of an existing peer in a chat
  */
 TEST_F(SdkTest, SdkTestChat)
 {
@@ -1909,11 +1910,15 @@ TEST_F(SdkTest, SdkTestChat)
 
     h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_FULL);
+    peers->addPeer(h, PRIV_STANDARD);
     group = true;
 
     chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );    
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) )
+            << "Cannot create a new chat";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Chat update not received after " << maxTimeout << " seconds";
 
@@ -1944,7 +1949,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_FULL);
+    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]) )
             << "Chat invitation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Invitation of chat peer failed (error: " << lastError[0] << ")";
@@ -1961,6 +1966,19 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_URL]) )
             << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Retrieval of chat URL failed (error: " << lastError[0] << ")";
+
+
+    // --- Update Permissions of an existing peer in the chat
+
+    chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
+    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]) )
+            << "Update chat permissions failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Update of chat permissions failed (error: " << lastError[0] << ")";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
+            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
+
 }
 
 #endif

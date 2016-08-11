@@ -4472,7 +4472,7 @@ void CommandChatCreate::procresult()
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
-                        chat->priv = PRIV_OPERATOR;
+                        chat->priv = PRIV_MODERATOR;
                         chat->url = url;
                         chat->shard = shard;
                         chat->userpriv = this->chatPeers;
@@ -4643,6 +4643,61 @@ void CommandChatRemoveAccess::procresult()
         client->app->chatremoveaccess_result(API_EINTERNAL);
     }
 }
+
+CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+{
+    this->client = client;
+
+    cmd("mcup");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("u", uid);
+    arg("p", priv);
+
+    tag = client->reqtag;
+}
+
+void CommandChatUpdatePermissions::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatupdatepermissions_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatupdatepermissions_result(API_EINTERNAL);
+    }
+}
+
+
+CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
+{
+    this->client = client;
+
+    cmd("mcurl");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("m", (byte*)&messageid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandChatTruncate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chattruncate_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chattruncate_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 
