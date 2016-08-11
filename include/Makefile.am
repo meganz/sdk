@@ -7,7 +7,6 @@ nobase_libmegainclude_HEADERS = \
 	mega/backofftimer.h \
 	mega/base64.h \
 	mega/config.h \
-	mega/config-android.h \
 	mega/console.h \
 	mega/command.h \
 	mega/db.h \
@@ -54,6 +53,12 @@ nobase_libmegainclude_HEADERS = \
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
+endif
+
+if ANDROID
+nobase_libmegainclude_HEADERS += \
+	mega/config-android.h \
+	third_party/glob/glob.h
 endif
 
 if WIN32
