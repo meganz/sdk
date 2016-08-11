@@ -9161,10 +9161,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             // files have the same size and the same mtime (or the
                             // same fingerprint, if available): no action needed
                             if (!ll->checked)
-                            {
-                                // Restoration of missing attributes temporarily disabled
-                                // on synced folders
-                                /*
+                            {                                
                                 if (gfx && gfx->isgfx(&ll->localname))
                                 {
                                     int missingattr = 0;
@@ -9189,12 +9186,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                             LOG_debug << "Restoring missing attributes: " << ll->name;
                                             string localpath;
                                             ll->getlocalpath(&localpath);
-                                            SymmCipher*symmcipher = ll->node->nodecipher();
+                                            SymmCipher *symmcipher = ll->node->nodecipher();
                                             gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
                                         }
                                     }
                                 }
-                                */
 
                                 ll->checked = true;
                             }
