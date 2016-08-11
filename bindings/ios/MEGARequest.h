@@ -73,7 +73,24 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeReplyContactRequest,
     MEGARequestTypeSubmitFeedback,
     MEGARequestTypeSendEvent,
-    MEGARequestTypeCleanRubbishBin
+    MEGARequestTypeCleanRubbishBin,
+    MEGARequestTypeSetAttrNode,
+    MEGARequestTypeChatCreate,
+    MEGARequestTypeChatFetch,
+    MEGARequestTypeChatInvite,
+    MEGARequestTypeChatRemove,
+    MEGARequestTypeChatUrl,
+    MEGARequestTypeChatGrantAccess,
+    MEGARequestTypeChatRemoveAccess,
+    MEGARequestTypeUseHttpsOnly,
+    MEGARequestTypeSetProxy,
+    MEGARequestTypeGetRecoveryLink,
+    MEGARequestTypeQueryRecoveryLink,
+    MEGARequestTypeConfirmRecoveryLink,
+    MEGARequestTypeGetCancelLink,
+    MEGARequestTypeConfirmCancelLink,
+    MEGARequestTypeGetChangeEmailLink,
+    MEGARequestTypeConfirmChangeEmailLink
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

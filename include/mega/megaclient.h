@@ -81,15 +81,6 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
-     *
-     * A key pair will be added, if not present, yet.
-     *
-     * @return Error code (default: 1 on success).
-     */
-    int inited25519();
-
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
@@ -137,6 +128,12 @@ public:
 
     // load all trees: nodes, shares, contacts
     void fetchnodes();
+
+#ifdef ENABLE_CHAT
+    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
+    void fetchkeys();    
+    void initializekeys();
+#endif
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
@@ -209,10 +206,21 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+
+    // attach/update multiple versioned user attributes at once
+    void putua(userattr_map *attrs, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL);
+    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+
+    // queue a user attribute retrieval (for non-contacts)
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+
+#ifdef DEBUG
+    // queue a user attribute removal
+    void delua(const char* an);
+#endif
 
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN);
@@ -226,6 +234,7 @@ public:
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t);
+    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -407,7 +416,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 12;
+    static const unsigned MAXTRANSFERS = 24;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);
@@ -857,12 +866,27 @@ public:
     // dummy key to obfuscate non protected cache
     SymmCipher tckey;
 
-    // account access (full account): RSA key
+    // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
-    EdDSA signkey;
+#ifdef ENABLE_CHAT
+    // RSA public key
+    AsymmCipher pubk;
+
+    // EdDSA signing key (Ed25519 private key seed).
+    EdDSA *signkey;
+
+    // ECDH key (x25519 private key).
+    ECDH *chatkey;
+
+    // actual state of keys
+    bool fetchingkeys;
+
+    // invalidate received keys (when fail to load)
+    void clearKeys();
+
+    // delete chatkey and signing key
+    void resetKeyring();
 #endif
 
     // binary session ID
@@ -877,7 +901,10 @@ public:
     // locate user by e-mail address or by handle
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
+    User* ownuser();
     void mapuser(handle, const char*);
+    void discarduser(handle);
+    void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
 
     PendingContactRequest* findpcr(handle);

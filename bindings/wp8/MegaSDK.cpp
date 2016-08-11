@@ -330,12 +330,32 @@ uint64 MegaSDK::base64ToHandle(String^ base64Handle)
 
 String^ MegaSDK::handleToBase64(MegaHandle handle)
 {
-    return ref new String((wchar_t *)MegaApi::handleToBase64(handle));
+    std::string utf16base64handle;
+    const char *utf8base64handle = MegaApi::handleToBase64(handle);
+    if (!utf8base64handle)
+    {
+        return nullptr;
+    }
+
+    MegaApi::utf8ToUtf16(utf8base64handle, &utf16base64handle);
+    delete[] utf8base64handle;
+
+    return ref new String((wchar_t *)utf16base64handle.data());
 }
 
 String^ MegaSDK::userHandleToBase64(MegaHandle handle)
 {
-    return ref new String((wchar_t *)MegaApi::userHandleToBase64(handle));
+    std::string utf16base64userHandle;
+    const char *utf8base64userHandle = MegaApi::userHandleToBase64(handle);
+    if (!utf8base64userHandle)
+    {
+        return nullptr;
+    }
+
+    MegaApi::utf8ToUtf16(utf8base64userHandle, &utf16base64userHandle);
+    delete[] utf8base64userHandle;
+
+    return ref new String((wchar_t *)utf16base64userHandle.data());
 }
 
 void MegaSDK::retryPendingConnections(bool disconnect, bool includexfers, MRequestListenerInterface^ listener)
@@ -1417,6 +1437,40 @@ void MegaSDK::setAvatar(String ^srcFilePath)
         MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
 
     megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
+}
+
+String^ MegaSDK::getUserAvatarColor(MUser^ user)
+{
+    std::string utf16userAvatarColor;
+    const char *utf8userAvatarColor = megaApi->getUserAvatarColor((user != nullptr) ? user->getCPtr() : NULL);
+    if (!utf8userAvatarColor)
+    {
+        return nullptr;
+    }
+
+    MegaApi::utf8ToUtf16(utf8userAvatarColor, &utf16userAvatarColor);
+    delete[] utf8userAvatarColor;
+
+    return ref new String((wchar_t *)utf16userAvatarColor.data());
+}
+
+String^ MegaSDK::getUserHandleAvatarColor(String^ userhandle)
+{
+    std::string utf8userhandle;
+    if (userhandle != nullptr)
+        MegaApi::utf16ToUtf8(userhandle->Data(), userhandle->Length(), &utf8userhandle);
+
+    std::string utf16userAvatarColor;
+    const char *utf8userAvatarColor = megaApi->getUserAvatarColor((userhandle != nullptr) ? utf8userhandle.c_str() : NULL);
+    if (!utf8userAvatarColor)
+    {
+        return nullptr;
+    }
+
+    MegaApi::utf8ToUtf16(utf8userAvatarColor, &utf16userAvatarColor);
+    delete[] utf8userAvatarColor;
+
+    return ref new String((wchar_t *)utf16userAvatarColor.data());
 }
 
 void MegaSDK::getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener)

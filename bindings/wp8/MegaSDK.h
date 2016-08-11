@@ -252,6 +252,8 @@ namespace mega
         void getOwnUserAvatar(String^ dstFilePath);
         void setAvatar(String ^dstFilePath, MRequestListenerInterface^ listener);
         void setAvatar(String ^dstFilePath);
+        String^ getUserAvatarColor(MUser^ user);
+        String^ getUserHandleAvatarColor(String^ userhandle);
         void getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener);
         void getUserAttribute(MUser^ user, int type);
         void getOwnUserAttribute(int type, MRequestListenerInterface^ listener);
