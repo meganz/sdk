@@ -2476,6 +2476,35 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
 
 /**
+ * @brief Download a file from MEGA.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a file from MEGA.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ */
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+
+/**
  * @brief Start an streaming download
  *
  * Streaming downloads don't save the downloaded data into a local file. It is provided 
@@ -3194,6 +3223,15 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (NSString *)unescapeFsIncompatible:(NSString *)localName;
 
+/**
+ * @brief Change the API URL
+ *
+ * This function allows to change the API URL.
+ * It's only useful for testing or debugging purposes.
+ *
+ * @param apiURL New API URL
+ * @param disablepkp YES to disable public key pinning for this URL
+ */
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 
 /**
