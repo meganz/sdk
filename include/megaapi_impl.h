@@ -1513,7 +1513,6 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -1759,7 +1758,6 @@ protected:
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
         virtual void chatcreate_result(TextChat *, error);
-        virtual void chatfetch_result(textchat_vector *chatList, error);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);

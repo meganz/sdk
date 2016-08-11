@@ -308,9 +308,6 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
 
-    // fetch the list of chats
-    void fetchChats();
-
     // invite a user to a chat
     void inviteToChat(handle chatid, const char *uid, int priv);
 
@@ -826,6 +823,8 @@ public:
 
     void procsnk(JSON*);
     void procsuk(JSON*);
+
+    void procmcf(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);

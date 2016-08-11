@@ -4617,10 +4617,8 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        if (!fetchingnodes)
-        {
-            app->chats_updated(&chatnotify);
-        }
+        // chats are notified even during fetchingnodes
+        app->chats_updated(&chatnotify);
 
         for (i = 0; i < t; i++)
         {
@@ -7137,6 +7135,106 @@ void MegaClient::procsuk(JSON* j)
 
         j->leavearray();
     }
+}
+
+void MegaClient::procmcf(JSON *j)
+{
+    if (j->enterobject() && j->getnameid() == 'c' && j->enterarray())
+    {
+        while(j->enterobject())   // while there are more chats to read...
+        {
+            handle chatid = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+            string url;
+            int shard = -1;
+            userpriv_vector *userpriv = NULL;
+            bool group = false;
+
+            bool readingChat = true;
+            while(readingChat) // read the chat information
+            {
+                switch (j->getnameid())
+                {
+                case MAKENAMEID2('i','d'):
+                    chatid = j->gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case 'p':
+                    priv = (privilege_t) j->getint();
+                    break;
+
+                case MAKENAMEID3('u','r','l'):
+                    j->storeobject(&url);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = j->getint();
+                    break;
+
+                case 'u':   // list of users participating in the chat (+privileges)
+                    userpriv = readuserpriv(j);
+                    break;
+
+                case 'g':
+                    group = j->getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
+                            && shard != -1)
+                    {
+                        TextChat *chat = new TextChat();
+                        chat->id = chatid;
+                        chat->priv = priv;
+                        chat->url = url;
+                        chat->shard = shard;
+                        chat->group = group;
+
+                        // remove yourself from the list of users (only peers matter)
+                        if (userpriv)
+                        {
+                            userpriv_vector::iterator upvit;
+                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    userpriv->erase(upvit);
+                                    if (userpriv->empty())
+                                    {
+                                        delete userpriv;
+                                        userpriv = NULL;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        chat->userpriv = userpriv;
+                        notifychat(chat);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse chat information";
+                    }
+                    readingChat = false;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        LOG_err << "Failed to parse chat information";
+                        readingChat = false;
+                        delete userpriv;
+                        userpriv = NULL;
+                    }
+                    break;
+                }
+            }
+            j->leaveobject();
+        }
+    }
+
+    j->leavearray();
+    j->leaveobject();
 }
 
 // add node to vector, return position, deduplicate
@@ -10047,11 +10145,6 @@ void MegaClient::cleanrubbishbin()
 void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
 {
     reqs.add(new CommandChatCreate(this, group, userpriv));
-}
-
-void MegaClient::fetchChats()
-{
-    reqs.add(new CommandChatFetch(this));
 }
 
 void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)

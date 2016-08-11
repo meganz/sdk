@@ -523,31 +523,6 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
     }
 }
 
-void DemoApp::chatfetch_result(textchat_vector *chats, error e)
-{
-    if (e)
-    {
-        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat received or updated" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats received or updated" << endl;
-        }
-
-        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
-        {
-            printChatInformation(*it);
-            cout << endl;
-        }
-    }
-}
-
 void DemoApp::chatinvite_result(error e)
 {
     if (e)
@@ -1925,7 +1900,6 @@ static void process_line(char* l)
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chatf " << endl;
                 cout << "      chatc group [email ro|rw|full|op]*" << endl;
                 cout << "      chati chatid email ro|rw|full|op" << endl;
                 cout << "      chatr chatid [email]" << endl;
@@ -3236,11 +3210,6 @@ static void process_line(char* l)
                         return;
                     }
 #ifdef ENABLE_CHAT
-                    else if (words[0] == "chatf")
-                    {
-                        client->fetchChats();
-                        return;
-                    }
                     else if (words[0] == "chatc")
                     {
                         unsigned wordscount = words.size();

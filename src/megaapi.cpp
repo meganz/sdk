@@ -3079,11 +3079,6 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::fetchChats(MegaRequestListener *listener)
-{
-    pImpl->fetchChats(listener);
-}
-
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, listener);
