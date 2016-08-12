@@ -930,16 +930,28 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
+            client->tctable->begin();
             vector<uint32_t> &ids = it->second;
-            for (unsigned int i = 0; i< ids.size(); i++)
+            for (unsigned int i = 0; i < ids.size(); i++)
             {
                 if (ids[i])
                 {
                     client->tctable->del(ids[i]);
                 }
             }
+            client->tctable->commit();
         }
         client->pendingtcids.erase(it);
+    }
+    pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
+    if (pit != client->pendingfiles.end())
+    {
+        vector<string> &pfs = pit->second;
+        for (unsigned int i = 0; i < pfs.size(); i++)
+        {
+            client->fsaccess->unlinklocal(&pfs[i]);
+        }
+        client->pendingfiles.erase(pit);
     }
 
     if (client->json.isnumeric())

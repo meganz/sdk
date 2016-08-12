@@ -6955,6 +6955,12 @@ void MegaClient::filecachedel(File *file)
         LOG_debug << "Removing cached file";
         tctable->del(file->dbid);
     }
+
+    if (file->temporaryfile)
+    {
+        LOG_debug << "Removing temporary file";
+        fsaccess->unlinklocal(&file->localname);
+    }
 }
 
 // queue user for notification

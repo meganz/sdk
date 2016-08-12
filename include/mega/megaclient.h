@@ -616,6 +616,10 @@ public:
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
 
+    // path of tamporary files
+    // waiting for the completion of a putnodes
+    pendingfiles_map pendingfiles;
+
     // transfer tslots
     transferslot_list tslots;
 
