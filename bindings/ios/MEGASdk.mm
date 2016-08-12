@@ -916,6 +916,22 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->pauseTransfers(pause, (int)direction);
 }
 
+- (void)enableTransferResumption:(NSString *)loggedOutId {
+    self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
+}
+
+- (void)enableTransferResumption {
+    self.megaApi->enableTransferResumption();
+}
+
+- (void)disableTransferResumption:(NSString *)loggedOutId {
+    self.megaApi->disableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
+}
+
+- (void)disableTransferResumption {
+    self.megaApi->disableTransferResumption();
+}
+
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {
     return self.megaApi->areTransfersPaused((int)direction);
 }
@@ -1181,6 +1197,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
+}
+
+- (MEGANode *)authorizeNode:(MEGANode *)node {
+    return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeNode((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
 - (NSNumber *)sizeForNode:(MEGANode *)node {

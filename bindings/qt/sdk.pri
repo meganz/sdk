@@ -225,18 +225,35 @@ unix:!macx {
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
+    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz
    }
    else {
-    LIBS += -lcurl -lz -lssl -lcrypto -lcares
+    LIBS += -lcurl -lz
    }
 
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a
+   }
+   else {
+    LIBS += -lssl
+   }
+   
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
+   }
+   else {
+    LIBS += -lcrypto 
+   }  
+   
+   LIBS += -lcares
+   
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
    }
    else {
     LIBS += -lsodium
    }
+
 }
 
 macx {

@@ -337,9 +337,11 @@ namespace mega
         void cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener);
         void cancelTransferByTag(int transferTag);
         void cancelTransfers(int direction, MRequestListenerInterface^ listener);
-        void cancelTransfers(int direction);
+        void cancelTransfers(int direction);        
         void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
         void pauseTransfers(bool pause);
+        void pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener);
+        void pauseTransfersDirection(bool pause, int direction);
         void enableTransferResumption(String^ loggedOutId);
         void enableTransferResumption();
         void disableTransferResumption(String^ loggedOutId);

@@ -2665,6 +2665,91 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)pauseTransfers:(BOOL)pause;
 
 /**
+ * @brief Enable the resumption of transfers
+ *
+ * This function enables the cache of transfers, so they can be resumed later.
+ * Additionally, if a previous cache already exists (from previous executions),
+ * then this function also resumes the existing cached transfers.
+ *
+ * @note Cached downloads expire after 10 days since the last time they were active.
+ * @note Cached uploads expire after 24 hours since the last time they were active.
+ * @note Cached transfers related to files that have been modified since they were
+ * added to the cache are discarded, since the file has changed.
+ *
+ * A log in or a log out automatically disables this feature.
+ *
+ * When the MEGASdk object is logged in, the cache of transfers is identified
+ * and protected using the session and the recovery key, so transfers won't
+ * be resumable using a different session or a different account. The
+ * recommended way of using this function to resume transfers for an account
+ * is calling it in the callback onRequestFinish related to [MEGASdk fetchNodes]
+ *
+ * When the MEGASdk object is not logged in, it's still possible to use this
+ * feature. However, since there isn't any available data to identify
+ * and protect the cache, a default identifier and key are used. To improve
+ * the protection of the transfer cache and allow the usage of this feature
+ * with several non logged in instances of MEGASdk at once without clashes,
+ * it's possible to set a custom identifier for the transfer cache in the
+ * optional parameter of this function. If that parameter is used, the
+ * encryption key for the transfer cache will be derived from it.
+ *
+ * @param loggedOutId Identifier for a non logged in instance of MEGASdk.
+ * It doesn't have any effect if MEGASdk is logged in.
+ */
+- (void)enableTransferResumption:(NSString *)loggedOutId;
+
+/**
+ * @brief Enable the resumption of transfers
+ *
+ * This function enables the cache of transfers, so they can be resumed later.
+ * Additionally, if a previous cache already exists (from previous executions),
+ * then this function also resumes the existing cached transfers.
+ *
+ * @note Cached downloads expire after 10 days since the last time they were active.
+ * @note Cached uploads expire after 24 hours since the last time they were active.
+ * @note Cached transfers related to files that have been modified since they were
+ * added to the cache are discarded, since the file has changed.
+ *
+ * A log in or a log out automatically disables this feature.
+ *
+ * When the MEGASdk object is logged in, the cache of transfers is identified
+ * and protected using the session and the recovery key, so transfers won't
+ * be resumable using a different session or a different account. The
+ * recommended way of using this function to resume transfers for an account
+ * is calling it in the callback onRequestFinish related to [MEGASdk fetchNodes]
+ *
+ * When the MEGASdk object is not logged in, it's still possible to use this
+ * feature. However, since there isn't any available data to identify
+ * and protect the cache, a default identifier and key are used. To improve
+ * the protection of the transfer cache and allow the usage of this feature
+ * with several non logged in instances of MEGASdk at once without clashes,
+ * it's possible to set a custom identifier for the transfer cache in the
+ * optional parameter of this function. If that parameter is used, the
+ * encryption key for the transfer cache will be derived from it.
+ */
+- (void)enableTransferResumption;
+
+/**
+ * @brief Disable the resumption of transfers
+ *
+ * This function disables the resumption of transfers and also deletes
+ * the transfer cache if it exists. See also [MEGASdk enableTransferResumption:].
+ *
+ * @param loggedOutId Identifier for a non logged in instance of MEGASdk.
+ * It doesn't have any effect if MEGASdk is logged in.
+ */
+- (void)disableTransferResumption:(NSString *)loggedOutId;
+
+/**
+ * @brief Disable the resumption of transfers
+ *
+ * This function disables the resumption of transfers and also deletes
+ * the transfer cache if it exists. See also [MEGASdk enableTransferResumption:].
+ *
+ */
+- (void)disableTransferResumption;
+
+/**
  * @brief Pause/resume all transfers in one direction (uploads or downloads)
  *
  * The associated request type with this request is MEGARequestTypePauseTransfers
@@ -3185,6 +3270,32 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
+ *
+ * This function only allows to authorize file nodes.
+ *
+ * You can use [MEGASdk startDownloadNode:localPath:] with the resulting node with any instance
+ * of MEGASdk, even if it's logged into another account, a public folder, or not
+ * logged in.
+ *
+ * If the first parameter is a public node or an already authorized node, this
+ * function returns a copy of the node, because it can be already downloaded
+ * with any MEGASdk instance.
+ *
+ * If the node in the first parameter belongs to the account or public folder
+ * in which the current MEGASdk object is logged in, this funtion returns an
+ * authorized node.
+ *
+ * If the first parameter is nil or a node that is not a public node, is not
+ * already authorized and doesn't belong to the current MEGASdk, this function
+ * returns nil.
+ *
+ * @param node MEGANode to authorize
+ * @return Authorized node, or nil if the node can't be authorized or is not a file
+ */
+- (MEGANode *)authorizeNode:(MEGANode *)node;
 
 /**
  * @brief Get the size of a node tree.

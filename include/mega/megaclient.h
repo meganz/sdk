@@ -308,9 +308,6 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
 
-    // fetch the list of chats
-    void fetchChats();
-
     // invite a user to a chat
     void inviteToChat(handle chatid, const char *uid, int priv);
 
@@ -328,6 +325,12 @@ public:
 
     // revoke access to a chat peer to one specific node
     void removeAccessInChat(handle chatid, handle h, const char *uid);
+
+    // update permissions of a peer in a chat
+    void updateChatPermissions(handle chatid, const char *uid, int priv);
+
+    // truncate chat from message id
+    void truncateChat(handle chatid, handle messageid);
 #endif
 
     // toggle global debug flag
@@ -826,6 +829,8 @@ public:
 
     void procsnk(JSON*);
     void procsuk(JSON*);
+
+    void procmcf(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);

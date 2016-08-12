@@ -6060,13 +6060,6 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::fetchChats(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_FETCH, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
@@ -6123,6 +6116,25 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     uid[11] = 0;
 
     request->setEmail(uid);
+    waiter->notify();
+}
+
+void MegaApiImpl::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(uh);
+    request->setAccess(privilege);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_TRUNCATE, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(messageid);
+    requestQueue.push(request);
     waiter->notify();
 }
 #endif
@@ -6712,7 +6724,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    processTree(node, &searchProcessor, recursive);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    {
+        processTree(*it++, &searchProcessor, recursive);
+    }
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
@@ -7065,13 +7080,22 @@ char *strcasestr(const char *string, const char *substring)
 
 bool SearchTreeProcessor::processNode(Node* node)
 {
-	if(!node) return true;
-	if(!search) return false;
+    if (!node)
+    {
+        return true;
+    }
 
-	if(strcasestr(node->displayname(), search)!=NULL)
-		results.push_back(node);
+    if (!search)
+    {
+        return false;
+    }
 
-	return true;
+    if (strcasestr(node->displayname(), search)!=NULL)
+    {
+        results.push_back(node);
+    }
+
+    return true;
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()
@@ -7774,22 +7798,6 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatfetch_result(textchat_vector *chatList, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
-
-    if (!e)
-    {
-        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
-        request->setMegaTextChatList(megaChatList);
-    }
-
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::chatinvite_result(error e)
 {
     MegaError megaError(e);
@@ -7852,6 +7860,36 @@ void MegaApiImpl::chatremoveaccess_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE_ACCESS)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatupdatepermissions_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chattruncate_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_TRUNCATE)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
@@ -12812,11 +12850,6 @@ void MegaApiImpl::sendPendingRequests()
             client->createChat(group, userpriv);
             break;
         }
-        case MegaRequest::TYPE_CHAT_FETCH:
-        {
-            client->fetchChats();
-            break;
-        }
         case MegaRequest::TYPE_CHAT_INVITE:
         {
             handle chatid = request->getNodeHandle();
@@ -12902,6 +12935,38 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->removeAccessInChat(chatid, h, uid);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS:
+        {
+            handle chatid = request->getNodeHandle();
+            handle uh = request->getParentHandle();
+            int access = request->getAccess();
+
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            uid[11] = 0;
+
+            client->updateChatPermissions(chatid, uid, access);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_TRUNCATE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            handle messageid = request->getParentHandle();
+            if (chatid == INVALID_HANDLE || messageid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->truncateChat(chatid, messageid);
             break;
         }
 #endif

@@ -3084,11 +3084,6 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::fetchChats(MegaRequestListener *listener)
-{
-    pImpl->fetchChats(listener);
-}
-
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, listener);
@@ -3112,6 +3107,16 @@ void MegaApi::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  
 void MegaApi::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener)
 {
     pImpl->removeAccessInChat(chatid, n, uh, listener);
+}
+
+void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    pImpl->updateChatPermissions(chatid, uh, privilege, listener);
+}
+
+void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
+{
+    pImpl->truncateChat(chatid, messageid, listener);
 }
 
 #endif
