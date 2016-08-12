@@ -2452,6 +2452,25 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename;
 
 /**
+ * @brief Upload a file with a custom name.
+ * @param localPath Local path of the file.
+ * @param parent Parent node for the file in the MEGA account.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file with a custom name.
+ * @param localPath Local path of the file.
+ * @param parent Parent node for the file in the MEGA account.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData;
+
+/**
  * @brief Download a file from MEGA.
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
