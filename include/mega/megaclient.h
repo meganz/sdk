@@ -368,9 +368,6 @@ public:
     // root URL for API requests
     static string APIURL;
 
-    // root URL for load balancing requests
-    static const char* const BALANCERURL;
-
     // account auth for public folders
     string accountauth;
 
@@ -387,7 +384,6 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
-    HttpReq* loadbalancingcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -804,9 +800,6 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
-    
-    // queue for load balancing requests
-    std::queue<CommandLoadBalancing*> loadbalancingreqs;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
@@ -931,9 +924,6 @@ public:
 
     // hash password
     error pw_key(const char*, byte*) const;
-
-    // load balancing request
-    void loadbalancing(const char *);
 
     // convert hex digit to number
     static int hexval(char);

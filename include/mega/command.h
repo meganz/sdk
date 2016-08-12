@@ -553,16 +553,6 @@ public:
     CommandReportEvent(MegaClient*, const char*, const char*);
 };
 
-class MEGA_API CommandLoadBalancing : public Command
-{
-public:
-    string service;
-
-    void procresult();
-
-    CommandLoadBalancing(MegaClient*, const char*);
-};
-
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
 {
 public:

@@ -878,15 +878,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
 #else
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        if(!MegaClient::disablepkp)
+        if (!MegaClient::disablepkp)
         {
-            if(!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
+            if (!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
             {
                 curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "g.api.mega.co.nz.der");
-            }
-            else if(!req->posturl.compare(0, strlen(MegaClient::BALANCERURL), MegaClient::BALANCERURL))
-            {
-                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "karere-001.developers.mega.co.nz.der");
             }
             else
             {
@@ -1844,16 +1840,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
             if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
                 (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
-            {
-                BN_bn2bin(evp->pkey.rsa->e, buf);
-
-                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
-                {
-                    ok = 1;
-                }
-            }
-            else if (!memcmp(request->posturl.data(), MegaClient::BALANCERURL, strlen(MegaClient::BALANCERURL)) &&
-                     !memcmp(buf, BALANCERMODULUS1, sizeof BALANCERMODULUS1 - 1))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 
