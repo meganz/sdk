@@ -2125,11 +2125,6 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-void MegaApi::loadBalancing(const char *service, MegaRequestListener *listener)
-{
-    pImpl->loadBalancing(service, listener);
-}
-
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
 {
     return pImpl->search(n, searchString, recursive);

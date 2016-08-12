@@ -33,9 +33,6 @@ bool MegaClient::disablepkp = false;
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
-// root URL for the load balancer
-const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
-
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -811,7 +808,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     reqtag = 0;
 
     badhostcs = NULL;
-    loadbalancingcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
     cachedscsn = UNDEF;
@@ -839,7 +835,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
-    delete loadbalancingcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -1354,49 +1349,6 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-        }
-
-        if (loadbalancingcs)
-        {
-            if (loadbalancingcs->status == REQ_FAILURE)
-            {
-                CommandLoadBalancing *command = loadbalancingreqs.front();
-
-                restag = command->tag;
-                app->loadbalancing_result(NULL, API_EFAILED);
-
-                delete loadbalancingcs;
-                loadbalancingcs = NULL;
-
-                delete command;
-                loadbalancingreqs.pop();
-            }
-            else if (loadbalancingcs->status == REQ_SUCCESS)
-            {
-                CommandLoadBalancing *command = loadbalancingreqs.front();
-
-                restag = command->tag;
-                app->loadbalancing_result(&loadbalancingcs->in, API_OK);
-                //json.begin(loadbalancingcs->in.c_str());
-                //command->procresult();
-
-                delete loadbalancingcs;
-                loadbalancingcs = NULL;
-
-                delete command;
-                loadbalancingreqs.pop();
-            }
-        }
-
-        if (!loadbalancingcs && loadbalancingreqs.size())
-        {
-            CommandLoadBalancing *command = loadbalancingreqs.front();
-            loadbalancingcs = new HttpReq();
-            loadbalancingcs->posturl = BALANCERURL;
-            loadbalancingcs->posturl.append("?service=");
-            loadbalancingcs->posturl.append(command->service);
-            loadbalancingcs->type = REQ_JSON;
-            loadbalancingcs->post(this);
         }
 
         // fill transfer slots from the queue
@@ -5017,11 +4969,6 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     delete[] pw;
 
     return API_OK;
-}
-
-void MegaClient::loadbalancing(const char* service)
-{
-    loadbalancingreqs.push(new CommandLoadBalancing(this, service));
 }
 
 // compute generic string hash

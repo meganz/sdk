@@ -1941,7 +1941,6 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
-         * - MegaApi::loadBalancing - Returns the name of the service
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2149,7 +2148,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP JID of the user
-         * - MegaApi::loadBalancing . Returns the response of the server
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -7669,22 +7667,6 @@ class MegaApi
          * @return NULL-terminated Base64 character array
          */
         static char *base32ToBase64(const char *base32);
-
-        /**
-         * @brief loadBalancing Load balancing request
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOAD_BALANCING
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getName - Returns the name of the service
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the response of the server
-         *
-         * @param service Service to get load balancing data
-         * @param listener MegaRequestListener to track this request
-         */
-        void loadBalancing(const char *service, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Function to copy a buffer

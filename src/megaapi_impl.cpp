@@ -6619,14 +6619,6 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
     return result;
 }
 
-void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_BALANCING, listener);
-    request->setName(service);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 const char *MegaApiImpl::getVersion()
 {
     return client->version();
@@ -7470,20 +7462,6 @@ void MegaApiImpl::reportevent_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REPORT_EVENT)) return;
 
-    fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::loadbalancing_result(string *servers, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOAD_BALANCING)) return;
-
-    if(!e)
-    {
-        request->setText(servers->c_str());
-    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -12761,18 +12739,6 @@ void MegaApiImpl::sendPendingRequests()
                 client->getpubkey(email);
             }
 
-            break;
-        }
-        case MegaRequest::TYPE_LOAD_BALANCING:
-        {
-            const char* service = request->getName();
-            if(!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->loadbalancing(service);
             break;
         }
         case MegaRequest::TYPE_KILL_SESSION:

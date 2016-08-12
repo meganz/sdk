@@ -1450,8 +1450,6 @@ class MegaApiImpl : public MegaApp
 
         MegaNode *authorizeNode(MegaNode *node);
 
-        void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
-
         const char *getVersion();
         const char *getUserAgent();
 
@@ -1742,7 +1740,6 @@ protected:
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
-        virtual void loadbalancing_result(string*, error);
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);
