@@ -353,7 +353,7 @@ void Transfer::failed(error e, dstime timeleft)
         slot = NULL;
         client->transfercacheadd(this);
 
-        LOG_debug << "Deferring transfer " << failcount;
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.nextset() * 10) << " ms";
     }
     else
     {
@@ -400,8 +400,21 @@ void Transfer::complete()
         FileFingerprint fingerprint;
         Node* n;
         bool fixfingerprint = false;
+        bool syncxfer = false;
 
-        if (!transient_error && fa->fopen(&localfilename, true, false))
+#ifdef ENABLE_SYNC
+        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        {
+            if ((*it)->syncxfer)
+            {
+                syncxfer = true;
+                break;
+            }
+        }
+#endif
+
+        // enforce the verification of the fingerprint for sync transfers only
+        if (syncxfer && !transient_error && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
 
@@ -428,7 +441,7 @@ void Transfer::complete()
 #ifdef ENABLE_SYNC
         else
         {
-            if (!transient_error)
+            if (syncxfer && !transient_error)
             {
                 transient_error = fa->retry;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
