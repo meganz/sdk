@@ -322,6 +322,7 @@ void Transfer::failed(error e, dstime timeleft)
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
+    client->looprequested = true;
     client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -353,7 +354,7 @@ void Transfer::failed(error e, dstime timeleft)
         slot = NULL;
         client->transfercacheadd(this);
 
-        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.nextset() * 10) << " ms";
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
     }
     else
     {
@@ -693,6 +694,7 @@ void Transfer::complete()
         {
             localfilename = localname;
             finished = true;
+            client->looprequested = true;
             client->app->transfer_complete(this);
             localfilename.clear();
             delete this;

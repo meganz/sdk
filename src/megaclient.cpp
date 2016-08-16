@@ -879,7 +879,15 @@ void MegaClient::exec()
         }
     }
 
-    do {
+    bool first = true;
+    do
+    {
+        if (!first)
+        {
+            WAIT_CLASS::bumpds();
+        }
+        first = false;
+
         looprequested = false;
 
         // file attribute puts (handled sequentially as a FIFO)
@@ -2138,11 +2146,10 @@ bool MegaClient::dispatch(direction_t d)
 
         for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
         {
-            if (!it->second->slot && it->second->bt.armed()
-             && (nextit == transfers[d].end()
-              || it->second->bt.retryin() < nextit->second->bt.retryin()))
+            if (!it->second->slot && it->second->bt.armed())
             {
                 nextit = it;
+                break;
             }
         }
 
@@ -2447,6 +2454,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;    
     t->completefiles();
+    looprequested = true;
     app->transfer_complete(t);
     delete t;
 }
@@ -2468,11 +2476,15 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
     {
         if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset()
-         && it->second->bt.nextset() >= Waiter::ds
-         && it->second->bt.nextset() < *dsmin)
+         && it->second->bt.nextset())
         {
-            *dsmin = it->second->bt.nextset();
+            it->second->bt.update(dsmin);
+            if (it->second->bt.armed())
+            {
+                // fire the timer only once but keeping it armed
+                it->second->bt.set(0);
+                LOG_debug << "Disabling armed transfer backoff";
+            }
         }
     }
 }
@@ -9909,6 +9921,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);
+            looprequested = true;
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
@@ -9943,6 +9956,7 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            looprequested = true;
             transfer->finished = true;
             app->transfer_removed(transfer);
             delete transfer;
