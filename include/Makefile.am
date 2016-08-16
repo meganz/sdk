@@ -57,8 +57,7 @@ endif
 
 if ANDROID
 nobase_libmegainclude_HEADERS += \
-	mega/config-android.h \
-	third_party/glob/glob.h
+	mega/config-android.h 
 endif
 
 if WIN32

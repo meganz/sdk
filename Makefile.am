@@ -61,7 +61,7 @@ if BUILD_JAVA
 include bindings/java/include.am
 endif
 
-SUBDIRS = include
+SUBDIRS = include third_party
 
 EXTRA_DIST += autogen.sh
 EXTRA_DIST += libmega.pc.in
