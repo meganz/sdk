@@ -615,6 +615,9 @@ freeimage_pkg() {
     fi
 
     package_extract $name $freeimage_file $freeimage_dir_extract
+    
+    #patch to fix problem with raw strings
+    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
