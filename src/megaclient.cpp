@@ -692,7 +692,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
-    totalLocalNodes = 0;
 
     if (syncscanstate)
     {
