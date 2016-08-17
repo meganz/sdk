@@ -678,6 +678,7 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
+    totalNodes = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -691,6 +692,7 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
+    totalLocalNodes = 0;
 
     if (syncscanstate)
     {
@@ -745,6 +747,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncscanstate = false;
     syncadding = 0;
     currsyncid = 0;
+    totalLocalNodes = 0;
 #endif
 
     pendingcs = NULL;
@@ -2622,6 +2625,7 @@ void MegaClient::locallogout()
 
 #ifdef ENABLE_SYNC
     syncadding = 0;
+    totalLocalNodes = 0;
 #endif
 
 #ifdef ENABLE_CHAT
@@ -4591,6 +4595,8 @@ void MegaClient::notifypurge(void)
         chatnotify.clear();
     }
 #endif
+
+    totalNodes = nodes.size();
 }
 
 // return node pointer derived from node handle

@@ -637,6 +637,9 @@ public:
     bool fetchingnodes;
     int fetchnodestag;
 
+    // total number of Node objects
+    long long totalNodes;
+
     // server-client request sequence number
     char scsn[12];
 
@@ -735,6 +738,9 @@ public:
 
     // number of sync-initiated putnodes() in progress
     int syncadding;
+
+    // total number of LocalNode objects
+    long long totalLocalNodes;
 
     // sync id dispatch
     handle nextsyncid();

@@ -1359,6 +1359,7 @@ class MegaApiImpl : public MegaApp
         void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
+        long long getNumLocalNodes();
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
@@ -1374,6 +1375,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
 

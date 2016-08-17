@@ -5616,6 +5616,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     return result;
 }
 
+long long MegaApiImpl::getNumLocalNodes()
+{
+    return client->totalLocalNodes;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()
@@ -12964,6 +12969,11 @@ void MegaApiImpl::updateStats()
     pendingDownloads = client->transfers[0].size();
     pendingUploads = client->transfers[1].size();
     sdkMutex.unlock();
+}
+
+long long MegaApiImpl::getNumNodes()
+{
+    return client->totalNodes;
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()

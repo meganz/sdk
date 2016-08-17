@@ -6597,6 +6597,12 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the total number of local nodes in the account
+         * @return Total number of local nodes in the account
+         */
+        long long getNumLocalNodes();
 #endif
 
         /**
@@ -6698,6 +6704,12 @@ class MegaApi
          *
          */
         void updateStats();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         * @return Total number of nodes in the account
+         */
+        long long getNumNodes();
 
         enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,

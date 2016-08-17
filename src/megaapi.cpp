@@ -1840,6 +1840,11 @@ string MegaApi::getLocalPath(MegaNode *n)
     return pImpl->getLocalPath(n);
 }
 
+long long MegaApi::getNumLocalNodes()
+{
+    return pImpl->getNumLocalNodes();
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -2350,6 +2355,11 @@ MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
 void MegaApi::updateStats()
 {
     pImpl->updateStats();
+}
+
+long long MegaApi::getNumNodes()
+{
+    return pImpl->getNumNodes();
 }
 
 long long MegaApi::getTotalDownloadedBytes()
