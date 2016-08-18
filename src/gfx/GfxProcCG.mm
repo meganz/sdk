@@ -268,3 +268,7 @@ void ios_statsid(std::string *statsid) {
         }
     }
 }
+
+void ios_appbasepath(std::string *appbasepath) {
+    appbasepath->assign([NSHomeDirectory() UTF8String]);
+}
