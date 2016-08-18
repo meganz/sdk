@@ -4633,7 +4633,11 @@ Node* MegaClient::sc_deltree()
                 if (n)
                 {
                     TreeProcDel td;
+
+                    int creqtag = reqtag;
+                    reqtag = 0;
                     proctree(n, &td);
+                    reqtag = creqtag;
                 }
                 return n;
 
