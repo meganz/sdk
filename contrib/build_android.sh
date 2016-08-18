@@ -50,7 +50,7 @@ export HOSTCC=gcc
 
 #GNU STL
 export ANDROID_STL_INC="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/include"
-export ANDROID_STL_INC2="/home/mega/tools/android-ndk-r12b/sources/cxx-stl/gnu-libstdc++/4.9/libs/armeabi/include"
+export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/android-ndk-r12b/sources/cxx-stl/gnu-libstdc++/4.9/libs/armeabi/include"
 export GNUSTL_LIB=libgnustl_static.a
 export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/libs/armeabi/$ANDROID_GNUSTL_LIB"
 
