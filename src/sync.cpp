@@ -126,6 +126,7 @@ Sync::~Sync()
     }
 
     delete statecachetable;
+    delete dirnotify;
 
     client->syncs.erase(sync_it);
     client->syncactivity = true;
