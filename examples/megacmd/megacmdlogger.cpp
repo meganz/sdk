@@ -73,3 +73,9 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
             OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel))<< "] " << message << endl;
     }
 }
+
+int MegaCMDLogger::getMaxLogLevel()
+{
+    return max(max(getCurrentThreadLogLevel(),cmdLoggerLevel),apiLoggerLevel);
+}
+

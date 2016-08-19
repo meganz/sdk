@@ -222,45 +222,47 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     }
     else //initial update or too many changes
     {
-        //TODO: check if log level is info (otherwise, do not count files)
-        MegaNode * nodeRoot= api->getRootNode();
-        int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete nodeRoot;
-
-        MegaNode * inboxNode= api->getInboxNode();
-        nFolderFiles = getNumFolderFiles(inboxNode,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete inboxNode;
-
-        MegaNode * rubbishNode= api->getRubbishNode();
-        nFolderFiles = getNumFolderFiles(rubbishNode,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete rubbishNode;
-
-        MegaNodeList *inshares = api->getInShares();
-        if (inshares)
-        for (int i=0; i<inshares->size();i++)
+        if (loggerCMD->getMaxLogLevel() >= logInfo)
         {
-            nfolders++; //add the share itself
-            nFolderFiles = getNumFolderFiles(inshares->get(i),api);
+            MegaNode * nodeRoot= api->getRootNode();
+            int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
             nfolders+=nFolderFiles[0];
             nfiles+=nFolderFiles[1];
             delete []nFolderFiles;
-        }
-        delete inshares;
-    }
+            delete nodeRoot;
 
-    if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
-    if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
-    if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
-    if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
+            MegaNode * inboxNode= api->getInboxNode();
+            nFolderFiles = getNumFolderFiles(inboxNode,api);
+            nfolders+=nFolderFiles[0];
+            nfiles+=nFolderFiles[1];
+            delete []nFolderFiles;
+            delete inboxNode;
+
+            MegaNode * rubbishNode= api->getRubbishNode();
+            nFolderFiles = getNumFolderFiles(rubbishNode,api);
+            nfolders+=nFolderFiles[0];
+            nfiles+=nFolderFiles[1];
+            delete []nFolderFiles;
+            delete rubbishNode;
+
+            MegaNodeList *inshares = api->getInShares();
+            if (inshares)
+            for (int i=0; i<inshares->size();i++)
+            {
+                nfolders++; //add the share itself
+                nFolderFiles = getNumFolderFiles(inshares->get(i),api);
+                nfolders+=nFolderFiles[0];
+                nfiles+=nFolderFiles[1];
+                delete []nFolderFiles;
+            }
+            delete inshares;
+        }
+
+        if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
+        if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
+        if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
+        if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
+    }
 }
 
 // global listener
@@ -2355,9 +2357,9 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
 
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
-        LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString();
+        LOG_err << "Login failed: invalid email or password";
     }
-    else //login success:
+    else if(srl->getError()->getErrorCode() == MegaError::API_OK) //login success:
     {
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
 
@@ -2365,6 +2367,10 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
         ConfigurationManager::saveSession(session);
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
+    }
+    else //TODO: complete error control
+    {
+        LOG_err << "Login failed: " << srl->getError()->getErrorString();
     }
 }
 
