@@ -1729,7 +1729,6 @@ static void nodepath(handle h, string* path)
 {
     path->clear();
 
-    //TODO: modify using API
     if ( rootNode  && (h == rootNode->getHandle()) )
     {
         *path = "/";
@@ -1738,7 +1737,6 @@ static void nodepath(handle h, string* path)
 
     MegaNode* n = api->getNodeByHandle(h);
 
-    //TODO: modify using API
     while (n)
     {
         switch (n->getType())

@@ -25,7 +25,7 @@ int ComunicationsManager::create_new_socket(int *sockId){
     char socket_path[60];
     *sockId=get_next_outSocket_id();
     bzero(socket_path,sizeof(socket_path)*sizeof(*socket_path));
-    sprintf(socket_path, "/tmp/megaCMD/srv_%d", *sockId);
+    sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), *sockId);
 
     struct sockaddr_un addr;
     socklen_t saddrlen = sizeof(addr);
@@ -73,17 +73,22 @@ ComunicationsManager::ComunicationsManager(){
     initialize();
 }
 
-void ComunicationsManager::initialize(){
+int ComunicationsManager::initialize(){
     mtx->init(false);
 
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-    string socketsFolder = "/tmp/megaCMD";
+    char csocketsFolder[19]; // enough to hold all numbers up to 64-bits
+    sprintf(csocketsFolder, "/tmp/megaCMD_%d", getuid());
+    string socketsFolder = csocketsFolder;
+
     int oldPermissions = fsAccess->getdefaultfolderpermissions();
     fsAccess->setdefaultfolderpermissions(0700);
     fsAccess->rmdirlocal(&socketsFolder);
+    LOG_debug << "CREATING sockets folder: " << socketsFolder << "!!!";
+
     if ( !fsAccess->mkdirlocal(&socketsFolder,false))
     {
-        LOG_fatal << "ERROR CREATING sockets folder";
+        LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": "<< errno;
     }
     fsAccess->setdefaultfolderpermissions(oldPermissions);
 
@@ -110,9 +115,12 @@ void ComunicationsManager::initialize(){
     socklen_t saddrlen = sizeof(addr);
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    const char * socketPath = "/tmp/megaCMD/srv";
-    strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
 
+    char socketPath[60];
+    bzero(socketPath,sizeof(socketPath)*sizeof(*socketPath));
+    sprintf(socketPath, "/tmp/megaCMD_%d/srv", getuid());
+
+    strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
 
     unlink(socketPath);
 
@@ -148,14 +156,18 @@ void ComunicationsManager::initialize(){
         }
         else
         {
-            LOG_fatal << "ERROR on binding socket: " << errno;
+            LOG_fatal << "ERROR on binding socket: " << socketPath << ": " << errno;
             sockfd=-1;
         }
-
     }
     else
     {
-       listen(sockfd,150);
+       int returned = listen(sockfd,150); //TODO: check errors?
+       if (returned)
+       {
+           LOG_fatal << "ERROR on listen socket initializing communications manager: " << socketPath << ": " << errno;
+           return errno;
+       }
     }
 }
 
@@ -168,7 +180,7 @@ bool ComunicationsManager::receivedPetition()
     return FD_ISSET(sockfd, &fds);
 }
 
-void ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
+int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
 {
     FD_ZERO(&fds);
     FD_SET(readline_fd, &fds);
@@ -180,9 +192,10 @@ void ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
         if (errno  != EINTR) //syscall
         {
             LOG_fatal << "Error at select: " << errno;
-            //TODO: return?
+            return errno;
         }
     }
+    return 0;
 }
 
 /**
