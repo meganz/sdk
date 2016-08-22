@@ -50,6 +50,7 @@
 ../../include/mega/json.h
 ../../include/mega/logging.h
 ../../include/mega/mega_utf8proc.h
+../../include/mega/mega_glob.h
 ../../include/mega/megaapp.h
 ../../include/mega/megaclient.h
 ../../include/mega/node.h
@@ -132,8 +133,6 @@
 ../../tests/paycrypt_test.cpp
 ../../tests/tests.cpp
 ../../tests/sdk_test.cpp
-../../third_party/glob/glob.c
-../../third_party/glob/glob.h
 ../../Makefile
 
 ../../tests/sdktests.cpp
