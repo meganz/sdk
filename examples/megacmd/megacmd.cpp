@@ -222,45 +222,47 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     }
     else //initial update or too many changes
     {
-        //TODO: check if log level is info (otherwise, do not count files)
-        MegaNode * nodeRoot= api->getRootNode();
-        int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete nodeRoot;
-
-        MegaNode * inboxNode= api->getInboxNode();
-        nFolderFiles = getNumFolderFiles(inboxNode,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete inboxNode;
-
-        MegaNode * rubbishNode= api->getRubbishNode();
-        nFolderFiles = getNumFolderFiles(rubbishNode,api);
-        nfolders+=nFolderFiles[0];
-        nfiles+=nFolderFiles[1];
-        delete []nFolderFiles;
-        delete rubbishNode;
-
-        MegaNodeList *inshares = api->getInShares();
-        if (inshares)
-        for (int i=0; i<inshares->size();i++)
+        if (loggerCMD->getMaxLogLevel() >= logInfo)
         {
-            nfolders++; //add the share itself
-            nFolderFiles = getNumFolderFiles(inshares->get(i),api);
+            MegaNode * nodeRoot= api->getRootNode();
+            int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
             nfolders+=nFolderFiles[0];
             nfiles+=nFolderFiles[1];
             delete []nFolderFiles;
-        }
-        delete inshares;
-    }
+            delete nodeRoot;
 
-    if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
-    if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
-    if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
-    if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
+            MegaNode * inboxNode= api->getInboxNode();
+            nFolderFiles = getNumFolderFiles(inboxNode,api);
+            nfolders+=nFolderFiles[0];
+            nfiles+=nFolderFiles[1];
+            delete []nFolderFiles;
+            delete inboxNode;
+
+            MegaNode * rubbishNode= api->getRubbishNode();
+            nFolderFiles = getNumFolderFiles(rubbishNode,api);
+            nfolders+=nFolderFiles[0];
+            nfiles+=nFolderFiles[1];
+            delete []nFolderFiles;
+            delete rubbishNode;
+
+            MegaNodeList *inshares = api->getInShares();
+            if (inshares)
+            for (int i=0; i<inshares->size();i++)
+            {
+                nfolders++; //add the share itself
+                nFolderFiles = getNumFolderFiles(inshares->get(i),api);
+                nfolders+=nFolderFiles[0];
+                nfiles+=nFolderFiles[1];
+                delete []nFolderFiles;
+            }
+            delete inshares;
+        }
+
+        if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
+        if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
+        if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
+        if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
+    }
 }
 
 // global listener
@@ -337,6 +339,159 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"quit") ) return "quit";
     return "command not found";
 }
+
+
+string getHelpStr(const char *command)
+{
+    ostringstream os;
+
+    os << getUsageStr(command) << endl;
+    if(!strcmp(command,"login") )
+    {
+        os << "Logs in. Either with email and password, with session ID, or into an exportedfolder"
+                                        << " If login into an exported folder indicate url#key" << endl;
+    }
+//    if(!strcmp(command,"begin") ) return "begin [ephemeralhandle#ephemeralpw]";
+//    if(!strcmp(command,"signup") ) return "signup [email name|confirmationlink]";
+//    if(!strcmp(command,"confirm") ) return "confirm";
+    else if(!strcmp(command,"session") )
+    {
+        os << "Prints (secret) session ID" << endl;
+    }
+    else if(!strcmp(command,"mount") )
+    {
+        os << "Lists all the main nodes" << endl;
+    }
+    else if(!strcmp(command,"ls") )
+    {
+        os << "Lists files in a remote folder" << endl;
+        os << endl;
+        os << "Opciones:" << endl;
+        os << " -R" << "\t" << "list folders recursively" << endl;
+    }
+    else if(!strcmp(command,"cd") )
+    {
+        os << "Changes the current remote folder" << endl;
+        os << endl;
+        os << "If no folder is provided, it will be changed to the root folder" << endl;
+    }
+    else if(!strcmp(command,"pwd") )
+    {
+        os << "Prints the current remote folder" << endl;
+    }
+    else if(!strcmp(command,"lcd") )
+    {
+        os << "Changes the current local folder for the interactive console" << endl;
+        os << endl;
+        os << "It will be used for uploads and downloads" << endl;
+        os << endl;
+        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+    }
+    else if(!strcmp(command,"lpwd") )
+    {
+        os << "Prints the current local folder for the interactive console" << endl;
+        os << endl;
+        os << "It will be used for uploads and downloads" << endl;
+        os << endl;
+        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+    }
+    else if(!strcmp(command,"logout") )
+    {
+        os << "Logs out, invalidating the session and the local caches" << endl;
+    }
+//    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
+//    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
+//    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
+//    if(!strcmp(command,"get") ) return "get remotepath [offset [length]]";
+//    if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
+//    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
+//    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
+//    if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
+    else if(!strcmp(command,"mkdir") )
+    {
+        os << "Creates a directory or a directories hierarchy" << endl;
+    }
+    else if(!strcmp(command,"rm") )
+    {
+        os << "Recursively deletes a remote file/folder and all its descendents" << endl;
+    }
+    else if(!strcmp(command,"mv") )
+    {
+        os << "Moves a file/folder into a new location (all remotes)" << endl;
+        os << endl;
+        os << "If the location exists and is a folder, the source will be moved there" << endl;
+        os << "If the location doesn't exits, the source will be renamed to the defined destiny" << endl;
+    }
+    else if(!strcmp(command,"cp") )
+    {
+        os << "Moves a file/folder into a new location (all remotes)" << endl;
+        os << endl;
+        os << "If the location exists and is a folder, the source will be copied there" << endl;
+        os << "If the location doesn't exits, the file/folder will be renamed to the defined destiny" << endl;
+    }
+    else if(!strcmp(command,"sync") )
+    {
+        os << "Controls synchronizations" << endl;
+        os << endl;
+        os << "If no argument is provided, it lists current synchronization with their IDs and their state" << endl;
+        os << endl;
+        os << "If provided local and remote paths, it will start synchronizing a local folder into a remote folder" << endl;
+        os << endl;
+        os << "If an ID is provided, it will list such synchronization with its state, unless an option is specified:" << endl;
+        os << "-d" << " " << "ID " << "\t" << "deletes a synchronization" << endl;
+        os << "-s" << " " << "ID " << "\t" << "stops(pauses) a synchronization" << endl;
+    }
+//    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
+//    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+//    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
+//    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
+//    if(!strcmp(command,"showpcr") ) return "showpcr";
+//    if(!strcmp(command,"users") ) return "users";
+//    if(!strcmp(command,"getua") ) return "getua attrname [email]";
+//    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
+//    if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
+//    if(!strcmp(command,"killsession") ) return "killsession [all|sessionid]";
+    else if(!strcmp(command,"whoami") )
+    {
+        os << "Print info of the user" << endl;
+        os << endl;
+        os << "It will report info like total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
+    }
+//    if(!strcmp(command,"passwd") ) return "passwd";
+//    if(!strcmp(command,"retry") ) return "retry";
+//    if(!strcmp(command,"recon") ) return "recon";
+    if(!strcmp(command,"reload") )
+    {
+        os << "Forces a reload of the remote files of the user" << endl;
+    }
+    return "reload";
+//    if(!strcmp(command,"logout") ) return "logout";
+//    if(!strcmp(command,"locallogout") ) return "locallogout";
+//    if(!strcmp(command,"symlink") ) return "symlink";
+    if(!strcmp(command,"version") )
+    {
+        os << "Prints MEGA SDK version" << endl;
+    }
+//    if(!strcmp(command,"debug") ) return "debug";
+//    if(!strcmp(command,"chatf") ) return "chatf ";
+//    if(!strcmp(command,"chatc") ) return "chatc group [email ro|rw|full|op]*";
+//    if(!strcmp(command,"chati") ) return "chati chatid email ro|rw|full|op";
+//    if(!strcmp(command,"chatr") ) return "chatr chatid [email]";
+//    if(!strcmp(command,"chatu") ) return "chatu chatid";
+//    if(!strcmp(command,"chatga") ) return "chatga chatid nodehandle uid";
+//    if(!strcmp(command,"chatra") ) return "chatra chatid nodehandle uid";
+    if(!strcmp(command,"quit") )
+    {
+        os << "Quits" << endl;
+        os << endl;
+        os << "Notice that the session will still be active, and local caches available" << endl;
+        os << "The session will be resumed when the service is restarted" << endl;
+    }
+
+
+    return os.str();
+}
+
 
 //AppFile::AppFile()
 //{
@@ -1165,7 +1320,7 @@ string getCurrentLocalPath(){ //TODO: move all this into PosixFileSystemAccess
     {
         LOG_err << "Couldn't read cwd";
         return "";
-    };
+    }
 
     return string(cCurrentPath);
 }
@@ -1574,7 +1729,6 @@ static void nodepath(handle h, string* path)
 {
     path->clear();
 
-    //TODO: modify using API
     if ( rootNode  && (h == rootNode->getHandle()) )
     {
         *path = "/";
@@ -1583,7 +1737,6 @@ static void nodepath(handle h, string* path)
 
     MegaNode* n = api->getNodeByHandle(h);
 
-    //TODO: modify using API
     while (n)
     {
         switch (n->getType())
@@ -1758,7 +1911,8 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
         if (percentFetchnodes <0) percentFetchnodes = 0;
 
         char aux[40];
-        if (request->getTransferredBytes()==3) return; // after a 100% this happens
+        if (request->getTotalBytes()<0) return; // after a 100% this happens
+        if (request->getTransferredBytes()<0.001*request->getTotalBytes()) return; // after a 100% this happens
         sprintf(aux,"||(%lld/%lld MB: %.2f %%) ",request->getTransferredBytes()/1024/1024,request->getTotalBytes()/1024/1024,percentFetchnodes);
         sprintf(outputString+cols-strlen(aux),"%s",aux);
         for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
@@ -2201,9 +2355,9 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
 
     if (srl->getError()->getErrorCode() == MegaError::API_ENOENT) // failed to login
     {
-        LOG_err << "actUponLogin login failed: invalid email or password: " << srl->getError()->getErrorString();
+        LOG_err << "Login failed: invalid email or password";
     }
-    else //login success:
+    else if(srl->getError()->getErrorCode() == MegaError::API_OK) //login success:
     {
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
 
@@ -2211,6 +2365,10 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
         ConfigurationManager::saveSession(session);
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
+    }
+    else //TODO: complete error control
+    {
+        LOG_err << "Login failed: " << srl->getError()->getErrorString();
     }
 }
 
@@ -2684,7 +2842,7 @@ static void process_line(char* l)
             map<string,string> cloptions;
             map<string,int> clflags;
 
-            string validGlobalParameters[]={"v"};
+            string validGlobalParameters[]={"v","help"};
             set<string> validParams(validGlobalParameters,validGlobalParameters + sizeof(validGlobalParameters)/sizeof(*validGlobalParameters));
             if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams,true) ) return;
 
@@ -2703,6 +2861,12 @@ static void process_line(char* l)
             if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
 
             setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v"));
+
+            if(getFlag(&clflags,"help")) {
+                string h = getHelpStr(words[0].c_str()) ;
+                 OUTSTREAM << getHelpStr(words[0].c_str()) << endl;
+                 return;
+            }
 
 
                     if (words[0] == "ls")
@@ -3805,7 +3969,7 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                OUTSTREAM << "      mkdir remotepath" << endl; //TODO: print usage specific command
+                                OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
                             }
                         }
                         else

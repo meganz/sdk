@@ -34,6 +34,8 @@ public:
     void setCmdLoggerLevel(int cmdLoggerLevel){
         this->cmdLoggerLevel=cmdLoggerLevel;
     }
+
+    int getMaxLogLevel();
 };
 
 #endif // MEGACMDLOGGER_H

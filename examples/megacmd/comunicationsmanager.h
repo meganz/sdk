@@ -36,13 +36,13 @@ private:
 public:
     ComunicationsManager();
 
-    void initialize();
+    int initialize();
 
     bool receivedReadlineInput (int readline_fd);
 
     bool receivedPetition();
 
-    void waitForPetitionOrReadlineInput(int readline_fd);
+    int waitForPetitionOrReadlineInput(int readline_fd);
 
     /**
      * @brief returnAndClosePetition
