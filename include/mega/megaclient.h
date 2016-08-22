@@ -923,9 +923,6 @@ public:
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
 
-    // set folder authentication, in addition to the session ID (for exported folder nodes)
-    void setfolderauth(handle);
-
     // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
     handle getrootpublicfolder();
 

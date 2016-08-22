@@ -230,6 +230,4 @@ struct DemoAppFolder : public DemoApp
     void nodes_updated(Node **, int);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
-
-
 };

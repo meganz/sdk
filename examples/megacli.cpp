@@ -2379,18 +2379,17 @@ static void process_line(char* l)
                                     {
                                         f = new AppFileGet(n);
 
+                                        string::size_type index = words[1].find(":");
                                         // node from public folder link
-                                        if (words[1].find(":") != string::npos)
+                                        if (index != string::npos && words[1].substr(0, index).find("@") == string::npos)
                                         {
                                             handle h = clientFolder->getpublicfolderhandle();
                                             char *pubauth = new char[12];
                                             Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
-
+                                            f->pubauth = pubauth;
                                             f->hprivate = true;
                                             f->hforeign = true;
                                             memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
-
-                                            client->setfolderauth(h);
                                         }
 
                                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
@@ -2566,8 +2565,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            const char* ptr;
-                            if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
+                            if (strstr(words[1].c_str(), "#F!"))  // folder link indicator
                             {
                                 if (!clientFolder)
                                 {
@@ -4932,7 +4930,6 @@ void megacli()
             {
                 break;
             }
-
         }
 
         // save line
