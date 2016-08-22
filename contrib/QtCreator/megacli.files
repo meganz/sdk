@@ -110,6 +110,7 @@
 ../../src/http.cpp
 ../../src/json.cpp
 ../../src/logging.cpp
+../../src/mega_glob.c
 ../../src/mega_utf8proc.cpp
 ../../src/mega_utf8proc_data.c
 ../../src/megaapi.cpp
