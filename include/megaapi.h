@@ -8100,8 +8100,8 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
          * - MegaTextChatPeerList::PRIV_RM = -1
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_FULL = 2
-         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);

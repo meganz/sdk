@@ -483,7 +483,7 @@ void Transfer::complete()
                         }
                     }
 
-                    if (fingerprint.isvalid && (!n->isvalid || fixfingerprint)
+                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
                             && fingerprint.size == n->size)
                     {
                         *(FileFingerprint*)n = fingerprint;
