@@ -1,5 +1,7 @@
 #ifdef SWIGJAVA
 #define __ANDROID__
+#define USE_LIBUV
+#define ENABLE_CHAT
 #endif
 
 %module(directors="1") mega
@@ -183,6 +185,7 @@
 %newobject mega::MegaApi::getMyUserHandle;
 %newobject mega::MegaApi::getMyUser;
 %newobject mega::MegaApi::getMyXMPPJid;
+%newobject mega::MegaApi::getMyFingerprint;
 %newobject mega::MegaApi::exportMasterKey;
 %newobject mega::MegaApi::getTransfers;
 %newobject mega::MegaApi::getTransferByTag;
