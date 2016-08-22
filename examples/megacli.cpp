@@ -2383,7 +2383,7 @@ static void process_line(char* l)
                                         // node from public folder link
                                         if (index != string::npos && words[1].substr(0, index).find("@") == string::npos)
                                         {
-                                            handle h = clientFolder->getpublicfolderhandle();
+                                            handle h = clientFolder->getrootpublicfolder();
                                             char *pubauth = new char[12];
                                             Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
                                             f->pubauth = pubauth;
