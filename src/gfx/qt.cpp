@@ -349,11 +349,11 @@ bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
 {
 #ifdef _WIN32
     localname->append("", 1);
-    QString imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
+    imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
     if(imagePath.startsWith(QString::fromUtf8("\\\\?\\")))
         imagePath = imagePath.mid(4);
 #else
-    QString imagePath = QString::fromUtf8(localname->c_str());
+    imagePath = QString::fromUtf8(localname->c_str());
 #endif
 
     image = readbitmapQT(w, h, orientation, imagePath);
@@ -362,12 +362,23 @@ bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
     localname->resize(localname->size()-1);
 #endif
 
-    return (image!=NULL);
+    return (image != NULL);
 }
 
 bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 {
+    if (!image)
+    {
+        image = readbitmapQT(w, h, orientation, imagePath);
+        if (!image)
+        {
+            return false;
+        }
+    }
+
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
+    delete image;
+    image = NULL;
     if(result.isNull()) return false;
     jpegout->clear();
 
@@ -465,7 +476,12 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
     }
 
     QImage result = image->read();
-    if(result.isNull()) return result;
+    if (result.isNull())
+    {
+        LOG_err << "Error reading image: " << image->errorString().toStdString();
+        return result;
+    }
+
     image->device()->seek(0);
 
     QTransform transform;

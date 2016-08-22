@@ -308,9 +308,6 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
 
-    // fetch the list of chats
-    void fetchChats();
-
     // invite a user to a chat
     void inviteToChat(handle chatid, const char *uid, int priv);
 
@@ -328,6 +325,12 @@ public:
 
     // revoke access to a chat peer to one specific node
     void removeAccessInChat(handle chatid, handle h, const char *uid);
+
+    // update permissions of a peer in a chat
+    void updateChatPermissions(handle chatid, const char *uid, int priv);
+
+    // truncate chat from message id
+    void truncateChat(handle chatid, handle messageid);
 #endif
 
     // toggle global debug flag
@@ -368,9 +371,6 @@ public:
     // root URL for API requests
     static string APIURL;
 
-    // root URL for load balancing requests
-    static const char* const BALANCERURL;
-
     // account auth for public folders
     string accountauth;
 
@@ -387,7 +387,6 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
-    HttpReq* loadbalancingcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -638,6 +637,9 @@ public:
     bool fetchingnodes;
     int fetchnodestag;
 
+    // total number of Node objects
+    long long totalNodes;
+
     // server-client request sequence number
     char scsn[12];
 
@@ -737,6 +739,9 @@ public:
     // number of sync-initiated putnodes() in progress
     int syncadding;
 
+    // total number of LocalNode objects
+    long long totalLocalNodes;
+
     // sync id dispatch
     handle nextsyncid();
     handle currsyncid;
@@ -804,9 +809,6 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
-    
-    // queue for load balancing requests
-    std::queue<CommandLoadBalancing*> loadbalancingreqs;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
@@ -826,6 +828,8 @@ public:
 
     void procsnk(JSON*);
     void procsuk(JSON*);
+
+    void procmcf(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
@@ -931,9 +935,6 @@ public:
 
     // hash password
     error pw_key(const char*, byte*) const;
-
-    // load balancing request
-    void loadbalancing(const char *);
 
     // convert hex digit to number
     static int hexval(char);

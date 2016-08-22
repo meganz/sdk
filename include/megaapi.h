@@ -1256,9 +1256,8 @@ public:
         PRIV_UNKNOWN = -2,
         PRIV_RM = -1,
         PRIV_RO = 0,
-        PRIV_RW = 1,
-        PRIV_FULL = 2,
-        PRIV_OPERATOR = 3
+        PRIV_STANDARD = 2,
+        PRIV_MODERATOR = 3
     };
 
     /**
@@ -1771,7 +1770,8 @@ class MegaRequest
             TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
-            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE
         };
 
         virtual ~MegaRequest();
@@ -1941,7 +1941,6 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
-         * - MegaApi::loadBalancing - Returns the name of the service
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2149,7 +2148,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP JID of the user
-         * - MegaApi::loadBalancing . Returns the response of the server
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -2284,7 +2282,6 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::createChat - Returns the new chat's information
-         * - MegaApi::fetchChat - Returns the list of chats
          *
          * @return List of chats
          */
@@ -3438,6 +3435,8 @@ class MegaGlobalListener
 #ifdef ENABLE_CHAT
         /**
          * @brief This function is called when there are new or updated chats
+         *
+         * This callback is also used to initialize the list of chats available during the fetchnodes request.
          *
          * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
          * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
@@ -6598,6 +6597,12 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the total number of local nodes in the account
+         * @return Total number of local nodes in the account
+         */
+        long long getNumLocalNodes();
 #endif
 
         /**
@@ -6699,6 +6704,12 @@ class MegaApi
          *
          */
         void updateStats();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         * @return Total number of nodes in the account
+         */
+        long long getNumNodes();
 
         enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
@@ -7670,22 +7681,6 @@ class MegaApi
         static char *base32ToBase64(const char *base32);
 
         /**
-         * @brief loadBalancing Load balancing request
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOAD_BALANCING
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getName - Returns the name of the service
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the response of the server
-         *
-         * @param service Service to get load balancing data
-         * @param listener MegaRequestListener to track this request
-         */
-        void loadBalancing(const char *service, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Function to copy a buffer
          *
          * The new buffer is allocated by new[] so you should release
@@ -8090,19 +8085,6 @@ class MegaApi
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Fetches the full list of current chats for the requesting user.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaTextChatList - Returns the list of chats
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchChats(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat.
          *
@@ -8118,9 +8100,8 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
          * - MegaTextChatPeerList::PRIV_RM = -1
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_RW = 1
-         * - MegaTextChatPeerList::PRIV_FULL = 2
-         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
@@ -8190,6 +8171,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to adjust the permissions on any other user
+         * in their group chat. This does not work for a 1:1 chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user whose permission
+         * is to be upgraded
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the existing peer. Valid values are:
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to truncate their chat, i.e. to clear
+         * the entire chat history up to a certain message. All earlier messages are wiped,
+         * but his specific message gets overridden with an API message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_TRUNCATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the message identifier to truncate from.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param messageid MegaHandle that identifies the message to truncate from
+         * @param listener MegaRequestListener to track this request
+         */
+        void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
 #endif
 
 private:

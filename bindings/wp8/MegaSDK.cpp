@@ -2156,6 +2156,16 @@ void MegaSDK::pauseTransfers(bool pause)
 	megaApi->pauseTransfers(pause);
 }
 
+void MegaSDK::pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener)
+{
+    megaApi->pauseTransfers(pause, direction, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::pauseTransfersDirection(bool pause, int direction)
+{
+    megaApi->pauseTransfers(pause, direction);
+}
+
 void MegaSDK::enableTransferResumption(String^ loggedOutId)
 {
     std::string utf8loggedOutId;
