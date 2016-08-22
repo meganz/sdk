@@ -49,7 +49,7 @@ public:
     void proc(MegaClient*, Node*);
 };
 
-class TreeProcListOutShares : public TreeProc
+class MEGA_API TreeProcListOutShares : public TreeProc
 {
 public:
     void proc(MegaClient*, Node*);

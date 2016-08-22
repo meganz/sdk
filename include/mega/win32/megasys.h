@@ -24,7 +24,7 @@
 
 #ifdef HAVE_CONFIG_H
   // platform dependent constants
-  #include "../config.h"
+  #include "mega/config.h"
 #endif
 
 // FIXME: move to autoconf
