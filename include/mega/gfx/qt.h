@@ -48,8 +48,8 @@ class MEGA_API GfxProcQT : public GfxProc
     };
 
     QImageReader *image;
+    QString imagePath;
     int orientation;
-    int w, h;
 
     bool readbitmap(FileAccess*, string*, int);
     bool resizebitmap(int, int, string*);

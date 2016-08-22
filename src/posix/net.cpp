@@ -60,6 +60,7 @@ CurlHttpIO::CurlHttpIO()
     curlipv6 = data->features & CURL_VERSION_IPV6;
     LOG_debug << "IPv6 enabled: " << curlipv6;
 
+    dnsok = false;
     reset = false;
     statechange = false;
 
@@ -81,7 +82,7 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
     curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutms = -1;
+    curltimeoutreset = 0;
     arestimeoutds = -1;
 #endif
 
@@ -400,7 +401,7 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
     curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutms = -1;
+    curltimeoutreset = 0;
     arestimeoutds = -1;
 #endif
 
@@ -426,12 +427,14 @@ void CurlHttpIO::addevents(Waiter* w, int)
 {
     waiter = (WAIT_CLASS*)w;
 
+    long curltimeoutms;
+
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     int t;
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
-    long curltimeoutms, arestimeoutds;
+    long arestimeoutds;
     curl_multi_timeout(curlm, &curltimeoutms);
 
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
@@ -439,14 +442,34 @@ void CurlHttpIO::addevents(Waiter* w, int)
 #else
     addaresevents(waiter);
     addcurlevents(waiter);
+
+    if (curltimeoutreset)
+    {
+        m_time_t ds = curltimeoutreset - Waiter::ds;
+        if (ds <= 0)
+        {
+            curltimeoutms = 0;
+            curltimeoutreset = 0;
+            LOG_debug << "Disabling cURL timeout";
+        }
+        else
+        {
+            curltimeoutms = ds * 100;
+        }
+    }
+    else
+    {
+        curltimeoutms = -1;
+    }
+
 #endif
 
     if (curltimeoutms >= 0)
     {
         m_time_t timeoutds = curltimeoutms / 100;
-        if (curltimeoutms && !timeoutds)
+        if (curltimeoutms % 100)
         {
-            timeoutds = 1;
+            timeoutds++;
         }
 
         if ((unsigned long)timeoutds < waiter->maxds)
@@ -554,6 +577,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 
             LOG_info << "Updated proxy URL: " << httpio->proxyip;
 
+            httpio->inetstatus(true);
+
             httpio->send_pending_requests();
         }
         else if (!httpio->proxyinflight)
@@ -602,6 +627,8 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
         LOG_verbose << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
+
+        httpio->inetstatus(true);
 
         // add to DNS cache
         CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
@@ -712,7 +739,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         {
             send_request(httpctx);
         }
-        else if(!httpctx->ares_pending)
+        else if (!httpctx->ares_pending)
         {
             httpio->pendingrequests.push(httpctx);
 
@@ -733,7 +760,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         }
     }
 
-    if(httpctx->ares_pending)
+    if (httpctx->ares_pending)
     {
         LOG_verbose << "Waiting for the completion of the c-ares request";
     }
@@ -851,15 +878,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
 #else
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        if(!MegaClient::disablepkp)
+        if (!MegaClient::disablepkp)
         {
-            if(!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
+            if (!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
             {
                 curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "g.api.mega.co.nz.der");
-            }
-            else if(!req->posturl.compare(0, strlen(MegaClient::BALANCERURL), MegaClient::BALANCERURL))
-            {
-                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "karere-001.developers.mega.co.nz.der");
             }
             else
             {
@@ -1166,7 +1189,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             LOG_info << "Using custom DNS servers: " << dnsservers;
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
-        else if (!dnscache.size())
+        else if (!dnsok)
         {
             getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
@@ -1443,7 +1466,7 @@ bool CurlHttpIO::doio()
                 {
                     if (req->binary)
                     {
-                        LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
+                        LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
                     else
                     {
@@ -1466,6 +1489,7 @@ bool CurlHttpIO::doio()
 
                 if (req->status == REQ_SUCCESS)
                 {
+                    dnsok = true;
                     lastdata = Waiter::ds;
                 }
                 else
@@ -1474,7 +1498,10 @@ bool CurlHttpIO::doio()
                              << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
-                success = true;
+                if (req->httpstatus)
+                {
+                    success = true;
+                }
             }
             else
             {
@@ -1555,7 +1582,7 @@ bool CurlHttpIO::doio()
 
         if (req)
         {
-            inetstatus(req->status);
+            inetstatus(req->httpstatus);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             if(httpctx)
@@ -1764,11 +1791,17 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp)
 
     if (timeout_ms < 0)
     {
-        httpio->curltimeoutms = -1;
+        httpio->curltimeoutreset = 0;
     }
     else
     {
-        httpio->curltimeoutms = timeout_ms;
+        m_time_t timeoutds = timeout_ms / 100;
+        if (timeout_ms % 100)
+        {
+            timeoutds++;
+        }
+
+        httpio->curltimeoutreset = Waiter::ds + timeoutds;
     }
 
     LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";
@@ -1807,16 +1840,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
             if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
                 (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
-            {
-                BN_bn2bin(evp->pkey.rsa->e, buf);
-
-                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
-                {
-                    ok = 1;
-                }
-            }
-            else if (!memcmp(request->posturl.data(), MegaClient::BALANCERURL, strlen(MegaClient::BALANCERURL)) &&
-                     !memcmp(buf, BALANCERMODULUS1, sizeof BALANCERMODULUS1 - 1))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 

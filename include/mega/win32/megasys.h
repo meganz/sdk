@@ -32,6 +32,10 @@
   #define __STDC_FORMAT_MACROS
 #endif
 
+#ifdef WINDOWS_PHONE
+#define __STDC_LIMIT_MACROS
+#endif
+
 // (inttypes.h is not present in Microsoft Visual Studio < 2015)
 #if (defined (MSC_VER) && (_MSC_VER < 1900)) && !defined(HAVE_INTTYPES_H)
   #define PRIu32 "I32u"
@@ -77,9 +81,11 @@
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
+
 #ifndef _CRT_SECURE_NO_WARNINGS
   #define _CRT_SECURE_NO_WARNINGS
 #endif
+
 // FIXME: move to auto-generated file
 #ifndef MEGA_MAJOR_VERSION
   #define MEGA_MAJOR_VERSION 2

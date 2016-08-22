@@ -330,13 +330,19 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && --numshares);
     }
 
-    ptr = n->attrs.unserialize(ptr);
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
+    {
+        delete n;
+        return NULL;
+    }
 
     PublicLink *plink = NULL;
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
         {
+            delete n;
             return NULL;
         }
 
@@ -359,6 +365,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
     else
     {
+        delete n;
         return NULL;
     }
 }
@@ -966,7 +973,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->setattr(node, prevname.c_str());
                     sync->client->reqtag = creqtag;
                 }
             }
@@ -991,7 +998,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+                        && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
 
@@ -1110,6 +1118,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     sync->client->syncactivity = true;
 
+    sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
 }
 
@@ -1260,7 +1269,6 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
-#ifdef USE_INOTIFY
     if (sync->dirnotify)
     {
         // deactivate corresponding notifyq records
@@ -1275,7 +1283,6 @@ LocalNode::~LocalNode()
             }
         }
     }
-#endif
     
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
@@ -1283,6 +1290,7 @@ LocalNode::~LocalNode()
         sync->client->fsidnode.erase(fsid_it);
     }
 
+    sync->client->totalLocalNodes--;
     sync->localnodes[type]--;
 
     if (type == FILENODE && size > 0)
@@ -1414,13 +1422,12 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        if (node  && node->parent && node->parent->localnode)
+        h = parent->node->nodehandle;
+        if (node && node->parent && node->parent->localnode)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execsyncdeletions();
         }
-
-        h = parent->node->nodehandle;
     }
 
     File::completed(t, this);
@@ -1449,7 +1456,7 @@ bool LocalNode::serialize(string* d)
 
     d->append((const char*)&h, MegaClient::NODEHANDLE);
 
-    unsigned short ll = localname.size();
+    unsigned short ll = (unsigned short)localname.size();
 
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);

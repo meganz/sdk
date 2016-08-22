@@ -259,8 +259,8 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 /**
  * @brief Returns a bit field with the changes of the node
  *
- * This value is only useful for nodes notified by [DelegateMEGAListener onNodesUpdate] or
- * [DelegateMEGAGlobalListener onNodesUpdate] that can notify about node modifications.
+ * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate:nodeList:] or
+ * [MEGAGlobalDelegate onNodesUpdate:nodeList:] that can notify about node modifications.
  *
  * @return The returned value is an OR combination of these flags:
  *

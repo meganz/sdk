@@ -63,7 +63,9 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
+    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL)
+            && dwWritten == len
+            && FlushFileBuffers(hFile);
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -169,7 +171,7 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // without doing a FindFirstFile()?
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
-    WIN32_FILE_ATTRIBUTE_DATA fad;
+    WIN32_FIND_DATA fad = { 0 };
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
@@ -177,6 +179,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     BY_HANDLE_FILE_INFORMATION bhfi;
 #endif
 
+    bool skipcasecheck = false;
     int added = WinFileSystemAccess::sanitizedriveletter(name);
     
     name->append("", 1);
@@ -187,13 +190,72 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
     else
     {
-        if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fad))
+        HANDLE  h = name->size() > sizeof(wchar_t)
+                ? FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
+                             FindExSearchNameMatch, NULL, 0)
+                : INVALID_HANDLE_VALUE;
+
+        if (h != INVALID_HANDLE_VALUE)
         {
-            DWORD e = GetLastError();
-            LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
-            retry = WinFileSystemAccess::istransient(e);
-            name->resize(name->size() - added - 1);
-            return false;
+            FindClose(h);
+        }
+        else
+        {
+            WIN32_FILE_ATTRIBUTE_DATA fatd;
+            if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
+            {
+                DWORD e = GetLastError();
+                LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                retry = WinFileSystemAccess::istransient(e);
+                name->resize(name->size() - added - 1);
+                return false;
+            }
+            else
+            {
+                LOG_debug << "Possible root of network share";
+                skipcasecheck = true;
+                fad.dwFileAttributes = fatd.dwFileAttributes;
+                fad.ftCreationTime = fatd.ftCreationTime;
+                fad.ftLastAccessTime = fatd.ftLastAccessTime;
+                fad.ftLastWriteTime = fatd.ftLastWriteTime;
+                fad.nFileSizeHigh = fatd.nFileSizeHigh;
+                fad.nFileSizeLow = fatd.nFileSizeLow;
+            }
+        }
+
+        if (!skipcasecheck)
+        {
+            const char *filename = name->data() + name->size() - 1;
+            int filenamesize = 0;
+            bool separatorfound = false;
+            do {
+                filename -= sizeof(wchar_t);
+                filenamesize += sizeof(wchar_t);
+                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t));
+            } while (filename > name->data() && !separatorfound);
+
+            if (filenamesize > sizeof(wchar_t) || !separatorfound)
+            {
+                if (separatorfound)
+                {
+                    filename += sizeof(wchar_t);
+                }
+                else
+                {
+                    filenamesize += sizeof(wchar_t);
+                }
+
+                if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
+                        && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
+                        && !((filenamesize == 4 && !memcmp(filename, L".", 4))
+                             || (filenamesize == 6 && !memcmp(filename, L"..", 6))))
+                {
+                    LOG_warn << "fopen failed due to invalid case";
+                    retry = false;
+                    name->resize(name->size() - added - 1);
+                    return false;
+                }
+            }
         }
 
         // ignore symlinks - they would otherwise be treated as moves
@@ -786,6 +848,37 @@ void WinFileSystemAccess::osversion(string* u) const
     u->append(buf);
 }
 
+void WinFileSystemAccess::statsid(string *id) const
+{
+#ifndef WINDOWS_PHONE
+    LONG hr;
+    HKEY hKey = NULL;
+    hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
+                      KEY_QUERY_VALUE 
+#ifdef KEY_WOW64_64KEY
+		      | KEY_WOW64_64KEY
+#else		      
+		      | 0x0100
+#endif		      
+		      , &hKey);
+    if (hr == ERROR_SUCCESS)
+    {
+        WCHAR pszData[256];
+        DWORD cbData = sizeof(pszData);
+        hr = RegQueryValueExW(hKey, L"MachineGuid", NULL, NULL, (LPBYTE)pszData, &cbData);
+        if (hr == ERROR_SUCCESS)
+        {
+            string localdata;
+            string utf8data;
+            localdata.assign((char *)pszData, cbData - sizeof(WCHAR));
+            local2path(&localdata, &utf8data);
+            id->append(utf8data);
+        }
+        RegCloseKey(hKey);
+    }
+#endif
+}
+
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, string*)
 {
@@ -1065,7 +1158,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 }
 
 // FIXME: implement followsymlinks
-bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
+bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/, nodetype_t* type)
 {
     for (;;)
     {

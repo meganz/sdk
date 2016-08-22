@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
@@ -34,9 +35,8 @@ using namespace mega;
 GfxProcCG::GfxProcCG()
     : GfxProc()
     , imageSource(NULL)
-    , w(0)
-    , h(0)
 {
+    w = h = 0;
     thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
                                                 &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue);
@@ -70,6 +70,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
     
     CGDataProviderRef dataProvider = NULL;
+    w = h = 0;
     
     if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
         NSURL *videoURL = [NSURL fileURLWithPath:nameString];
@@ -100,6 +101,10 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
 
     CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
                                                                        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    if (!imageOptions) {
+        return false;
+    }
+    
     CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
 
     imageSource = CGImageSourceCreateWithDataProvider(dataProvider, imageOptions);
@@ -113,12 +118,19 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
         CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
         if (width && heigth) {
-            CFNumberGetValue(width, kCFNumberCGFloatType, &w);
-            CFNumberGetValue(heigth, kCFNumberCGFloatType, &h);
+            CGFloat value;
+            if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
+                w = value;
+            }
+            if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                h = value;
+            }
         }
         CFRelease(imageProperties);
     }
-    if (!((int)w && (int)h)) { // trying to get fake size from thumbnail
+    CFRelease(imageOptions);
+    
+    if (!(w && h)) { // trying to get fake size from thumbnail
         CGImageRef thumbnail = createThumbnailWithMaxSize(100);
         if (!thumbnail) {
             return false;
@@ -127,7 +139,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         h = CGImageGetHeight(thumbnail);
         CGImageRelease(thumbnail);
     }
-    return (int)w && (int)h;
+    return w && h;
 }
 
 CGImageRef GfxProcCG::createThumbnailWithMaxSize(int size) {
@@ -207,4 +219,52 @@ void GfxProcCG::freebitmap() {
         imageSource = NULL;
     }
     w = h = 0;
+}
+
+void ios_statsid(std::string *statsid) {
+    NSMutableDictionary *queryDictionary = [[NSMutableDictionary alloc] init];
+    [queryDictionary setObject:(__bridge id)kSecClassGenericPassword forKey:(__bridge id)kSecClass];
+    [queryDictionary setObject:@"statsid" forKey:(__bridge id)kSecAttrAccount];
+    [queryDictionary setObject:@"MEGA" forKey:(__bridge id)kSecAttrService];
+    [queryDictionary setObject:(__bridge id)(kSecAttrSynchronizableAny) forKey:(__bridge id)(kSecAttrSynchronizable)];
+    [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
+    [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
+    
+    CFTypeRef result = NULL;
+    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
+    
+    switch (status) {
+        case errSecSuccess: {
+            NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
+            statsid->append([uuidString UTF8String]);
+            break;
+        }
+
+        case errSecItemNotFound: {
+            NSString *uuidString = [[[NSUUID alloc] init] UUIDString];
+            
+            NSData *uuidData = [uuidString dataUsingEncoding:NSUTF8StringEncoding];
+            [queryDictionary setObject:uuidData forKey:(__bridge id)kSecValueData];
+            [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
+            [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
+            
+            status = SecItemAdd((__bridge CFDictionaryRef)queryDictionary, NULL);
+            
+            switch (status) {
+                case errSecSuccess: {
+                    statsid->append([uuidString UTF8String]);
+                    break;
+                }
+                default: {
+                    LOG_err << "SecItemAdd failed with error code " << status;
+                    break;
+                }
+            }
+            break;
+        }
+        default: {
+            LOG_err << "SecItemCopyMatching failed with error code " << status;
+            break;
+        }
+    }
 }

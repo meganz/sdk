@@ -89,8 +89,11 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_FIRSTNAME = 1,
-        USER_ATTR_LASTNAME = 2
+        USER_ATTR_AVATAR            = 0,
+        USER_ATTR_FIRSTNAME         = 1,
+        USER_ATTR_LASTNAME          = 2,
+        USER_ATTR_AUTHRING          = 3,
+        USER_ATTR_LAST_INTERACTION  = 4
     };
 
     public enum class MPaymentMethod {
@@ -102,7 +105,8 @@ namespace mega
         PAYMENT_METHOD_UNIONPAY = 5,
         PAYMENT_METHOD_FORTUMO = 6,
         PAYMENT_METHOD_CREDIT_CARD = 8,
-        PAYMENT_METHOD_CENTILI = 9
+        PAYMENT_METHOD_CENTILI = 9,
+        PAYMENT_METHOD_WINDOWS_STORE = 13
     };
 
     public ref class MegaSDK sealed
@@ -141,6 +145,7 @@ namespace mega
         void retryPendingConnections(bool disconnect);
         void retryPendingConnections();
         void reconnect();
+        static void setStatsID(String^ id);
 
         //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
@@ -170,7 +175,25 @@ namespace mega
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
         void confirmAccount(String^ link, String^ password);
         void fastConfirmAccount(String^ link, String^ base64pwkey, MRequestListenerInterface^ listener);
-        void fastConfirmAccount(String^ link, String^ base64pwkey);        
+        void fastConfirmAccount(String^ link, String^ base64pwkey);
+        void resetPassword(String^ email, bool hasMasterKey, MRequestListenerInterface^ listener);
+        void resetPassword(String^ email, bool hasMasterKey);
+        void queryResetPasswordLink(String^ link, MRequestListenerInterface^ listener);
+        void queryResetPasswordLink(String^ link);
+        void confirmResetPassword(String^ link, String^ newPwd, String^ masterKey, MRequestListenerInterface^ listener);
+        void confirmResetPassword(String^ link, String^ newPwd, String^ masterKey);
+        void confirmResetPasswordWithoutMasterKey(String^ link, String^ newPwd, MRequestListenerInterface^ listener);
+        void confirmResetPasswordWithoutMasterKey(String^ link, String^ newPwd);
+        void cancelAccount(MRequestListenerInterface^ listener);
+        void cancelAccount();
+        void confirmCancelAccount(String^ link, String^ pwd, MRequestListenerInterface^ listener);
+        void confirmCancelAccount(String^ link, String^ pwd);
+        void changeEmail(String^ email, MRequestListenerInterface^ listener);
+        void changeEmail(String^ email);
+        void queryChangeEmailLink(String^ link, MRequestListenerInterface^ listener);
+        void queryChangeEmailLink(String^ link);
+        void confirmChangeEmail(String^ link, String^ pwd, MRequestListenerInterface^ listener);
+        void confirmChangeEmail(String^ link, String^ pwd);
         int isLoggedIn();
         String^ getMyEmail();
         String^ getMyUserHandle();
@@ -229,6 +252,8 @@ namespace mega
         void getOwnUserAvatar(String^ dstFilePath);
         void setAvatar(String ^dstFilePath, MRequestListenerInterface^ listener);
         void setAvatar(String ^dstFilePath);
+        String^ getUserAvatarColor(MUser^ user);
+        String^ getUserHandleAvatarColor(String^ userhandle);
         void getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener);
         void getUserAttribute(MUser^ user, int type);
         void getOwnUserAttribute(int type, MRequestListenerInterface^ listener);
@@ -253,8 +278,8 @@ namespace mega
         void getPaymentId(uint64 productHandle);
         void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
         void upgradeAccount(uint64 productHandle, int paymentMethod);
-        void submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener);
-        void submitPurchaseReceipt(String^ receipt);
+        void submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener);
+        void submitPurchaseReceipt(int gateway, String^ receipt);
         void creditCardStore(String^ address1, String^ address2, String^ city,
             String^ province, String^ country, String^ postalcode,
             String^ firstname, String^ lastname, String^ creditcard,
@@ -277,8 +302,6 @@ namespace mega
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
-        void addContact(String^ email, MRequestListenerInterface^ listener);
-        void addContact(String^ email);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);
@@ -306,15 +329,23 @@ namespace mega
         void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime);
         void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
         void startDownload(MNode^ node, String^ localPath);
+        void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener);
+        void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData);
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer);
         void cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener);
         void cancelTransferByTag(int transferTag);
         void cancelTransfers(int direction, MRequestListenerInterface^ listener);
-        void cancelTransfers(int direction);
+        void cancelTransfers(int direction);        
         void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
         void pauseTransfers(bool pause);
+        void pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener);
+        void pauseTransfersDirection(bool pause, int direction);
+        void enableTransferResumption(String^ loggedOutId);
+        void enableTransferResumption();
+        void disableTransferResumption(String^ loggedOutId);
+        void disableTransferResumption();
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
@@ -396,14 +427,26 @@ namespace mega
         MError^ checkAccess(MNode^ node, int level);
         MError^ checkMove(MNode^ node, MNode^ target);
 
+        bool isFilesystemAvailable();
         MNode^ getRootNode();
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+
+        uint64 getBandwidthOverquotaDelay();
+
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
+        MNodeList^ globalSearch(String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+
+        MNode^ authorizeNode(MNode^ node);
         
+        bool createThumbnail(String^ imagePath, String^ dstPath);
+        bool createPreview(String^ imagePath, String^ dstPath);
+
+        bool isOnline();
+
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;
         std::set<DelegateMTransferListener *> activeTransferListeners;

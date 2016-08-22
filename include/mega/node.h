@@ -53,7 +53,8 @@ struct MEGA_API NodeCore
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int UPLOADTOKENLEN = 27;
+    static const int OLDUPLOADTOKENLEN = 27;
+    static const int UPLOADTOKENLEN = 36;
 
     newnodesource_t source;
 
@@ -93,7 +94,7 @@ struct MEGA_API PublicLink
 };
 
 // filesystem node
-struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
+struct MEGA_API Node : public NodeCore, FileFingerprint
 {
     MegaClient* client;
 
@@ -219,7 +220,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 };
 
 #ifdef ENABLE_SYNC
-struct MEGA_API LocalNode : public File, Cachable
+struct MEGA_API LocalNode : public File
 {
     class Sync* sync;
 

@@ -34,8 +34,6 @@ In the `examples` folder you can find example apps using:
 Building
 --------
 
-If you plan to develop an app using this SDK, please use the stable branch or the last released tarball. The master branch is continuously evolving, could be unstable and could change very often.
-
 For platforms with Autotools, the generic way to build and install it is:
 
     sh autogen.sh
@@ -119,7 +117,7 @@ To build the client access engine under Windows, you'll need the following:
 * pthreads (MinGW)
 
 Optional dependency:
-* Sodium or configure `--with-sodium`
+* Sodium, configure `--with-sodium`
 
 To build the reference `megacli.exe` example, you will also need to procure
 development packages (at least headers and `.lib`/`.a` libraries) of:

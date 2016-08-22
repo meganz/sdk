@@ -167,11 +167,8 @@ uint64 MTransfer::getUpdateTime()
 
 MNode^ MTransfer::getPublicMegaNode()
 {
-	if (!megaTransfer)
-	{
-		return nullptr;
-	}
-
+	if (!megaTransfer) return nullptr;
+    
 	MegaNode *node = megaTransfer->getPublicMegaNode();
 	return node ? ref new MNode(node, true) : nullptr;
 }
@@ -186,3 +183,23 @@ bool MTransfer::isStreamingTransfer()
 	return megaTransfer ? megaTransfer->isStreamingTransfer() : false;
 }
 
+bool MTransfer::isFolderTransfer()
+{
+    return megaTransfer ? megaTransfer->isFolderTransfer() : false;
+}
+
+int MTransfer::getFolderTransferTag()
+{
+    return megaTransfer ? megaTransfer->getFolderTransferTag() : 0;
+}
+
+String^ MTransfer::getAppData()
+{
+    if (!megaTransfer) return nullptr;
+
+    std::string utf16appData;
+    const char *utf8appData = megaTransfer->getAppData();
+    MegaApi::utf8ToUtf16(utf8appData, &utf16appData);
+
+    return ref new String((wchar_t *)utf16appData.data());
+}

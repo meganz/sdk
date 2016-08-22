@@ -25,6 +25,9 @@
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 
+#include <iostream>
+#include <fstream>
+
 using namespace mega;
 using ::testing::Test;
 
@@ -44,58 +47,55 @@ static const string DOWNFILE    = "file2.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
-// Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
+static bool testingInvalidArgs = false;
+
+class MegaLoggerSDK : public MegaLogger {
 
 public:
-    MegaApi *megaApi = NULL;
-    string email;
-    string pwd;
-
-    int lastError;
-
-    bool loggingReceived;
-    bool fetchnodesReceived;
-    bool logoutReceived;
-    bool responseReceived;
-
-    bool downloadFinished;
-    bool uploadFinished;
-    bool transfersCancelled;
-    bool transfersPaused;
-
-    MegaHandle h;
-
-    MegaApi *megaApiAux = NULL;
-    string emailaux;
-
-    MegaContactRequest *cr, *craux;
-
-    bool contactInvitationFinished;
-    bool contactReplyFinished;
-    bool contactRequestUpdated;
-    bool contactRequestUpdatedAux;
-    bool contactRemoved;
-
-    bool nodeUpdated;
-    bool nodeUpdatedAux;
-
-    bool userUpdated;
-    bool userUpdatedAux;
-    bool userAttributeReceived;
-    string attributeValue;
-
-    string link;
-    MegaNode *publicNode;
-
-#ifdef ENABLE_CHAT
-    bool chatUpdated;
-    bool chatUpdatedAux;
-    MegaTextChatList *chats;
-#endif
+    MegaLoggerSDK(const char *filename);
+    ~MegaLoggerSDK();
 
 private:
+    ofstream sdklog;
 
+protected:
+    void log(const char *time, int loglevel, const char *source, const char *message);
+};
+
+// Fixture class with common code for most of tests
+class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener, MegaLogger {
+
+public:
+    MegaApi* megaApi[2];
+    string email[2];
+    string pwd[2];
+
+    int lastError[2];
+
+    // flags to monitor the completion of requests/transfers
+    bool requestFlags[2][MegaRequest::TYPE_SET_PROXY];
+    bool transferFlags[2][MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
+
+    // relevant values received in response of requests
+    MegaHandle h;
+    string link;
+    MegaNode *publicNode;
+    string attributeValue;
+
+    MegaContactRequest* cr[2];
+
+    // flags to monitor the updates of nodes/users/PCRs due to actionpackets
+    bool nodeUpdated[2];
+    bool userUpdated[2];
+    bool contactRequestUpdated[2];
+
+#ifdef ENABLE_CHAT
+    bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
+    map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
+    MegaHandle chatid;          // last chat added
+#endif
+
+    MegaLoggerSDK *logger;
 
 protected:
     virtual void SetUp();
@@ -125,22 +125,22 @@ protected:
 #endif
 
 public:
-    void login(int timeout = maxTimeout);
-    void fetchnodes(int timeout = maxTimeout);
-    void logout(int timeout = maxTimeout);
+    void login(unsigned int apiIndex, int timeout = maxTimeout);
+    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
+    void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
     void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    void waitForResponse(bool *responseReceived, int timeout = maxTimeout);
+    bool waitForResponse(bool *responseReceived, int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
     void deleteFile(string filename);
 
     void getMegaApiAux();
-    void releaseMegaApiAux();
+    void releaseMegaApi(unsigned int apiIndex);
 
     void inviteContact(string email, string message, int action, int timeout = maxTimeout);
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
@@ -150,16 +150,16 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(MegaNode *n, int timeout = maxTimeout);
+    void createPublicLink(MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
     void importPublicLink(string link, MegaNode *parent, int timeout = maxTimeout);
     void getPublicNode(string link, int timeout = maxTimeout);
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
-    void getContactRequest(bool outgoing, int expectedSize = 1);
+    void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
+
+    void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
-    void fetchChats(int timeout = maxTimeout);
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
-
 };

@@ -159,6 +159,8 @@
 
 #define USE_ARES 1
 
+#define USE_IOS 1
+
 #define HAVE_LIBUV 1
 
 /* Define to use Berkeley DB */
@@ -238,5 +240,3 @@
 /* Define to the type of an unsigned integer type of width exactly 8 bits if
    such a type exists and the standard includes do not define it. */
 /* #undef uint8_t */
-
-#define NO_DIRECT_WORD_ACCESS 1

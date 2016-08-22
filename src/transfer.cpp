@@ -40,8 +40,13 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
-    
+    progresscompleted = 0;
+    finished = false;
+    lastaccesstime = time(NULL);
+    ultoken = NULL;
+
     faputcompletion_it = client->faputcompletion.end();
+    transfers_it = client->transfers[type].end();
 }
 
 // delete transfer with underlying slot, notify files
@@ -54,6 +59,11 @@ Transfer::~Transfer()
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
+        if (finished)
+        {
+            client->filecachedel(*it);
+        }
+
         (*it)->transfer = NULL;
         (*it)->terminated();
     }
@@ -67,6 +77,230 @@ Transfer::~Transfer()
     {
         delete slot;
     }
+
+    if (ultoken)
+    {
+        delete [] ultoken;
+    }
+
+    if (finished)
+    {
+        if(type == GET && localfilename.size())
+        {
+            client->fsaccess->unlinklocal(&localfilename);
+        }
+        client->transfercachedel(this);
+    }
+}
+
+bool Transfer::serialize(string *d)
+{
+    unsigned short ll;
+
+    d->append((const char*)&type, sizeof(type));
+
+    ll = (unsigned short)localfilename.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(localfilename.data(), ll);
+
+    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&ctriv, sizeof(ctriv));
+    d->append((const char*)&metamac, sizeof(metamac));
+    d->append((const char*)key.key, sizeof (key.key));
+
+    ll = (unsigned short)chunkmacs.size();
+    d->append((char*)&ll, sizeof(ll));
+    for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
+    {
+        d->append((char*)&it->first, sizeof(it->first));
+        d->append((char*)&it->second, sizeof(it->second));
+    }
+
+    if (!FileFingerprint::serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize FileFingerprint";
+        return false;
+    }
+
+    if (!badfp.serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize badfp";
+        return false;
+    }
+
+    d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
+
+    char hasUltoken;
+    if (ultoken)
+    {
+        hasUltoken = 2;
+        d->append((const char*)&hasUltoken, sizeof(char));
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+    }
+    else
+    {
+        hasUltoken = 0;
+        d->append((const char*)&hasUltoken, sizeof(char));
+    }
+
+    if (slot)
+    {
+        ll = (unsigned short)slot->tempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(slot->tempurl.data(), ll);
+    }
+    else
+    {
+        ll = (unsigned short)cachedtempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(cachedtempurl.data(), ll);
+    }
+
+    d->append("\0\0\0\0\0\0\0\0\0", 10);
+
+    return true;
+}
+
+Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
+{
+    unsigned short ll;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(direction_t) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (direction)";
+        return NULL;
+    }
+
+    direction_t type;
+    type = MemAccess::get<direction_t>(ptr);
+    ptr += sizeof(direction_t);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + FILENODEKEYLENGTH + sizeof(int64_t)
+            + sizeof(int64_t) + SymmCipher::KEYLENGTH
+            + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (filepath)";
+        return NULL;
+    }
+
+    const char *filepath = ptr;
+    ptr += ll;
+
+    Transfer *t = new Transfer(client, type);
+
+    memcpy(t->filekey, ptr, sizeof t->filekey);
+    ptr += sizeof(t->filekey);
+
+    t->ctriv = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    t->metamac = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    byte key[SymmCipher::KEYLENGTH];
+    memcpy(key, ptr, SymmCipher::KEYLENGTH);
+    ptr += SymmCipher::KEYLENGTH;
+
+    t->key.setkey(key);
+    t->localfilename.assign(filepath, ll);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - chunkmacs too long";
+        delete t;
+        return NULL;
+    }
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&(t->chunkmacs[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+
+    d->erase(0, ptr - d->data());
+
+    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    if (!fp)
+    {
+        LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
+        delete t;
+        return NULL;
+    }
+
+    *(FileFingerprint *)t = *(FileFingerprint *)fp;
+    delete fp;
+
+    fp = FileFingerprint::unserialize(d);
+    t->badfp = *fp;
+    delete fp;
+
+    ptr = d->data();
+    end = ptr + d->size();
+
+    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
+    {
+        LOG_err << "Transfer unserialization failed - fingerprint too long";
+        delete t;
+        return NULL;
+    }
+
+    t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
+
+
+    char hasUltoken = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    if (hasUltoken < 0 || hasUltoken > 2
+            || (ptr + ll + sizeof(unsigned short) > end))
+    {
+        LOG_err << "Transfer unserialization failed - invalid ultoken";
+        delete t;
+        return NULL;
+    }
+
+    if (hasUltoken)
+    {
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
+        memcpy(t->ultoken, ptr, ll);
+        ptr += ll;
+    }
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + 10 > end)
+    {
+        LOG_err << "Transfer unserialization failed - temp URL too long";
+        delete t;
+        return NULL;
+    }
+
+    t->cachedtempurl.assign(ptr, ll);
+    ptr += ll;
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
+    {
+        LOG_err << "Transfer unserialization failed - invalid version";
+        delete t;
+        return NULL;
+    }
+    ptr += 10;
+
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
+    return t;
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -77,7 +311,7 @@ void Transfer::failed(error e, dstime timeleft)
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (!timeleft)
+    if (!timeleft || e != API_EOVERQUOTA)
     {
         bt.backoff();
     }
@@ -88,6 +322,7 @@ void Transfer::failed(error e, dstime timeleft)
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
+    client->looprequested = true;
     client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -98,17 +333,33 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    if (type == PUT)
     {
+        chunkmacs.clear();
+        progresscompleted = 0;
+
+        if (ultoken)
+        {
+            delete [] ultoken;
+            ultoken = NULL;
+        }
+
+        pos = 0;
+    }
+
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    {        
         failcount++;
         delete slot;
+        slot = NULL;
+        client->transfercacheadd(this);
 
-        LOG_debug << "Deferring transfer " << failcount;
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
     }
     else
     {
         LOG_debug << "Removing transfer";
-
+        finished = true;
         client->app->transfer_removed(this);
         delete this;
     }
@@ -150,30 +401,48 @@ void Transfer::complete()
         FileFingerprint fingerprint;
         Node* n;
         bool fixfingerprint = false;
+        bool syncxfer = false;
 
-        if (!transient_error && fa->fopen(&localfilename, true, false))
+#ifdef ENABLE_SYNC
+        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        {
+            if ((*it)->syncxfer)
+            {
+                syncxfer = true;
+                break;
+            }
+        }
+#endif
+
+        // enforce the verification of the fingerprint for sync transfers only
+        if (syncxfer && !transient_error && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
 
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
+                LOG_err << "Fingerprint mismatch";
                 if (!badfp.isvalid || !(badfp == fingerprint))
                 {
                     badfp = fingerprint;
                     delete fa;
+                    chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE);
                 }
                 else
                 {
-                    fixfingerprint = true;
+                    if (success && fingerprint.size == this->size)
+                    {
+                        fixfingerprint = true;
+                    }
                 }
             }
         }
 #ifdef ENABLE_SYNC
         else
         {
-            if (!transient_error)
+            if (syncxfer && !transient_error)
             {
                 transient_error = fa->retry;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
@@ -182,9 +451,9 @@ void Transfer::complete()
 #endif
         delete fa;
 
-        int missingattr = 0;
-        handle attachh;
-        SymmCipher* symmcipher;
+        char me64[12];
+        Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+        set<handle> nodes;
 
         if (!transient_error)
         {
@@ -193,16 +462,29 @@ void Transfer::complete()
             {
                 if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname))
+                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                     {
+                        int missingattr = 0;
+                        nodes.insert(n->nodehandle);
+
                         // check for missing imagery
                         if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
                         if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
-                        attachh = n->nodehandle;
-                        symmcipher = n->nodecipher();
+
+                        if (missingattr)
+                        {
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                client->gfx->gendimensionsputfa(NULL, &localfilename, n->nodehandle, n->nodecipher(), missingattr);
+                            }
+                        }
                     }
 
-                    if (fingerprint.isvalid && (!n->isvalid || fixfingerprint))
+                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
+                            && fingerprint.size == n->size)
                     {
                         *(FileFingerprint*)n = fingerprint;
 
@@ -215,12 +497,6 @@ void Transfer::complete()
             if (fingerprint.isvalid && fixfingerprint)
             {
                 (*(FileFingerprint*)this) = fingerprint;
-            }
-
-            if (missingattr)
-            {
-                // FIXME: do this while file is still open
-                client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, symmcipher, missingattr);
             }
 
             // ...and place it in all target locations. first, update the files'
@@ -378,6 +654,7 @@ void Transfer::complete()
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
+                        client->filecachedel(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
                     }
@@ -389,7 +666,7 @@ void Transfer::complete()
                         if(!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-
+                            client->filecachedel(f);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -416,7 +693,10 @@ void Transfer::complete()
         if (!files.size())
         {
             localfilename = localname;
+            finished = true;
+            client->looprequested = true;
             client->app->transfer_complete(this);
+            localfilename.clear();
             delete this;
         }
         else
@@ -451,13 +731,34 @@ void Transfer::complete()
 void Transfer::completefiles()
 {
     // notify all files and give them an opportunity to self-destruct
+    vector<uint32_t> &ids = client->pendingtcids[tag];
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
         // prevent deletion of associated Transfer object in completed()
+        ids.push_back((*it)->dbid);
         (*it)->transfer = NULL;
         (*it)->completed(this, NULL);
         files.erase(it++);
     }
+    ids.push_back(dbid);
+}
+
+m_off_t Transfer::nextpos()
+{
+    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end())
+    {    
+        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
+            break;
+        }
+    }
+
+    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv)
@@ -555,7 +856,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         }
     }
 
-    if (timeleft)
+    if (e == API_EOVERQUOTA && timeleft)
     {
         // don't retry at least until the end of the overquota state
         client->overquotauntil = Waiter::ds + timeleft;
@@ -708,10 +1009,18 @@ bool DirectReadSlot::doio()
     {
         if (req->httpstatus == 509)
         {
+            if (req->timeleft < 0)
+            {
+                int creqtag = dr->drn->client->reqtag;
+                dr->drn->client->reqtag = 0;
+                dr->drn->client->sendevent(99408, "Overquota without timeleft");
+                dr->drn->client->reqtag = creqtag;
+            }
+
             dstime backoff;
 
             LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-            if (req->timeleft)
+            if (req->timeleft > 0)
             {
                 backoff = req->timeleft * 10;
             }

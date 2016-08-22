@@ -414,6 +414,7 @@
     <ClInclude Include="..\MRequestListenerInterface.h" />
     <ClInclude Include="..\MShare.h" />
     <ClInclude Include="..\MShareList.h" />
+    <ClInclude Include="..\MStringList.h" />
     <ClInclude Include="..\MTransfer.h" />
     <ClInclude Include="..\MTransferList.h" />
     <ClInclude Include="..\MTransferListenerInterface.h" />
@@ -486,6 +487,7 @@
     <ClCompile Include="..\MRequest.cpp" />
     <ClCompile Include="..\MShare.cpp" />
     <ClCompile Include="..\MShareList.cpp" />
+    <ClCompile Include="..\MStringList.cpp" />
     <ClCompile Include="..\MTransfer.cpp" />
     <ClCompile Include="..\MTransferList.cpp" />
     <ClCompile Include="..\MUser.cpp" />

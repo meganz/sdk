@@ -89,10 +89,19 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
     public static int getExifOrientation(String srcPath) {
         int orientation = ExifInterface.ORIENTATION_UNDEFINED;
-        try {
-            ExifInterface exif = new ExifInterface(srcPath);
-            orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, orientation);
-        } catch (IOException e) {
+
+        int i = 0;
+        while ((i < 5) && (orientation == ExifInterface.ORIENTATION_UNDEFINED)) {
+            try {
+                ExifInterface exif = new ExifInterface(srcPath);
+                orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, orientation);
+            } catch (IOException e) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e1) {}
+            }
+
+            i++;
         }
         return orientation;
     }

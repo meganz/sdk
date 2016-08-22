@@ -64,7 +64,7 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, error) { }
 
     // sessionid is undef if all sessions except the current were killed
-    virtual void sessions_killed(handle sessionid, error e) { }
+    virtual void sessions_killed(handle /*sessionid*/, error) { }
 
     // node attribute update failed (not invoked unless error != API_OK)
     virtual void setattr_result(handle, error) { }
@@ -137,10 +137,14 @@ struct MEGA_API MegaApp
     virtual void sendevent_result(error) { }
 
     // user invites/attributes
-    virtual void invite_result(error) { }
+    virtual void removecontact_result(error) { }
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
     virtual void getua_result(byte*, unsigned) { }
+    virtual void getua_result(TLVstore *) { }
+#ifdef DEBUG
+    virtual void delua_result(error) { }
+#endif
 
     // file node export result
     virtual void exportnode_result(error) { }
@@ -164,15 +168,41 @@ struct MEGA_API MegaApp
     // clean rubbish bin result
     virtual void cleanrubbishbin_result(error) { }
 
+    // get account recovery link result
+    virtual void getrecoverylink_result(error) {}
+
+    // check account recovery link result
+    virtual void queryrecoverylink_result(error) {}
+    virtual void queryrecoverylink_result(int, const char *, const char *, time_t, handle, const vector<string> *) {}
+
+    // get private key from recovery link result
+    virtual void getprivatekey_result(error, const byte * = NULL, const size_t = 0) {}
+
+    // confirm recovery link result
+    virtual void confirmrecoverylink_result(error) {}
+
+    // convirm cancellation link result
+    virtual void confirmcancellink_result(error) {}
+
+    // validation of password
+    virtual void validatepassword_result(error) {}
+
+    // get change email link result
+    virtual void getemaillink_result(error) {}
+
+    // confirm change email link result
+    virtual void confirmemaillink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
-    virtual void chatfetch_result(textchat_vector *, error) { }
     virtual void chatinvite_result(error) { }
     virtual void chatremove_result(error) { }
     virtual void chaturl_result(string*, error) { }
     virtual void chatgrantaccess_result(error) { }
     virtual void chatremoveaccess_result(error) { }
+    virtual void chatupdatepermissions_result(error) { }
+    virtual void chattruncate_result(error) { }
 
     virtual void chats_updated(textchat_vector *) { }
 #endif
@@ -184,6 +214,7 @@ struct MEGA_API MegaApp
     virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
+    virtual void transfer_resume(string*) { }
 
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }
@@ -225,8 +256,6 @@ struct MEGA_API MegaApp
 
     // failed request retry notification
     virtual void notify_retry(dstime) { }
-
-    virtual void loadbalancing_result(string*, error) { }
 
     virtual ~MegaApp() { }
 };

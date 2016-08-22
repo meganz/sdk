@@ -64,6 +64,9 @@ namespace mega
 		MNode^ getPublicMegaNode();
 		bool isSyncTransfer();
 		bool isStreamingTransfer();
+        bool isFolderTransfer();
+        int getFolderTransferTag();
+        String^ getAppData();
 
 	private:
 		MTransfer(MegaTransfer *megaTransfer, bool cMemoryOwn);

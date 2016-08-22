@@ -46,6 +46,174 @@ File::~File()
     }
 }
 
+bool File::serialize(string *d)
+{
+    char type = transfer->type;
+    d->append((const char*)&type, sizeof(type));
+
+    if (!FileFingerprint::serialize(d))
+    {
+        LOG_err << "Error serializing File: Unable to serialize FileFingerprint";
+        return false;
+    }
+
+    unsigned short ll;
+    bool flag;
+
+    ll = (unsigned short)name.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(name.data(), ll);
+
+    ll = (unsigned short)localname.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(localname.data(), ll);
+
+    ll = (unsigned short)targetuser.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(targetuser.data(), ll);
+
+    ll = (unsigned short)privauth.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(privauth.data(), ll);
+
+    ll = (unsigned short)pubauth.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(pubauth.data(), ll);
+
+    d->append((const char*)&h, sizeof(h));
+    d->append((const char*)filekey, sizeof(filekey));
+
+    flag = hprivate;
+    d->append((const char*)&flag, sizeof(flag));
+
+    flag = hforeign;
+    d->append((const char*)&flag, sizeof(flag));
+
+    flag = syncxfer;
+    d->append((const char*)&flag, sizeof(flag));
+
+    d->append("\0\0\0\0\0\0\0\0\0", 10);
+
+    return true;
+}
+
+File *File::unserialize(string *d)
+{
+    if (!d->size())
+    {
+        LOG_err << "Error unserializing File: Empty string";
+        return NULL;
+    }
+
+    d->erase(0, 1);
+
+    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    if (!fp)
+    {
+        LOG_err << "Error unserializing File: Unable to unserialize FileFingerprint";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - serialized string too short";
+        return NULL;
+    }
+
+    // read name
+    unsigned short namelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(namelen);
+    if (ptr + namelen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - name too long";
+        return NULL;
+    }
+    const char *name = ptr;
+    ptr += namelen;
+
+    // read localname
+    unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(localnamelen);
+    if (ptr + localnamelen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - localname too long";
+        return NULL;
+    }
+    const char *localname = ptr;
+    ptr += localnamelen;
+
+    // read targetuser
+    unsigned short targetuserlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(targetuserlen);
+    if (ptr + targetuserlen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - targetuser too long";
+        return NULL;
+    }
+    const char *targetuser = ptr;
+    ptr += targetuserlen;
+
+    // read private auth
+    unsigned short privauthlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(privauthlen);
+    if (ptr + privauthlen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - private auth too long";
+        return NULL;
+    }
+    const char *privauth = ptr;
+    ptr += privauthlen;
+
+    unsigned short pubauthlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(pubauthlen);
+    if (ptr + pubauthlen + sizeof(handle) + FILENODEKEYLENGTH + sizeof(bool)
+            + sizeof(bool) + sizeof(bool) + 10 > end)
+    {
+        LOG_err << "File unserialization failed - public auth too long";
+        return NULL;
+    }
+    const char *pubauth = ptr;
+    ptr += pubauthlen;
+
+    File *file = new File();
+    *(FileFingerprint *)file = *(FileFingerprint *)fp;
+
+    file->name.assign(name, namelen);
+    file->localname.assign(localname, localnamelen);
+    file->targetuser.assign(targetuser, targetuserlen);
+    file->privauth.assign(privauth, privauthlen);
+    file->pubauth.assign(pubauth, pubauthlen);
+
+    file->h = MemAccess::get<handle>(ptr);
+    ptr += sizeof(handle);
+
+    memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
+    ptr += FILENODEKEYLENGTH;
+
+    file->hprivate = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    file->hforeign = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    file->syncxfer = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
+    {
+        LOG_err << "File unserialization failed - invalid version";
+        delete file;
+        return NULL;
+    }
+    ptr += 10;
+
+    d->erase(0, ptr - d->data());
+    return file;
+}
+
 void File::prepare()
 {
     transfer->localfilename = localname;
@@ -142,10 +310,11 @@ void File::terminated()
 }
 
 // do not retry crypto errors or administrative takedowns; retry other types of
-// failuresup to 16 times
+// failuresup to 16 times, except I/O errors (6 times)
 bool File::failed(error e)
 {
-    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16;
+    return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
+            !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
 void File::displayname(string* dname)
@@ -301,7 +470,7 @@ void SyncFileGet::updatelocalname()
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer* t, LocalNode* n)
+void SyncFileGet::completed(Transfer*, LocalNode*)
 {
     sync->checkpath(NULL, &localname);
     delete this;

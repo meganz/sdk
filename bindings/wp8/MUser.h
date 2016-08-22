@@ -30,12 +30,22 @@ namespace mega
 
 	public enum class MUserVisibility
 	{
-        VISIBILITY_UNKNOWN = -1,
-        VISIBILITY_HIDDEN = 0,
-        VISIBILITY_VISIBLE = 1,
+        VISIBILITY_UNKNOWN  = -1,
+        VISIBILITY_HIDDEN   = 0,
+        VISIBILITY_VISIBLE  = 1,
         VISIBILITY_INACTIVE = 2,
-        VISIBILITY_BLOCKED = 3
+        VISIBILITY_BLOCKED  = 3
 	};
+
+    public enum class MUserChangeType
+    {
+        CHANGE_TYPE_AUTH        = 0x01,
+        CHANGE_TYPE_LSTINT      = 0x02,
+        CHANGE_TYPE_AVATAR      = 0x04,
+        CHANGE_TYPE_FIRSTNAME   = 0x08,
+        CHANGE_TYPE_LASTNAME    = 0x10,
+        CHANGE_TYPE_EMAIL       = 0x20
+    };
 
 	public ref class MUser sealed
 	{
@@ -45,8 +55,12 @@ namespace mega
 	public:
 		virtual ~MUser();
 		String^ getEmail();
+        uint64 getHandle();
 		MUserVisibility getVisibility();
 		uint64 getTimestamp();
+        bool hasChanged(int changeType);
+        int getChanges();
+        int isOwnChange();
 
 	private:
 		MUser(MegaUser *megaUser, bool cMemoryOwn);

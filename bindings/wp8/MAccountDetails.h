@@ -83,6 +83,9 @@ namespace mega
         int getNumTransactions();
         MAccountTransaction^ getTransaction(int i);
 
+        int getTemporalBandwidthInterval();
+        uint64 getTemporalBandwidth();
+
 	private:
 		MAccountDetails(MegaAccountDetails *accountDetails, bool cMemoryOwn);
 		MegaAccountDetails *accountDetails;

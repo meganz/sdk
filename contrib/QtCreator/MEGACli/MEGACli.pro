@@ -27,4 +27,5 @@ else {
 }
 
 SOURCES += ../../../examples/megacli.cpp
+HEADERS += ../../../examples/megacli.h
 include(../../../bindings/qt/sdk.pri)
