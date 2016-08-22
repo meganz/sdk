@@ -2357,6 +2357,10 @@ void actUponLogin(SynchronousRequestListener *srl,int timeout=-1)
     {
         LOG_err << "Login failed: invalid email or password";
     }
+    else if (srl->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+    {
+        LOG_err << "Login failed: unconfirmed account. Please confirm your account";
+    }
     else if(srl->getError()->getErrorCode() == MegaError::API_OK) //login success:
     {
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
@@ -5717,9 +5721,11 @@ int main()
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+//    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_MAX);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     api->setLoggerObject(loggerCMD);
 //    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
