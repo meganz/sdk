@@ -80,7 +80,7 @@ __FBSDID("$FreeBSD$");
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <mega_glob.h>
+#include "mega/mega_glob.h"
 #include <limits.h>
 #include <pwd.h>
 #include <stdint.h>
