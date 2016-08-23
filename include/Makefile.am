@@ -55,6 +55,12 @@ if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
 endif
 
+if ANDROID
+nobase_libmegainclude_HEADERS += \
+	mega/config-android.h \
+	mega/mega_glob.h
+endif
+
 if WIN32
 nobase_libmegainclude_HEADERS += \
 	mega/win32/megasys.h \

@@ -83,3 +83,4 @@ Release
 
 # Mega SDK runtime
 *.db-journal
+/third_party/Makefile
