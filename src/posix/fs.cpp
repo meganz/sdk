@@ -32,15 +32,16 @@
 extern JavaVM *MEGAjvm;
 #endif
 
-#ifdef USE_IOS
-    char* PosixFileSystemAccess::appbasepath = NULL;
-#endif
-
 #if defined(__MACH__) && !(TARGET_OS_IPHONE)
 #include <uuid/uuid.h>
 #endif
 
 namespace mega {
+    
+#ifdef USE_IOS
+    char* PosixFileSystemAccess::appbasepath = NULL;
+#endif
+    
 PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
 {
     fd = -1;
@@ -77,7 +78,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     string localname = this->localname;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (localname.size() && localname.at(0) != '/'))
+        if (localname.size() && localname.at(0) != '/')
         {
             localname.insert(0, PosixFileSystemAccess::appbasepath);
         }
@@ -108,7 +109,7 @@ bool PosixFileAccess::sysopen()
     string localname = this->localname;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (localname.size() && localname.at(0) != '/'))
+        if (localname.size() && localname.at(0) != '/')
         {
             localname.insert(0, PosixFileSystemAccess::appbasepath);
         }
@@ -161,11 +162,11 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 {
 #ifdef USE_IOS
     string absolutef;
-    if (appbasepath)
+    if (PosixFileSystemAccess::appbasepath)
     {
-        if (f->size() && f->at(0) != '/'))
+        if (f->size() && f->at(0) != '/')
         {
-            absolutef = appbasepath;
+            absolutef = PosixFileSystemAccess::appbasepath;
             absolutef.append(*f);
             f = &absolutef;
         }
@@ -715,14 +716,14 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     string absolutenewname;
     if (appbasepath)
     {
-        if (oldname->size() && oldname->at(0) != '/'))
+        if (oldname->size() && oldname->at(0) != '/')
         {
             absoluteoldname = appbasepath;
             absoluteoldname.append(*oldname);
             oldname = &absoluteoldname;
         }
 
-        if (newname->size() && newname->at(0) != '/'))
+        if (newname->size() && newname->at(0) != '/')
         {
             absolutenewname = appbasepath;
             absolutenewname.append(*newname);
@@ -752,14 +753,14 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     string absolutenewname;
     if (appbasepath)
     {
-        if (oldname->size() && oldname->at(0) != '/'))
+        if (oldname->size() && oldname->at(0) != '/')
         {
             absoluteoldname = appbasepath;
             absoluteoldname.append(*oldname);
             oldname = &absoluteoldname;
         }
 
-        if (newname->size() && newname->at(0) != '/'))
+        if (newname->size() && newname->at(0) != '/')
         {
             absolutenewname = appbasepath;
             absolutenewname.append(*newname);
@@ -833,7 +834,7 @@ bool PosixFileSystemAccess::unlinklocal(string* name)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -857,7 +858,7 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -949,7 +950,7 @@ bool PosixFileSystemAccess::rmdirlocal(string* name)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -973,7 +974,7 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -999,7 +1000,7 @@ bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -1026,7 +1027,7 @@ bool PosixFileSystemAccess::chdirlocal(string* name) const
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/'))
+        if (name->size() && name->at(0) != '/')
         {
             absolutename = appbasepath;
             absolutename.append(*name);
@@ -1343,11 +1344,11 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
 {
 #ifdef USE_IOS
     string absolutepath;
-    if (appbasepath)
+    if (PosixFileSystemAccess::appbasepath)
     {
-        if (path->size() && path->at(0) != '/'))
+        if (path->size() && path->at(0) != '/')
         {
-            absolutepath = appbasepath;
+            absolutepath = PosixFileSystemAccess::appbasepath;
             absolutepath.append(*path);
             path = &absolutepath;
         }
@@ -1389,11 +1390,11 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 {
 #ifdef USE_IOS
     string absolutepath;
-    if (appbasepath)
+    if (PosixFileSystemAccess::appbasepath)
     {
-        if (path->size() && path->at(0) != '/'))
+        if (path->size() && path->at(0) != '/')
         {
-            absolutepath = appbasepath;
+            absolutepath = PosixFileSystemAccess::appbasepath;
             absolutepath.append(*path);
             path = &absolutepath;
         }
