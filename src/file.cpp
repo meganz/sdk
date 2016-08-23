@@ -34,6 +34,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    temporaryfile = false;
     h = UNDEF;
 }
 
