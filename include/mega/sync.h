@@ -31,6 +31,9 @@ class MEGA_API Sync
 public:
     MegaClient* client;
 
+    // sync-wide directory notification provider
+    std::auto_ptr<DirNotify> dirnotify;
+
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
 
@@ -63,9 +66,6 @@ public:
 
     // change state, signal to application
     void changestate(syncstate_t);
-
-    // sync-wide directory notification provider
-    DirNotify* dirnotify;
 
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);
