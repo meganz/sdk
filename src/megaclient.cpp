@@ -454,6 +454,11 @@ handle MegaClient::getrootpublicfolder()
     }
 }
 
+handle MegaClient::getpublicfolderhandle()
+{
+    return publichandle;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
