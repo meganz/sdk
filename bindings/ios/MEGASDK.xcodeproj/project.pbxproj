@@ -23,6 +23,7 @@
 		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D001BD54B5200764370 /* MEGAContactRequest.mm */; };
 		41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */; };
+		41E3FE961D6B10F2005ABE2B /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41E3FE951D6B10F2005ABE2B /* libsodium.a */; };
 		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
 		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
 		940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8F19ED9245007E7FA2 /* libcryptopp.a */; };
@@ -129,6 +130,7 @@
 		41D98D051BD562AD00764370 /* MEGAContactRequestList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAContactRequestList.h; sourceTree = "<group>"; };
 		41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAContactRequestList.mm; sourceTree = "<group>"; };
 		41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAContactRequestList+init.h"; sourceTree = "<group>"; };
+		41E3FE951D6B10F2005ABE2B /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = 3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
 		41F01E301C087D4C001E18E6 /* GfxProcCG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GfxProcCG.h; sourceTree = "<group>"; };
 		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
 		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
@@ -269,6 +271,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41E3FE961D6B10F2005ABE2B /* libsodium.a in Frameworks */,
 				414820921C523AA600552E76 /* libuv.a in Frameworks */,
 				41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */,
 				41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */,
@@ -577,6 +580,7 @@
 				940BEF9019ED9245007E7FA2 /* libcurl.a */,
 				940BEF9119ED9245007E7FA2 /* libssl.a */,
 				414820911C523AA600552E76 /* libuv.a */,
+				41E3FE951D6B10F2005ABE2B /* libsodium.a */,
 				9472044419ED916F00F6805F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -801,6 +805,7 @@
 					"$(inherited)",
 					_DARWIN_C_SOURCE,
 					HAVE_LIBUV,
+					ENABLE_CHAT,
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -826,6 +831,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DARWIN_C_SOURCE,
 					HAVE_LIBUV,
+					ENABLE_CHAT,
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",

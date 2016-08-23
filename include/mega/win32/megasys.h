@@ -23,25 +23,27 @@
 #define MEGA_WIN32_OS_H 1
 
 #ifdef HAVE_CONFIG_H
-// platform dependent constants
-#include "mega/config.h"
+  // platform dependent constants
+  #include "mega/config.h"
 #endif
 
 // FIXME: move to autoconf
-#define __STDC_FORMAT_MACROS
+#ifndef __STDC_FORMAT_MACROS
+  #define __STDC_FORMAT_MACROS
+#endif
 
 #ifdef WINDOWS_PHONE
 #define __STDC_LIMIT_MACROS
 #endif
 
-// (inttypes.h is not present in Microsoft Visual Studio)
-#ifdef _MSC_VER
- #define PRIu32 "I32u"
- #define PRIu64 "I64u"
- #define PRId64 "I64d"
- #define PRIi64 "I64i"
+// (inttypes.h is not present in Microsoft Visual Studio < 2015)
+#if (defined (MSC_VER) && (_MSC_VER < 1900)) && !defined(HAVE_INTTYPES_H)
+  #define PRIu32 "I32u"
+  #define PRIu64 "I64u"
+  #define PRId64 "I64d"
+  #define PRIi64 "I64i"
 #else
- #include <inttypes.h>
+  #include <inttypes.h>
 #endif
 
 #include <iostream>
@@ -81,20 +83,20 @@
 #define strtoull _strtoui64
 
 #ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
+  #define _CRT_SECURE_NO_WARNINGS
 #endif
 
 // FIXME: move to auto-generated file
 #ifndef MEGA_MAJOR_VERSION
-#define MEGA_MAJOR_VERSION 2
+  #define MEGA_MAJOR_VERSION 2
 #endif
 
 #ifndef MEGA_MINOR_VERSION
-#define MEGA_MINOR_VERSION 6
+  #define MEGA_MINOR_VERSION 6
 #endif
 
 #ifndef MEGA_MICRO_VERSION
-#define MEGA_MICRO_VERSION 0
+  #define MEGA_MICRO_VERSION 0
 #endif
 
 #include <conio.h>
