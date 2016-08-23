@@ -139,7 +139,7 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
-            include/mega/thread/posixthread.h \
+            include/mega/thread/posixthread.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -170,7 +170,6 @@ unix {
 }
 
 DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
-LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
@@ -216,7 +215,7 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp
 }
 
 unix:!macx {
@@ -243,10 +242,22 @@ unix:!macx {
    }
    else {
     LIBS += -lcrypto 
-   }  
-   
-   LIBS += -lcares
-   
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a
+   }
+   else {
+    LIBS += -lcryptopp
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a
+   }
+   else {
+    LIBS += -lcares
+   }
+
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
    }
@@ -262,5 +273,5 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lz -lssl -lcrypto
+   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lz -lssl -lcrypto -lcryptopp
 }
