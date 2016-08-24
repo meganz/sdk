@@ -768,6 +768,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     init();
 
     f->client = this;
+    transferlist.client = this;
 
     if ((app = a))
     {
@@ -2139,29 +2140,20 @@ bool MegaClient::dispatch(direction_t d)
         return false;
     }
 
-    transfer_map::iterator nextit;
+    Transfer *nexttransfer;
     TransferSlot *ts = NULL;
 
     for (;;)
     {
-        nextit = transfers[d].end();
-
-        for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
-        {
-            if (!it->second->slot && it->second->bt.armed())
-            {
-                nextit = it;
-                break;
-            }
-        }
+        nexttransfer = transferlist.nexttransfer(d);
 
         // no inactive transfers ready?
-        if (nextit == transfers[d].end())
+        if (!nexttransfer)
         {
             return false;
         }
 
-        if (!nextit->second->localfilename.size())
+        if (!nexttransfer->localfilename.size())
         {
             // this is a fresh transfer rather than the resumption of a partly
             // completed and deferred one
@@ -2170,8 +2162,8 @@ bool MegaClient::dispatch(direction_t d)
                 // generate fresh random encryption key/CTR IV for this file
                 byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                 PrnGen::genblock(keyctriv, sizeof keyctriv);
-                nextit->second->key.setkey(keyctriv);
-                nextit->second->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
+                nexttransfer->key.setkey(keyctriv);
+                nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
             }
             else
             {
@@ -2180,7 +2172,7 @@ bool MegaClient::dispatch(direction_t d)
                 const byte* k = NULL;
 
                 // locate suitable template file
-                for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++)
+                for (file_list::iterator it = nexttransfer->files.begin(); it != nexttransfer->files.end(); it++)
                 {
                     if ((*it)->hprivate && !(*it)->hforeign)
                     {
@@ -2189,20 +2181,20 @@ bool MegaClient::dispatch(direction_t d)
                         if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
                         {
                             k = (const byte*)n->nodekey.data();
-                            nextit->second->size = n->size;
+                            nexttransfer->size = n->size;
                         }
                     }
                     else
                     {
                         k = (*it)->filekey;
-                        nextit->second->size = (*it)->size;
+                        nexttransfer->size = (*it)->size;
                     }
 
                     if (k)
                     {
-                        nextit->second->key.setkey(k, FILENODE);
-                        nextit->second->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
-                        nextit->second->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
+                        nexttransfer->key.setkey(k, FILENODE);
+                        nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
+                        nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
 
                         // FIXME: re-add support for partial transfers
                         break;
@@ -2215,108 +2207,108 @@ bool MegaClient::dispatch(direction_t d)
                 }
             }
 
-            nextit->second->localfilename.clear();
+            nexttransfer->localfilename.clear();
 
             // set file localnames (ultimate target) and one transfer-wide temp
             // localname
-            for (file_list::iterator it = nextit->second->files.begin();
-                 !nextit->second->localfilename.size() && it != nextit->second->files.end(); it++)
+            for (file_list::iterator it = nexttransfer->files.begin();
+                 !nexttransfer->localfilename.size() && it != nexttransfer->files.end(); it++)
             {
                 (*it)->prepare();
             }
 
             // app-side transfer preparations (populate localname, create thumbnail...)
-            app->transfer_prepare(nextit->second);
+            app->transfer_prepare(nexttransfer);
         }
 
         // verify that a local path was given and start/resume transfer
-        if (nextit->second->localfilename.size())
+        if (nexttransfer->localfilename.size())
         {
             // allocate transfer slot
-            ts = new TransferSlot(nextit->second);
+            ts = new TransferSlot(nexttransfer);
 
             // try to open file (PUT transfers: open in nonblocking mode)
             if ((d == PUT)
-              ? ts->fa->fopen(&nextit->second->localfilename)
-              : ts->fa->fopen(&nextit->second->localfilename, false, true))
+              ? ts->fa->fopen(&nexttransfer->localfilename)
+              : ts->fa->fopen(&nexttransfer->localfilename, false, true))
             {
                 handle h = UNDEF;
                 bool hprivate = true;
                 const char *privauth = NULL;
                 const char *pubauth = NULL;
 
-                nextit->second->pos = 0;
-                nextit->second->progresscompleted = 0;
+                nexttransfer->pos = 0;
+                nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nextit->second->cachedtempurl.size())
+                if (d == GET || nexttransfer->cachedtempurl.size())
                 {
                     m_off_t p = 0;
 
                     // resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nextit->second->chunkmacs.begin();
-                         it != nextit->second->chunkmacs.end(); it++)
+                    for (chunkmac_map::iterator it = nexttransfer->chunkmacs.begin();
+                         it != nexttransfer->chunkmacs.end(); it++)
                     {
                         m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-                        if (chunkceil > nextit->second->size)
+                        if (chunkceil > nexttransfer->size)
                         {
-                            chunkceil = nextit->second->size;
+                            chunkceil = nexttransfer->size;
                         }
 
-                        if (nextit->second->pos == it->first && it->second.finished)
+                        if (nexttransfer->pos == it->first && it->second.finished)
                         {
-                            nextit->second->pos = chunkceil;
-                            nextit->second->progresscompleted = chunkceil;
+                            nexttransfer->pos = chunkceil;
+                            nexttransfer->progresscompleted = chunkceil;
                         }
                         else if (it->second.finished)
                         {
                             m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-                            nextit->second->progresscompleted += chunksize;
+                            nexttransfer->progresscompleted += chunksize;
                         }
                         else
                         {
-                            nextit->second->progresscompleted += it->second.offset;
+                            nexttransfer->progresscompleted += it->second.offset;
                             p += it->second.offset;
                         }
                     }
 
-                    if (nextit->second->progresscompleted > nextit->second->size)
+                    if (nexttransfer->progresscompleted > nexttransfer->size)
                     {
                         LOG_err << "Invalid transfer progress!";
-                        nextit->second->pos = nextit->second->size;
-                        nextit->second->progresscompleted = nextit->second->size;
+                        nexttransfer->pos = nexttransfer->size;
+                        nexttransfer->progresscompleted = nexttransfer->size;
                     }
 
-                    LOG_debug << "Resuming transfer at " << nextit->second->pos
-                              << " Completed: " << nextit->second->progresscompleted
+                    LOG_debug << "Resuming transfer at " << nexttransfer->pos
+                              << " Completed: " << nexttransfer->progresscompleted
                               << " Partial: " << p;
                 }
                 else
                 {
-                    nextit->second->chunkmacs.clear();
+                    nexttransfer->chunkmacs.clear();
                 }
 
-                ts->progressreported = nextit->second->progresscompleted;
+                ts->progressreported = nexttransfer->progresscompleted;
 
                 if (d == PUT)
                 {
-                    nextit->second->size = ts->fa->size;
+                    nexttransfer->size = ts->fa->size;
 
                     // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
-                    if (gfx && nextit->second->localfilename.size() && !nextit->second->uploadhandle)
+                    if (gfx && nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
                     {
-                        nextit->second->uploadhandle = getuploadhandle();
+                        nexttransfer->uploadhandle = getuploadhandle();
 
-                        if (gfx->isgfx(&nextit->second->localfilename))
+                        if (gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key, -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, &nexttransfer->key, -1, false);
                         }
                     }
                 }
                 else
                 {
-                    for (file_list::iterator it = nextit->second->files.begin();
-                         it != nextit->second->files.end(); it++)
+                    for (file_list::iterator it = nexttransfer->files.begin();
+                         it != nexttransfer->files.end(); it++)
                     {
                         if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
                         {
@@ -2334,11 +2326,11 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nextit->second->cachedtempurl.size())
+                if (nexttransfer->cachedtempurl.size())
                 {
-                    app->transfer_prepare(nextit->second);
-                    ts->tempurl =  nextit->second->cachedtempurl;
-                    nextit->second->cachedtempurl.clear();
+                    app->transfer_prepare(nexttransfer);
+                    ts->tempurl =  nexttransfer->cachedtempurl;
+                    nexttransfer->cachedtempurl.clear();
                 }
                 else
                 {
@@ -2351,39 +2343,40 @@ bool MegaClient::dispatch(direction_t d)
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
                 // notify the app about the starting transfer
-                for (file_list::iterator it = nextit->second->files.begin();
-                     it != nextit->second->files.end(); it++)
+                for (file_list::iterator it = nexttransfer->files.begin();
+                     it != nexttransfer->files.end(); it++)
                 {
                     (*it)->start();
                 }
+                app->transfer_update(nexttransfer);
 
                 return true;
             }
             else
             {
                 string utf8path;
-                fsaccess->local2path(&nextit->second->localfilename, &utf8path);
+                fsaccess->local2path(&nexttransfer->localfilename, &utf8path);
                 if (d == GET)
                 {
                     LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
-                    nextit->second->failed(API_EWRITE);
+                    nexttransfer->failed(API_EWRITE);
                 }
                 else if (!ts->fa->retry)
                 {
                     LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
-                    nextit->second->failed(API_EREAD);
+                    nexttransfer->failed(API_EREAD);
                 }
                 else
                 {
                     LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
-                    nextit->second->failed(API_EREAD);
+                    nexttransfer->failed(API_EREAD);
                 }
             }
         }
         else
         {
             LOG_err << "Error preparing transfer. No localfilename";
-            nextit->second->failed(API_EREAD);
+            nexttransfer->failed(API_EREAD);
         }
     }
 }
@@ -2456,6 +2449,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;    
     t->completefiles();
+    t->state = TRANSFERSTATE_COMPLETED;
     looprequested = true;
     app->transfer_complete(t);
     delete t;
@@ -9929,6 +9923,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+            transferlist.addtransfer(t);
             app->transfer_added(t);
             looprequested = true;
 
@@ -9967,6 +9962,7 @@ void MegaClient::stopxfer(File* f)
         {
             looprequested = true;
             transfer->finished = true;
+            transfer->state = TRANSFERSTATE_CANCELLED;
             app->transfer_removed(transfer);
             delete transfer;
         }

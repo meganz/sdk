@@ -27,6 +27,7 @@
 #include "gfx.h"
 #include "filefingerprint.h"
 #include "request.h"
+#include "transfer.h"
 #include "treeproc.h"
 #include "sharenodekeys.h"
 #include "account.h"
@@ -303,6 +304,9 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+    // determine if more transfers fit in the pipeline
+    bool moretransfers(direction_t);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -416,9 +420,6 @@ private:
 
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 24;
-
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -600,6 +601,9 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+
+    // transfer list to manage the priority of transfers
+    TransferList transferlist;
 
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];

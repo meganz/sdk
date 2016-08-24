@@ -86,6 +86,7 @@ struct User;
 struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
+class TransferList;
 
 #define EOO 0
 
@@ -261,6 +262,8 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
+typedef deque<Transfer*> transfer_list;
+
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
@@ -347,6 +350,10 @@ typedef map<handle, char> handlecount_map;
 typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
+
+typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
+               TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
+               TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
 struct Notification
 {

@@ -45,6 +45,9 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     lastaccesstime = time(NULL);
     ultoken = NULL;
 
+    priority = 0;
+    state = TRANSFERSTATE_NONE;
+
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
 }
@@ -71,6 +74,7 @@ Transfer::~Transfer()
     if (transfers_it != client->transfers[type].end())
     {
         client->transfers[type].erase(transfers_it);
+        client->transferlist.removetransfer(this);
     }
 
     if (slot)
@@ -322,6 +326,7 @@ void Transfer::failed(error e, dstime timeleft)
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
+    state = TRANSFERSTATE_RETRYING;
     client->looprequested = true;
     client->app->transfer_failed(this, e, timeleft);
 
@@ -359,6 +364,7 @@ void Transfer::failed(error e, dstime timeleft)
     else
     {
         LOG_debug << "Removing transfer";
+        state = TRANSFERSTATE_FAILED;
         finished = true;
         client->app->transfer_removed(this);
         delete this;
@@ -369,6 +375,9 @@ void Transfer::failed(error e, dstime timeleft)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    state = TRANSFERSTATE_COMPLETING;
+    client->app->transfer_update(this);
+
     if (type == GET)
     {
         LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
@@ -692,6 +701,7 @@ void Transfer::complete()
 
         if (!files.size())
         {
+            state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
             finished = true;
             client->looprequested = true;
@@ -1173,4 +1183,291 @@ DirectReadSlot::~DirectReadSlot()
     LOG_debug << "Deleting DirectReadSlot";
     delete req;
 }
+
+TransferList::TransferList()
+{
+    currentpriority = 0;
+}
+
+void TransferList::addtransfer(Transfer *transfer)
+{
+    currentpriority++;
+    transfer->priority = currentpriority;
+    transfer->state = TRANSFERSTATE_QUEUED;
+    transfers[transfer->type].push_back(transfer);
+}
+
+void TransferList::removetransfer(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it != transfers[transfer->type].end())
+    {
+        transfers[transfer->type].erase(it);
+    }
+}
+
+void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer)
+{
+    transfer_list::iterator dstit = iterator(prevTransfer);
+    movetransfer(transfer, dstit);
+}
+
+void TransferList::movetransfer(Transfer *transfer, unsigned int position)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    if (position >= transfers[transfer->type].size())
+    {
+        transfers[transfer->type].erase(it);
+        currentpriority++;
+        transfer->priority = currentpriority;
+        transfers[transfer->type].push_back(transfer);
+        client->app->transfer_update(transfer);
+        return;
+    }
+
+    transfer_list::iterator dstit = transfers[transfer->type].begin() + position;
+    movetransfer(it, dstit);
+}
+
+void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+    movetransfer(it, dstit);
+}
+
+void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit)
+{
+    Transfer *transfer = (*it);
+    transfers[transfer->type].erase(it);
+    if (dstit == transfers[transfer->type].end())
+    {
+        currentpriority++;
+        transfer->priority = currentpriority;
+        transfers[transfer->type].push_back(transfer);
+        client->app->transfer_update(transfer);
+        return;
+    }
+
+    float prevpriority = 0;
+    float nextpriority = (*dstit)->priority;
+    if (dstit != transfers[transfer->type].begin())
+    {
+        transfer_list::iterator previt = dstit - 1;
+        prevpriority = (*previt)->priority;
+    }
+    float newpriority = (prevpriority + nextpriority) / 2.0;
+    transfer->priority = newpriority;
+    transfers[transfer->type].insert(dstit, transfer);
+    client->app->transfer_update(transfer);
+
+    if (!transfer->slot && !(client->moretransfers(transfer->type) && client->slotavail()))
+    {
+        transfer_list::iterator cit = iterator(transfer);
+        transfer_list::iterator it = transfers[transfer->type].end();
+        it--;
+
+        while (it != cit)
+        {
+            if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
+            {
+                (*it)->bt.arm();
+                (*it)->cachedtempurl = (*it)->slot->tempurl;
+                delete (*it)->slot;
+                (*it)->state = TRANSFERSTATE_QUEUED;
+                client->app->transfer_update(*it);
+                break;
+            }
+            it--;
+        }
+    }
+}
+
+void TransferList::movetofirst(Transfer *transfer)
+{
+    movetransfer(transfer, transfers[transfer->type].begin());
+}
+
+void TransferList::movetofirst(transfer_list::iterator it)
+{
+    Transfer *transfer = (*it);
+    movetransfer(it, transfers[transfer->type].begin());
+}
+
+void TransferList::movetolast(Transfer *transfer)
+{
+    movetransfer(transfer, transfers[transfer->type].end());
+}
+
+void TransferList::movetolast(transfer_list::iterator it)
+{
+    Transfer *transfer = (*it);
+    movetransfer(it, transfers[transfer->type].end());
+}
+
+void TransferList::moveup(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].begin())
+    {
+        return;
+    }
+    transfer_list::iterator dstit = it - 1;
+    movetransfer(it, dstit);
+}
+
+void TransferList::moveup(transfer_list::iterator it)
+{
+    if (it == transfers[(*it)->type].begin())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it - 1;
+    movetransfer(it, dstit);
+}
+
+void TransferList::movedown(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it + 1;
+    movetransfer(it, dstit);
+}
+
+void TransferList::movedown(transfer_list::iterator it)
+{
+    if (it == transfers[(*it)->type].end())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it + 1;
+    movetransfer(it, dstit);
+}
+
+error TransferList::pause(Transfer *transfer, bool enable)
+{
+    if (!transfer)
+    {
+        return API_ENOENT;
+    }
+
+    if ((enable && transfer->state == TRANSFERSTATE_PAUSED) ||
+            (!enable && transfer->state != TRANSFERSTATE_PAUSED))
+    {
+        return API_OK;
+    }
+
+    if (!enable)
+    {
+        transfer->state = TRANSFERSTATE_QUEUED;
+        client->app->transfer_update(transfer);
+
+        if (!(client->moretransfers(transfer->type) && client->slotavail()))
+        {
+            transfer_list::iterator cit = iterator(transfer);
+            transfer_list::iterator it = transfers[transfer->type].end();
+            it--;
+
+            while (it != cit)
+            {
+                if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
+                {
+                    (*it)->bt.arm();
+                    (*it)->cachedtempurl = (*it)->slot->tempurl;
+                    delete (*it)->slot;
+                    (*it)->state = TRANSFERSTATE_QUEUED;
+                    client->app->transfer_update(*it);
+                    break;
+                }
+                it--;
+            }
+        }
+
+        return API_OK;
+    }
+
+    if (transfer->state == TRANSFERSTATE_ACTIVE
+            || transfer->state == TRANSFERSTATE_QUEUED
+            || transfer->state == TRANSFERSTATE_RETRYING)
+    {
+        if (transfer->slot)
+        {
+            transfer->bt.arm();
+            transfer->cachedtempurl = transfer->slot->tempurl;
+            delete transfer->slot;
+        }
+        transfer->state = TRANSFERSTATE_PAUSED;
+        client->app->transfer_update(transfer);
+        return API_OK;
+    }
+
+    return API_EFAILED;
+}
+
+transfer_list::iterator TransferList::begin(direction_t direction)
+{
+    return transfers[direction].begin();
+}
+
+transfer_list::iterator TransferList::end(direction_t direction)
+{
+    return transfers[direction].end();
+}
+
+bool priority_comparator(Transfer* i, Transfer *j)
+{
+    return (i->priority < j->priority);
+}
+
+transfer_list::iterator TransferList::iterator(Transfer *transfer)
+{
+    if (!transfer)
+    {
+        return transfers[transfer->type].end();
+    }
+
+    transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
+    if ((*it) == transfer)
+    {
+        return it;
+    }
+    return transfers[transfer->type].end();
+}
+
+Transfer *TransferList::nexttransfer(direction_t direction)
+{
+    for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
+    {
+        Transfer *transfer = (*it);
+        if (!transfer->slot && !(transfer->state == TRANSFERSTATE_PAUSED) && transfer->bt.armed())
+        {
+            return transfer;
+        }
+    }
+    return NULL;
+}
+
+Transfer *TransferList::transferat(direction_t direction, unsigned int position)
+{
+    if (transfers[direction].size() > position)
+    {
+        return transfers[direction][position];
+    }
+    return NULL;
+}
+
 } // namespace

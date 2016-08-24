@@ -47,6 +47,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     transfer = ctransfer;
     transfer->slot = this;
+    transfer->state = TRANSFERSTATE_ACTIVE;
 
     connections = transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
 
