@@ -66,6 +66,7 @@ CONFIG(USE_LIBUV) {
        else {
         LIBS += -luv
        }
+    }
 
     macx {
         LIBS += -luv
