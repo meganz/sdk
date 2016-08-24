@@ -395,6 +395,9 @@ class MegaNode
             CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
+        static const int INVALID_DURATION = -1;
+        static const double INVALID_COORDINATE;
+
         virtual ~MegaNode();
 
         /**
@@ -499,6 +502,35 @@ class MegaNode
         virtual const char *getCustomAttr(const char* attrName);
 
         /**
+         * @brief Get the attribute of the node representing its duration.
+         *
+         * The purpose of this attribute is to store the duration of audio/video files.
+         *
+         * @return The number of seconds, or -1 if this attribute is not set.
+         */
+        virtual int getDuration();
+
+        /**
+         * @brief Get the attribute of the node representing the latitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The latitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLatitude();
+
+        /**
+         * @brief Get the attribute of the node representing the longitude.
+         *
+         * The purpose of this attribute is to store the coordinate where a photo was taken.
+         *
+         * @return The longitude coordinate in its decimal degree notation, or INVALID_COORDINATE
+         * if this attribute is not set.
+         */
+        virtual double getLongitude();
+
+        /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
@@ -555,8 +587,6 @@ class MegaNode
 
         /**
          * @brief Returns the key of the node in a Base64-encoded string
-         *
-         * The return value is only valid for nodes of type TYPE_FILE
          *
          * You take the ownership of the returned string.
          * Use delete [] to free it.
@@ -1001,12 +1031,19 @@ class MegaUser
 
         enum
         {
-            CHANGE_TYPE_AUTH            = 0x01,
+            CHANGE_TYPE_AUTHRING        = 0x01,
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
             CHANGE_TYPE_FIRSTNAME       = 0x08,
             CHANGE_TYPE_LASTNAME        = 0x10,
-            CHANGE_TYPE_EMAIL           = 0x20
+            CHANGE_TYPE_EMAIL           = 0x20,
+            CHANGE_TYPE_KEYRING         = 0x40,
+            CHANGE_TYPE_COUNTRY         = 0x80,
+            CHANGE_TYPE_BIRTHDAY        = 0x100,
+            CHANGE_TYPE_PUBKEY_CU255    = 0x200,
+            CHANGE_TYPE_PUBKEY_ED255    = 0x400,
+            CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
+            CHANGE_TYPE_SIG_PUBKEY_CU25 = 0x1600
         };
 
         /**
@@ -1026,7 +1063,7 @@ class MegaUser
          * Check if the last interaction timestamp is modified
          *
          * - MegaUser::CHANGE_TYPE_AVATAR          = 0x04
-         * Check if the user has a new or modified avatar image
+         * Check if the user has a new or modified avatar image, or if the avatar was removed
          *
          * - MegaUser::CHANGE_TYPE_FIRSTNAME       = 0x08
          * Check if the user has new or modified firstname
@@ -1037,6 +1074,27 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
          * Check if the user has modified email
          *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x40
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x80
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x100
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x200
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x400
+         * Check if the user has new or modified public key for signing
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
+         * Check if the user has new or modified signature for RSA public key
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * Check if the user has new or modified signature for Cu25519 public key
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1044,7 +1102,7 @@ class MegaUser
         /**
          * @brief Returns a bit field with the changes of the user
          *
-         * This value is only useful for users notified by MegaListener::onUserspdate or
+         * This value is only useful for users notified by MegaListener::onUsersUpdate or
          * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
          *
          * @return The returned value is an OR combination of these flags:
@@ -1066,8 +1124,41 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
          * Check if the user has modified email
+         *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x40
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x80
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x100
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x200
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x400
+         * Check if the user has new or modified public key for signing
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
+         * Check if the user has new or modified signature for RSA public key
+         *
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * Check if the user has new or modified signature for Cu25519 public key
          */
         virtual int getChanges();
+
+        /**
+         * @brief Indicates if the user is changed by yourself or by another client.
+         *
+         * This value is only useful for users notified by MegaListener::onUsersUpdate or
+         * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
+         *
+         * @return 0 if the change is external. >0 if the change is the result of an
+         * explicit request, -1 if the change is the result of an implicit request
+         * made by the SDK internally.
+         */
+        virtual int isOwnChange();
 };
 
 /**
@@ -1165,9 +1256,8 @@ public:
         PRIV_UNKNOWN = -2,
         PRIV_RM = -1,
         PRIV_RO = 0,
-        PRIV_RW = 1,
-        PRIV_FULL = 2,
-        PRIV_OPERATOR = 3
+        PRIV_STANDARD = 2,
+        PRIV_MODERATOR = 3
     };
 
     /**
@@ -1337,8 +1427,8 @@ public:
      * @param i Position of the MegaTextChat that we want to get for the list
      * @return MegaTextChat at the position i in the list
      */
-    virtual const MegaTextChat *get(int i)  const;
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(unsigned int i)  const;
+    virtual MegaTextChat *get(unsigned int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -1348,6 +1438,69 @@ public:
 };
 
 #endif
+
+/**
+ * @brief Map of string values with string keys (map<string,string>)
+ *
+ * A MegaStringMap has the ownership of the strings that it contains, so they will be
+ * only valid until the MegaStringMap is deleted. If you want to retain a string returned by
+ * a MegaStringMap, copy it.
+ *
+ * Objects of this class are immutable.
+ */
+
+class MegaStringMap
+{
+public:
+    virtual ~MegaStringMap();
+
+    virtual MegaStringMap *copy() const;
+
+    /**
+     * @brief Returns the string at the position key in the MegaStringMap
+     *
+     * The returned value is a null-terminated char array. If the value in the map is an array of
+     * bytes, then it will be a Base64-encoded string.
+     *
+     * The MegaStringMap retains the ownership of the returned string. It will be only valid until
+     * the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key of the string that you want to get from the map
+     * @return String at the position key in the map
+     */
+    virtual const char* get(const char* key) const;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringMap
+     */
+    virtual MegaStringList *getKeys() const;
+
+    /**
+     * @brief Sets a value in the MegaStringMap for the given key.
+     *
+     * If the key already exists in the MegaStringMap, the value will be overwritten by the
+     * new value.
+     *
+     * The MegaStringMap does not take ownership of the strings passed as parameter, it makes
+     * a local copy.
+     *
+     * @param key Key for the new value in the map. It must be a NULL-terminated string.
+     * @param value The new value for the key in the map. It must be a NULL-terminated string.
+     */
+    virtual void set(const char* key, const char *value);
+
+    /**
+     * @brief Returns the number of strings in the map
+     * @return Number of strings in the map
+     */
+    virtual int size() const;
+};
 
 /**
  * @brief List of strings
@@ -1614,7 +1767,11 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY, TYPE_SET_MAX_CONNECTIONS
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
+            TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
+            TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
+            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_SET_MAX_CONNECTIONS
         };
 
         virtual ~MegaRequest();
@@ -1784,7 +1941,6 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
-         * - MegaApi::loadBalancing - Returns the name of the service
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1993,7 +2149,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP JID of the user
-         * - MegaApi::loadBalancing . Returns the response of the server
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -2129,12 +2284,25 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::createChat - Returns the new chat's information
-         * - MegaApi::fetchChat - Returns the list of chats
          *
          * @return List of chats
          */
         virtual MegaTextChatList *getMegaTextChatList() const;
 #endif
+
+        /**
+         * @brief Returns the string map
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserAttribute - Returns the attribute value
+         *
+         * @return String map including the key-value pairs of the attribute
+         */
+        virtual MegaStringMap* getMegaStringMap() const;
 };
 
 /**
@@ -2431,6 +2599,18 @@ class MegaTransfer
          * @return Tag of the associated folder transfer.
          */
         virtual int getFolderTransferTag() const;
+
+        /**
+         * @brief Returns the application data associated with this transfer
+         *
+         * You can set the data returned by this function in MegaApi::startDownload
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
+         *
+         * @return Application data associated with this transfer
+         */
+        virtual const char* getAppData() const;
 };
 
 /**
@@ -3258,6 +3438,8 @@ class MegaGlobalListener
         /**
          * @brief This function is called when there are new or updated chats
          *
+         * This callback is also used to initialize the list of chats available during the fetchnodes request.
+         *
          * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
          * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
          * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
@@ -3614,11 +3796,23 @@ class MegaApi
         };
 
         enum {
-            USER_ATTR_AVATAR = 0,
-            USER_ATTR_FIRSTNAME = 1,
-            USER_ATTR_LASTNAME = 2,
-            USER_ATTR_AUTHRING = 3,
-            USER_ATTR_LAST_INTERACTION = 4
+            USER_ATTR_AVATAR = 0,               // public - char array
+            USER_ATTR_FIRSTNAME = 1,            // public - char array
+            USER_ATTR_LASTNAME = 2,             // public - char array
+            USER_ATTR_AUTHRING = 3,             // private - byte array
+            USER_ATTR_LAST_INTERACTION = 4,     // private - byte array
+            USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
+            USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
+            USER_ATTR_KEYRING = 7,              // private - byte array
+            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,  // public - byte array
+            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9 // public - byte array
+//            USER_ATTR_AUTHRSA = 8,
+//            USER_ATTR_AUTHCU255 =
+        };
+
+        enum {
+            NODE_ATTR_DURATION = 0,
+            NODE_ATTR_COORDINATES = 1
         };
 
         enum {
@@ -3630,7 +3824,8 @@ class MegaApi
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8,
-            PAYMENT_METHOD_CENTILI = 9
+            PAYMENT_METHOD_CENTILI = 9,
+            PAYMENT_METHOD_WINDOWS_STORE = 13
         };
 
         enum {
@@ -4137,19 +4332,19 @@ class MegaApi
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get data about a contact
+         * @brief Get information about a MEGA user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the user,
          * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
-         * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
+         * - MegaRequest::getText - Returns the XMPP ID of the user
+         * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
-         * @param user Email or Base64 handle of the contact
+         * @param user Email or Base64 handle of the user
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
@@ -4331,6 +4526,153 @@ class MegaApi
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Initialize the reset of the existing password, with and without the Master Key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOVERY_LINK.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
+         *
+         * If this request succeed, a recovery link will be sent to the user.
+         * If no account is registered under the provided email, you will get the error code
+         * MegaError::API_ENOENT in onRequestFinish
+         *
+         * @param email Email used to register the account whose password wants to be reset.
+         * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a recovery link created by MegaApi::resetPassword.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link Recovery link (#recover)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a new password for the account pointed by the recovery link.
+         *
+         * Recovery links are created by calling MegaApi::resetPassword and may or may not
+         * require to provide the Master Key.
+         *
+         * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         * - MegaRequest::getPrivateKey - Returns the Master Key, when provided
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param newPwd The new password to be set.
+         * @param masterKey Base64-encoded string containing the master key (optional).
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeed, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @see MegaApi::confirmCancelAccount
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelAccount(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively parks the user's account without creating a new fresh account.
+         *
+         * The contents of the account will then be purged after 60 days. Once the account is
+         * parked, the user needs to contact MEGA support to restore the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CANCEL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Cancellation link sent to the user's email address;
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the change of the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         *
+         * If this request succeed, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void changeEmail(const char *email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a change-email link created by MegaApi::changeEmail.
+         *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link (#verify)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryChangeEmailLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Effectively changes the email address associated to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the change-email link
+         * - MegaRequest::getPassword - Returns the password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Change-email link sent to the user's email address.
+         * @param pwd Password for the account.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set proxy settings
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
@@ -4407,6 +4749,20 @@ class MegaApi
          */
         char* getMyXMPPJid();
 
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Returns the fingerprint of the signing key of the currently open account
+         *
+         * If the MegaApi object isn't logged in or there's no signing key available,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @return Fingerprint of the signing key of the current account
+         */
+        char* getMyFingerprint();
+#endif
         /**
          * @brief Set the active log level
          *
@@ -4795,7 +5151,38 @@ class MegaApi
         void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+         *  is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function always returns the same color.
+         */
+        char *getUserAvatarColor(MegaUser *user);
+
+        /**
+         * @brief Get the default color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         * If the user is not found, this function  always returns the same color.
+         */
+        char *getUserAvatarColor(const char *userhandle);
+
+        /**
          * @brief Get an attribute of a MegaUser.
+         *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -4803,7 +5190,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
          * is obtained for the active account
@@ -4812,9 +5200,23 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4823,6 +5225,9 @@ class MegaApi
         /**
          * @brief Get an attribute of any user in MEGA.
          *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
@@ -4830,7 +5235,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
          * If this parameter is set to NULL, the attribute is obtained for the active account.
@@ -4839,9 +5245,23 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4850,22 +5270,40 @@ class MegaApi
         /**
          * @brief Get an attribute of the current account.
          *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param type Attribute type
          *
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+         * Get the signature of RSA public key of the user (public)
+         * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+         * Get the signature of Cu25519 public key of the user (public)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4946,7 +5384,7 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set an attribute of the current user
+         * @brief Set a public attribute of the current user
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -4957,15 +5395,43 @@ class MegaApi
          *
          * Valid values are:
          *
-         * USER_ATTR_FIRSTNAME = 1
-         * Change the firstname of the user
-         * USER_ATTR_LASTNAME = 2
-         * Change the lastname of the user
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
          */
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a private attribute of the current user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         *
+         * @param value New attribute value
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set a custom attribute for the node
@@ -4974,7 +5440,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
          * - MegaRequest::getName - Returns the name of the custom attribute
-         * - MegaRequest::getText - Returns the tezt for the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns false (not official attribute)
          *
          * The attribute name must be an UTF8 string with between 1 and 7 bytes
          * If the attribute already has a value, it will be replaced
@@ -4987,6 +5454,45 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the duration of audio/video files as a node attribute.
+         *
+         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumber - Returns the number of seconds for the node
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+         *
+         * @param node Node that will receive the information.
+         * @param duration Length of the audio/video in seconds.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDuration(MegaNode *node, int duration,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the GPS coordinates of image files as a node attribute.
+         *
+         * To remove the existing coordinates, set both the latitude and longitud to
+         * the value MegaNode::INVALID_COORDINATE.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+         *
+         * @param node Node that will receive the information.
+         * @param latitude Latitude in signed decimal degrees notation
+         * @param longitude Longitude in signed decimal degrees notation
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude,  MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -5170,6 +5676,7 @@ class MegaApi
          * Currently supported payment gateways are:
          * - MegaApi::PAYMENT_METHOD_ITUNES = 2
          * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -5247,6 +5754,7 @@ class MegaApi
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
          * - https://mega.nz/#recovery
+         * - MegaApi::resetPassword()
          *
          * You take the ownership of the returned value.
          *
@@ -5485,6 +5993,20 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startDownload(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -6093,6 +6615,12 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the total number of local nodes in the account
+         * @return Total number of local nodes in the account
+         */
+        long long getNumLocalNodes();
 #endif
 
         /**
@@ -6194,6 +6722,12 @@ class MegaApi
          *
          */
         void updateStats();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         * @return Total number of nodes in the account
+         */
+        long long getNumNodes();
 
         enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
@@ -7165,22 +7699,6 @@ class MegaApi
         static char *base32ToBase64(const char *base32);
 
         /**
-         * @brief loadBalancing Load balancing request
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOAD_BALANCING
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getName - Returns the name of the service
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the response of the server
-         *
-         * @param service Service to get load balancing data
-         * @param listener MegaRequestListener to track this request
-         */
-        void loadBalancing(const char *service, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Function to copy a buffer
          *
          * The new buffer is allocated by new[] so you should release
@@ -7585,19 +8103,6 @@ class MegaApi
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Fetches the full list of current chats for the requesting user.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaTextChatList - Returns the list of chats
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchChats(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat.
          *
@@ -7613,9 +8118,8 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
          * - MegaTextChatPeerList::PRIV_RM = -1
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_RW = 1
-         * - MegaTextChatPeerList::PRIV_FULL = 2
-         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
@@ -7685,6 +8189,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to adjust the permissions on any other user
+         * in their group chat. This does not work for a 1:1 chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user whose permission
+         * is to be upgraded
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the existing peer. Valid values are:
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows a logged in operator/moderator to truncate their chat, i.e. to clear
+         * the entire chat history up to a certain message. All earlier messages are wiped,
+         * but his specific message gets overridden with an API message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_TRUNCATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the message identifier to truncate from.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param messageid MegaHandle that identifies the message to truncate from
+         * @param listener MegaRequestListener to track this request
+         */
+        void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
 #endif
 
 private:
@@ -7883,6 +8424,7 @@ public:
      * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
      * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
      * - MegaApi::PAYMENT_METHOD_CENTILI = 9
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @return Method of the purchase
      */
@@ -8198,6 +8740,12 @@ public:
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();
+
+    /**
+     * @brief Check if the temporal bandwidth usage is valid after an overquota error
+     * @return True if the temporal bandwidth is valid, otherwise false
+     */
+    virtual bool isTemporalBandwidthValid();
 };
 
 /**

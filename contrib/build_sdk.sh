@@ -219,6 +219,7 @@ package_build() {
     local cwd=$(pwd)
     cd $dir
 
+    echo make $make_opts $target
     make $make_opts $target &> ../$name.build.log
 
     local exit_code=$?
@@ -244,6 +245,7 @@ package_install() {
 
     local cwd=$(pwd)
     cd $dir
+
     make install $target &> ../$name.install.log
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
@@ -264,9 +266,9 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2g"
+    local openssl_ver="1.0.2h"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
-    local openssl_md5="f3c710c045cdee5fd114feb69feba7aa"
+    local openssl_md5="9392e65072ce4b614c1392eefc1f23d0"
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -318,32 +320,29 @@ cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="562"
+    local cryptopp_ver="563"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="7ed022585698df48e65ce9218f6c6a67"
+    local cryptopp_md5="3c5b70e2ec98b7a24988734446242d07"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
-    local cryptopp_mobile_url="http://www.cryptopp.com/w/images/a/a0/Cryptopp-mobile.zip"
-    local cryptopp_mobile_md5="ecc91e85f8f9278a8b2a891c77969dcd"
-    local cryptopp_mobile_file="Cryptopp-mobile.zip"
 
     package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
-    if [ $android_build -eq 1 ]; then
-        package_download $name $cryptopp_mobile_url $cryptopp_mobile_file $cryptopp_mobile_md5
-    fi
     if [ $download_only -eq 1 ]; then
         return
     fi
 
     package_extract $name $cryptopp_file $cryptopp_dir
-    if [ $android_build -eq 1 ]; then
-        local file=$local_dir/$cryptopp_mobile_file
-        unzip -o $file -d $cryptopp_dir || exit 1
-    fi
+
     #modify Makefile so that it does not use specific cpu architecture optimizations
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
-    package_build $name $cryptopp_dir static
-    package_install $name $cryptopp_dir $install_dir
+    
+    if [ $android_build -eq 1 ]; then
+        package_build $name $cryptopp_dir "static -f GNUmakefile-cross"
+        package_install $name $cryptopp_dir $install_dir "-f GNUmakefile-cross"
+    else
+        package_build $name $cryptopp_dir static
+        package_install $name $cryptopp_dir $install_dir
+   fi
 }
 
 sodium_pkg() {
@@ -615,6 +614,9 @@ freeimage_pkg() {
     fi
 
     package_extract $name $freeimage_file $freeimage_dir_extract
+    
+    #patch to fix problem with raw strings
+    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -651,9 +653,9 @@ readline_win_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Readline"
-    local readline_ver="5.0"
-    local readline_url="http://gnuwin32.sourceforge.net/downlinks/readline-bin-zip.php"
-    local readline_md5="33c8fb279e981274f485fd91da77e94a"
+    local readline_ver="5.0.1"
+    local readline_url="http://downloads.sourceforge.net/project/gnuwin32/readline/5.0-1/readline-5.0-1-bin.zip?r=&ts=1468492036&use_mirror=freefr"
+    local readline_md5="91beae8726edd7ad529f67d82153e61a"
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
@@ -768,7 +770,11 @@ build_sdk() {
     if [ $configure_only -eq 0 ]; then
         echo "Building MEGA SDK"
         make clean
-        make -j9 || exit 1
+        if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        	make -j9 || exit 1
+        else
+        	make
+        fi
         make install
     fi
 }
@@ -943,11 +949,11 @@ main() {
             openssl_pkg $build_dir $install_dir
         fi
     fi
-    
+
     if [ $enable_cryptopp -eq 1 ]; then
         cryptopp_pkg $build_dir $install_dir
     fi
-	
+   
     if [ $enable_sodium -eq 1 ]; then
         sodium_pkg $build_dir $install_dir
     fi
@@ -979,7 +985,14 @@ main() {
 
     if [ $download_only -eq 0 ]; then
         cd $cwd
-
+    
+        #fix libtool bug (prepends some '=' to certain paths)    
+        for i in `find $install_dir -name "*.la"`; do sed -i "s#=/#/#g" $i; done
+            
+        if [ $android_build -eq 1 ]; then
+            export "CXXFLAGS=$CXXFLAGS -std=c++11"
+        fi
+        export "CXXFLAGS=$CXXFLAGS -DCRYPTOPP_MAINTAIN_BACKWARDS_COMPATIBILITY_562"
         build_sdk $install_dir $debug
     fi
 

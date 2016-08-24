@@ -66,6 +66,7 @@ namespace mega
 		bool isStreamingTransfer();
         bool isFolderTransfer();
         int getFolderTransferTag();
+        String^ getAppData();
 
 	private:
 		MTransfer(MegaTransfer *megaTransfer, bool cMemoryOwn);

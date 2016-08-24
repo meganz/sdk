@@ -75,6 +75,12 @@ struct AppReadContext
     SymmCipher key;
 };
 
+class TreeProcListOutShares : public TreeProc
+{
+public:
+    void proc(MegaClient*, Node*);
+};
+
 struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
@@ -94,6 +100,16 @@ struct DemoApp : public MegaApp
     void confirmsignuplink_result(error);
     void setkeypair_result(error);
 
+    virtual void getrecoverylink_result(error);
+    virtual void queryrecoverylink_result(error);
+    virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);    
+    virtual void getprivatekey_result(error,  const byte *privk, const size_t len_privk);
+    virtual void confirmrecoverylink_result(error);
+    virtual void confirmcancellink_result(error);
+    virtual void validatepassword_result(error);
+    virtual void getemaillink_result(error);
+    virtual void confirmemaillink_result(error);
+
     void users_updated(User**, int);
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);
@@ -101,7 +117,6 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error);
-    void chatfetch_result(textchat_vector *chats, error);
     void chatinvite_result(error);
     void chatremove_result(error);
     void chaturl_result(string *, error);
@@ -139,6 +154,10 @@ struct DemoApp : public MegaApp
     void putua_result(error);
     void getua_result(error);
     void getua_result(byte*, unsigned);
+    void getua_result(TLVstore *);
+#ifdef DEBUG
+    void delua_result(error);
+#endif
 
     void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
     void account_details(AccountDetails*, error);

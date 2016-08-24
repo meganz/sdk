@@ -29,12 +29,14 @@ void SdkTest::SetUp()
     char *buf = getenv("MEGA_EMAIL");
     if (buf)
         email[0].assign(buf);
-    ASSERT_LT(0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
+    ASSERT_LT((size_t)0, email[0].length()) << "Set your username at the environment variable $MEGA_EMAIL";
 
     buf = getenv("MEGA_PWD");
     if (buf)
         pwd[0].assign(buf);
-    ASSERT_LT(0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
+    ASSERT_LT((size_t)0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
+
+    testingInvalidArgs = false;
 
     if (megaApi[0] == NULL)
     {
@@ -58,6 +60,8 @@ void SdkTest::SetUp()
 void SdkTest::TearDown()
 {
     // do some cleanup
+
+    testingInvalidArgs = false;
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
@@ -128,14 +132,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_EXPORT:
-        if (request->getAccess())
-            link.assign(request->getLink());
-        h = request->getNodeHandle();
+        if (lastError[apiIndex] == API_OK)
+        {
+            h = request->getNodeHandle();
+            if (request->getAccess())
+            {
+                link.assign(request->getLink());
+            }
+        }
         break;
 
     case MegaRequest::TYPE_GET_PUBLIC_NODE:
         if (lastError[apiIndex] == API_OK)
+        {
             publicNode = request->getPublicMegaNode();
+        }
         break;
 
     case MegaRequest::TYPE_IMPORT_LINK:
@@ -144,30 +155,117 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
         if ( (lastError[apiIndex] == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+        {
             attributeValue = request->getText();
+        }
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (lastError[apiIndex] == API_OK)
+            {
                 attributeValue = "Avatar changed";
+            }
 
             if (lastError[apiIndex] == API_ENOENT)
+            {
                 attributeValue = "Avatar not found";
+            }
         }
         break;
 
 #ifdef ENABLE_CHAT
-    case MegaRequest::TYPE_CHAT_FETCH:
-        if (lastError[apiIndex] == API_OK)
-        {
-            chats = request->getMegaTextChatList()->copy();
-        }
-        break;
 
     case MegaRequest::TYPE_CHAT_CREATE:
         if (lastError[apiIndex] == API_OK)
         {
-            chats = request->getMegaTextChatList()->copy();
+            MegaTextChat *chat = request->getMegaTextChatList()->copy()->get(0);
+
+            chatid = chat->getHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                delete chats[chatid];
+            }
+            chats[chatid] = chat;
+        }
+        break;
+
+    case MegaRequest::TYPE_CHAT_INVITE:
+        if (lastError[apiIndex] == API_OK)
+        {
+            chatid = request->getNodeHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                MegaTextChat *chat = chats[chatid];
+                MegaHandle uh = request->getParentHandle();
+                int priv = request->getAccess();
+                userpriv_vector *privsbuf = new userpriv_vector;
+
+                const MegaTextChatPeerList *privs = chat->getPeerList();
+                if (privs)
+                {
+                    for (int i = 0; i < privs->size(); i++)
+                    {
+                        if (privs->getPeerHandle(i) != uh)
+                        {
+                            privsbuf->push_back(userpriv_pair(privs->getPeerHandle(i), (privilege_t) privs->getPeerPrivilege(i)));
+                        }
+                    }
+                }
+                privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
+                privs = new MegaTextChatPeerListPrivate(privsbuf);
+
+                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
+                            chatid, chat->getOwnPrivilege(),
+                            chat->getUrl(), chat->getShard(),
+                            privs, chat->isGroup(),
+                            chat->getOriginatingUser());
+
+                delete chats[chatid];
+                chats[chatid] = buf;
+            }
+            else
+            {
+                LOG_err << "Trying to remove a peer from unknown chat";
+            }
+        }
+        break;
+
+    case MegaRequest::TYPE_CHAT_REMOVE:
+        if (lastError[apiIndex] == API_OK)
+        {
+            chatid = request->getNodeHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                MegaTextChat *chat = chats[chatid];
+                MegaHandle uh = request->getParentHandle();
+                userpriv_vector *privsbuf = new userpriv_vector;
+
+                const MegaTextChatPeerList *privs = chat->getPeerList();
+                if (privs)
+                {
+                    for (int i = 0; i < privs->size(); i++)
+                    {
+                        if (privs->getPeerHandle(i) != uh)
+                        {
+                            privsbuf->push_back(userpriv_pair(privs->getPeerHandle(i), (privilege_t) privs->getPeerPrivilege(i)));
+                        }
+                    }
+                }
+                privs = new MegaTextChatPeerListPrivate(privsbuf);
+
+                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
+                            chatid, chat->getOwnPrivilege(),
+                            chat->getUrl(), chat->getShard(),
+                            privs, chat->isGroup(),
+                            chat->getOriginatingUser());
+
+                delete chats[chatid];
+                chats[chatid] = buf;
+            }
+            else
+            {
+                LOG_err << "Trying to remove a peer from unknown chat";
+            }
         }
         break;
 
@@ -292,6 +390,21 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     if (api == megaApi[0])
     {
         apiIndex = 0;
+
+        MegaTextChatList *list = chats->copy();
+        for (int i = 0; i < list->size(); i++)
+        {
+            handle chatid = list->get(i)->getHandle();
+            if (this->chats.find(chatid) != this->chats.end())
+            {
+                delete this->chats[chatid];
+                this->chats[chatid] = list->get(i);
+            }
+            else
+            {
+                this->chats[chatid] = list->get(i);
+            }
+        }
     }
     else if (api == megaApi[1])
     {
@@ -306,28 +419,14 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     chatUpdated[apiIndex] = true;
 }
 
-void SdkTest::fetchChats(int timeout)
-{
-    requestFlags[0][MegaRequest::TYPE_CHAT_FETCH] = false;
-    megaApi[0]->fetchChats();
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
-
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Fetching chats not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Fetching list of chats failed (error: " << lastError[0] << ")";
-}
-
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     megaApi[0]->createChat(group, peers);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE], timeout);
     if (timeout)
     {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Chat creation not finished after " << timeout  << " seconds";
+        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) << "Chat creation not finished after " << timeout  << " seconds";
     }
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
@@ -482,12 +581,12 @@ void SdkTest::getMegaApiAux()
         buf = getenv("MEGA_EMAIL_AUX");
         if (buf)
             email[1].assign(buf);
-        ASSERT_LT(0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+        ASSERT_LT((size_t) 0, email[1].length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
 
         buf = getenv("MEGA_PWD_AUX");
         if (buf)
             pwd[1].assign(buf);
-        ASSERT_LT(0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+        ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
         getcwd(path, sizeof path);
@@ -568,14 +667,22 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Folder sharing failed (error: " << lastError[0] << ")" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(MegaNode *n, int timeout)
+void SdkTest::createPublicLink(MegaNode *n, m_time_t expireDate, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi[0]->exportNode(n);
+    megaApi[0]->exportNode(n, expireDate);
 
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
             << "Public link creation not finished after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
+    if (!expireDate)
+    {
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
+    }
+    else
+    {
+        bool res = MegaError::API_OK != lastError[0];
+        ASSERT_TRUE(res) << "Public link creation with expire time on free account (" << email[0] << ") succeed, and it mustn't";
+    }
 }
 
 void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout)
@@ -655,7 +762,7 @@ void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, cons
     sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
     sdklog << message << " (" << source << ")" << endl;
 
-    bool errorLevel = (loglevel == logError);
+    bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
     ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error.";
 }
 
@@ -714,6 +821,190 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
             << "Account creation has failed after " << maxTimeout << " seconds";
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+}
+
+/**
+ * @brief TEST_F SdkTestNodeAttributes
+ *
+ *
+ */
+TEST_F(SdkTest, SdkTestNodeAttributes)
+{
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename1.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
+
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(h);
+    bool null_pointer = (n1 == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid duration of a node ___
+
+    testingInvalidArgs = true;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, -14);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node duration (error: " << lastError[0] << ")";
+
+    testingInvalidArgs = false;
+
+
+    // ___ Set duration of a node ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, 929734);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node duration (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
+
+
+    // ___ Reset duration of a node ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeDuration(n1, -1);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot reset node duration (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    testingInvalidArgs = true;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, -1523421.8719987255814, +6349.54);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node coordinates (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, -160.8719987255814, +49.54);    // latitude must be [-90, 90]
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node coordinates (error: " << lastError[0] << ")";
+
+
+    // ___ Set invalid coordinates of a node (out of range) ___
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, MegaNode::INVALID_COORDINATE, +69.54);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error trying to reset only one coordinate (error: " << lastError[0] << ")";
+
+    testingInvalidArgs = false;
+
+
+    // ___ Set coordinates of a node ___
+
+    double lat = -51.8719987255814;
+    double lon = +179.54;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    // do same conversions to lose the same precision
+    int buf = ((lat + 90) / 180) * 0xFFFFFF;
+    double res = -90 + 180 * (double) buf / 0xFFFFFF;
+
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+
+    buf = (lon == 180) ? 0 : (lon + 180) / 360 * 0x01000000;
+    res = -180 + 360 * (double) buf / 0x01000000;
+
+    ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to origin (0,0) ___
+
+    lon = 0;
+    lat = 0;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, 0, 0);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    // do same conversions to lose the same precision
+    buf = ((lat + 90) / 180) * 0xFFFFFF;
+    res = -90 + 180 * (double) buf / 0xFFFFFF;
+
+    ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (90,180) ___
+
+    lat = 90;
+    lon = 180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    bool value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
+
+
+    // ___ Set coordinates of a node to border values (-90,-180) ___
+
+    lat = -90;
+    lon = -180;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
+    ASSERT_TRUE(value_ok) << "Longitude value does not match";
+
+
+    // ___ Reset coordinates of a node ___
+
+    lat = lon = MegaNode::INVALID_COORDINATE;
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+
+    delete n1;
+    n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
+    ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
 }
 
 /**
@@ -1164,11 +1455,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     string firstname = "My firstname";
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
@@ -1186,11 +1475,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Load avatar ---
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
@@ -1215,11 +1502,9 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Delete avatar ---
 
-    userUpdated[0] = userUpdated[1] = false;
+    userUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
     ASSERT_TRUE( waitForResponse(&userUpdated[1]) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&userUpdated[0]) )   // at the target side (main account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
 
@@ -1271,10 +1556,11 @@ TEST_F(SdkTest, SdkTestContacts)
  * - Revoke the access to the share
  * - Share a folder with a non registered email
  * - Check the correctness of the pending outgoing share
- * - Create a public link
- * - Import a public link
- * - Get a node from public link
+ * - Create a file public link
+ * - Import a file public link
+ * - Get a node from a file public link
  * - Remove a public link
+ * - Create a folder public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -1345,7 +1631,6 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete nNoAuth;
     delete nAuth;
-    return;
 
     // Initialize a test scenario: create a new contact to share to
 
@@ -1481,7 +1766,7 @@ TEST_F(SdkTest, SdkTestShares)
     delete n;
 
 
-    // --- Create a public link ---
+    // --- Create a file public link ---
 
     MegaNode *nfile1 = megaApi[0]->getNodeByHandle(hfile1);
 
@@ -1501,7 +1786,14 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
 
-    // --- Import a public link ---
+    // Try to update the expiration time of an existing link (only for PRO accounts are allowed, otherwise -11
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1, 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
+    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
+    ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
+    ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
+
+
+    // --- Import a file public link ---
 
     ASSERT_NO_FATAL_FAILURE( importPublicLink(link, rootnode) );
 
@@ -1511,7 +1803,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(rootnode->getHandle(), nimported->getParentHandle()) << "Imported file in wrong path";
 
 
-    // --- Get node from public link ---
+    // --- Get node from file public link ---
 
     ASSERT_NO_FATAL_FAILURE( getPublicNode(link) );
 
@@ -1527,6 +1819,35 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
 
     delete nimported;
+
+
+    // --- Create a folder public link ---
+
+    MegaNode *nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    // The created link is stored in this->link at onRequestFinish()
+
+    delete nfolder1;
+
+    // Get a fresh snapshot of the node and check it's actually exported
+    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
+    ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
+
+    delete nfolder1;
+
+    oldLink = link;
+    link = "";
+    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_STREQ(oldLink.c_str(), nfolder1->getPublicLink()) << "Wrong public link from MegaNode";
+
+    // Regenerate the same link should not trigger a new request
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
+
+    delete nfolder1;
+
 }
 
 #ifdef ENABLE_CHAT
@@ -1545,6 +1866,7 @@ TEST_F(SdkTest, SdkTestShares)
  * - Remove a peer from the chat
  * - Invite a contact to a chat
  * - Get the user-specific URL for the chat
+ * - Update permissions of an existing peer in a chat
  */
 TEST_F(SdkTest, SdkTestChat)
 {
@@ -1575,10 +1897,9 @@ TEST_F(SdkTest, SdkTestChat)
     delete cr[1];   cr[1] = NULL;
 
 
-    // --- Fetch list of available chats ---
+    // --- Check list of available chats --- (fetch is done at SetUp())
 
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    uint numChats = chats->size();      // permanent chats cannot be deleted, so they're kept forever
+    uint numChats = chats.size();      // permanent chats cannot be deleted, so they're kept forever
 
 
     // --- Create a group chat ---
@@ -1589,25 +1910,28 @@ TEST_F(SdkTest, SdkTestChat)
 
     h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_RW);
+    peers->addPeer(h, PRIV_STANDARD);
     group = true;
 
     chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );    
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) )
+            << "Cannot create a new chat";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Chat update not received after " << maxTimeout << " seconds";
+
+    MegaHandle chatid = this->chatid;   // set at onRequestFinish() of chat creation request
 
     delete peers;
 
     // check the new chat information
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    ASSERT_EQ(chats->size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_EQ(chats.size(), ++numChats) << "Unexpected received number of chats";
     ASSERT_TRUE(chatUpdated[1]) << "The peer didn't receive notification of the chat creation";
 
 
     // --- Remove a peer from the chat ---
-
-    handle chatid = chats->get(numChats - 1)->getHandle();
 
     chatUpdated[0] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;
@@ -1615,7 +1939,8 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]) )
             << "Chat remove failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Removal of chat peer failed (error: " << lastError[0] << ")";
-
+    int numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
     ASSERT_TRUE( waitForResponse(&chatUpdated[0]) )   // at the target side (auxiliar account)
             << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
 
@@ -1624,10 +1949,12 @@ TEST_F(SdkTest, SdkTestChat)
 
     chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_FULL);
+    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]) )
             << "Chat invitation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Invitation of chat peer failed (error: " << lastError[0] << ")";
+    numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
@@ -1639,6 +1966,19 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_URL]) )
             << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Retrieval of chat URL failed (error: " << lastError[0] << ")";
+
+
+    // --- Update Permissions of an existing peer in the chat
+
+    chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
+    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]) )
+            << "Update chat permissions failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Update of chat permissions failed (error: " << lastError[0] << ")";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
+            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
+
 }
 
 #endif

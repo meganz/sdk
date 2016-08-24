@@ -100,6 +100,7 @@ AC_CANONICAL_HOST
 AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
 
 # Check programs
+AC_PROG_OBJCXX
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
   AC_MSG_ERROR([C++ compiler not found !])
@@ -190,6 +191,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 # Check if building for Win32, determine Win32 API libs
 WIN32=no
 DARWIN=no
+ANDROID=no
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
@@ -198,7 +200,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
-    CXXFLAGS="$CXXFLAGS -DUNICODE"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501"
     WIN32=yes
     ;;
   *-apple-darwin*)
@@ -206,6 +208,9 @@ case $host in
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
     DARWIN=yes
     ;;
+  *-android*)
+    ANDROID=yes
+    ;;    
   *)
     LIBS_EXTRA=""
     ;;
@@ -213,7 +218,17 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
+AM_CONDITIONAL([ANDROID], [test "${ANDROID}" = "yes"])
+
 AC_SUBST(LIBS_EXTRA)
+
+if test -n "$IOSC_TARGET"; then
+#	bu=yes
+    AC_DEFINE(USE_IOS, 1, [Use IOS])
+fi
+AM_CONDITIONAL([USE_IOS], [test  -n "$IOSC_TARGET"])
+
+
 
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,

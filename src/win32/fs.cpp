@@ -854,7 +854,13 @@ void WinFileSystemAccess::statsid(string *id) const
     LONG hr;
     HKEY hKey = NULL;
     hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
-                      KEY_QUERY_VALUE | KEY_WOW64_64KEY, &hKey);
+                      KEY_QUERY_VALUE 
+#ifdef KEY_WOW64_64KEY
+		      | KEY_WOW64_64KEY
+#else		      
+		      | 0x0100
+#endif		      
+		      , &hKey);
     if (hr == ERROR_SUCCESS)
     {
         WCHAR pszData[256];
@@ -908,9 +914,14 @@ fsfp_t WinDirNotify::fsfingerprint()
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
 #ifndef WINDOWS_PHONE
-    if (dwErrorCode != ERROR_OPERATION_ABORTED)
+    WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
+    if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
     {
-        ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
+        dirnotify->process(dwBytes);
+    }
+    else
+    {
+        dirnotify->enabled = false;
     }
 #endif
 }
@@ -978,9 +989,10 @@ void WinDirNotify::readchanges()
                               &dwBytes, &overlapped, completion))
     {
         failed = false;
+        enabled = true;
     }
     else
-    {
+    {        
         DWORD e = GetLastError();
         LOG_warn << "ReadDirectoryChanges not available. Error code: " << e;
         if (e == ERROR_NOTIFY_ENUM_DIR)
@@ -993,6 +1005,7 @@ void WinDirNotify::readchanges()
             // permanent failure - switch to scanning mode
             failed = true;
         }
+        enabled = false;
     }
 #endif
 }
@@ -1004,6 +1017,8 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
     overlapped.hEvent = this;
 
+    enabled = false;
+    exit = false;
     active = 0;
 
     notifybuf[0].resize(65534);
@@ -1036,9 +1051,20 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
+   exit = true;
+
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
+        if (enabled)
+        {
+            CancelIo(hDirectory);
+            while (enabled)
+            {
+                SleepEx(INFINITE, true);
+            }
+        }
+
         CloseHandle(hDirectory);
     }
 #endif

@@ -145,4 +145,18 @@ using namespace mega;
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
+- (BOOL)isFolderTransfer {
+    return self.megaTransfer ? (BOOL) self.megaTransfer->isFolderTransfer() : NO;
+}
+
+- (NSInteger)folderTransferTag {
+    return self.megaTransfer ? self.megaTransfer->getFolderTransferTag() : 0;
+}
+
+- (NSString *)appData {
+    if (!self.megaTransfer) return nil;
+    
+    return self.megaTransfer->getAppData() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getAppData()] : nil;
+}
+
 @end
