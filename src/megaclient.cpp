@@ -10019,6 +10019,11 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 {
     if (num > 0)
     {
+        if (num > 6)
+        {
+            num = 6;
+        }
+
         connections[d] = num;
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {

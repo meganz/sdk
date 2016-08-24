@@ -12416,6 +12416,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            if (connections > 6)
+            {
+                e = API_ETOOMANY;
+                break;
+            }
+
             if (direction == -1)
             {
                 client->setmaxconnections(GET, connections);
