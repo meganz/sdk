@@ -224,7 +224,7 @@ unix:!macx {
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz
+    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libz.a
    }
    else {
     LIBS += -lcurl -lz

@@ -39,6 +39,8 @@ no_examples=""
 configure_only=0
 disable_posix_threads=""
 enable_sodium=0
+enable_cares=0
+enable_curl=0
 enable_libuv=0
 android_build=0
 enable_cryptopp=0
@@ -783,7 +785,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y] [-q]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y] [-q]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -792,7 +794,9 @@ display_help() {
     echo " -a : Enable MegaApi"
     echo " -c : Configure MEGA SDK and exit, do not build it"
     echo " -d : Enable debug build"
+    echo " -e : Enable cares"
     echo " -f : Disable FreeImage"
+    echo " -g : Enable curl"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
     echo " -s : Disable OpenSSL"
@@ -819,7 +823,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdflm:no:p:rstuvyx:wq" opt; do
+    while getopts ":hacdefglm:no:p:rstuvyx:wq" opt; do
         case $opt in
             h)
                 display_help $0
@@ -837,9 +841,17 @@ main() {
                 echo "* DEBUG build"
                 debug="--enable-debug"
                 ;;
+            e)
+                echo "* Enabling external c-ares"
+                enable_cares=1
+                ;;
             f)
                 echo "* Disabling external FreeImage"
                 disable_freeimage=1
+                ;;
+            g)
+                echo "* Enabling external Curl"
+                enable_curl=1
                 ;;
             l)
                 echo "* Using local files"
@@ -960,8 +972,12 @@ main() {
 
     zlib_pkg $build_dir $install_dir
     sqlite_pkg $build_dir $install_dir
-    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+    
+    if [ $enable_cares -eq 1 ]; then
         cares_pkg $build_dir $install_dir
+    fi
+
+    if [ $enable_curl -eq 1 ]; then
         curl_pkg $build_dir $install_dir
     fi
 
