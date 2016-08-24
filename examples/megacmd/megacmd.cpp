@@ -155,6 +155,28 @@ protected:
     MegaRequestListener *listener;
 };
 
+
+class MegaCmdTransferListener : public SynchronousTransferListener
+{
+private:
+    float percentFetchnodes;
+public:
+    MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener = NULL);
+    virtual ~MegaCmdTransferListener();
+
+    //Transfer callbacks
+    virtual void onTransferStart(MegaApi* api, MegaTransfer *transfer);
+    virtual void doOnTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
+    virtual void onTransferUpdate(MegaApi* api, MegaTransfer *transfer);
+    virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
+    virtual bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
+
+protected:
+    //virtual void customEvent(QEvent * event);
+
+    MegaTransferListener *listener;
+};
+
 class MegaCmdGlobalListener : public MegaGlobalListener
 {
 public:
@@ -1956,6 +1978,74 @@ MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener
 
 
 
+////////////////////////////////////////
+///      MegaCmdListener methods     ///
+////////////////////////////////////////
+
+void MegaCmdTransferListener::onTransferStart(MegaApi* api, MegaTransfer *Transfer){
+    if (!Transfer)
+    {
+        LOG_err << " onTransferStart for undefined Transfer ";
+        return;
+    }
+
+    LOG_verbose << "onTransferStart Transfer->getType(): " << Transfer->getType();
+
+//    switch(Transfer->getType())
+//    {
+//        default:
+//            LOG_debug << "onTransferStart of unregistered type of Transfer: " << Transfer->getType();
+//            break;
+//    }
+
+    //clear_display();
+}
+
+void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
+{
+    if (!transfer)
+    {
+        LOG_err << " onTransferFinish for undefined transfer ";
+        return;
+    }
+
+    LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
+}
+
+
+void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *Transfer){
+    if (!Transfer)
+    {
+        LOG_err << " onTransferUpdate for undefined Transfer ";
+        return;
+    }
+
+    LOG_verbose << "onTransferUpdate Transfer->getType(): " << Transfer->getType();
+
+
+}
+
+void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e){
+
+}
+
+
+MegaCmdTransferListener::~MegaCmdTransferListener(){
+
+}
+
+MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener)
+{
+    this->megaApi=megaApi;
+    this->listener=listener;
+}
+
+
+bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size){
+
+}
+
+
 //TreeProcCopy::TreeProcCopy()
 //{
 //    nn = NULL;
@@ -3235,18 +3325,60 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    else if (words[0] == "get")
-//                    {
-//                        if (words.size() > 1)
-//                        {
-//                            //TODO: modify using API
-////                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
-////                            {
-////                                OUTSTREAM << "Checking link..." << endl;
-////                                return;
-////                            }
+                    else if (words[0] == "get")
+                    {
+                        if (words.size() > 1)
+                        {
+                            //TODO: modify using API
+//                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
+//                            {
+//                                OUTSTREAM << "Checking link..." << endl;
+//                                return;
+//                            }
+                            string cwd = getCurrentLocalPath()+"/";
+                            if (words.size()>2)
+                            {
+                                cwd=words[2]+"/"; //TODO: check existence and permissions before download
+                            }
+
+
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                            api->getPublicNode(words[1].c_str(),megaCmdListener);
+                            megaCmdListener->wait();
+                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                            {
+                                LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
+                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
+                                {
+                                    OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
+                                }
+                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+                                {
+                                    OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
+                                }
+                            }
+                            else{
+                                if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag())
+                                {
+                                    LOG_err << "Key not valid " << words[1].c_str();
+                                }
+                                MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
+
+                                MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+                                api->startDownload(n,cwd.c_str(),megaCmdTransferListener);
+
+                                megaCmdTransferListener->wait();
+
+                                LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+
+                                delete megaCmdTransferListener;
+
+                            }
+                            delete megaCmdListener;
+
 
 //                            n = nodebypath(words[1].c_str());
+
 
 //                            if (n)
 //                            {
@@ -3288,14 +3420,14 @@ static void process_line(char* l)
 //                            {
 //                                OUTSTREAM << words[1] << ": No such file or folder" << endl;
 //                            }
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
-//                        }
+                        }
+                        else
+                        {
+                            OUTSTREAM << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
+                        }
 
-//                        return;
-//                    }
+                        return;
+                    }
 //                    else if (words[0] == "put")
 //                    {
 //                        if (words.size() > 1)
@@ -5727,7 +5859,7 @@ int main()
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     api->setLoggerObject(loggerCMD);
-//    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
 
     megaCmdGlobalListener =  new MegaCmdGlobalListener();

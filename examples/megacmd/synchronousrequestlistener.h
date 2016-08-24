@@ -42,4 +42,35 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
         MegaApi *getApi() const;
 };
 
+
+/**
+ * TODO
+ * @see MegaTransferListener
+ */
+class SynchronousTransferListener : public MegaTransferListener //TODO: move to somewhere else
+{
+    private:
+        MegaSemaphore* semaphore;
+    protected:
+        MegaTransferListener *listener = NULL;
+        MegaApi *megaApi = NULL;
+        MegaTransfer *megaTransfer = NULL;
+        MegaError *megaError = NULL;
+
+    public:
+        SynchronousTransferListener();
+        virtual ~SynchronousTransferListener();
+        virtual void doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) = 0;
+
+        void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+
+        void wait();
+
+        int trywait(int milliseconds);
+
+        MegaError *getError() const;
+        MegaTransfer *getTransfer() const;
+        MegaApi *getApi() const;
+};
+
 #endif // SYNCHRONOUSREQUESTLISTENER_H
