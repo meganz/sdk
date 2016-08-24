@@ -12436,6 +12436,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->setmaxconnections(PUT, connections);
             }
 
+            fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
         case MegaRequest::TYPE_CANCEL_TRANSFER:
