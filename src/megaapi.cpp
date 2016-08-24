@@ -810,6 +810,10 @@ const char *MegaTransfer::getAppData() const
     return NULL;
 }
 
+int MegaTransfer::getState() const
+{
+    return STATE_NONE;
+}
 
 MegaError::MegaError(int errorCode)
 {
@@ -1661,6 +1665,16 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
     pImpl->pauseTransfers(pause, direction, listener);
 }
 
+void MegaApi::pauseTransfer(MegaTransfer *transfer, bool pause, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfer(transfer ? transfer->getTag() : 0, pause, listener);
+}
+
+void MegaApi::pauseTransferByTag(int transferTag, bool pause, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfer(transferTag, pause, listener);
+}
+
 void MegaApi::enableTransferResumption(const char *loggedOutId)
 {
     pImpl->enableTransferResumption(loggedOutId);
@@ -1760,6 +1774,56 @@ void MegaApi::startDownload(MegaNode *node, const char *localPath, const char *a
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferUp(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferUpByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferUp(transferTag, listener);
+}
+
+void MegaApi::moveTransferDown(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferDown(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferDownByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferDown(transferTag, listener);
+}
+
+void MegaApi::moveTransferToFirst(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToFirst(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferToFirstByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToFirst(transferTag, listener);
+}
+
+void MegaApi::moveTransferToLast(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToLast(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferToLastByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToLast(transferTag, listener);
+}
+
+void MegaApi::moveTransferBefore(MegaTransfer *transfer, MegaTransfer *prevTransfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferBefore(transfer ? transfer->getTag() : 0, prevTransfer ? prevTransfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferBeforeByTag(int transferTag, MegaTransfer *prevTransfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferBefore(transferTag, prevTransfer ? prevTransfer->getTag() : 0, listener);
 }
 
 void MegaApi::cancelTransferByTag(int transferTag, MegaRequestListener *listener)

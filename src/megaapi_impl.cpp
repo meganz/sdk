@@ -1253,6 +1253,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
+    this->state = STATE_NONE;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -1267,6 +1268,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
+    this->setState(transfer->getState());
     this->setTag(transfer->getTag());
     this->setPath(transfer->getPath());
     this->setNodeHandle(transfer->getNodeHandle());
@@ -1455,6 +1457,16 @@ void MegaTransferPrivate::setAppData(const char *data)
 const char *MegaTransferPrivate::getAppData() const
 {
     return this->appData;
+}
+
+void MegaTransferPrivate::setState(int state)
+{
+    this->state = state;
+}
+
+int MegaTransferPrivate::getState() const
+{
+    return state;
 }
 
 bool MegaTransferPrivate::serialize(string *d)
@@ -2527,13 +2539,15 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
         case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
         case TYPE_SET_PROXY: return "SET_PROXY";
-        case TYPE_GET_RECOVERY_LINK: return "TYPE_GET_RECOVERY_LINK";
-        case TYPE_QUERY_RECOVERY_LINK: return "TYPE_QUERY_RECOVERY_LINK";
-        case TYPE_CONFIRM_RECOVERY_LINK: return "TYPE_CONFIRM_RECOVERY_LINK";
-        case TYPE_GET_CANCEL_LINK: return "TYPE_GET_CANCEL_LINK";
-        case TYPE_CONFIRM_CANCEL_LINK: return "TYPE_CONFIRM_CANCEL_LINK";
-        case TYPE_GET_CHANGE_EMAIL_LINK: return "TYPE_GET_CHANGE_EMAIL_LINK";
-        case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "TYPE_CONFIRM_CHANGE_EMAIL_LINK";
+        case TYPE_GET_RECOVERY_LINK: return "GET_RECOVERY_LINK";
+        case TYPE_QUERY_RECOVERY_LINK: return "QUERY_RECOVERY_LINK";
+        case TYPE_CONFIRM_RECOVERY_LINK: return "CONFIRM_RECOVERY_LINK";
+        case TYPE_GET_CANCEL_LINK: return "GET_CANCEL_LINK";
+        case TYPE_CONFIRM_CANCEL_LINK: return "CONFIRM_CANCEL_LINK";
+        case TYPE_GET_CHANGE_EMAIL_LINK: return "GET_CHANGE_EMAIL_LINK";
+        case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "CONFIRM_CHANGE_EMAIL_LINK";
+        case TYPE_PAUSE_TRANSFER: return "PAUSE_TRANSFER";
+        case TYPE_MOVE_TRANSFER: return "MOVE_TRANSFER";
     }
     return "UNKNOWN";
 }
@@ -4945,6 +4959,65 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
+void MegaApiImpl::pauseTransfer(int transferTag, bool pause, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(pause);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveTransferUp(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(true);
+    request->setNumber(MegaTransfer::MOVE_TYPE_UP);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveTransferDown(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(true);
+    request->setNumber(MegaTransfer::MOVE_TYPE_DOWN);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveTransferToFirst(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(true);
+    request->setNumber(MegaTransfer::MOVE_TYPE_TOP);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveTransferToLast(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(true);
+    request->setNumber(MegaTransfer::MOVE_TYPE_BOTTOM);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(false);
+    request->setNumber(prevTransferTag);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
 {
     sdkMutex.lock();
@@ -5093,9 +5166,9 @@ MegaTransferList *MegaApiImpl::getTransfers()
     vector<MegaTransfer *> transfers;
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != client->transferlist.end((direction_t)d); it++)
         {
-            Transfer *t = it->second;
+            Transfer *t = *it;
             if(transferMap.find(t->tag) == transferMap.end())
             {
                 continue;
@@ -5156,9 +5229,9 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
     sdkMutex.lock();
 
     vector<MegaTransfer *> transfers;
-    for (transfer_map::iterator it = client->transfers[type].begin(); it != client->transfers[type].end(); it++)
+    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != client->transferlist.end((direction_t)type); it++)
     {
-        Transfer *t = it->second;
+        Transfer *t = *it;
         if(transferMap.find(t->tag) == transferMap.end())
         {
             continue;
@@ -6808,6 +6881,7 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
     transfer->setLastError(megaError);
+    transfer->setState(tr->state);
 
     if (e == API_EOVERQUOTA && timeleft)
     {
@@ -7127,6 +7201,7 @@ void MegaApiImpl::transfer_added(Transfer *t)
 
 	currentTransfer = NULL;
     transfer->setTransfer(t);
+    transfer->setState(t->state);
     transfer->setTotalBytes(t->size);
     transfer->setTag(t->tag);
 	transferMap[t->tag]=transfer;
@@ -7171,6 +7246,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
             totalUploads--;
     }
 
+    transfer->setState(t->state);
     fireOnTransferFinish(transfer, transfer->getLastError());
 }
 
@@ -7186,6 +7262,7 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     fsAccess->local2path(&(t->files.back()->localname), &path);
     transfer->setPath(path.c_str());
     transfer->setTotalBytes(t->size);
+    transfer->setState(t->state);
 
     LOG_info << "Transfer (" << transfer->getTransferString() << ") starting. File: " << transfer->getFileName();
 }
@@ -7199,6 +7276,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         return;
     }
 
+    transfer->setState(tr->state);
     if(tr->slot)
     {
         if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported || (tr->slot->progressreported == tr->size))
@@ -7317,11 +7395,13 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         string path;
         fsAccess->local2path(&tr->localfilename, &path);
         transfer->setPath(path.c_str());
+        transfer->setState(tr->state);
 
         fireOnTransferFinish(transfer, MegaError(API_OK));
     }
     else
     {
+        transfer->setState(MegaTransfer::STATE_COMPLETING);
         if(tr->size != transfer->getTransferredBytes())
         {
             fireOnTransferUpdate(transfer);
@@ -8357,6 +8437,16 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
 
         transfer->setNodeHandle(h);
+
+        if (!e)
+        {
+            transfer->setState(MegaTransfer::STATE_COMPLETED);
+        }
+        else
+        {
+            transfer->setState(MegaTransfer::STATE_FAILED);
+        }
+
         fireOnTransferFinish(transfer, megaError);
         delete [] nn;
         return;
@@ -12391,6 +12481,106 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             fireOnRequestFinish(request, MegaError(API_OK));
+            break;
+        }
+        case MegaRequest::TYPE_PAUSE_TRANSFER:
+        {
+            bool pause = request->getFlag();
+            int transferTag = request->getTransferTag();
+
+            if(transferMap.find(transferTag) == transferMap.end())
+            {
+                e = API_ENOENT;
+                break;
+            };
+
+            MegaTransferPrivate* megaTransfer = transferMap.at(transferTag);
+            e = client->transferlist.pause(megaTransfer->getTransfer(), pause);
+            if (!e)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            break;
+        }
+        case MegaRequest::TYPE_MOVE_TRANSFER:
+        {
+            bool automove = request->getFlag();
+            int transferTag = request->getTransferTag();
+            int number = request->getNumber();
+
+            if (!transferTag || !number)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (transferMap.find(transferTag) == transferMap.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            MegaTransferPrivate* megaTransfer = transferMap.at(transferTag);
+            Transfer *transfer = megaTransfer->getTransfer();
+            if (!transfer)
+            {
+                e = API_ENOENT;
+                break;
+            };
+
+            if (automove)
+            {
+                switch (number)
+                {
+                    case MegaTransfer::MOVE_TYPE_UP:
+                        client->transferlist.moveup(transfer);
+                        break;
+                    case MegaTransfer::MOVE_TYPE_DOWN:
+                        client->transferlist.movedown(transfer);
+                        break;
+                    case MegaTransfer::MOVE_TYPE_TOP:
+                        client->transferlist.movetofirst(transfer);
+                        break;
+                    case MegaTransfer::MOVE_TYPE_BOTTOM:
+                        client->transferlist.movetolast(transfer);
+                        break;
+                    default:
+                        e = API_EARGS;
+                        break;
+                }
+            }
+            else
+            {
+                if (transferMap.find(number) == transferMap.end())
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+
+                MegaTransferPrivate* prevMegaTransfer = transferMap.at(number);
+                Transfer *prevTransfer = prevMegaTransfer->getTransfer();
+                if (!prevTransfer)
+                {
+                    client->transferlist.movetransfer(transfer, client->transferlist.transfers[transfer->type].begin());
+                }
+                else
+                {
+                    if (transfer->type != prevTransfer->type)
+                    {
+                        e = API_EARGS;
+                    }
+                    else
+                    {
+                        client->transferlist.movetransfer(transfer, prevTransfer);
+                    }
+                }
+            }
+
+            if (!e)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+
             break;
         }
         case MegaRequest::TYPE_CANCEL_TRANSFER:

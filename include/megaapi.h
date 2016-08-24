@@ -1771,7 +1771,8 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_PAUSE_TRANSFER,
+            TYPE_MOVE_TRANSFER
         };
 
         virtual ~MegaRequest();
@@ -2165,6 +2166,16 @@ class MegaRequest
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
          * - MegaApi::sendEvent - Returns the event type
+         * - MegaApi::moveTransferUp - Returns MegaTransfer::MOVE_TYPE_UP
+         * - MegaApi::moveTransferUpByTag - Returns MegaTransfer::MOVE_TYPE_UP
+         * - MegaApi::moveTransferDown - Returns MegaTransfer::MOVE_TYPE_DOWN
+         * - MegaApi::moveTransferDownByTag - Returns MegaTransfer::MOVE_TYPE_DOWN
+         * - MegaApi::moveTransferToFirst - Returns MegaTransfer::MOVE_TYPE_TOP
+         * - MegaApi::moveTransferToFirstByTag - Returns MegaTransfer::MOVE_TYPE_TOP
+         * - MegaApi::moveTransferToLast - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2185,6 +2196,18 @@ class MegaRequest
          * - MegaApi::createChat - Creates a chat for one or more participants
          * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
+         * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
+         * - MegaApi::pauseTransferByTag - Returns true if the transfer has to be pause or false if it has to be resumed
+         * - MegaApi::moveTransferUp - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferUpByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferDown - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferDownByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToFirst - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToFirstByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToLast - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
+         * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
          *
          * @return Flag related to the request
          */
@@ -2239,6 +2262,18 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::cancelTransfer - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         * - MegaApi::pauseTransfer - Returns the tag of the request to pause or resume
+         * - MegaApi::pauseTransferByTag - Returns the tag of the request to pause or resume
+         * - MegaApi::moveTransferUp - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferUpByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferDown - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferDownByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToFirst - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToFirstByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToLast - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToLastByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          *
          * @return Tag of a transfer related to the request
          */
@@ -2322,6 +2357,25 @@ class MegaTransfer
             TYPE_DOWNLOAD = 0,
             TYPE_UPLOAD,
             TYPE_LOCAL_HTTP_DOWNLOAD
+        };
+
+        enum {
+            STATE_NONE = 0,
+            STATE_QUEUED,
+            STATE_ACTIVE,
+            STATE_PAUSED,
+            STATE_RETRYING,
+            STATE_COMPLETING,
+            STATE_COMPLETED,
+            STATE_CANCELLED,
+            STATE_FAILED
+        };
+
+        enum {
+            MOVE_TYPE_UP = 1,
+            MOVE_TYPE_DOWN,
+            MOVE_TYPE_TOP,
+            MOVE_TYPE_BOTTOM
         };
         
         virtual ~MegaTransfer();
@@ -2609,6 +2663,46 @@ class MegaTransfer
          * @return Application data associated with this transfer
          */
         virtual const char* getAppData() const;
+
+        /**
+         * @brief Returns the state of the transfer
+         *
+         * It can be one of these values:
+         * - STATE_NONE = 0
+         * Unknown state. This state should be never returned.
+         *
+         * - STATE_QUEUED = 1
+         * The transfer is queued. No data related to it is being transferred.
+         *
+         * - STATE_ACTIVE = 2
+         * The transfer is active. Its data is being transferred.
+         *
+         * - STATE_PAUSED = 3
+         * The transfer is paused. It won't be activated until it's resumed.
+         *
+         * - STATE_RETRYING = 4
+         * The transfer is waiting to be retried due to a temporary error.
+         *
+         * - STATE_COMPLETING = 5
+         * The transfer is being completed. All data has been transferred
+         * but it's still needed to attach the resulting node to the
+         * account (uploads), to attach thumbnails/previews to the
+         * node (uploads of images) or to create the resulting local
+         * file (downloads). The transfer should be completed in a short time.
+         *
+         * - STATE_COMPLETED = 6
+         * The transfer has beeing finished.
+         *
+         * - STATE_CANCELLED = 7
+         * The transfer was cancelled by the user.
+         *
+         * - STATE_FAILED = 8
+         * The transfer was cancelled by the SDK due to a fatal error or
+         * after a high number of retries.
+         *
+         * @return State of the transfer
+         */
+        virtual int getState() const;
 };
 
 /**
@@ -6045,6 +6139,188 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Move a transfer one position up in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position up in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferUpByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position down in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferDown(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position down in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferDownByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the top of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToFirst(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the top of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToFirstByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the bottom of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToLast(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the bottom of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToLastByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer before another one in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+         * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+         *
+         * @param transfer Transfer to move
+         * @param prevTransfer Transfer with the target position
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferBefore(MegaTransfer *transfer, MegaTransfer *prevTransfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer before another one in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+         * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param prevTransfer Transfer with the target position
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferBeforeByTag(int transferTag, MegaTransfer *prevTransfer, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel the transfer with a specific tag
          *
          * When a transfer is cancelled, it will finish and will provide the error code
@@ -6107,6 +6383,50 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Pause/resume a transfer
+         *
+         * The request finishes with MegaError::API_OK if the state of the transfer is the
+         * desired one at that moment. That means that the request succeed when the transfer
+         * is successfully paused or resumed, but also if the transfer was already in the
+         * desired state and it wasn't needed to change anything.
+         *
+         * Resumed transfers don't necessarily continue just after the resumption. They
+         * are tagged as queued and are processed according to its position on the request queue.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+         * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+         *
+         * @param transfer Transfer to pause or resume
+         * @param pause True to pause the transfer or false to resume it
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransfer(MegaTransfer *transfer, bool pause, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Pause/resume a transfer
+         *
+         * The request finishes with MegaError::API_OK if the state of the transfer is the
+         * desired one at that moment. That means that the request succeed when the transfer
+         * is successfully paused or resumed, but also if the transfer was already in the
+         * desired state and it wasn't needed to change anything.
+         *
+         * Resumed transfers don't necessarily continue just after the resumption. They
+         * are tagged as queued and are processed according to its position on the request queue.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+         * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+         *
+         * @param transferTag Tag of the transfer to pause or resume
+         * @param pause True to pause the transfer or false to resume it
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Enable the resumption of transfers 

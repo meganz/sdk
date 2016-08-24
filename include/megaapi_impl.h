@@ -420,6 +420,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual int getFolderTransferTag() const;
         virtual void setAppData(const char *data);
         virtual const char* getAppData() const;
+        virtual void setState(int state);
+        virtual int getState() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -427,6 +429,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 	protected:		
 		int type;
 		int tag;
+        int state;
 
         struct
         {
@@ -1329,6 +1332,12 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
+        void pauseTransfer(int transferTag, bool pause, MegaRequestListener* listener = NULL);
+        void moveTransferUp(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferDown(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferToFirst(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         void enableTransferResumption(const char* loggedOutId);
         void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
