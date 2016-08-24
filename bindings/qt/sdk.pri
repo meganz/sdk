@@ -58,7 +58,16 @@ CONFIG(USE_LIBUV) {
     win32 {
         LIBS += -llibuv -lIphlpapi -lUserenv
     }
-    else {
+
+    unix:!macx {
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
+       }
+       else {
+        LIBS += -luv
+       }
+
+    macx {
         LIBS += -luv
     }
 }
