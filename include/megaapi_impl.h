@@ -790,6 +790,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual int getTemporalBandwidthInterval();
         virtual long long getTemporalBandwidth();
+        virtual bool isTemporalBandwidthValid();
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
@@ -1358,6 +1359,7 @@ class MegaApiImpl : public MegaApp
         void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
+        long long getNumLocalNodes();
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
@@ -1373,6 +1375,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
 
@@ -1449,8 +1452,6 @@ class MegaApiImpl : public MegaApp
 
         MegaNode *authorizeNode(MegaNode *node);
 
-        void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
-
         const char *getVersion();
         const char *getUserAgent();
 
@@ -1512,12 +1513,13 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+        void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1740,7 +1742,6 @@ protected:
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
-        virtual void loadbalancing_result(string*, error);
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);
@@ -1758,13 +1759,14 @@ protected:
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
         virtual void chatcreate_result(TextChat *, error);
-        virtual void chatfetch_result(textchat_vector *chatList, error);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
         virtual void chaturl_result(string*, error);
         virtual void chatgrantaccess_result(error);
         virtual void chatremoveaccess_result(error);
+        virtual void chatupdatepermissions_result(error);
+        virtual void chattruncate_result(error);
 
         virtual void chats_updated(textchat_vector *);
 #endif

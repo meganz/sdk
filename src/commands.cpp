@@ -2946,6 +2946,7 @@ void CommandGetUserQuota::procresult()
 
     details->transfer_hist_starttime = 0;
     details->transfer_hist_interval = 3600;
+    details->transfer_hist_valid = true;
     details->transfer_hist.clear();
 
     details->transfer_reserved = 0;
@@ -3094,7 +3095,7 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
 
             case MAKENAMEID3('s', 'g', 'w'):
                 if (client->json.enterarray())
@@ -3105,7 +3106,11 @@ void CommandGetUserQuota::procresult()
                         client->json.storeobject();
                     }
                 }
-            break;
+                break;
+
+            case MAKENAMEID3('r', 't', 't'):
+                details->transfer_hist_valid = !client->json.getint();
+                break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)
@@ -3701,6 +3706,12 @@ void CommandFetchNodes::procresult()
                 client->procph(&client->json);
                 break;
 
+#ifdef ENABLE_CHAT
+            case MAKENAMEID3('m', 'c', 'f'):
+                // List of chatrooms
+                client->procmcf(&client->json);
+                break;
+#endif
             case EOO:
             {
                 if (!*client->scsn)
@@ -3750,89 +3761,6 @@ void CommandReportEvent::procresult()
     {
         client->json.storeobject();
         client->app->reportevent_result(API_EINTERNAL);
-    }
-}
-
-// load balancing request
-CommandLoadBalancing::CommandLoadBalancing(MegaClient *client, const char *service)
-{
-    this->client = client;
-    this->service = service;
-
-    tag = client->reqtag;
-}
-
-void CommandLoadBalancing::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        client->app->loadbalancing_result(NULL, (error)client->json.getint());
-    }
-    else
-    {
-        error e = API_EINTERNAL;
-        if(!client->json.enterobject())
-        {
-            client->app->loadbalancing_result(NULL, API_EINTERNAL);
-            return;
-        }
-
-        string servers;
-        for (;;)
-        {
-            switch (client->json.getnameid())
-            {
-                case MAKENAMEID2('o', 'k'):
-                    if(client->json.isnumeric() && client->json.getint())
-                    {
-                        e = API_OK;
-                    }
-                    break;
-
-                case 'e':
-                    if(client->json.isnumeric())
-                    {
-                        e = (error)client->json.getint();
-                    }
-                    break;
-
-                case EOO:
-                    client->app->loadbalancing_result(e ? NULL : &servers, e);
-                    return;
-
-                default:
-                    if (!client->json.enterarray())
-                    {
-                        client->app->loadbalancing_result(NULL, API_EINTERNAL);
-                        return;
-                    }
-
-                    while(client->json.enterobject())
-                    {
-                        if(servers.size())
-                        {
-                            servers.append(";");
-                        }
-
-                        while (client->json.getnameid() != EOO)
-                        {
-                            string data;
-                            if (!client->json.storeobject(&data))
-                            {
-                                client->app->loadbalancing_result(NULL, API_EINTERNAL);
-                                return;
-                            }
-                            if(servers.size())
-                            {
-                                servers.append(":");
-                            }
-                            servers.append(data);
-                        }
-                    }
-                    client->json.leavearray();
-                    break;
-            }
-        }
     }
 }
 
@@ -4461,7 +4389,7 @@ void CommandChatCreate::procresult()
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
-                        chat->priv = PRIV_OPERATOR;
+                        chat->priv = PRIV_MODERATOR;
                         chat->url = url;
                         chat->shard = shard;
                         chat->userpriv = this->chatPeers;
@@ -4487,171 +4415,6 @@ void CommandChatCreate::procresult()
                     }
             }
         }
-    }
-}
-
-CommandChatFetch::CommandChatFetch(MegaClient *client)
-{
-    this->client = client;
-
-    cmd("mcf");
-    arg("v", 1);
-
-    tag = client->reqtag;
-}
-
-void CommandChatFetch::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        client->app->chatfetch_result(NULL, (error)client->json.getint());
-    }
-    else
-    {
-        if(client->json.getnameid() != 'c')
-        {
-            client->app->chatfetch_result(NULL, API_EINTERNAL);
-            return;
-        }
-
-        if(!client->json.enterarray())
-        {
-            client->app->chatfetch_result(NULL, API_EINTERNAL);
-            return;
-        }
-
-        // list of chats
-        textchat_vector *chatlist = new textchat_vector;
-        error e = API_OK;
-
-        while(client->json.enterobject() && !e)   // while there are more chats to read...
-        {
-            handle chatid = UNDEF;
-            privilege_t priv = PRIV_UNKNOWN;
-            string url;
-            int shard = -1;
-            userpriv_vector *userpriv = NULL;
-            bool group = false;
-
-            bool readingChat = true;
-            while(readingChat) // read the chat information
-            {
-                switch (client->json.getnameid())
-                {
-                    case MAKENAMEID2('i','d'):
-                        chatid = client->json.gethandle(MegaClient::CHATHANDLE);
-                        break;
-
-                    case 'p':
-                        priv = (privilege_t) client->json.getint();
-                        break;
-
-                    case MAKENAMEID3('u','r','l'):
-                        client->json.storeobject(&url);
-                        break;
-
-                    case MAKENAMEID2('c','s'):
-                        shard = client->json.getint();
-                        break;
-
-                    case 'u':   // list of users participating in the chat (+privileges)
-                        userpriv = client->readuserpriv(&client->json);
-                        break;
-
-                    case 'g':
-                        group = client->json.getint();
-                        break;
-
-                    case EOO:
-                        if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                                && shard != -1)
-                        {
-                            TextChat *chat = new TextChat();
-                            chat->id = chatid;
-                            chat->priv = priv;
-                            chat->url = url;
-                            chat->shard = shard;
-                            chat->group = group;
-
-                            // remove yourself from the list of users (only peers matter)
-                            if (userpriv)
-                            {
-                                userpriv_vector::iterator upvit;
-                                for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
-                                {
-                                    if (upvit->first == client->me)
-                                    {
-                                        userpriv->erase(upvit);
-                                        if (userpriv->empty())
-                                        {
-                                            delete userpriv;
-                                            userpriv = NULL;
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                            chat->userpriv = userpriv;
-                            chatlist->push_back(chat);
-                        }
-                        else
-                        {
-                            e = API_EINTERNAL;
-                        }
-                        readingChat = false;
-                        break;
-
-                    default:
-                        if (!client->json.storeobject())
-                        {
-                            e = API_EINTERNAL;
-                            readingChat = false;
-                            delete userpriv;
-                            userpriv = NULL;
-                        }
-                        break;
-                }
-            }
-            client->json.leaveobject();
-        }
-        client->json.leavearray();
-
-        if(client->json.getnameid() != MAKENAMEID2('s','n'))
-        {
-            e = API_EINTERNAL;
-        }
-        else    // sequence number received
-        {
-            handle t;
-
-            if (client->json.storebinary((byte*)&t, sizeof t) != sizeof t)
-            {
-                e = API_EINTERNAL;
-            }
-
-            // the 'scsn' should be discarded if alrready have one from fetchnodes
-            if (!*client->scsn)
-            {
-                Base64::btoa((byte*)&t, sizeof t, client->scsn);
-            }
-        }
-
-        if (!e)
-        {
-            client->app->chatfetch_result(chatlist, API_OK);
-        }
-        else
-        {
-            client->app->chatfetch_result(NULL, e);
-        }
-
-        // clean allocated memory for individual chats and the list
-        textchat_vector::iterator it;
-        for(it = chatlist->begin(); it != chatlist->end(); it++)
-        {
-            delete *it;
-        }
-        delete chatlist;
     }
 }
 
@@ -4797,6 +4560,61 @@ void CommandChatRemoveAccess::procresult()
         client->app->chatremoveaccess_result(API_EINTERNAL);
     }
 }
+
+CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+{
+    this->client = client;
+
+    cmd("mcup");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("u", uid);
+    arg("p", priv);
+
+    tag = client->reqtag;
+}
+
+void CommandChatUpdatePermissions::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatupdatepermissions_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatupdatepermissions_result(API_EINTERNAL);
+    }
+}
+
+
+CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
+{
+    this->client = client;
+
+    cmd("mcurl");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("m", (byte*)&messageid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandChatTruncate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chattruncate_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chattruncate_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 

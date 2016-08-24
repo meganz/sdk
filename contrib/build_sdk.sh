@@ -264,9 +264,9 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2g"
+    local openssl_ver="1.0.2h"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
-    local openssl_md5="f3c710c045cdee5fd114feb69feba7aa"
+    local openssl_md5="9392e65072ce4b614c1392eefc1f23d0"
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -615,6 +615,9 @@ freeimage_pkg() {
     fi
 
     package_extract $name $freeimage_file $freeimage_dir_extract
+    
+    #patch to fix problem with raw strings
+    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -768,7 +771,11 @@ build_sdk() {
     if [ $configure_only -eq 0 ]; then
         echo "Building MEGA SDK"
         make clean
-        make -j9 || exit 1
+        if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        	make -j9 || exit 1
+        else
+        	make
+        fi
         make install
     fi
 }

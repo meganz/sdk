@@ -33,9 +33,6 @@ bool MegaClient::disablepkp = false;
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
-// root URL for the load balancer
-const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
-
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -457,6 +454,11 @@ handle MegaClient::getrootpublicfolder()
     }
 }
 
+handle MegaClient::getpublicfolderhandle()
+{
+    return publichandle;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -681,6 +683,7 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
+    totalNodes = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -748,6 +751,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncscanstate = false;
     syncadding = 0;
     currsyncid = 0;
+    totalLocalNodes = 0;
 #endif
 
     pendingcs = NULL;
@@ -811,7 +815,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     reqtag = 0;
 
     badhostcs = NULL;
-    loadbalancingcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
     cachedscsn = UNDEF;
@@ -839,7 +842,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
-    delete loadbalancingcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -884,7 +886,15 @@ void MegaClient::exec()
         }
     }
 
-    do {
+    bool first = true;
+    do
+    {
+        if (!first)
+        {
+            WAIT_CLASS::bumpds();
+        }
+        first = false;
+
         looprequested = false;
 
         // file attribute puts (handled sequentially as a FIFO)
@@ -1354,49 +1364,6 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-        }
-
-        if (loadbalancingcs)
-        {
-            if (loadbalancingcs->status == REQ_FAILURE)
-            {
-                CommandLoadBalancing *command = loadbalancingreqs.front();
-
-                restag = command->tag;
-                app->loadbalancing_result(NULL, API_EFAILED);
-
-                delete loadbalancingcs;
-                loadbalancingcs = NULL;
-
-                delete command;
-                loadbalancingreqs.pop();
-            }
-            else if (loadbalancingcs->status == REQ_SUCCESS)
-            {
-                CommandLoadBalancing *command = loadbalancingreqs.front();
-
-                restag = command->tag;
-                app->loadbalancing_result(&loadbalancingcs->in, API_OK);
-                //json.begin(loadbalancingcs->in.c_str());
-                //command->procresult();
-
-                delete loadbalancingcs;
-                loadbalancingcs = NULL;
-
-                delete command;
-                loadbalancingreqs.pop();
-            }
-        }
-
-        if (!loadbalancingcs && loadbalancingreqs.size())
-        {
-            CommandLoadBalancing *command = loadbalancingreqs.front();
-            loadbalancingcs = new HttpReq();
-            loadbalancingcs->posturl = BALANCERURL;
-            loadbalancingcs->posturl.append("?service=");
-            loadbalancingcs->posturl.append(command->service);
-            loadbalancingcs->type = REQ_JSON;
-            loadbalancingcs->post(this);
         }
 
         // fill transfer slots from the queue
@@ -2186,11 +2153,10 @@ bool MegaClient::dispatch(direction_t d)
 
         for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
         {
-            if (!it->second->slot && it->second->bt.armed()
-             && (nextit == transfers[d].end()
-              || it->second->bt.retryin() < nextit->second->bt.retryin()))
+            if (!it->second->slot && it->second->bt.armed())
             {
                 nextit = it;
+                break;
             }
         }
 
@@ -2495,6 +2461,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;    
     t->completefiles();
+    looprequested = true;
     app->transfer_complete(t);
     delete t;
 }
@@ -2516,11 +2483,15 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
     {
         if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset()
-         && it->second->bt.nextset() >= Waiter::ds
-         && it->second->bt.nextset() < *dsmin)
+         && it->second->bt.nextset())
         {
-            *dsmin = it->second->bt.nextset();
+            it->second->bt.update(dsmin);
+            if (it->second->bt.armed())
+            {
+                // fire the timer only once but keeping it armed
+                it->second->bt.set(0);
+                LOG_debug << "Disabling armed transfer backoff";
+            }
         }
     }
 }
@@ -2658,6 +2629,7 @@ void MegaClient::locallogout()
 
 #ifdef ENABLE_SYNC
     syncadding = 0;
+    totalLocalNodes = 0;
 #endif
 
 #ifdef ENABLE_CHAT
@@ -3327,7 +3299,7 @@ bool MegaClient::moretransfers(direction_t d)
     }
 
     // always blindly dispatch transfers up to MINPIPELINE
-    if (r < MINPIPELINE)
+    if (r < MINPIPELINE || r < total * 131072)
     {
         return true;
     }
@@ -4617,10 +4589,8 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        if (!fetchingnodes)
-        {
-            app->chats_updated(&chatnotify);
-        }
+        // chats are notified even during fetchingnodes
+        app->chats_updated(&chatnotify);
 
         for (i = 0; i < t; i++)
         {
@@ -4629,6 +4599,8 @@ void MegaClient::notifypurge(void)
         chatnotify.clear();
     }
 #endif
+
+    totalNodes = nodes.size();
 }
 
 // return node pointer derived from node handle
@@ -4666,7 +4638,11 @@ Node* MegaClient::sc_deltree()
                 if (n)
                 {
                     TreeProcDel td;
+
+                    int creqtag = reqtag;
+                    reqtag = 0;
                     proctree(n, &td);
+                    reqtag = creqtag;
                 }
                 return n;
 
@@ -4726,6 +4702,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     }
 
     n->changed.attrs = true;
+    n->tag = reqtag;
     notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
@@ -4863,6 +4840,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
     if (n->setparent(p))
     {
         n->changed.parent = true;
+        n->tag = reqtag;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -5017,11 +4995,6 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     delete[] pw;
 
     return API_OK;
-}
-
-void MegaClient::loadbalancing(const char* service)
-{
-    loadbalancingreqs.push(new CommandLoadBalancing(this, service));
 }
 
 // compute generic string hash
@@ -7137,6 +7110,108 @@ void MegaClient::procsuk(JSON* j)
     }
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::procmcf(JSON *j)
+{
+    if (j->enterobject() && j->getnameid() == 'c' && j->enterarray())
+    {
+        while(j->enterobject())   // while there are more chats to read...
+        {
+            handle chatid = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+            string url;
+            int shard = -1;
+            userpriv_vector *userpriv = NULL;
+            bool group = false;
+
+            bool readingChat = true;
+            while(readingChat) // read the chat information
+            {
+                switch (j->getnameid())
+                {
+                case MAKENAMEID2('i','d'):
+                    chatid = j->gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case 'p':
+                    priv = (privilege_t) j->getint();
+                    break;
+
+                case MAKENAMEID3('u','r','l'):
+                    j->storeobject(&url);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = j->getint();
+                    break;
+
+                case 'u':   // list of users participating in the chat (+privileges)
+                    userpriv = readuserpriv(j);
+                    break;
+
+                case 'g':
+                    group = j->getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
+                            && shard != -1)
+                    {
+                        TextChat *chat = new TextChat();
+                        chat->id = chatid;
+                        chat->priv = priv;
+                        chat->url = url;
+                        chat->shard = shard;
+                        chat->group = group;
+
+                        // remove yourself from the list of users (only peers matter)
+                        if (userpriv)
+                        {
+                            userpriv_vector::iterator upvit;
+                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    userpriv->erase(upvit);
+                                    if (userpriv->empty())
+                                    {
+                                        delete userpriv;
+                                        userpriv = NULL;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        chat->userpriv = userpriv;
+                        notifychat(chat);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse chat information";
+                    }
+                    readingChat = false;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        LOG_err << "Failed to parse chat information";
+                        readingChat = false;
+                        delete userpriv;
+                        userpriv = NULL;
+                    }
+                    break;
+                }
+            }
+            j->leaveobject();
+        }
+    }
+
+    j->leavearray();
+    j->leaveobject();
+}
+#endif
+
 // add node to vector, return position, deduplicate
 unsigned MegaClient::addnode(node_vector* v, Node* n) const
 {
@@ -7328,7 +7403,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        reqs.add(new CommandSetPH(this, n, del, ets));
+        getpubliclink(n, del, ets);
         break;
 
     case FOLDERNODE:
@@ -7336,14 +7411,14 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            getpubliclink(n, del, ets);
             setshare(n, NULL, ACCESS_UNKNOWN);
         }
         else
         {
             // exporting folder - need to create share first
             setshare(n, NULL, RDONLY);
-            reqs.add(new CommandSetPH(this, n, del, ets));
+            // getpubliclink() is called as _result() of the share
         }
 
         break;
@@ -7353,6 +7428,11 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     }
 
     return API_OK;
+}
+
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+{
+    reqs.add(new CommandSetPH(this, n, del, ets));
 }
 
 // open exported file link
@@ -7682,7 +7762,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7760,7 +7840,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -7959,17 +8039,37 @@ void MegaClient::initializekeys()
         {
             pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
         }
-        if (!pubkstr.size() || !sigPubk.size() ||
-                !signkey->verifyKey((unsigned char*) pubkstr.data(),
+        if (!pubkstr.size() || !sigPubk.size())
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+
+            if (!pubkstr.size())
+            {
+                LOG_warn << "Error serializing RSA public key";
+                sendevent(99421, "Error serializing RSA public key");
+            }
+            if (!sigPubk.size())
+            {
+                LOG_warn << "Signature of public key for RSA not found";
+                sendevent(99422, "Signature of public key for RSA not found");
+            }
+            reqtag = creqtag;
+
+            clearKeys();
+            resetKeyring();
+            return;
+        }
+        if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Signature of public key for RSA not found or mismatch";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99414, "Signature of RSA public key mismatch");
+            sendevent(99414, "Verification of signature of public key for RSA failed");
             reqtag = creqtag;
 
             clearKeys();
@@ -8060,7 +8160,14 @@ void MegaClient::initializekeys()
 
         int creqtag = reqtag;
         reqtag = 0;
-        sendevent(99416, "Incomplete keyring detected");
+        if (!chatkey)
+        {
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+        }
+        else // !signkey
+        {
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+        }
         reqtag = creqtag;
 
         resetKeyring();
@@ -9027,10 +9134,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             // files have the same size and the same mtime (or the
                             // same fingerprint, if available): no action needed
                             if (!ll->checked)
-                            {
-                                // Restoration of missing attributes temporarily disabled
-                                // on synced folders
-                                /*
+                            {                                
                                 if (gfx && gfx->isgfx(&ll->localname))
                                 {
                                     int missingattr = 0;
@@ -9055,12 +9159,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                             LOG_debug << "Restoring missing attributes: " << ll->name;
                                             string localpath;
                                             ll->getlocalpath(&localpath);
-                                            SymmCipher*symmcipher = ll->node->nodecipher();
+                                            SymmCipher *symmcipher = ll->node->nodecipher();
                                             gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
                                         }
                                     }
                                 }
-                                */
 
                                 ll->checked = true;
                             }
@@ -9697,7 +9800,7 @@ void MegaClient::execmovetosyncdebris()
         }
 
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, 0,
+                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
                                         PUTNODES_SYNCDEBRIS));
     }
 }
@@ -9832,6 +9935,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);
+            looprequested = true;
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
@@ -9866,6 +9970,7 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            looprequested = true;
             transfer->finished = true;
             app->transfer_removed(transfer);
             delete transfer;
@@ -10015,11 +10120,6 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::fetchChats()
-{
-    reqs.add(new CommandChatFetch(this));
-}
-
 void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
 {
     reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));
@@ -10100,6 +10200,16 @@ void MegaClient::grantAccessInChat(handle chatid, handle h, const char *uid)
 void MegaClient::removeAccessInChat(handle chatid, handle h, const char *uid)
 {
     reqs.add(new CommandChatRemoveAccess(this, chatid, h, uid));
+}
+
+void MegaClient::updateChatPermissions(handle chatid, const char *uid, int priv)
+{
+    reqs.add(new CommandChatUpdatePermissions(this, chatid, uid, (privilege_t) priv));
+}
+
+void MegaClient::truncateChat(handle chatid, handle messageid)
+{
+    reqs.add(new CommandChatTruncate(this, chatid, messageid));
 }
 
 #endif

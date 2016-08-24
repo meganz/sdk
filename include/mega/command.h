@@ -553,16 +553,6 @@ public:
     CommandReportEvent(MegaClient*, const char*, const char*);
 };
 
-class MEGA_API CommandLoadBalancing : public Command
-{
-public:
-    string service;
-
-    void procresult();
-
-    CommandLoadBalancing(MegaClient*, const char*);
-};
-
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
 {
 public:
@@ -723,15 +713,6 @@ public:
     CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
 };
 
-class MEGA_API CommandChatFetch : public Command
-{
-    MegaClient *client;
-public:
-    void procresult();
-
-    CommandChatFetch(MegaClient*);
-};
-
 class MEGA_API CommandChatInvite : public Command
 {
     MegaClient *client;
@@ -779,6 +760,26 @@ public:
     void procresult();
 
     CommandChatRemoveAccess(MegaClient*, handle, handle, const char *);
+};
+
+class MEGA_API CommandChatUpdatePermissions : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatUpdatePermissions(MegaClient*, handle, const char *, privilege_t);
+};
+
+class MEGA_API CommandChatTruncate : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatTruncate(MegaClient*, handle, handle);
 };
 #endif
 

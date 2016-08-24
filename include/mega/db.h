@@ -77,7 +77,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(FileSystemAccess*, string*) = 0;
+    virtual DbTable* open(FileSystemAccess*, string*, bool = false) = 0;
 
     virtual ~DbAccess() { }
 

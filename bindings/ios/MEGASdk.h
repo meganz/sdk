@@ -811,6 +811,292 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
 
+/**
+ * @brief Initialize the reset of the existing password, with and without the Master Key.
+ *
+ * The associated request type with this request is MEGARequestTypeGetRecoveryLink.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest flag] - Returns whether the user has a backup of the master key or not.
+ *
+ * If this request succeed, a recovery link will be sent to the user.
+ * If no account is registered under the provided email, you will get the error code
+ * MEGAErrorTypeApiENoent in onRequestFinish
+ *
+ * @param email Email used to register the account whose password wants to be reset.
+ * @param hasMasterKey YES if the user has a backup of the master key. Otherwise, NO.
+ * @param delegate Delegate to track this request.
+ */
+- (void)resetPasswordWithEmail:(NSString *)email hasMasterKey:(BOOL)hasMasterKey delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the reset of the existing password, with and without the Master Key.
+ *
+ * The associated request type with this request is MEGARequestTypeGetRecoveryLink.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest flag] - Returns whether the user has a backup of the master key or not.
+ *
+ * If this request succeed, a recovery link will be sent to the user.
+ * If no account is registered under the provided email, you will get the error code
+ * MEGAErrorTypeApiENoent in onRequestFinish
+ *
+ * @param email Email used to register the account whose password wants to be reset.
+ * @param hasMasterKey YES if the user has a backup of the master key. Otherwise, NO.
+ */
+- (void)resetPasswordWithEmail:(NSString *)email hasMasterKey:(BOOL)hasMasterKey;
+
+/**
+ * @brief Get information about a recovery link created by [MEGASdk resetPasswordWithEmail:hasMasterKey:].
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ * - [MEGARequest flag] - Return whether the link requires masterkey to reset password.
+ *
+ * @param link Recovery link (#recover)
+ * @param delegate Delegate to track this request
+ */
+- (void)queryResetPasswordLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about a recovery link created by [MEGASdk resetPasswordWithEmail:hasMasterKey:].
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ * - [MEGARequest flag] - Return whether the link requires masterkey to reset password.
+ *
+ * @param link Recovery link (#recover)
+ */
+- (void)queryResetPasswordLink:(NSString *)link;
+
+/**
+ * @brief Set a new password for the account pointed by the recovery link.
+ *
+ * Recovery links are created by calling [MEGASdk resetPasswordWithEmail:hasMasterKey:] and may or may not
+ * require to provide the master key.
+ *
+ * @see The flag of the MEGARequestTypeQueryRecoveryLink in [MEGASdk queryResetPasswordLink:]
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ * - [MEGARequest privateKey] - Returns the Master Key, when provided
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ * - [MEGARequest flag] - Return whether the link requires masterkey to reset password.
+ *
+ * @param link The recovery link sent to the user's email address.
+ * @param newPassword The new password to be set.
+ * @param masterKey Base64-encoded string containing the master key (optional).
+ * @param delegate Delegate to track this request
+ */
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set a new password for the account pointed by the recovery link.
+ *
+ * Recovery links are created by calling [MEGASdk resetPasswordWithEmail:hasMasterKey:] and may or may not
+ * require to provide the master key.
+ *
+ * @see The flag of the MEGARequestTypeQueryRecoveryLink in [MEGASdk queryResetPasswordLink:]
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ * - [MEGARequest privateKey] - Returns the Master Key, when provided
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ * - [MEGARequest flag] - Return whether the link requires masterkey to reset password.
+ *
+ * @param link The recovery link sent to the user's email address.
+ * @param newPassword The new password to be set.
+ * @param masterKey Base64-encoded string containing the master key (optional).
+ */
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey;
+
+/**
+ * @brief Initialize the cancellation of an account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetCancelLink.
+ *
+ * If this request succeed, a cancellation link will be sent to the email address of the user.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * @see [MEGASdk confirmCancelAccountWithLink:password:]
+ *
+ * @param delegate Delegate to track this request
+ */
+- (void)cancelAccountWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the cancellation of an account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetCancelLink.
+ *
+ * If this request succeed, a cancellation link will be sent to the email address of the user.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * @see [MEGASdk confirmCancelAccountWithLink:password:]
+ *
+ */
+- (void)cancelAccount;
+
+/**
+ * @brief Effectively parks the user's account without creating a new fresh account.
+ *
+ * The contents of the account will then be purged after 60 days. Once the account is
+ * parked, the user needs to contact MEGA support to restore the account.
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmCancelLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Cancellation link sent to the user's email address;
+ * @param password Password for the account.
+ * @param delegate Delegate to track this request
+ */
+- (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Effectively parks the user's account without creating a new fresh account.
+ *
+ * The contents of the account will then be purged after 60 days. Once the account is
+ * parked, the user needs to contact MEGA support to restore the account.
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmCancelLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Cancellation link sent to the user's email address;
+ * @param password Password for the account.
+ */
+- (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password;
+
+/**
+ * @brief Initialize the change of the email address associated to the account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * If this request succeed, a change-email link will be sent to the specified email address.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * @param email The new email to be associated to the account.
+ * @param delegate Delegate to track this request
+ */
+- (void)changeEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the change of the email address associated to the account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * If this request succeed, a change-email link will be sent to the specified email address.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * @param email The new email to be associated to the account.
+ */
+- (void)changeEmail:(NSString *)email;
+
+/**
+ * @brief Get information about a change-email link created by [MEGASdk changeEmail:].
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Change-email link (#verify)
+ * @param delegate Delegate to track this request
+ */
+- (void)queryChangeEmailLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about a change-email link created by [MEGASdk changeEmail:].
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Change-email link (#verify)
+ */
+- (void)queryChangeEmailLink:(NSString *)link;
+
+/**
+ * @brief Effectively changes the email address associated to the account.
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Change-email link sent to the user's email address.
+ * @param password Password for the account.
+ * @param delegate Delegate to track this request
+ */
+- (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Effectively changes the email address associated to the account.
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the recovery link
+ * - [MEGARequest password] - Returns the new password
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Change-email link sent to the user's email address.
+ * @param password Password for the account.
+ */
+- (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -2190,6 +2476,35 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
 
 /**
+ * @brief Download a file from MEGA.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a file from MEGA.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ */
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+
+/**
  * @brief Start an streaming download
  *
  * Streaming downloads don't save the downloaded data into a local file. It is provided 
@@ -2348,6 +2663,91 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param delegate Delegate to track this request.
  */
 - (void)pauseTransfers:(BOOL)pause;
+
+/**
+ * @brief Enable the resumption of transfers
+ *
+ * This function enables the cache of transfers, so they can be resumed later.
+ * Additionally, if a previous cache already exists (from previous executions),
+ * then this function also resumes the existing cached transfers.
+ *
+ * @note Cached downloads expire after 10 days since the last time they were active.
+ * @note Cached uploads expire after 24 hours since the last time they were active.
+ * @note Cached transfers related to files that have been modified since they were
+ * added to the cache are discarded, since the file has changed.
+ *
+ * A log in or a log out automatically disables this feature.
+ *
+ * When the MEGASdk object is logged in, the cache of transfers is identified
+ * and protected using the session and the recovery key, so transfers won't
+ * be resumable using a different session or a different account. The
+ * recommended way of using this function to resume transfers for an account
+ * is calling it in the callback onRequestFinish related to [MEGASdk fetchNodes]
+ *
+ * When the MEGASdk object is not logged in, it's still possible to use this
+ * feature. However, since there isn't any available data to identify
+ * and protect the cache, a default identifier and key are used. To improve
+ * the protection of the transfer cache and allow the usage of this feature
+ * with several non logged in instances of MEGASdk at once without clashes,
+ * it's possible to set a custom identifier for the transfer cache in the
+ * optional parameter of this function. If that parameter is used, the
+ * encryption key for the transfer cache will be derived from it.
+ *
+ * @param loggedOutId Identifier for a non logged in instance of MEGASdk.
+ * It doesn't have any effect if MEGASdk is logged in.
+ */
+- (void)enableTransferResumption:(NSString *)loggedOutId;
+
+/**
+ * @brief Enable the resumption of transfers
+ *
+ * This function enables the cache of transfers, so they can be resumed later.
+ * Additionally, if a previous cache already exists (from previous executions),
+ * then this function also resumes the existing cached transfers.
+ *
+ * @note Cached downloads expire after 10 days since the last time they were active.
+ * @note Cached uploads expire after 24 hours since the last time they were active.
+ * @note Cached transfers related to files that have been modified since they were
+ * added to the cache are discarded, since the file has changed.
+ *
+ * A log in or a log out automatically disables this feature.
+ *
+ * When the MEGASdk object is logged in, the cache of transfers is identified
+ * and protected using the session and the recovery key, so transfers won't
+ * be resumable using a different session or a different account. The
+ * recommended way of using this function to resume transfers for an account
+ * is calling it in the callback onRequestFinish related to [MEGASdk fetchNodes]
+ *
+ * When the MEGASdk object is not logged in, it's still possible to use this
+ * feature. However, since there isn't any available data to identify
+ * and protect the cache, a default identifier and key are used. To improve
+ * the protection of the transfer cache and allow the usage of this feature
+ * with several non logged in instances of MEGASdk at once without clashes,
+ * it's possible to set a custom identifier for the transfer cache in the
+ * optional parameter of this function. If that parameter is used, the
+ * encryption key for the transfer cache will be derived from it.
+ */
+- (void)enableTransferResumption;
+
+/**
+ * @brief Disable the resumption of transfers
+ *
+ * This function disables the resumption of transfers and also deletes
+ * the transfer cache if it exists. See also [MEGASdk enableTransferResumption:].
+ *
+ * @param loggedOutId Identifier for a non logged in instance of MEGASdk.
+ * It doesn't have any effect if MEGASdk is logged in.
+ */
+- (void)disableTransferResumption:(NSString *)loggedOutId;
+
+/**
+ * @brief Disable the resumption of transfers
+ *
+ * This function disables the resumption of transfers and also deletes
+ * the transfer cache if it exists. See also [MEGASdk enableTransferResumption:].
+ *
+ */
+- (void)disableTransferResumption;
 
 /**
  * @brief Pause/resume all transfers in one direction (uploads or downloads)
@@ -2872,6 +3272,32 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
+ * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
+ *
+ * This function only allows to authorize file nodes.
+ *
+ * You can use [MEGASdk startDownloadNode:localPath:] with the resulting node with any instance
+ * of MEGASdk, even if it's logged into another account, a public folder, or not
+ * logged in.
+ *
+ * If the first parameter is a public node or an already authorized node, this
+ * function returns a copy of the node, because it can be already downloaded
+ * with any MEGASdk instance.
+ *
+ * If the node in the first parameter belongs to the account or public folder
+ * in which the current MEGASdk object is logged in, this funtion returns an
+ * authorized node.
+ *
+ * If the first parameter is nil or a node that is not a public node, is not
+ * already authorized and doesn't belong to the current MEGASdk, this function
+ * returns nil.
+ *
+ * @param node MEGANode to authorize
+ * @return Authorized node, or nil if the node can't be authorized or is not a file
+ */
+- (MEGANode *)authorizeNode:(MEGANode *)node;
+
+/**
  * @brief Get the size of a node tree.
  *
  * If the MEGANode is a file, this function returns the size of the file.
@@ -2908,6 +3334,15 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (NSString *)unescapeFsIncompatible:(NSString *)localName;
 
+/**
+ * @brief Change the API URL
+ *
+ * This function allows to change the API URL.
+ * It's only useful for testing or debugging purposes.
+ *
+ * @param apiURL New API URL
+ * @param disablepkp YES to disable public key pinning for this URL
+ */
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 
 /**

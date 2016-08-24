@@ -22,6 +22,7 @@
 using namespace mega;
 
 extern MegaClient* client;
+extern MegaClient* clientFolder;
 
 extern void megacli();
 
@@ -75,6 +76,12 @@ struct AppReadContext
     SymmCipher key;
 };
 
+class TreeProcListOutShares : public TreeProc
+{
+public:
+    void proc(MegaClient*, Node*);
+};
+
 struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
@@ -111,7 +118,6 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error);
-    void chatfetch_result(textchat_vector *chats, error);
     void chatinvite_result(error);
     void chatremove_result(error);
     void chaturl_result(string *, error);
@@ -219,4 +225,14 @@ struct DemoApp : public MegaApp
     void clearing();
 
     void notify_retry(dstime);
+};
+
+struct DemoAppFolder : public DemoApp
+{
+    void login_result(error);
+    void fetchnodes_result(error);
+
+    void nodes_updated(Node **, int);
+    void users_updated(User**, int) {}
+    void pcrs_updated(PendingContactRequest**, int) {}
 };

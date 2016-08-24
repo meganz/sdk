@@ -132,12 +132,12 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 /**
  * @brief Number of times that a transfer has temporarily failed.
  */
-@property (readonly, nonatomic) NSInteger  numRetry;
+@property (readonly, nonatomic) NSInteger numRetry;
 
 /**
  * @brief Maximum number of times that the transfer will be retried.
  */
-@property (readonly, nonatomic) NSInteger  maxRetries;
+@property (readonly, nonatomic) NSInteger maxRetries;
 
 /**
  * @brief An integer that identifies this transfer.
@@ -174,10 +174,35 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) MEGANode *publicNode;
 
 /**
- * @return YES if this is a streaming transfer, NO otherwise
+ * @brief YES if this is a streaming transfer, NO otherwise
  * @see [MEGASdk startStreamingNode:startPos:size:];
  */
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
+
+/**
+ * @brief YES if it's a folder transfer, otherwise (file transfer) it returns NO
+ */
+@property (readonly, nonatomic) BOOL isFolderTransfer;
+
+/**
+ * @brief The identifier of the folder transfer associated to this transfer.
+ * Tag of the associated folder transfer.
+ *
+ * This property is only useful for transfers automatically started in the context of a folder transfer.
+ * For folder transfers (the ones directly started with startUpload), it returns -1
+ * Otherwise, it returns 0
+ *
+ */
+@property (readonly, nonatomic) NSInteger folderTransferTag;
+
+/**
+ * @brief The application data associated with this transfer
+ *
+ * You can set the data returned by this function in [MEGASdk startDownloadNode:localPath:] and
+ * [MEGASdk startDownloadNode:localPath:delegate:]
+ *
+ */
+@property (readonly, nonatomic) NSString *appData;
 
 /**
  * @brief Creates a copy of this MEGATransfer object

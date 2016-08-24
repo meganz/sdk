@@ -5616,6 +5616,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     return result;
 }
 
+long long MegaApiImpl::getNumLocalNodes()
+{
+    return client->totalLocalNodes;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()
@@ -6059,13 +6064,6 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::fetchChats(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_FETCH, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
@@ -6122,6 +6120,25 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     uid[11] = 0;
 
     request->setEmail(uid);
+    waiter->notify();
+}
+
+void MegaApiImpl::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(uh);
+    request->setAccess(privilege);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_TRUNCATE, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(messageid);
+    requestQueue.push(request);
     waiter->notify();
 }
 #endif
@@ -6607,14 +6624,6 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
     return result;
 }
 
-void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_BALANCING, listener);
-    request->setName(service);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 const char *MegaApiImpl::getVersion()
 {
     return client->version();
@@ -6711,7 +6720,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    processTree(node, &searchProcessor, recursive);
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    {
+        processTree(*it++, &searchProcessor, recursive);
+    }
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
@@ -7064,13 +7076,22 @@ char *strcasestr(const char *string, const char *substring)
 
 bool SearchTreeProcessor::processNode(Node* node)
 {
-	if(!node) return true;
-	if(!search) return false;
+    if (!node)
+    {
+        return true;
+    }
 
-	if(strcasestr(node->displayname(), search)!=NULL)
-		results.push_back(node);
+    if (!search)
+    {
+        return false;
+    }
 
-	return true;
+    if (strcasestr(node->displayname(), search)!=NULL)
+    {
+        results.push_back(node);
+    }
+
+    return true;
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()
@@ -7449,20 +7470,6 @@ void MegaApiImpl::reportevent_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::loadbalancing_result(string *servers, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOAD_BALANCING)) return;
-
-    if(!e)
-    {
-        request->setText(servers->c_str());
-    }
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::sessions_killed(handle, error e)
 {
     MegaError megaError(e);
@@ -7773,22 +7780,6 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatfetch_result(textchat_vector *chatList, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
-
-    if (!e)
-    {
-        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
-        request->setMegaTextChatList(megaChatList);
-    }
-
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::chatinvite_result(error e)
 {
     MegaError megaError(e);
@@ -7851,6 +7842,36 @@ void MegaApiImpl::chatremoveaccess_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE_ACCESS)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatupdatepermissions_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chattruncate_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_TRUNCATE)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
@@ -8399,9 +8420,25 @@ void MegaApiImpl::share_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
                     (request->getType() != MegaRequest::TYPE_SHARE))) return;
 
-    //exportnode_result will be called to end the request.
-	if(request->getType() == MegaRequest::TYPE_EXPORT)
+    // exportnode_result will be called to end the request.
+    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
+    {
+        Node* node = client->nodebyhandle(request->getNodeHandle());
+        if (!node)
+        {
+            fireOnRequestFinish(request, API_ENOENT);
+            return;
+        }
+
+        if (!request->getAccess())
+        {
+            fireOnRequestFinish(request, API_EINTERNAL);
+            return;
+        }
+
+        client->getpubliclink(node, false, request->getNumber());
 		return;
+    }
 
     fireOnRequestFinish(request, megaError);
 }
@@ -12602,7 +12639,8 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getNumber();
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
-                            && type != MegaApi::PAYMENT_METHOD_ITUNES))
+                            && type != MegaApi::PAYMENT_METHOD_ITUNES
+                            && type != MegaApi::PAYMENT_METHOD_WINDOWS_STORE))
             {
                 e = API_EARGS;
                 break;
@@ -12615,14 +12653,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string base64receipt;
-            if(type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET)
+            if (type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
+                    || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE)
             {
                 int len = strlen(receipt);
                 base64receipt.resize(len * 4 / 3 + 4);
                 base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
-                 // MegaApi::PAYMENT_METHOD_WINDOWS_STORE
             {
                 base64receipt = receipt;
             }
@@ -12717,18 +12755,6 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_LOAD_BALANCING:
-        {
-            const char* service = request->getName();
-            if(!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->loadbalancing(service);
-            break;
-        }
         case MegaRequest::TYPE_KILL_SESSION:
         {
             MegaHandle handle = request->getNodeHandle();
@@ -12800,11 +12826,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->createChat(group, userpriv);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_FETCH:
-        {
-            client->fetchChats();
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -12894,6 +12915,38 @@ void MegaApiImpl::sendPendingRequests()
             client->removeAccessInChat(chatid, h, uid);
             break;
         }
+        case MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS:
+        {
+            handle chatid = request->getNodeHandle();
+            handle uh = request->getParentHandle();
+            int access = request->getAccess();
+
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            uid[11] = 0;
+
+            client->updateChatPermissions(chatid, uid, access);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_TRUNCATE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            handle messageid = request->getParentHandle();
+            if (chatid == INVALID_HANDLE || messageid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->truncateChat(chatid, messageid);
+            break;
+        }
 #endif
         default:
         {
@@ -12925,6 +12978,11 @@ void MegaApiImpl::updateStats()
     pendingDownloads = client->transfers[0].size();
     pendingUploads = client->transfers[1].size();
     sdkMutex.unlock();
+}
+
+long long MegaApiImpl::getNumNodes()
+{
+    return client->totalNodes;
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()
@@ -13341,6 +13399,11 @@ long long MegaAccountDetailsPrivate::getTemporalBandwidth()
         result += details.transfer_hist[i];
     }
     return result;
+}
+
+bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
+{
+    return details.transfer_hist_valid;
 }
 
 ExternalLogger::ExternalLogger()

@@ -1118,6 +1118,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     sync->client->syncactivity = true;
 
+    sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
 }
 
@@ -1289,6 +1290,7 @@ LocalNode::~LocalNode()
         sync->client->fsidnode.erase(fsid_it);
     }
 
+    sync->client->totalLocalNodes--;
     sync->localnodes[type]--;
 
     if (type == FILENODE && size > 0)

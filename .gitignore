@@ -80,6 +80,7 @@ doc/example/lsmega
 Debug
 Release
 /contrib/QtCreator/megacli.creator.user
+megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal

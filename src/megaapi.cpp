@@ -1840,6 +1840,11 @@ string MegaApi::getLocalPath(MegaNode *n)
     return pImpl->getLocalPath(n);
 }
 
+long long MegaApi::getNumLocalNodes()
+{
+    return pImpl->getNumLocalNodes();
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -2125,11 +2130,6 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-void MegaApi::loadBalancing(const char *service, MegaRequestListener *listener)
-{
-    pImpl->loadBalancing(service, listener);
-}
-
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
 {
     return pImpl->search(n, searchString, recursive);
@@ -2355,6 +2355,11 @@ MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
 void MegaApi::updateStats()
 {
     pImpl->updateStats();
+}
+
+long long MegaApi::getNumNodes()
+{
+    return pImpl->getNumNodes();
 }
 
 long long MegaApi::getTotalDownloadedBytes()
@@ -3079,11 +3084,6 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::fetchChats(MegaRequestListener *listener)
-{
-    pImpl->fetchChats(listener);
-}
-
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, listener);
@@ -3107,6 +3107,16 @@ void MegaApi::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  
 void MegaApi::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener)
 {
     pImpl->removeAccessInChat(chatid, n, uh, listener);
+}
+
+void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    pImpl->updateChatPermissions(chatid, uh, privilege, listener);
+}
+
+void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
+{
+    pImpl->truncateChat(chatid, messageid, listener);
 }
 
 #endif
@@ -3334,6 +3344,11 @@ int MegaAccountDetails::getTemporalBandwidthInterval()
 long long MegaAccountDetails::getTemporalBandwidth()
 {
     return 0;
+}
+
+bool MegaAccountDetails::isTemporalBandwidthValid()
+{
+    return false;
 }
 
 void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)

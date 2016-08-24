@@ -31,6 +31,7 @@
 using namespace mega;
 
 MegaClient* client;
+MegaClient* clientFolder;
 
 // login e-mail address
 static string login;
@@ -55,6 +56,11 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 
 // change email link to be confirmed
 static string changeemail, changecode;
+
+// chained folder link creation
+static handle h = UNDEF;
+static int del = 0;
+static int ets = 0;
 
 // local console
 Console* console;
@@ -518,31 +524,6 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
     }
 }
 
-void DemoApp::chatfetch_result(textchat_vector *chats, error e)
-{
-    if (e)
-    {
-        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat received or updated" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats received or updated" << endl;
-        }
-
-        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
-        {
-            printChatInformation(*it);
-            cout << endl;
-        }
-    }
-}
-
 void DemoApp::chatinvite_result(error e)
 {
     if (e)
@@ -663,14 +644,12 @@ string DemoApp::getPrivilegeString(privilege_t priv)
 {
     switch (priv)
     {
-    case PRIV_FULL:
-        return "PRIV_FULL (full access)";
-    case PRIV_OPERATOR:
-        return "PRIV_OPERATOR (operator)";
+    case PRIV_STANDARD:
+        return "PRIV_STANDARD (standard access)";
+    case PRIV_MODERATOR:
+        return "PRIV_MODERATOR (moderator)";
     case PRIV_RO:
         return "PRIV_RO (read-only)";
-    case PRIV_RW:
-        return "PRIV_RW (read-write)";
     case PRIV_RM:
         return "PRIV_RM (removed)";
     case PRIV_UNKNOWN:
@@ -767,6 +746,10 @@ void DemoApp::fetchnodes_result(error e)
             {
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
+            else
+            {
+                cout << "Folder link loaded correctly." << endl;
+            }
         }
     }
 }
@@ -794,6 +777,26 @@ void DemoApp::share_result(error e)
     if (e)
     {
         cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (h != UNDEF && !del)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (!n)
+            {
+                char buf[sizeof h * 4 / 3 + 3];
+                Base64::btoa((byte *)&h, sizeof h, buf);
+
+                cout << "Node was not found. (" << buf << ")" << endl;
+
+                h = UNDEF;
+                del = ets = 0;
+                return;
+            }
+
+            client->getpubliclink(n, del, ets);
+        }
     }
 }
 
@@ -1043,6 +1046,15 @@ static void listtrees()
             }
         }
     }
+
+    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
+    {
+        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+        if (n)
+        {
+            cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
+        }
+    }
 }
 
 // returns node pointer determined by path relative to cwd
@@ -1053,6 +1065,7 @@ static void listtrees()
 // * //bin is in RUBBISH
 // * X: is user X's INBOX
 // * X:SHARE is share SHARE from user X
+// * Y:name is folder in FOLDERLINK, Y is the public handle
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
@@ -1063,6 +1076,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
+    int folderlink = 0;
     Node* n;
     Node* nn;
 
@@ -1146,7 +1160,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     if (remote)
     {
         // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c[1].size())
+        if (c.size() == 2 && c[0].find("@") != string::npos && !c[1].size())
         {
             if (user)
             {
@@ -1154,6 +1168,23 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
 
             return NULL;
+        }
+
+        // target is not a user, but a public folder link
+        if (c.size() >= 2 && c[0].find("@") == string::npos)
+        {
+            if (!clientFolder)
+            {
+                return NULL;
+            }
+
+            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+            if (c.size() == 2 && c[1].empty())
+            {
+                return n;
+            }
+            l = 1;   // <folder_name>:[/<subfolder>][/<file>]
+            folderlink = 1;
         }
 
         User* u;
@@ -1240,7 +1271,14 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = client->childnodebyname(n, c[l].c_str());
+                    if (folderlink)
+                    {
+                        nn = clientFolder->childnodebyname(n, c[l].c_str());
+                    }
+                    else
+                    {
+                        nn = client->childnodebyname(n, c[l].c_str());
+                    }
 
                     if (!nn)
                     {
@@ -1858,6 +1896,7 @@ static void process_line(char* l)
                 cout << "      pwd" << endl;
                 cout << "      lcd [localpath]" << endl;
                 cout << "      import exportedfilelink#key" << endl;
+                cout << "      open exportedfolderlink#key" << endl;
                 cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
                 cout << "      putq [cancelslot]" << endl;
                 cout << "      get remotepath [offset [length]]" << endl;
@@ -1901,8 +1940,8 @@ static void process_line(char* l)
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chatf " << endl;
-                cout << "      chatc group [email ro|rw|full|op]*" << endl;
-                cout << "      chati chatid email ro|rw|full|op" << endl;
+                cout << "      chatc group [email ro|sta|mod]*" << endl;
+                cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
@@ -2312,6 +2351,20 @@ static void process_line(char* l)
                                     if (n->type == FILENODE)
                                     {
                                         f = new AppFileGet(n);
+
+                                        string::size_type index = words[1].find(":");
+                                        // node from public folder link
+                                        if (index != string::npos && words[1].substr(0, index).find("@") == string::npos)
+                                        {
+                                            handle h = clientFolder->getrootpublicfolder();
+                                            char *pubauth = new char[12];
+                                            Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
+                                            f->pubauth = pubauth;
+                                            f->hprivate = true;
+                                            f->hforeign = true;
+                                            memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+                                        }
+
                                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                                         client->startxfer(GET, f);
                                     }
@@ -2479,6 +2532,51 @@ static void process_line(char* l)
                     else if (words[0] == "getq")
                     {
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }
+                    else if (words[0] == "open")
+                    {
+                        if (words.size() > 1)
+                        {
+                            if (strstr(words[1].c_str(), "#F!"))  // folder link indicator
+                            {
+                                if (!clientFolder)
+                                {
+                                    // create a new MegaClient with a different MegaApp to process callbacks
+                                    // from the client logged into a folder. Reuse the waiter and httpio
+                                    clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
+                                                                    client->httpio, new FSACCESS_CLASS,
+                                        #ifdef DBACCESS_CLASS
+                                                                    new DBACCESS_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                        #ifdef GFX_CLASS
+                                                                    new GFX_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                                                    "SDKSAMPLE",
+                                                                    "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MINOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MICRO_VERSION));
+                                }
+                                else
+                                {
+                                    clientFolder->logout();
+                                }
+
+                                return clientFolder->app->login_result(clientFolder->folderaccess(words[1].c_str()));
+                            }
+                            else
+                            {
+                                cout << "Invalid folder link." << endl;
+                            }
+                        }
+                        else
+                        {
+                             cout << "      open exportedfolderlink#key" << endl;
+                        }
                         return;
                     }
 #ifdef ENABLE_SYNC
@@ -3017,6 +3115,15 @@ static void process_line(char* l)
 
                                     return;
                                 }
+                                else if (words[2] == "set64")
+                                {
+                                    int len = words[3].size() * 3 / 4 + 3;
+                                    byte *value = new byte[len];
+                                    int valuelen = Base64::atob(words[3].data(), value, len);
+                                    client->putua(attrtype, value, valuelen);
+                                    delete [] value;
+                                    return;
+                                }
                                 else if (words[2] == "load")
                                 {
                                     string data, localpath;
@@ -3085,7 +3192,7 @@ static void process_line(char* l)
                             {
                                 if (!client->xferpaused[GET] && !client->xferpaused[PUT])
                                 {
-                                    cout << "Transfers not paused at the moment.";
+                                    cout << "Transfers not paused at the moment." << endl;
                                 }
                                 else
                                 {
@@ -3211,11 +3318,6 @@ static void process_line(char* l)
                         return;
                     }
 #ifdef ENABLE_CHAT
-                    else if (words[0] == "chatf")
-                    {
-                        client->fetchChats();
-                        return;
-                    }
                     else if (words[0] == "chatc")
                     {
                         unsigned wordscount = words.size();
@@ -3242,17 +3344,13 @@ static void process_line(char* l)
                                 {
                                     priv = PRIV_RO;
                                 }
-                                else if (privstr == "rw")
+                                else if (privstr == "sta")
                                 {
-                                    priv = PRIV_RW;
+                                    priv = PRIV_STANDARD;
                                 }
-                                else if (privstr == "full")
+                                else if (privstr == "mod")
                                 {
-                                    priv = PRIV_FULL;
-                                }
-                                else if (privstr == "op")
-                                {
-                                    priv = PRIV_OPERATOR;
+                                    priv = PRIV_MODERATOR;
                                 }
                                 else
                                 {
@@ -3271,7 +3369,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                            cout << "      chatc group [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -3296,17 +3394,13 @@ static void process_line(char* l)
                             {
                                 priv = PRIV_RO;
                             }
-                            else if (privstr == "rw")
+                            else if (privstr == "sta")
                             {
-                                priv = PRIV_RW;
+                                priv = PRIV_STANDARD;
                             }
-                            else if (privstr == "full")
+                            else if (privstr == "mod")
                             {
-                                priv = PRIV_FULL;
-                            }
-                            else if (privstr == "op")
-                            {
-                                priv = PRIV_OPERATOR;
+                                priv = PRIV_MODERATOR;
                             }
                             else
                             {
@@ -3319,7 +3413,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|rw|full|op" << endl;
+                            cout << "      chati chatid email ro|sta|mod" << endl;
                             return;
 
                         }
@@ -3584,27 +3678,37 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
+                            h = UNDEF;
+                            del = ets = 0;
+
                             Node* n;
-                            int del = 0;
-                            int ets = 0;
+                            int deltmp = 0;
+                            int etstmp = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (words.size() > 2)
                                 {
-                                    del = (words[2] == "del");
-                                    if (!del)
+                                    deltmp = (words[2] == "del");
+                                    if (!deltmp)
                                     {
-                                        ets = atol(words[2].c_str());
+                                        etstmp = atol(words[2].c_str());
                                     }
                                 }
+
 
                                 cout << "Exporting..." << endl;
 
                                 error e;
-                                if ((e = client->exportnode(n, del, ets)))
+                                if ((e = client->exportnode(n, deltmp, etstmp)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+                                }
+                                else
+                                {
+                                    h = n->nodehandle;
+                                    ets = etstmp;
+                                    del = deltmp;
                                 }
                             }
                             else
@@ -3655,6 +3759,13 @@ static void process_line(char* l)
 
                         cwd = UNDEF;
                         client->logout();
+
+                        if (clientFolder)
+                        {
+                            clientFolder->logout();
+                            delete clientFolder;
+                            clientFolder = NULL;
+                        }
 
                         return;
                     }
@@ -4267,6 +4378,9 @@ void DemoApp::exportnode_result(error e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -4297,6 +4411,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
         else
         {
             cout << "No key available for exported folder" << endl;
+
+            del = ets = 0;
+            h = UNDEF;
             return;
         }
 
@@ -4306,6 +4423,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
+
+    del = ets = 0;
+    h = UNDEF;
 }
 
 // the requested link could not be opened
@@ -4800,6 +4920,11 @@ void megacli()
 
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (clientFolder)
+        {
+            clientFolder->exec();
+        }
     }
 }
 
@@ -4826,7 +4951,82 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
+    clientFolder = NULL;    // additional for folder links
+
     console = new CONSOLE_CLASS;
 
     megacli();
 }
+
+
+void DemoAppFolder::login_result(error e)
+{
+    if (e)
+    {
+        cout << "Failed to load the folder link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Folder link loaded, retrieving account..." << endl;
+        clientFolder->fetchnodes();
+    }
+}
+
+void DemoAppFolder::fetchnodes_result(error e)
+{
+    if (e)
+    {
+        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = clientFolder->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = clientFolder->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+        }
+        else
+        {
+            cout << "Failed to load folder link" << endl;
+
+            delete clientFolder;
+            clientFolder = NULL;
+        }
+    }
+}
+
+void DemoAppFolder::nodes_updated(Node **n, int count)
+{
+    int c[2][6] = { { 0 } };
+
+    if (n)
+    {
+        while (count--)
+        {
+            if ((*n)->type < 6)
+            {
+                c[!(*n)->changed.removed][(*n)->type]++;
+                n++;
+            }
+        }
+    }
+    else
+    {
+        for (node_map::iterator it = clientFolder->nodes.begin(); it != clientFolder->nodes.end(); it++)
+        {
+            if (it->second->type < 6)
+            {
+                c[1][it->second->type]++;
+            }
+        }
+    }
+
+    cout << "The folder link contains ";
+    nodestats(c[1], "");
+}
+
