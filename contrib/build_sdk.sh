@@ -31,6 +31,7 @@ use_local=0
 use_dynamic=0
 disable_freeimage=0
 disable_ssl=0
+disable_zlib=0
 download_only=0
 enable_megaapi=0
 make_opts=""
@@ -785,7 +786,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y] [-q]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -811,6 +812,7 @@ display_help() {
     echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
     echo " -q : Use Crypto++"
+    echo " -z : Disable libz"
     echo ""
 }
 
@@ -823,7 +825,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdefglm:no:p:rstuvyx:wq" opt; do
+    while getopts ":hacdefglm:no:p:rstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -909,6 +911,10 @@ main() {
                 use_dynamic=1
                 echo "* Building dynamic library and executable."
                 ;;
+            z)
+                disable_zlib=1
+                echo "* Disabling external libz."
+                ;;
             \?)
                 display_help $0
                 exit
@@ -970,7 +976,10 @@ main() {
         sodium_pkg $build_dir $install_dir
     fi
 
-    zlib_pkg $build_dir $install_dir
+	if [ $disable_zlib -eq 0 ]; then
+		zlib_pkg $build_dir $install_dir
+	fi
+	
     sqlite_pkg $build_dir $install_dir
     
     if [ $enable_cares -eq 1 ]; then
