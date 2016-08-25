@@ -1453,7 +1453,7 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && !(transfer->state == TRANSFERSTATE_PAUSED) && transfer->bt.armed())
+        if (!transfer->slot && (transfer->state == TRANSFERSTATE_QUEUED || transfer->state == TRANSFERSTATE_RETRYING) && transfer->bt.armed())
         {
             return transfer;
         }
