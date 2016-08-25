@@ -815,6 +815,11 @@ int MegaTransfer::getState() const
     return STATE_NONE;
 }
 
+float MegaTransfer::getPriority() const
+{
+    return 0;
+}
+
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;

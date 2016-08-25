@@ -1254,6 +1254,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->folderTransferTag = 0;
     this->appData = NULL;
     this->state = STATE_NONE;
+    this->priority = 0;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -1269,6 +1270,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
     this->setState(transfer->getState());
+    this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
     this->setPath(transfer->getPath());
     this->setNodeHandle(transfer->getNodeHandle());
@@ -1467,6 +1469,16 @@ void MegaTransferPrivate::setState(int state)
 int MegaTransferPrivate::getState() const
 {
     return state;
+}
+
+void MegaTransferPrivate::setPriority(float p)
+{
+    this->priority = p;
+}
+
+float MegaTransferPrivate::getPriority() const
+{
+    return priority;
 }
 
 bool MegaTransferPrivate::serialize(string *d)
@@ -6882,6 +6894,7 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
     transfer->setSpeed(0);
     transfer->setLastError(megaError);
     transfer->setState(tr->state);
+    transfer->setPriority(tr->priority);
 
     if (e == API_EOVERQUOTA && timeleft)
     {
@@ -7202,6 +7215,7 @@ void MegaApiImpl::transfer_added(Transfer *t)
 	currentTransfer = NULL;
     transfer->setTransfer(t);
     transfer->setState(t->state);
+    transfer->setPriority(t->priority);
     transfer->setTotalBytes(t->size);
     transfer->setTag(t->tag);
 	transferMap[t->tag]=transfer;
@@ -7247,6 +7261,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     }
 
     transfer->setState(t->state);
+    transfer->setPriority(t->priority);
     fireOnTransferFinish(transfer, transfer->getLastError());
 }
 
@@ -7263,6 +7278,7 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     transfer->setPath(path.c_str());
     transfer->setTotalBytes(t->size);
     transfer->setState(t->state);
+    transfer->setPriority(t->priority);
 
     LOG_info << "Transfer (" << transfer->getTransferString() << ") starting. File: " << transfer->getFileName();
 }
@@ -7279,17 +7295,20 @@ void MegaApiImpl::transfer_update(Transfer *tr)
     dstime currentTime = Waiter::ds;
     if (transfer->getUpdateTime() == currentTime
             && transfer->getState() == tr->state
+            && transfer->getPriority() == tr->priority
             && (!tr->slot
                 || (tr->slot->progressreported
                     && tr->slot->progressreported != tr->size)))
     {
         // don't send more than one callback per decisecond
-        // if the state doesn't change and there isn't anything
-        // new or it's not the first nor the last callback
+        // if the state doesn't change, the priority doesn't change
+        // and there isn't anything new or it's not the first
+        // nor the last callback
         return;
     }
 
     transfer->setState(tr->state);
+    transfer->setPriority(tr->priority);
     if (tr->slot)
     {
         if (!transfer->getStartTime())
@@ -7412,12 +7431,14 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         fsAccess->local2path(&tr->localfilename, &path);
         transfer->setPath(path.c_str());
         transfer->setState(tr->state);
+        transfer->setPriority(tr->priority);
 
         fireOnTransferFinish(transfer, MegaError(API_OK));
     }
     else
     {
         transfer->setState(MegaTransfer::STATE_COMPLETING);
+        transfer->setPriority(tr->priority);
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
     }

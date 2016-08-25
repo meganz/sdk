@@ -422,6 +422,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual const char* getAppData() const;
         virtual void setState(int state);
         virtual int getState() const;
+        virtual void setPriority(float p);
+        virtual float getPriority() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -430,6 +432,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 		int type;
 		int tag;
         int state;
+        float priority;
 
         struct
         {

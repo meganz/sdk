@@ -2703,6 +2703,15 @@ class MegaTransfer
          * @return State of the transfer
          */
         virtual int getState() const;
+
+        /**
+         * @brief Returns the priority of the transfer
+         *
+         * This value is intended to keep the order of the transfer queue on apps.
+         *
+         * @return Priority of the transfer
+         */
+        virtual float getPriority() const;
 };
 
 /**
