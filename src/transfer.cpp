@@ -74,8 +74,8 @@ Transfer::~Transfer()
     if (transfers_it != client->transfers[type].end())
     {
         client->transfers[type].erase(transfers_it);
-        client->transferlist.removetransfer(this);
     }
+    client->transferlist.removetransfer(this);
 
     if (slot)
     {
