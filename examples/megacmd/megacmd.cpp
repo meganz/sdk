@@ -72,6 +72,7 @@ using namespace mega;
 
 //MegaClient* client;
 MegaApi *api;
+MegaApi *apiFolder;
 MegaCMDLogger *loggerCMD;
 
 //Syncs
@@ -1889,9 +1890,9 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
             break;
         }
         default:
-            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
-//            rl_message("");
-//            clear_display();
+//            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
+// //            rl_message("");
+// //            clear_display();
             break;
     }
     //clear_display();
@@ -2185,6 +2186,7 @@ void finalize()
     delete cm;
     delete console;
     delete api;
+    delete apiFolder;
     delete loggerCMD;
     delete megaCmdGlobalListener;
 
@@ -2692,6 +2694,12 @@ int getFlag(map<string,int> *flags, const char * optname)
     return flags->count(optname)?(*flags)[optname]:0;
 }
 
+int getLinkType(string link){
+    int posHash=link.find_first_of("#");
+    if (posHash==string::npos || !(posHash+1 < link.length() )) return MegaNode::TYPE_UNKNOWN;
+    if (link.at(posHash+1)=='F') return MegaNode::TYPE_FOLDER;
+    return MegaNode::TYPE_FILE;
+}
 
 // execute command
 static void process_line(char* l)
@@ -3342,40 +3350,94 @@ static void process_line(char* l)
                             }
 
 
-                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                            api->getPublicNode(words[1].c_str(),megaCmdListener);
-                            megaCmdListener->wait();
-                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                            if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
                             {
-                                LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+
+                                api->getPublicNode(words[1].c_str(),megaCmdListener);
+                                megaCmdListener->wait();
+
+                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
                                 {
-                                    OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
+                                    LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
+                                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
+                                    {
+                                        OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
+                                    }
+                                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+                                    {
+                                        OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
+                                    }
                                 }
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+                                else{
+                                    if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag())
+                                    {
+                                        LOG_err << "Key not valid " << words[1].c_str();
+                                    }
+                                    if (megaCmdListener->getRequest())
+                                    {
+                                        MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
+
+                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+                                        api->startDownload(n,cwd.c_str(),megaCmdTransferListener);
+
+                                        megaCmdTransferListener->wait();
+                                        //TODO: process errors
+                                        LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                        delete megaCmdTransferListener;
+                                    }
+                                    else{
+                                        LOG_err << "Empty Request at get";
+                                    }
+                                }
+                                delete megaCmdListener;
+                            } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
+                            { //TODO: document: it will replace contents
+                                OUTSTREAM << "downloading folder ..." << endl;
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
+                                apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
+                                megaCmdListener->wait();
+                                 //TODO: process errors
+                                delete megaCmdListener;
+                                MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
+                                apiFolder->fetchNodes(megaCmdListener2);
+                                actUponFetchNodes(megaCmdListener2);
+                                delete megaCmdListener2;
+                                MegaNode *folderRootNode = apiFolder->getRootNode();
+
+                                MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
+                                if (authorizedNode !=NULL)
                                 {
-                                    OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
+                                    //TODO: in short future: try this
+
+                                    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+                                    api->startDownload(folderRootNode,cwd.c_str(),megaCmdTransferListener);
+                                    megaCmdTransferListener->wait();
+                                     //TODO: process errors
+                                    LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                    delete megaCmdTransferListener;
+                                    delete authorizedNode;
                                 }
+                                else
+                                {
+                                    LOG_warn << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
+                                    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
+                                    apiFolder->startDownload(folderRootNode,cwd.c_str(),megaCmdTransferListener);
+                                    megaCmdTransferListener->wait();
+                                     //TODO: process errors
+                                    LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                    delete megaCmdTransferListener;
+                                    delete folderRootNode;
+                                }
+
+
+
                             }
-                            else{
-                                if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag())
-                                {
-                                    LOG_err << "Key not valid " << words[1].c_str();
-                                }
-                                MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
-
-                                MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                api->startDownload(n,cwd.c_str(),megaCmdTransferListener);
-
-                                megaCmdTransferListener->wait();
-
-                                LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
-
-                                delete megaCmdTransferListener;
-
+                            else
+                            {
+                                OUTSTREAM << "Invalid link: " << words[1] << endl;
+                                //TODO: print usage
                             }
-                            delete megaCmdListener;
-
 
 //                            n = nodebypath(words[1].c_str());
 
@@ -5851,6 +5913,7 @@ int main()
 
 
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+    apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_MAX);
@@ -5860,6 +5923,8 @@ int main()
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+    apiFolder->setLoggerObject(loggerCMD);
+    apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
 
     megaCmdGlobalListener =  new MegaCmdGlobalListener();
