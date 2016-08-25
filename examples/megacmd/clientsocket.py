@@ -23,10 +23,8 @@ def parseArgs(argsin):
 		#get first argument (local path) and append fullpath
 		for i in range(1,len(argsin)):
 			if not argsin[i].startswith("-"):
-				argsin[i]=os.path.abspath(argsin[i])
-				if (totalRealArgs>1): argsin[i]=os.path.abspath(argsin[i])
 				totalRealArgs+=1
-		
+				if (totalRealArgs>1): argsin[i]=os.path.abspath(argsin[i])		
 
 
 	return argsin;

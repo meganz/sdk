@@ -1529,14 +1529,10 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
             {
                 if (c[2] == "in")
                 {
-                    //TODO: modify using API //TODO: test & delete comments
-//                    n = client->nodebyhandle(client->rootnodes[1]);
                     n = api->getInboxNode();
                 }
                 else if (c[2] == "bin")
                 {
-                    //TODO: modify using API //TODO: test & delete comments
-//                    n = client->nodebyhandle(client->rootnodes[2]);
                     n = api->getRubbishNode();
                 }
                 else
@@ -2710,6 +2706,28 @@ int getLinkType(string link){
     return MegaNode::TYPE_FILE;
 }
 
+bool isFolder(string path){
+//TODO: move to MegaFileSystemAccess
+
+    struct stat path_stat;
+    stat(path.c_str(), &path_stat);
+    return S_ISDIR(path_stat.st_mode);
+}
+
+bool isRegularFile(string path)
+{
+    struct stat path_stat;
+    stat(path.c_str(), &path_stat);
+    return S_ISREG(path_stat.st_mode);
+}
+
+bool pathExits(string path){//TODO: move to MegaFileSystemAccess
+//    return access( path, F_OK ) != -1 ;
+    struct stat path_stat;
+    int ret=stat(path.c_str(), &path_stat);
+    return ret==0;
+}
+
 // execute command
 static void process_line(char* l)
 {
@@ -3351,15 +3369,26 @@ static void process_line(char* l)
 //                                OUTSTREAM << "Checking link..." << endl;
 //                                return;
 //                            }
-                            string cwd = getCurrentLocalPath()+"/";
-                            if (words.size()>2)
-                            {
-                                cwd=words[2]+"/"; //TODO: check existence and permissions before download
-                            }
-
+                            string localPath = getCurrentLocalPath()+"/";
 
                             if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
                             {
+                                if (words.size()>2)
+                                {
+                                    //TODO: check permissions before download
+                                    localPath=words[2];
+                                    if (isFolder(localPath)) localPath+="/";
+                                    else
+                                    {
+                                        string containingFolder=localPath.substr(0,localPath.find_last_of("/"));
+                                        if(!isFolder(containingFolder))
+                                        {
+                                            OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
+                                            return;
+                                        }
+                                        //TODO: check if last folder is accesible
+                                    }
+                                }
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
 
                                 api->getPublicNode(words[1].c_str(),megaCmdListener);
@@ -3387,11 +3416,11 @@ static void process_line(char* l)
                                         MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
 
                                         MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                        api->startDownload(n,cwd.c_str(),megaCmdTransferListener);
+                                        api->startDownload(n,localPath.c_str(),megaCmdTransferListener);
 
                                         megaCmdTransferListener->wait();
                                         //TODO: process errors
-                                        LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
                                         delete megaCmdTransferListener;
                                         delete n;
                                     }
@@ -3401,7 +3430,16 @@ static void process_line(char* l)
                                 }
                                 delete megaCmdListener;
                             } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
-                            { //TODO: document: it will replace contents
+                            {
+                                if (words.size()>2)
+                                {
+                                    if (isFolder(words[2])) localPath=words[2]+"/";
+                                    else
+                                    {
+                                        OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
+                                        return;
+                                    }
+                                }
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
                                 apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
                                 megaCmdListener->wait();
@@ -3419,10 +3457,10 @@ static void process_line(char* l)
                                     //TODO: in short future: try this
 
                                     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                    api->startDownload(folderRootNode,cwd.c_str(),megaCmdTransferListener);
+                                    api->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
                                     megaCmdTransferListener->wait();
                                      //TODO: process errors
-                                    LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                    LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
                                     delete megaCmdTransferListener;
                                     delete authorizedNode;
                                 }
@@ -3430,10 +3468,10 @@ static void process_line(char* l)
                                 {
                                     LOG_warn << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
                                     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
-                                    apiFolder->startDownload(folderRootNode,cwd.c_str(),megaCmdTransferListener);
+                                    apiFolder->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
                                     megaCmdTransferListener->wait();
                                      //TODO: process errors
-                                    LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
+                                    LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
                                     delete megaCmdTransferListener;
                                 }
                                 delete folderRootNode;
