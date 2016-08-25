@@ -1202,6 +1202,22 @@ public class MegaApiJava {
     	return megaApi.getMyXMPPJid();
     }
 
+
+    /**
+     * Returns the fingerprint of the signing key of the currently open account
+     *
+     * If the MegaApi object isn't logged in or there's no signing key available,
+     * this function returns NULL
+     *
+     * You take the ownership of the returned value.
+     * Use delete [] to free it.
+     *
+     * @return Fingerprint of the signing key of the current account
+     */
+    public String getMyFingerprint(){
+        return megaApi.getMyFingerprint();
+    }
+
     /**
      * Set the active log level.
      * <p>
