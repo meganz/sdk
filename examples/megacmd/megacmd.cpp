@@ -322,8 +322,9 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"import") ) return "import exportedfilelink#key";
     if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
     if(!strcmp(command,"putq") ) return "putq [cancelslot]";
-    if(!strcmp(command,"get") ) return "get remotepath [offset [length]]";
-    if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
+    if(!strcmp(command,"get") ) return "get exportedlink#key [localpath]";
+    //if(!strcmp(command,"get") ) return "get remotepath [offset [length]]"; //TODO: implement this?
+    //if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
     if(!strcmp(command,"getq") ) return "getq [cancelslot]";
     if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
     if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
@@ -425,7 +426,16 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
 //    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
 //    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
-//    if(!strcmp(command,"get") ) return "get remotepath [offset [length]]";
+    if(!strcmp(command,"get") )
+    {
+        os << "Downloads a public link " << endl;
+        os << endl;
+        os << "In case it is a file, the file will be downloaded at the specified folder (or at the current folder if none specified) " << endl;
+        os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl;
+        os << endl;
+        os << "For folders, the entire contents (and the root folder itself) will be downloaded into the destination folder" << endl;
+        os << "If the folder already exists, the contents will be merged with the downloaded one (preserving the existing files)" << endl;
+    }
 //    if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
 //    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
 //    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
@@ -487,7 +497,6 @@ string getHelpStr(const char *command)
     {
         os << "Forces a reload of the remote files of the user" << endl;
     }
-    return "reload";
 //    if(!strcmp(command,"logout") ) return "logout";
 //    if(!strcmp(command,"locallogout") ) return "locallogout";
 //    if(!strcmp(command,"symlink") ) return "symlink";
@@ -2896,7 +2905,6 @@ static void process_line(char* l)
                 OUTSTREAM << "      " << getUsageStr("put") << endl;
                 OUTSTREAM << "      " << getUsageStr("putq") << endl;
                 OUTSTREAM << "      " << getUsageStr("get") << endl;
-                OUTSTREAM << "      " << getUsageStr("get") << endl;
                 OUTSTREAM << "      " << getUsageStr("getq") << endl;
                 OUTSTREAM << "      " << getUsageStr("pause") << endl;
                 OUTSTREAM << "      " << getUsageStr("getfa") << endl;
@@ -3385,6 +3393,7 @@ static void process_line(char* l)
                                         //TODO: process errors
                                         LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
                                         delete megaCmdTransferListener;
+                                        delete n;
                                     }
                                     else{
                                         LOG_err << "Empty Request at get";
@@ -3393,7 +3402,6 @@ static void process_line(char* l)
                                 delete megaCmdListener;
                             } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
                             { //TODO: document: it will replace contents
-                                OUTSTREAM << "downloading folder ..." << endl;
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
                                 apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
                                 megaCmdListener->wait();
@@ -3427,11 +3435,8 @@ static void process_line(char* l)
                                      //TODO: process errors
                                     LOG_info << "Download complete: " << cwd << megaCmdTransferListener->getTransfer()->getFileName();
                                     delete megaCmdTransferListener;
-                                    delete folderRootNode;
                                 }
-
-
-
+                                delete folderRootNode;
                             }
                             else
                             {
