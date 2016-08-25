@@ -9157,9 +9157,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	}
 	else
 	{
-        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
-                                                   fingerprint.size() ? fingerprint.c_str() : NULL,
-                                                   INVALID_HANDLE));
+        MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
+                                                           fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
+        request->setPublicNode(megaNodePrivate);
+        delete megaNodePrivate;
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}
 }
