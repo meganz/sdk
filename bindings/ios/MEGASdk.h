@@ -208,6 +208,18 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 @property (readonly, nonatomic) MEGAUser *myUser;
 
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief The fingerprint of the signing key of the currently open account
+ *
+ * If the MEGASdk object isn't logged in or there's no signing key available,
+ * this function returns nil
+ */
+@property (readonly, nonatomic) NSString *myFingerprint;
+
+#endif
+
 #pragma mark - Init
 
 /**
@@ -3532,8 +3544,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (NSInteger)httpServerGetRestrictedMode;
 
-#endif
-
 /**
  * @brief Enable/disable the support for subtitles
  *
@@ -3686,6 +3696,8 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return Maximum size of the packets sent to clients (in bytes)
  */
 - (NSInteger)httpServerGetMaxOutputSize;
+
+#endif
 
 #pragma mark - Debug log messages
 

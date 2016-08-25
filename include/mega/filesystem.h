@@ -135,6 +135,7 @@ struct MEGA_API DirNotify
     string ignore;
 
     DirNotify(string*, string*);
+    virtual ~DirNotify() {}
 };
 
 // generic host filesystem access interface
