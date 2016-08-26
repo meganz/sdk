@@ -3119,6 +3119,11 @@ void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestL
     pImpl->truncateChat(chatid, messageid, listener);
 }
 
+void MegaApi::setChatTitle(MegaHandle chatid, const char* title, unsigned len, MegaRequestListener *listener)
+{
+    pImpl->setChatTitle(chatid, title, len, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)

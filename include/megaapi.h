@@ -1771,7 +1771,7 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE
         };
 
         virtual ~MegaRequest();
@@ -5810,7 +5810,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REPLY_CONTACT_REQUEST
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getHandle - Returns the handle of the contact request
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact request
          * - MegaRequest::getNumber - Returns the action
          *
          * @param listener MegaRequestListener to track this request
@@ -8208,6 +8208,17 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Allows to set the title of a chat
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param title Byte array representing the title that wants to be set, already encrypted.
+         * @param len Length of the byte array.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setChatTitle(MegaHandle chatid, const char *title, unsigned len, MegaRequestListener *listener = NULL);
 #endif
 
 private:

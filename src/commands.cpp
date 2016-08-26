@@ -4615,6 +4615,31 @@ void CommandChatTruncate::procresult()
     }
 }
 
+CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const byte* title, unsigned len)
+{
+    this->client = client;
+
+    cmd("mcst");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("ct", title, len);
+
+    tag = client->reqtag;
+}
+
+void CommandChatSetTitle::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatsettitle_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatsettitle_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 

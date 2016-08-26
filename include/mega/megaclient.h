@@ -331,6 +331,9 @@ public:
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
+
+    // set title of the chat
+    void setChatTitle(handle chatid, const byte *title = NULL, unsigned len = 0);
 #endif
 
     // toggle global debug flag

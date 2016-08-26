@@ -7123,6 +7123,7 @@ void MegaClient::procmcf(JSON *j)
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
+            string title;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -10210,6 +10211,19 @@ void MegaClient::updateChatPermissions(handle chatid, const char *uid, int priv)
 void MegaClient::truncateChat(handle chatid, handle messageid)
 {
     reqs.add(new CommandChatTruncate(this, chatid, messageid));
+}
+
+void MegaClient::setChatTitle(handle chatid, const byte *title, unsigned len)
+{
+    if (title)
+    {
+        reqs.add(new CommandChatSetTitle(this, chatid, title, len));
+    }
+    else    // empty
+    {
+        string empty = "";
+        reqs.add(new CommandChatSetTitle(this, chatid, (const byte*) empty.data(), empty.size()));
+    }
 }
 
 #endif

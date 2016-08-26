@@ -1520,6 +1520,7 @@ class MegaApiImpl : public MegaApp
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
+        void setChatTitle(MegaHandle chatid, const char *title, unsigned len, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1767,6 +1768,7 @@ protected:
         virtual void chatremoveaccess_result(error);
         virtual void chatupdatepermissions_result(error);
         virtual void chattruncate_result(error);
+        virtual void chatsettitle_result(error);
 
         virtual void chats_updated(textchat_vector *);
 #endif

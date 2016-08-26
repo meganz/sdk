@@ -6141,6 +6141,16 @@ void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequ
     requestQueue.push(request);
     waiter->notify();
 }
+
+void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, unsigned len, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_SET_TITLE, listener);
+    request->setNodeHandle(chatid);
+    request->setText(title);
+    request->setNumber(len);
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -7874,6 +7884,23 @@ void MegaApiImpl::chattruncate_result(error e)
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
+
+void MegaApiImpl::chatsettitle_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_SET_TITLE)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+
 
 void MegaApiImpl::chats_updated(textchat_vector *chats)
 {
@@ -12937,6 +12964,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->truncateChat(chatid, messageid);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_SET_TITLE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            const byte *title = (byte*) request->getText();
+            unsigned len = request->getNumber();
+            if (chatid == INVALID_HANDLE || title == NULL)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->setChatTitle(chatid, title, len);
             break;
         }
 #endif

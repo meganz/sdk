@@ -781,6 +781,17 @@ public:
 
     CommandChatTruncate(MegaClient*, handle, handle);
 };
+
+class MEGA_API CommandChatSetTitle : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatSetTitle(MegaClient*, handle, const byte*, unsigned);
+};
+
 #endif
 
 

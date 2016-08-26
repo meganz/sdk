@@ -416,6 +416,7 @@ struct TextChat
     int shard;
     userpriv_vector *userpriv;
     bool group;
+    string title;   // byte array
     handle ou;
 
     TextChat()
