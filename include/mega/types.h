@@ -66,7 +66,6 @@ using namespace std;
 struct AttrMap;
 class BackoffTimer;
 class Command;
-class CommandLoadBalancing;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;

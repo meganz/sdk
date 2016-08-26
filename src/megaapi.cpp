@@ -1850,6 +1850,11 @@ string MegaApi::getLocalPath(MegaNode *n)
     return pImpl->getLocalPath(n);
 }
 
+long long MegaApi::getNumLocalNodes()
+{
+    return pImpl->getNumLocalNodes();
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -2135,11 +2140,6 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-void MegaApi::loadBalancing(const char *service, MegaRequestListener *listener)
-{
-    pImpl->loadBalancing(service, listener);
-}
-
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
 {
     return pImpl->search(n, searchString, recursive);
@@ -2365,6 +2365,11 @@ MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
 void MegaApi::updateStats()
 {
     pImpl->updateStats();
+}
+
+long long MegaApi::getNumNodes()
+{
+    return pImpl->getNumNodes();
 }
 
 long long MegaApi::getTotalDownloadedBytes()

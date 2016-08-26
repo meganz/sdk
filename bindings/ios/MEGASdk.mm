@@ -129,6 +129,20 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
+#ifdef ENABLE_CHAT
+
+- (NSString *)myFingerprint {
+    const char *val = self.megaApi->getMyFingerprint();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+#endif
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {

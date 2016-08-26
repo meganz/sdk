@@ -1362,6 +1362,7 @@ class MegaApiImpl : public MegaApp
         void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
+        long long getNumLocalNodes();
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
@@ -1377,6 +1378,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
 
@@ -1452,8 +1454,6 @@ class MegaApiImpl : public MegaApp
                                          const char *privateauth, const char *publicauth);
 
         MegaNode *authorizeNode(MegaNode *node);
-
-        void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
         const char *getVersion();
         const char *getUserAgent();
@@ -1745,7 +1745,6 @@ protected:
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
-        virtual void loadbalancing_result(string*, error);
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);

@@ -5632,6 +5632,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     return result;
 }
 
+long long MegaApiImpl::getNumLocalNodes()
+{
+    return client->totalLocalNodes;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()
@@ -6635,14 +6640,6 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
     return result;
 }
 
-void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_BALANCING, listener);
-    request->setName(service);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 const char *MegaApiImpl::getVersion()
 {
     return client->version();
@@ -7486,20 +7483,6 @@ void MegaApiImpl::reportevent_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REPORT_EVENT)) return;
 
-    fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::loadbalancing_result(string *servers, error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOAD_BALANCING)) return;
-
-    if(!e)
-    {
-        request->setText(servers->c_str());
-    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -9190,9 +9173,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	}
 	else
 	{
-        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
-                                                   fingerprint.size() ? fingerprint.c_str() : NULL,
-                                                   INVALID_HANDLE));
+        MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
+                                                           fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
+        request->setPublicNode(megaNodePrivate);
+        delete megaNodePrivate;
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}
 }
@@ -12781,18 +12765,6 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_LOAD_BALANCING:
-        {
-            const char* service = request->getName();
-            if(!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->loadbalancing(service);
-            break;
-        }
         case MegaRequest::TYPE_KILL_SESSION:
         {
             MegaHandle handle = request->getNodeHandle();
@@ -13016,6 +12988,11 @@ void MegaApiImpl::updateStats()
     pendingDownloads = client->transfers[0].size();
     pendingUploads = client->transfers[1].size();
     sdkMutex.unlock();
+}
+
+long long MegaApiImpl::getNumNodes()
+{
+    return client->totalNodes;
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()

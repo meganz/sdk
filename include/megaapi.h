@@ -1941,7 +1941,6 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
-         * - MegaApi::loadBalancing - Returns the name of the service
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2149,7 +2148,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP JID of the user
-         * - MegaApi::loadBalancing . Returns the response of the server
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -6624,6 +6622,12 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the total number of local nodes in the account
+         * @return Total number of local nodes in the account
+         */
+        long long getNumLocalNodes();
 #endif
 
         /**
@@ -6725,6 +6729,12 @@ class MegaApi
          *
          */
         void updateStats();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         * @return Total number of nodes in the account
+         */
+        long long getNumNodes();
 
         enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
@@ -7696,22 +7706,6 @@ class MegaApi
         static char *base32ToBase64(const char *base32);
 
         /**
-         * @brief loadBalancing Load balancing request
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOAD_BALANCING
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getName - Returns the name of the service
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the response of the server
-         *
-         * @param service Service to get load balancing data
-         * @param listener MegaRequestListener to track this request
-         */
-        void loadBalancing(const char *service, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Function to copy a buffer
          *
          * The new buffer is allocated by new[] so you should release
@@ -8131,8 +8125,8 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
          * - MegaTextChatPeerList::PRIV_RM = -1
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_FULL = 2
-         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);

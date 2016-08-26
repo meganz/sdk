@@ -377,10 +377,10 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
     }
 
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
-    if(result.isNull()) return false;
-    jpegout->clear();
     delete image;
     image = NULL;
+    if(result.isNull()) return false;
+    jpegout->clear();
 
     //Remove transparency
     QImage finalImage(result.size(), QImage::Format_RGB32);

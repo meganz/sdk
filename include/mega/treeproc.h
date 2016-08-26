@@ -49,12 +49,6 @@ public:
     void proc(MegaClient*, Node*);
 };
 
-class MEGA_API TreeProcListOutShares : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
-
 class MEGA_API TreeProcCopy : public TreeProc
 {
 public:
