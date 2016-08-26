@@ -6444,7 +6444,6 @@ class MegaApi
          * Additionally, if a previous cache already exists (from previous executions),
          * then this function also resumes the existing cached transfers.
          * 
-         * @note Cached downloads expire after 10 days since the last time they were active.
          * @note Cached uploads expire after 24 hours since the last time they were active.
          * @note Cached transfers related to files that have been modified since they were
          * added to the cache are discarded, since the file has changed.

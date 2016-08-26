@@ -42,7 +42,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     progresscompleted = 0;
     finished = false;
-    lastaccesstime = time(NULL);
+    lastaccesstime = 0;
     ultoken = NULL;
 
     priority = 0;

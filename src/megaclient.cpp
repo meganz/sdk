@@ -9921,6 +9921,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 t->size = f->size;
             }
 
+            t->lastaccesstime = time(NULL);
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             transferlist.addtransfer(t);
