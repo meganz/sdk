@@ -72,7 +72,12 @@ using namespace mega;
 
 //MegaClient* client;
 MegaApi *api;
-MegaApi *apiFolder;
+//MegaApi *apiFolder;
+std::queue<MegaApi *> apiFolders;
+std::vector<MegaApi *> occupiedapiFolders;
+MegaSemaphore semaphoreapiFolders;
+MegaMutex mutexapiFolders;
+//std::vector<MegaMutex *> mutexesApiFolder;
 MegaCMDLogger *loggerCMD;
 
 //Syncs
@@ -89,7 +94,6 @@ MegaFileSystemAccess *fsAccessCMD;
 static AccountDetails account;
 
 static handle cwd = UNDEF;
-static MegaNode* rootNode = NULL;
 static char *session;
 
 static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
@@ -134,6 +138,24 @@ static void setprompt(prompttype p)
         OUTSTREAM << prompts[p] << flush;
         console->setecho(false);
     }
+}
+
+
+MegaApi* getFreeApiFolder(){
+    semaphoreapiFolders.wait();
+    mutexapiFolders.lock();
+    MegaApi* toret=apiFolders.front();
+    apiFolders.pop();
+    occupiedapiFolders.push_back(toret);
+    mutexapiFolders.unlock();
+    return toret;
+}
+void freeApiFolder(MegaApi *apiFolder){
+    mutexapiFolders.lock();
+    occupiedapiFolders.erase(std::remove(occupiedapiFolders.begin(), occupiedapiFolders.end(), apiFolder), occupiedapiFolders.end());
+    apiFolders.push(apiFolder);
+    semaphoreapiFolders.release();
+    mutexapiFolders.unlock();
 }
 
 class MegaCmdListener : public SynchronousRequestListener
@@ -1757,11 +1779,14 @@ static void nodepath(handle h, string* path)
 {
     path->clear();
 
+    MegaNode *rootNode = api->getRootNode();
     if ( rootNode  && (h == rootNode->getHandle()) )
     {
         *path = "/";
+        delete rootNode;
         return;
     }
+    delete rootNode;
 
     MegaNode* n = api->getNodeByHandle(h);
 
@@ -2191,7 +2216,17 @@ void finalize()
     delete cm;
     delete console;
     delete api;
-    delete apiFolder;
+    while (!apiFolders.empty())
+    {
+        delete apiFolders.front();
+        apiFolders.pop();
+    }
+    for (std::vector< MegaApi * >::iterator it = occupiedapiFolders.begin() ; it != occupiedapiFolders.end(); ++it)
+    {
+        delete (*it);
+    }
+    occupiedapiFolders.clear();
+
     delete loggerCMD;
     delete megaCmdGlobalListener;
 
@@ -2412,13 +2447,13 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
     if (srl->getError()->getErrorCode() == MegaError::API_OK)
     {
         LOG_verbose << "actUponFetchNodes ok";
-        if (rootNode) delete rootNode;
-        rootNode = srl->getApi()->getRootNode();
 
         MegaNode *cwdNode = (cwd==UNDEF)?NULL:api->getNodeByHandle(cwd);
         if (cwd == UNDEF || ! cwdNode)
         {
+            MegaNode *rootNode = srl->getApi()->getRootNode();
             cwd = rootNode->getHandle();
+            delete rootNode;
         }
         if (cwdNode) delete cwdNode;
         LOG_info << " Fetch nodes correctly";
@@ -2489,8 +2524,6 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
     {
         LOG_verbose << "actUponLogout logout ok";
         cwd = UNDEF;
-        delete rootNode;
-        rootNode=NULL;
         delete []session;
         session=NULL;
     }
@@ -3044,8 +3077,14 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            if (!rootNode) {LOG_err << "nodes not fetched"; return; }
-                              cwd = rootNode->getHandle();
+                            MegaNode * rootNode = api->getRootNode();
+                            if (!rootNode) {
+                                LOG_err << "nodes not fetched";
+                                delete rootNode;
+                                return;
+                            }
+                            cwd = rootNode->getHandle();
+                            delete rootNode;
                         }
 
                         return;
@@ -3440,41 +3479,50 @@ static void process_line(char* l)
                                         return;
                                     }
                                 }
+
+                                MegaApi* apiFolder = getFreeApiFolder();
+
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
                                 apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
                                 megaCmdListener->wait();
-                                 //TODO: process errors
+                                if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                {
+                                    MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
+                                    apiFolder->fetchNodes(megaCmdListener2);
+                                    actUponFetchNodes(megaCmdListener2);
+                                    delete megaCmdListener2;
+                                    MegaNode *folderRootNode = apiFolder->getRootNode();
+                                    MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
+
+                                    if (authorizedNode !=NULL)
+                                    {
+                                        //TODO: in short future: try this
+
+                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+                                        api->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
+                                        megaCmdTransferListener->wait();
+                                        //TODO: process errors
+                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
+                                        delete megaCmdTransferListener;
+                                        delete authorizedNode;
+                                    }
+                                    else
+                                    {
+                                        LOG_warn << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
+                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
+                                        apiFolder->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
+                                        megaCmdTransferListener->wait();
+                                        //TODO: process errors
+                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
+                                        delete megaCmdTransferListener;
+                                    }
+                                    delete folderRootNode;
+                                }
+                                else{
+                                    LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
+                                }
                                 delete megaCmdListener;
-                                MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
-                                apiFolder->fetchNodes(megaCmdListener2);
-                                actUponFetchNodes(megaCmdListener2);
-                                delete megaCmdListener2;
-                                MegaNode *folderRootNode = apiFolder->getRootNode();
-
-                                MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
-                                if (authorizedNode !=NULL)
-                                {
-                                    //TODO: in short future: try this
-
-                                    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                    api->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
-                                    megaCmdTransferListener->wait();
-                                     //TODO: process errors
-                                    LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-                                    delete megaCmdTransferListener;
-                                    delete authorizedNode;
-                                }
-                                else
-                                {
-                                    LOG_warn << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                                    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
-                                    apiFolder->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
-                                    megaCmdTransferListener->wait();
-                                     //TODO: process errors
-                                    LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-                                    delete megaCmdTransferListener;
-                                }
-                                delete folderRootNode;
+                                freeApiFolder(apiFolder);
                             }
                             else
                             {
@@ -5956,7 +6004,16 @@ int main()
 
 
     api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
-    apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+    for (int i=0;i<10;i++)
+    {
+        MegaApi *apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+        apiFolders.push(apiFolder);
+        apiFolder->setLoggerObject(loggerCMD);
+        apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+        semaphoreapiFolders.release();
+    }
+    mutexapiFolders.init(false);
+
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_MAX);
@@ -5966,8 +6023,7 @@ int main()
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
-    apiFolder->setLoggerObject(loggerCMD);
-    apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
 
 
     megaCmdGlobalListener =  new MegaCmdGlobalListener();
