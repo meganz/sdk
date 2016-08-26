@@ -616,7 +616,7 @@ public:
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
 
-    // path of tamporary files
+    // path of temporary files
     // waiting for the completion of a putnodes
     pendingfiles_map pendingfiles;
 
