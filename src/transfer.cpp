@@ -1186,12 +1186,12 @@ DirectReadSlot::~DirectReadSlot()
 
 TransferList::TransferList()
 {
-    currentpriority = 0;
+    currentpriority = PRIORITY_START;
 }
 
 void TransferList::addtransfer(Transfer *transfer)
 {
-    currentpriority++;
+    currentpriority += PRIORITY_STEP;
     transfer->priority = currentpriority;
     transfer->state = TRANSFERSTATE_QUEUED;
     transfers[transfer->type].push_back(transfer);
@@ -1223,7 +1223,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
     if (position >= transfers[transfer->type].size())
     {
         transfers[transfer->type].erase(it);
-        currentpriority++;
+        currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
         transfers[transfer->type].push_back(transfer);
         client->app->transfer_update(transfer);
@@ -1278,7 +1278,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         }
 
         transfers[transfer->type].erase(it);
-        currentpriority++;
+        currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
         transfers[transfer->type].push_back(transfer);
         client->app->transfer_update(transfer);
@@ -1288,8 +1288,8 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     int srcindex = std::distance(transfers[transfer->type].begin(), it);
     int dstindex = std::distance(transfers[transfer->type].begin(), dstit);
 
-    float prevpriority = 0;
-    float nextpriority = 0;
+    uint64_t prevpriority = 0;
+    uint64_t nextpriority = 0;
 
     bool up = false;
     if (srcindex > dstindex)
@@ -1300,6 +1300,10 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         {
             transfer_list::iterator previt = dstit - 1;
             prevpriority = (*previt)->priority;
+        }
+        else
+        {
+            prevpriority = nextpriority - 2 * PRIORITY_STEP;
         }
     }
     else
@@ -1325,7 +1329,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         nextpriority = (*nextit)->priority;
     }
 
-    float newpriority = (prevpriority + nextpriority) / 2.0;
+    uint64_t newpriority = (prevpriority + nextpriority) / 2;
     transfer->priority = newpriority;
 
     transfers[transfer->type].erase(it);

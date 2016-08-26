@@ -815,7 +815,7 @@ int MegaTransfer::getState() const
     return STATE_NONE;
 }
 
-float MegaTransfer::getPriority() const
+unsigned long long MegaTransfer::getPriority() const
 {
     return 0;
 }

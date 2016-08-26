@@ -2711,7 +2711,7 @@ class MegaTransfer
          *
          * @return Priority of the transfer
          */
-        virtual float getPriority() const;
+        virtual unsigned long long getPriority() const;
 };
 
 /**

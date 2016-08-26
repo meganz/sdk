@@ -108,7 +108,7 @@ struct MEGA_API Transfer : public FileFingerprint
     m_time_t lastaccesstime;
 
     // priority of the transfer
-    float priority;
+    uint64_t priority;
 
     // state of the transfer
     transferstate_t state;
@@ -125,6 +125,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
 struct MEGA_API TransferList
 {
+    static const uint64_t PRIORITY_START = 0x0000100000000000;
+    static const uint64_t PRIORITY_STEP  = 0x0000000000010000;
+
     TransferList();
     void addtransfer(Transfer* transfer);
     void removetransfer(Transfer *transfer);
@@ -149,7 +152,7 @@ struct MEGA_API TransferList
 
     transfer_list transfers[2];
     MegaClient *client;
-    float currentpriority;
+    uint64_t currentpriority;
 };
 
 struct MEGA_API DirectReadSlot

@@ -1471,12 +1471,12 @@ int MegaTransferPrivate::getState() const
     return state;
 }
 
-void MegaTransferPrivate::setPriority(float p)
+void MegaTransferPrivate::setPriority(unsigned long long p)
 {
     this->priority = p;
 }
 
-float MegaTransferPrivate::getPriority() const
+unsigned long long MegaTransferPrivate::getPriority() const
 {
     return priority;
 }
