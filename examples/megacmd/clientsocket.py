@@ -41,7 +41,7 @@ try:
 
 	commandArgs=parseArgs(sys.argv[1:])
 
-	print "sending: "," ".join(commandArgs)
+	if (debug): print "sending: "," ".join(commandArgs)
 
 	sock.send(" ".join(commandArgs))
 	if (debug): print " at ",getframeinfo(currentframe()).lineno

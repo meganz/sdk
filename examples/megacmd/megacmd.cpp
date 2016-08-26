@@ -1893,7 +1893,6 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
     {
         case MegaRequest::TYPE_FETCH_NODES:
         {
-            LOG_debug << "onRequestFinish TYPE_FETCH_NODES: ";
             map<string,sync_struct *>::iterator itr;
             int i =0;
             for(itr = ConfigurationManager::configuredSyncs.begin(); itr != ConfigurationManager::configuredSyncs.end(); ++itr,i++)
@@ -2456,7 +2455,7 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
             delete rootNode;
         }
         if (cwdNode) delete cwdNode;
-        LOG_info << " Fetch nodes correctly";
+        LOG_debug << " Fetch nodes correctly";
     }
     else
     {
@@ -3508,7 +3507,7 @@ static void process_line(char* l)
                                     }
                                     else
                                     {
-                                        LOG_warn << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
+                                        LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
                                         MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
                                         apiFolder->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
                                         megaCmdTransferListener->wait();
@@ -3522,6 +3521,11 @@ static void process_line(char* l)
                                     LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
                                 }
                                 delete megaCmdListener;
+
+//                                MegaCmdListener *megaCmdListenerLogout = new MegaCmdListener(apiFolder,NULL);
+//                                apiFolder->logout(megaCmdListenerLogout); //todo wait for it a
+//                                megaCmdListenerLogout->wait(); //TODO: check errors
+//                                delete megaCmdListenerLogout;
                                 freeApiFolder(apiFolder);
                             }
                             else
@@ -5921,7 +5925,7 @@ void megacmd()
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
 
-                        LOG_debug << "starting processing: ";
+                        LOG_debug << "starting processing: " << inf->line;
                         petitionThread->start(doProcessLine, (void *)inf);
                     }
                 }
@@ -6015,12 +6019,15 @@ int main()
     mutexapiFolders.init(false);
 
     loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
-    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+
+//    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_MAX);
-//    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 //    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
