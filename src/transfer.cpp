@@ -1252,6 +1252,12 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     }
 
     Transfer *transfer = (*it);
+    if (it == (transfers[transfer->type].end() - 1)
+            && dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
     if (dstit == transfers[transfer->type].end()
             || (dstit + 1) == transfers[transfer->type].end())
     {
