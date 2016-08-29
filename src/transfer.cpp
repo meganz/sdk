@@ -1218,11 +1218,13 @@ void TransferList::addtransfer(Transfer *transfer)
     {
         currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
+        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
     }
     else
     {
         transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
+        assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
     client->transfercacheadd(transfer);
@@ -1256,6 +1258,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
         transfers[transfer->type].erase(it);
         currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
+        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
         client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
@@ -1312,6 +1315,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         transfers[transfer->type].erase(it);
         currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
+        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
         client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
@@ -1366,7 +1370,9 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfer->priority = newpriority;
 
     transfers[transfer->type].erase(it);
-    transfers[transfer->type].insert(transfers[transfer->type].begin() + dstindex, transfer);
+    transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
+    assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
+    transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer);
     client->app->transfer_update(transfer);
 
@@ -1539,7 +1545,7 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
     }
 
     transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
-    if ((*it) == transfer)
+    if (it != transfers[transfer->type].end() && (*it) == transfer)
     {
         return it;
     }
