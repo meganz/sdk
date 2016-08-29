@@ -8103,7 +8103,6 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
          * - MegaRequest::getText - Returns the title of the chat.
-         * - MegaRequest::getNumber - Returns the length of the title.
          *
          * On the onTransferFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
@@ -8118,11 +8117,10 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_STANDARD = 2
          * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
-         * @param title Byte array representing the title that wants to be set, already encrypted (optional)
-         * @param len Length of the byte array (only required if title is set).
-
+         * @param title Byte array representing the title that wants to be set, already encrypted and
+         * converted to Base64url encoding (optional).
          */
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, unsigned len = 0,  MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove yourself or another user from a chat. To remove a user other than
@@ -8234,16 +8232,20 @@ class MegaApi
          * Only participants with privilege level MegaTextChatPeerList::PRIV_MODERATOR are allowed to
          * set the title of a chat.
          *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_SET_TITLE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the title of the chat.
+         *
          * On the onTransferFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
          * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param title Byte array representing the title that wants to be set, already encrypted.
-         * @param len Length of the byte array.
+         * @param title Byte array representing the title that wants to be set, already encrypted and
+         * converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
-        void setChatTitle(MegaHandle chatid, const char *title, unsigned len, MegaRequestListener *listener = NULL);
+        void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
 private:

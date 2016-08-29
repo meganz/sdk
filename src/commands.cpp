@@ -4418,7 +4418,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const byte* title, unsigned len)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
 {
     this->client = client;
 
@@ -4431,7 +4431,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
 
     if (title != NULL)
     {
-        arg("ct", title, len);
+        arg("ct", title);
     }
 
     tag = client->reqtag;
@@ -4620,7 +4620,7 @@ void CommandChatTruncate::procresult()
     }
 }
 
-CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const byte* title, unsigned len)
+CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
     this->client = client;
 
@@ -4628,7 +4628,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("ct", title, len);
+    arg("ct", title);
 
     tag = client->reqtag;
 }

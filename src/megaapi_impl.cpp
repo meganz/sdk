@@ -6064,14 +6064,13 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title, unsigned len, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(uh);
     request->setAccess(privilege);
     request->setText(title);
-    request->setNumber(len);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6144,12 +6143,11 @@ void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, unsigned len, MegaRequestListener *listener)
+void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_SET_TITLE, listener);
     request->setNodeHandle(chatid);
     request->setText(title);
-    request->setNumber(len);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12854,8 +12852,7 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             handle uh = request->getParentHandle();
             int access = request->getAccess();
-            const byte *title = (byte*) request->getText();
-            unsigned len = request->getNumber();
+            const char *title = request->getText();
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
@@ -12867,7 +12864,7 @@ void MegaApiImpl::sendPendingRequests()
             Base64::btoa((byte*)&uh, sizeof uh, uid);
             uid[11] = 0;
 
-            client->inviteToChat(chatid, uid, access, title, len);
+            client->inviteToChat(chatid, uid, access, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_REMOVE:
@@ -12973,15 +12970,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_SET_TITLE:
         {
             MegaHandle chatid = request->getNodeHandle();
-            const byte *title = (byte*) request->getText();
-            unsigned len = request->getNumber();
+            const char *title = request->getText();
             if (chatid == INVALID_HANDLE || title == NULL)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->setChatTitle(chatid, title, len);
+            client->setChatTitle(chatid, title);
             break;
         }
 #endif

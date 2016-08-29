@@ -10133,9 +10133,9 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::inviteToChat(handle chatid, const char *uid, int priv, const byte *title, unsigned len)
+void MegaClient::inviteToChat(handle chatid, const char *uid, int priv, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv, title, len));
+    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv, title));
 }
 
 void MegaClient::removeFromChat(handle chatid, const char *uid)
@@ -10225,17 +10225,9 @@ void MegaClient::truncateChat(handle chatid, handle messageid)
     reqs.add(new CommandChatTruncate(this, chatid, messageid));
 }
 
-void MegaClient::setChatTitle(handle chatid, const byte *title, unsigned len)
+void MegaClient::setChatTitle(handle chatid, const char *title)
 {
-    if (title)
-    {
-        reqs.add(new CommandChatSetTitle(this, chatid, title, len));
-    }
-    else    // empty --> remove chat title
-    {
-        string empty = "";
-        reqs.add(new CommandChatSetTitle(this, chatid, (const byte*) empty.data(), empty.size()));
-    }
+    reqs.add(new CommandChatSetTitle(this, chatid, title));
 }
 
 #endif

@@ -3869,16 +3869,11 @@ static void process_line(char* l)
 
                             if (words.size() == 2)  // empty title / remove title
                             {
-                                client->setChatTitle(chatid);
+                                client->setChatTitle(chatid, "");
                             }
                             else if (words.size() == 3)
                             {
-                                int len = words[2].size() * 3 / 4 + 3;
-                                byte *title = new byte[len];
-                                int titlelen = Base64::atob(words[2].data(), title, len);
-
-                                client->setChatTitle(chatid, title, titlelen);
-                                delete [] title;
+                                client->setChatTitle(chatid, words[2].c_str());
                             }
                             return;
                         }
