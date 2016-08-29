@@ -1826,9 +1826,9 @@ void MegaApi::moveTransferBefore(MegaTransfer *transfer, MegaTransfer *prevTrans
     pImpl->moveTransferBefore(transfer ? transfer->getTag() : 0, prevTransfer ? prevTransfer->getTag() : 0, listener);
 }
 
-void MegaApi::moveTransferBeforeByTag(int transferTag, MegaTransfer *prevTransfer, MegaRequestListener *listener)
+void MegaApi::moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListener *listener)
 {
-    pImpl->moveTransferBefore(transferTag, prevTransfer ? prevTransfer->getTag() : 0, listener);
+    pImpl->moveTransferBefore(transferTag, prevTransferTag, listener);
 }
 
 void MegaApi::cancelTransferByTag(int transferTag, MegaRequestListener *listener)

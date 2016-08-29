@@ -6324,10 +6324,10 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
          *
          * @param transferTag Tag of the transfer to move
-         * @param prevTransfer Transfer with the target position
+         * @param prevTransfer Tag of the transfer with the target position
          * @param listener MegaRequestListener to track this request
          */
-        void moveTransferBeforeByTag(int transferTag, MegaTransfer *prevTransfer, MegaRequestListener *listener = NULL);
+        void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the transfer with a specific tag
