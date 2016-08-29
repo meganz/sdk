@@ -3755,6 +3755,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
     return INVALID_HANDLE;
 }
 
+const char * MegaTextChat::getTitle() const
+{
+    return NULL;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
