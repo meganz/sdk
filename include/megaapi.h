@@ -1395,6 +1395,13 @@ public:
      */
     virtual MegaHandle getOriginatingUser() const;
 
+    /**
+     * @brief getTitle Returns the title of the chat, if any.
+     *
+     * @return The title of the chat as a byte array encoded in Base64URL.
+     */
+    virtual const char *getTitle() const;
+
 };
 
 /**
@@ -8051,7 +8058,7 @@ class MegaApi
 
 #ifdef ENABLE_CHAT
         /**
-         * @brief Creates a chat for one or participants, allowing you to specify their
+         * @brief Creates a chat for one or more participants, allowing you to specify their
          * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
          *
          * There are two types of chat: permanent an group. A permanent chat is between two people, and

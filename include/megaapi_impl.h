@@ -854,7 +854,7 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaHandle getHandle() const;
@@ -865,6 +865,7 @@ public:
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
+    virtual const char *getTitle() const;
 
 private:
     handle id;
@@ -874,6 +875,7 @@ private:
     MegaTextChatPeerList *peers;
     bool group;
     handle ou;
+    string title;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
