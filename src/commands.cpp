@@ -4598,7 +4598,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 {
     this->client = client;
 
-    cmd("mcurl");
+    cmd("mct");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
