@@ -7771,6 +7771,10 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                 {
                     t->dbid = id;
+                    if (t->priority > transferlist.currentpriority)
+                    {
+                        transferlist.currentpriority = t->priority;
+                    }
                     LOG_debug << "Cached transfer loaded";
                 }
                 else

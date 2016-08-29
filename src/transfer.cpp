@@ -160,8 +160,10 @@ bool Transfer::serialize(string *d)
         d->append(cachedtempurl.data(), ll);
     }
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10);
-
+    char s = state;
+    d->append((const char*)&s, sizeof(s));
+    d->append((const char*)&priority, sizeof(priority));
+    d->append("", 1);
     return true;
 }
 
@@ -295,13 +297,24 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->cachedtempurl.assign(ptr, ll);
     ptr += ll;
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
+    char state = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+    if (state == TRANSFERSTATE_PAUSED)
+    {
+        LOG_debug << "Unserializing paused transfer";
+        t->state = TRANSFERSTATE_PAUSED;
+    }
+
+    t->priority =  MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
+
+    if (*ptr)
     {
         LOG_err << "Transfer unserialization failed - invalid version";
         delete t;
         return NULL;
     }
-    ptr += 10;
+    ptr++;
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
@@ -1184,6 +1197,11 @@ DirectReadSlot::~DirectReadSlot()
     delete req;
 }
 
+bool priority_comparator(Transfer* i, Transfer *j)
+{
+    return (i->priority < j->priority);
+}
+
 TransferList::TransferList()
 {
     currentpriority = PRIORITY_START;
@@ -1191,10 +1209,23 @@ TransferList::TransferList()
 
 void TransferList::addtransfer(Transfer *transfer)
 {
-    currentpriority += PRIORITY_STEP;
-    transfer->priority = currentpriority;
-    transfer->state = TRANSFERSTATE_QUEUED;
-    transfers[transfer->type].push_back(transfer);
+    if (transfer->state != TRANSFERSTATE_PAUSED)
+    {
+        transfer->state = TRANSFERSTATE_QUEUED;
+    }
+
+    if (!transfer->priority)
+    {
+        currentpriority += PRIORITY_STEP;
+        transfer->priority = currentpriority;
+        transfers[transfer->type].push_back(transfer);
+    }
+    else
+    {
+        transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
+        transfers[transfer->type].insert(it, transfer);
+    }
+    client->transfercacheadd(transfer);
 }
 
 void TransferList::removetransfer(Transfer *transfer)
@@ -1226,6 +1257,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
         currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
         transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
         return;
     }
@@ -1281,6 +1313,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         currentpriority += PRIORITY_STEP;
         transfer->priority = currentpriority;
         transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
         return;
     }
@@ -1334,6 +1367,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 
     transfers[transfer->type].erase(it);
     transfers[transfer->type].insert(transfers[transfer->type].begin() + dstindex, transfer);
+    client->transfercacheadd(transfer);
     client->app->transfer_update(transfer);
 
     if (up && !transfer->slot && !(client->moretransfers(transfer->type) && client->slotavail()))
@@ -1441,6 +1475,7 @@ error TransferList::pause(Transfer *transfer, bool enable)
     if (!enable)
     {
         transfer->state = TRANSFERSTATE_QUEUED;
+        client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
 
         if (!(client->moretransfers(transfer->type) && client->slotavail()))
@@ -1478,6 +1513,7 @@ error TransferList::pause(Transfer *transfer, bool enable)
             delete transfer->slot;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
+        client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
         return API_OK;
     }
@@ -1493,11 +1529,6 @@ transfer_list::iterator TransferList::begin(direction_t direction)
 transfer_list::iterator TransferList::end(direction_t direction)
 {
     return transfers[direction].end();
-}
-
-bool priority_comparator(Transfer* i, Transfer *j)
-{
-    return (i->priority < j->priority);
 }
 
 transfer_list::iterator TransferList::iterator(Transfer *transfer)
