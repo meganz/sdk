@@ -7317,58 +7317,62 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         }
         transfer->setUpdateTime(currentTime);
 
-        m_off_t deltaSize = tr->slot->progressreported - transfer->getTransferredBytes();
+        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
+        m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
 
         long long speed = 0;
-        if(tr->type == GET)
+        if (prevTransferredBytes)
         {
-            totalDownloadedBytes += deltaSize;
-
-            while(downloadBytes.size())
+            if (tr->type == GET)
             {
-                dstime deltaTime = currentTime - downloadTimes[0];
-                if(deltaTime <= 50)
+                totalDownloadedBytes += deltaSize;
+
+                while(downloadBytes.size())
                 {
-                    break;
+                    dstime deltaTime = currentTime - downloadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    downloadPartialBytes -= downloadBytes[0];
+                    downloadBytes.erase(downloadBytes.begin());
+                    downloadTimes.erase(downloadTimes.begin());
                 }
 
-                downloadPartialBytes -= downloadBytes[0];
-                downloadBytes.erase(downloadBytes.begin());
-                downloadTimes.erase(downloadTimes.begin());
+                downloadBytes.push_back(deltaSize);
+                downloadTimes.push_back(currentTime);
+                downloadPartialBytes += deltaSize;
+
+                downloadSpeed = (downloadPartialBytes * 10) / 50;
+                speed = downloadSpeed;
             }
-
-            downloadBytes.push_back(deltaSize);
-            downloadTimes.push_back(currentTime);
-            downloadPartialBytes += deltaSize;
-
-            downloadSpeed = (downloadPartialBytes * 10) / 50;
-            speed = downloadSpeed;
-        }
-        else
-        {
-            totalUploadedBytes += deltaSize;
-
-            while(uploadBytes.size())
+            else
             {
-                dstime deltaTime = currentTime - uploadTimes[0];
-                if(deltaTime <= 50)
+                totalUploadedBytes += deltaSize;
+
+                while(uploadBytes.size())
                 {
-                    break;
+                    dstime deltaTime = currentTime - uploadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    uploadPartialBytes -= uploadBytes[0];
+                    uploadBytes.erase(uploadBytes.begin());
+                    uploadTimes.erase(uploadTimes.begin());
                 }
 
-                uploadPartialBytes -= uploadBytes[0];
-                uploadBytes.erase(uploadBytes.begin());
-                uploadTimes.erase(uploadTimes.begin());
+                uploadBytes.push_back(deltaSize);
+                uploadTimes.push_back(currentTime);
+                uploadPartialBytes += deltaSize;
+
+                uploadSpeed = (uploadPartialBytes * 10) / 50;
+                speed = uploadSpeed;
             }
-
-            uploadBytes.push_back(deltaSize);
-            uploadTimes.push_back(currentTime);
-            uploadPartialBytes += deltaSize;
-
-            uploadSpeed = (uploadPartialBytes * 10) / 50;
-            speed = uploadSpeed;
         }
         transfer->setSpeed(speed);
 	}
