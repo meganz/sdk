@@ -720,7 +720,7 @@ class MEGA_API CommandChatInvite : public Command
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, const char *, privilege_t);
+    CommandChatInvite(MegaClient*, handle, const char *, privilege_t, const byte *, unsigned);
 };
 
 class MEGA_API CommandChatRemove : public Command

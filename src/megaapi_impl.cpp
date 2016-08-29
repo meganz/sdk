@@ -6064,12 +6064,14 @@ void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaReques
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title, unsigned len, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(uh);
     request->setAccess(privilege);
+    request->setText(title);
+    request->setNumber(len);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12852,6 +12854,8 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             handle uh = request->getParentHandle();
             int access = request->getAccess();
+            const byte *title = (byte*) request->getText();
+            unsigned len = request->getNumber();
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
@@ -12863,7 +12867,7 @@ void MegaApiImpl::sendPendingRequests()
             Base64::btoa((byte*)&uh, sizeof uh, uid);
             uid[11] = 0;
 
-            client->inviteToChat(chatid, uid, access);
+            client->inviteToChat(chatid, uid, access, title, len);
             break;
         }
         case MegaRequest::TYPE_CHAT_REMOVE:

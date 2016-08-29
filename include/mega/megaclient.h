@@ -309,7 +309,7 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv, const byte *title = NULL, unsigned len = 0);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, const char *uid = NULL);

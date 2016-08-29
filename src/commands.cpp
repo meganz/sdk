@@ -4418,7 +4418,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const byte* title, unsigned len)
 {
     this->client = client;
 
@@ -4428,6 +4428,11 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     arg("u", uid);
     arg("p", priv);
     arg("v", 1);
+
+    if (title != NULL)
+    {
+        arg("ct", title, len);
+    }
 
     tag = client->reqtag;
 }
@@ -4620,6 +4625,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
     this->client = client;
 
     cmd("mcst");
+    arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("ct", title, len);
