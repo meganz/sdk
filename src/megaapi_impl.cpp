@@ -7515,6 +7515,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     transfer->setLastBytes(NULL);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
+        transfer->setState(MegaTransfer::STATE_RETRYING);
         fireOnTransferTemporaryError(transfer, MegaError(e, timeLeft / 10));
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
@@ -7526,6 +7527,14 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     }
     else
     {
+        if (e && e != API_EINCOMPLETE)
+        {
+            transfer->setState(MegaTransfer::STATE_FAILED);
+        }
+        else
+        {
+            transfer->setState(MegaTransfer::STATE_COMPLETED);
+        }
         fireOnTransferFinish(transfer, MegaError(e));
         return NEVER;
     }
@@ -7542,6 +7551,7 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
     {
         transfer->setStartTime(currentTime);
     }
+    transfer->setState(MegaTransfer::STATE_ACTIVE);
     transfer->setUpdateTime(currentTime);
     transfer->setDeltaSize(deltaSize);
     transfer->setLastBytes((char *)buffer);
@@ -10958,6 +10968,7 @@ void MegaApiImpl::sendPendingTransfers()
         sdkMutex.lock();
         e = API_OK;
         nextTag = client->nextreqtag();
+        transfer->setState(MegaTransfer::STATE_QUEUED);
 
         switch(transfer->getType())
         {
@@ -11183,8 +11194,13 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                 	m_off_t startPos = transfer->getStartPos();
                 	m_off_t endPos = transfer->getEndPos();
-                	if(startPos < 0 || endPos < 0 || startPos > endPos) { e = API_EARGS; break; }
-                	if(node)
+                    if(startPos < 0 || endPos < 0 || startPos > endPos)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    if(node)
                 	{
                         transfer->setFileName(node->displayname());
                 		if(startPos >= node->size || endPos >= node->size)
@@ -11223,8 +11239,11 @@ void MegaApiImpl::sendPendingTransfers()
 			}
 		}
 
-		if(e)
+        if (e)
+        {
+            transfer->setState(MegaTransfer::STATE_FAILED);
             fireOnTransferFinish(transfer, MegaError(e));
+        }
 
         sdkMutex.unlock();
     }
