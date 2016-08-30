@@ -3394,7 +3394,59 @@ void *MegaApiImpl::threadEntryPoint(void *param)
 
     MegaApiImpl *megaApiImpl = (MegaApiImpl *)param;
     megaApiImpl->loop();
-	return 0;
+    return 0;
+}
+
+long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
+{
+    long long speed = 0;
+    m_time_t currentTime = Waiter::ds;
+
+    if (direction == GET)
+    {
+        totalDownloadedBytes += numBytes;
+        while(downloadBytes.size())
+        {
+            dstime deltaTime = currentTime - downloadTimes[0];
+            if(deltaTime <= 50)
+            {
+                break;
+            }
+
+            downloadPartialBytes -= downloadBytes[0];
+            downloadBytes.erase(downloadBytes.begin());
+            downloadTimes.erase(downloadTimes.begin());
+        }
+
+        downloadBytes.push_back(numBytes);
+        downloadTimes.push_back(currentTime);
+        downloadPartialBytes += numBytes;
+        downloadSpeed = (downloadPartialBytes * 10) / 50;
+        speed = downloadSpeed;
+    }
+    else
+    {
+        totalUploadedBytes += numBytes;
+        while(uploadBytes.size())
+        {
+            dstime deltaTime = currentTime - uploadTimes[0];
+            if(deltaTime <= 50)
+            {
+                break;
+            }
+
+            uploadPartialBytes -= uploadBytes[0];
+            uploadBytes.erase(uploadBytes.begin());
+            uploadTimes.erase(uploadTimes.begin());
+        }
+
+        uploadBytes.push_back(numBytes);
+        uploadTimes.push_back(currentTime);
+        uploadPartialBytes += numBytes;
+        uploadSpeed = (uploadPartialBytes * 10) / 50;
+        speed = uploadSpeed;
+    }
+    return speed;
 }
 
 ExternalLogger *MegaApiImpl::externalLogger = NULL;
@@ -7295,7 +7347,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 {
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
-    if(!transfer)
+    if (!transfer)
     {
         return;
     }
@@ -7315,78 +7367,29 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         return;
     }
 
-    transfer->setState(tr->state);
-    transfer->setPriority(tr->priority);
     if (tr->slot)
     {
+        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
+        m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
+        long long speed = integrateSpeed(deltaSize, tr->type);
+
         if (!transfer->getStartTime())
         {
             transfer->setStartTime(currentTime);
         }
-        transfer->setUpdateTime(currentTime);
-
-        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
-        m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
-
-        long long speed = 0;
-        if (tr->type == GET)
-        {
-            totalDownloadedBytes += deltaSize;
-
-            while(downloadBytes.size())
-            {
-                dstime deltaTime = currentTime - downloadTimes[0];
-                if(deltaTime <= 50)
-                {
-                    break;
-                }
-
-                downloadPartialBytes -= downloadBytes[0];
-                downloadBytes.erase(downloadBytes.begin());
-                downloadTimes.erase(downloadTimes.begin());
-            }
-
-            downloadBytes.push_back(deltaSize);
-            downloadTimes.push_back(currentTime);
-            downloadPartialBytes += deltaSize;
-
-            downloadSpeed = (downloadPartialBytes * 10) / 50;
-            speed = downloadSpeed;
-        }
-        else
-        {
-            totalUploadedBytes += deltaSize;
-
-            while(uploadBytes.size())
-            {
-                dstime deltaTime = currentTime - uploadTimes[0];
-                if(deltaTime <= 50)
-                {
-                    break;
-                }
-
-                uploadPartialBytes -= uploadBytes[0];
-                uploadBytes.erase(uploadBytes.begin());
-                uploadTimes.erase(uploadTimes.begin());
-            }
-
-            uploadBytes.push_back(deltaSize);
-            uploadTimes.push_back(currentTime);
-            uploadPartialBytes += deltaSize;
-
-            uploadSpeed = (uploadPartialBytes * 10) / 50;
-            speed = uploadSpeed;
-        }
         transfer->setSpeed(speed);
 	}
     else
     {
-        transfer->setUpdateTime(Waiter::ds);
         transfer->setDeltaSize(0);
         transfer->setSpeed(0);
     }
+
+    transfer->setState(tr->state);
+    transfer->setPriority(tr->priority);
+    transfer->setUpdateTime(currentTime);
     fireOnTransferUpdate(transfer);
 }
 
@@ -7531,40 +7534,18 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
-
     dstime currentTime = Waiter::ds;
+    m_off_t deltaSize = len;
+    long long speed = integrateSpeed(deltaSize, GET);
+
     if (!transfer->getStartTime())
     {
         transfer->setStartTime(currentTime);
     }
     transfer->setUpdateTime(currentTime);
-
-    m_off_t deltaSize = len;
     transfer->setDeltaSize(deltaSize);
     transfer->setLastBytes((char *)buffer);
     transfer->setTransferredBytes(transfer->getTransferredBytes() + len);
-
-    long long speed = 0;
-    totalDownloadedBytes += deltaSize;
-    while(downloadBytes.size())
-    {
-        dstime deltaTime = currentTime - downloadTimes[0];
-        if (deltaTime <= 50)
-        {
-            break;
-        }
-
-        downloadPartialBytes -= downloadBytes[0];
-        downloadBytes.erase(downloadBytes.begin());
-        downloadTimes.erase(downloadTimes.begin());
-    }
-
-    downloadBytes.push_back(deltaSize);
-    downloadTimes.push_back(currentTime);
-    downloadPartialBytes += deltaSize;
-
-    downloadSpeed = (downloadPartialBytes * 10) / 50;
-    speed = downloadSpeed;
     transfer->setSpeed(speed);
 
     bool end = (transfer->getTransferredBytes() == transfer->getTotalBytes());

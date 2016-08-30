@@ -1551,6 +1551,8 @@ protected:
         static void *threadEntryPoint(void *param);
         static ExternalLogger *externalLogger;
 
+        long long integrateSpeed(long long numBytes, direction_t direction);
+
         void fireOnRequestStart(MegaRequestPrivate *request);
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
