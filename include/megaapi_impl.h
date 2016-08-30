@@ -1576,6 +1576,10 @@ protected:
         void fireOnChatsUpdate(MegaTextChatList *chats);
 #endif
 
+        void processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer);
+        void processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer);
+        void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
+
         MegaApi *api;
         MegaThread thread;
         MegaClient *client;

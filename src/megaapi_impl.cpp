@@ -7346,19 +7346,16 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
         return;
     }
 
-	if (t->type == GET)
+    if (t->type == GET)
     {
-		transfer->setNodeHandle(t->files.back()->h);
+        transfer->setNodeHandle(t->files.back()->h);
     }
 
     string path;
     fsAccess->local2path(&(t->files.back()->localname), &path);
     transfer->setPath(path.c_str());
-    transfer->setTotalBytes(t->size);
-    transfer->setState(t->state);
-    transfer->setPriority(t->priority);
 
-    LOG_info << "Transfer (" << transfer->getTransferString() << ") starting. File: " << transfer->getFileName();
+    processTransferPrepare(t, transfer);
 }
 
 void MegaApiImpl::transfer_update(Transfer *tr)
@@ -7369,8 +7366,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         return;
     }
 
-    dstime currentTime = Waiter::ds;
-    if (transfer->getUpdateTime() == currentTime
+    if (transfer->getUpdateTime() == Waiter::ds
             && transfer->getState() == tr->state
             && transfer->getPriority() == tr->priority
             && (!tr->slot
@@ -7384,27 +7380,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         return;
     }
 
-    if (tr->slot)
-    {
-        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
-        m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
-        long long speed = integrateSpeed(deltaSize, tr->type);
-
-        transfer->setStartTime(currentTime);
-        transfer->setTransferredBytes(tr->slot->progressreported);
-        transfer->setDeltaSize(deltaSize);
-        transfer->setSpeed(speed);
-	}
-    else
-    {
-        transfer->setDeltaSize(0);
-        transfer->setSpeed(0);
-    }
-
-    transfer->setState(tr->state);
-    transfer->setPriority(tr->priority);
-    transfer->setUpdateTime(currentTime);
-    fireOnTransferUpdate(transfer);
+    processTransferUpdate(tr, transfer);
 }
 
 void MegaApiImpl::transfer_complete(Transfer* tr)
@@ -7415,36 +7391,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         return;
     }
 
-    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-    long long speed = integrateSpeed(deltaSize, tr->type);
-    dstime currentTime = Waiter::ds;
-
-    transfer->setStartTime(currentTime);
-    transfer->setUpdateTime(currentTime);
-    transfer->setTransferredBytes(tr->size);
-    transfer->setPriority(tr->priority);
-    transfer->setDeltaSize(deltaSize);
-    transfer->setSpeed(speed);
-
-    if (tr->type == GET)
-    {
-        if (pendingDownloads > 0)
-        {
-            pendingDownloads--;
-        }
-
-        string path;
-        fsAccess->local2path(&tr->localfilename, &path);
-        transfer->setPath(path.c_str());
-        transfer->setState(tr->state);
-        fireOnTransferFinish(transfer, MegaError(API_OK));
-    }
-    else
-    {
-        transfer->setState(MegaTransfer::STATE_COMPLETING);
-        transfer->setTransfer(NULL);
-        fireOnTransferUpdate(transfer);
-    }
+    processTransferComplete(tr, transfer);
 }
 
 void MegaApiImpl::transfer_resume(string *d)
@@ -10131,6 +10078,84 @@ void MegaApiImpl::fireOnChatsUpdate(MegaTextChatList *chats)
 }
 
 #endif
+
+void MegaApiImpl::processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer)
+{
+    transfer->setTotalBytes(t->size);
+    transfer->setState(t->state);
+    transfer->setPriority(t->priority);
+    LOG_info << "Transfer (" << transfer->getTransferString() << ") starting. File: " << transfer->getFileName();
+}
+
+void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer)
+{
+    dstime currentTime = Waiter::ds;
+    if (tr->slot)
+    {
+        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
+        m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
+        if (tr->tag == transfer->getTag())
+        {
+            integrateSpeed(deltaSize, tr->type);
+        }
+
+        transfer->setStartTime(currentTime);
+        transfer->setTransferredBytes(tr->slot->progressreported);
+        transfer->setDeltaSize(deltaSize);
+        if (tr->type == GET)
+        {
+            transfer->setSpeed(downloadSpeed);
+        }
+        else
+        {
+            transfer->setSpeed(uploadSpeed);
+        }
+    }
+    else
+    {
+        transfer->setDeltaSize(0);
+        transfer->setSpeed(0);
+    }
+
+    transfer->setState(tr->state);
+    transfer->setPriority(tr->priority);
+    transfer->setUpdateTime(currentTime);
+    fireOnTransferUpdate(transfer);
+}
+
+void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer)
+{
+    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
+    long long speed = integrateSpeed(deltaSize, tr->type);
+    dstime currentTime = Waiter::ds;
+
+    transfer->setStartTime(currentTime);
+    transfer->setUpdateTime(currentTime);
+    transfer->setTransferredBytes(tr->size);
+    transfer->setPriority(tr->priority);
+    transfer->setDeltaSize(deltaSize);
+    transfer->setSpeed(speed);
+
+    if (tr->type == GET)
+    {
+        if (pendingDownloads > 0)
+        {
+            pendingDownloads--;
+        }
+
+        string path;
+        fsAccess->local2path(&tr->localfilename, &path);
+        transfer->setPath(path.c_str());
+        transfer->setState(tr->state);
+        fireOnTransferFinish(transfer, MegaError(API_OK));
+    }
+    else
+    {
+        transfer->setState(MegaTransfer::STATE_COMPLETING);
+        transfer->setTransfer(NULL);
+        fireOnTransferUpdate(transfer);
+    }
+}
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
