@@ -1552,6 +1552,7 @@ protected:
         static ExternalLogger *externalLogger;
 
         long long integrateSpeed(long long numBytes, direction_t direction);
+        MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
         void fireOnRequestStart(MegaRequestPrivate *request);
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
