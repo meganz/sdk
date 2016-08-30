@@ -1717,7 +1717,10 @@ void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
 
 void MegaTransferPrivate::setStartTime(int64_t startTime)
 {
-	this->startTime = startTime;
+    if (!this->startTime)
+    {
+        this->startTime = startTime;
+    }
 }
 
 void MegaTransferPrivate::setTransferredBytes(long long transferredBytes)
@@ -6948,6 +6951,7 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaError megaError(e, timeleft / 10);
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
+    transfer->setStartTime(Waiter::ds);
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
@@ -7296,30 +7300,40 @@ void MegaApiImpl::transfer_added(Transfer *t)
 
 void MegaApiImpl::transfer_removed(Transfer *t)
 {
-    if(transferMap.find(t->tag) == transferMap.end()) return;
+    if (transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
-    if(!transfer)
+    if (!transfer)
     {
         return;
     }
 
     if (t->type == GET)
     {
-        if(pendingDownloads > 0)
+        if (pendingDownloads > 0)
+        {
             pendingDownloads--;
+        }
 
-        if(totalDownloads > 0)
+        if (totalDownloads > 0)
+        {
             totalDownloads--;
+        }
     }
     else
     {
-        if(pendingUploads > 0)
+        if (pendingUploads > 0)
+        {
             pendingUploads--;
+        }
 
-        if(totalUploads > 0)
+        if (totalUploads > 0)
+        {
             totalUploads--;
+        }
     }
 
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
     transfer->setState(t->state);
     transfer->setPriority(t->priority);
     fireOnTransferFinish(transfer, transfer->getLastError());
@@ -7331,7 +7345,9 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
 	if (t->type == GET)
+    {
 		transfer->setNodeHandle(t->files.back()->h);
+    }
 
     string path;
     fsAccess->local2path(&(t->files.back()->localname), &path);
@@ -7373,10 +7389,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
         long long speed = integrateSpeed(deltaSize, tr->type);
 
-        if (!transfer->getStartTime())
-        {
-            transfer->setStartTime(currentTime);
-        }
+        transfer->setStartTime(currentTime);
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
         transfer->setSpeed(speed);
@@ -7398,43 +7411,20 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
 
+    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
+    long long speed = integrateSpeed(deltaSize, tr->type);
     dstime currentTime = Waiter::ds;
-    if (!transfer->getStartTime())
-    {
-        transfer->setStartTime(currentTime);
-    }
+
+    transfer->setStartTime(currentTime);
     transfer->setUpdateTime(currentTime);
-
-    if (tr->size != transfer->getTransferredBytes())
-    {
-        long long speed = 0;
-        long long deltaTime = currentTime - transfer->getStartTime();
-        if (deltaTime <= 0)
-        {
-            deltaTime = 1;
-        }
-
-        if (transfer->getTotalBytes() > 0)
-        {
-            speed = (10 * transfer->getTotalBytes()) / deltaTime;
-        }
-
-        transfer->setSpeed(speed);
-        transfer->setDeltaSize(tr->size - transfer->getTransferredBytes());
-        if(tr->type == GET)
-        {
-            totalDownloadedBytes += transfer->getDeltaSize();
-        }
-        else
-        {
-            totalUploadedBytes += transfer->getDeltaSize();
-        }
-        transfer->setTransferredBytes(tr->size);
-    }
+    transfer->setTransferredBytes(tr->size);
+    transfer->setPriority(tr->priority);
+    transfer->setDeltaSize(deltaSize);
+    transfer->setSpeed(speed);
 
     if (tr->type == GET)
     {
-        if(pendingDownloads > 0)
+        if (pendingDownloads > 0)
         {
             pendingDownloads--;
         }
@@ -7443,14 +7433,11 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         fsAccess->local2path(&tr->localfilename, &path);
         transfer->setPath(path.c_str());
         transfer->setState(tr->state);
-        transfer->setPriority(tr->priority);
-
         fireOnTransferFinish(transfer, MegaError(API_OK));
     }
     else
     {
         transfer->setState(MegaTransfer::STATE_COMPLETING);
-        transfer->setPriority(tr->priority);
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
     }
@@ -7547,10 +7534,7 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
     m_off_t deltaSize = len;
     long long speed = integrateSpeed(deltaSize, GET);
 
-    if (!transfer->getStartTime())
-    {
-        transfer->setStartTime(currentTime);
-    }
+    transfer->setStartTime(currentTime);
     transfer->setState(MegaTransfer::STATE_ACTIVE);
     transfer->setUpdateTime(currentTime);
     transfer->setDeltaSize(deltaSize);
