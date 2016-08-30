@@ -1702,6 +1702,173 @@ void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<Mega
     }
 }
 
+MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
+{
+    queue<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0;
+    MegaNode* n;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (*ptr == '/' || *ptr == ':' || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*ptr & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*ptr & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*ptr & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*ptr & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (c.size() == 2 && !c.back().size())
+        {
+            if (user)
+            {
+                *user = c.front();
+            }
+
+            return NULL;
+        }
+
+        //TODO: implement finding users share node.
+//        User* u;
+//        itll be sth like: if ((u = finduser(c[0].c_str()))) //TODO: implement findUser
+//        if ((u = client->finduser(c[0].c_str())))
+//        {/*
+//            // locate matching share from this user
+//            handle_set::iterator sit;
+//            string name;
+//            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+//            {
+//                if ((n = client->nodebyhandle(*sit)))
+//                {
+//                    if(!name.size())
+//                    {
+//                        name =  c[1];
+//                        n->client->fsaccess->normalize(&name);
+//                    }
+
+//                    if (!strcmp(name.c_str(), n->displayname()))
+//                    {
+//                        l = 2;
+//                        break;
+//                    }
+//                }
+//            }
+//        }*/
+
+        if (!l)
+        {
+            return NULL;
+        }
+    }
+    else //local
+    {
+        // path starting with /
+        if (c.size() > 1 && !c.front().size())
+        {
+            c.pop();
+            // path starting with //
+            if (c.size() > 1 && !c.front().size())
+            {
+                c.pop();
+                if (c.front() == "in")
+                {
+                    n = api->getInboxNode();
+                }
+                else if (c.front() == "bin")
+                {
+                    n = api->getRubbishNode();
+                }
+                else
+                {
+                    return NULL;
+                }
+            }
+            else
+            {
+                n = api->getRootNode();
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+    }
+
+    return n;
+}
 
 
 // returns node pointer determined by path relative to cwd
@@ -1920,39 +2087,69 @@ static void listnodeshares(MegaNode* n)
 //    listnodeshares(n);
 //}
 
-static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title = NULL)
+void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
 {
-    if (depth)
+
+    if (!title && !(title = n->getName()))
     {
-        if (!title && !(title = n->getName()))
-        {
-            title = "CRYPTO_ERROR";
-        }
+        title = "CRYPTO_ERROR";
+    }
 
-        for (int i = depth-1; i--; )
-        {
-            OUTSTREAM << "\t";
-        }
+    if (depth)
+    for (int i = depth-1; i--; )
+    {
+        OUTSTREAM << "\t";
+    }
 
-        OUTSTREAM << title << " (";
+    OUTSTREAM << title << " (";
+    switch (n->getType())
+    {
+        case MegaNode::TYPE_FILE:
+            OUTSTREAM << n->getSize();
 
-        switch (n->getType())
-        {
-            case MegaNode::TYPE_FILE:
-                OUTSTREAM << n->getSize();
+            const char* p;
+            if ((p = strchr(n->getAttrString()->c_str(), ':')))
+            {
+                OUTSTREAM << ", has attributes " << p + 1;
+            }
 
-                const char* p;
-                if ((p = strchr(n->getAttrString()->c_str(), ':')))
+            if (UNDEF != n->getPublicHandle())
+            //if (n->plink)
+            {
+                OUTSTREAM << ", shared as exported";
+                if (n->getExpirationTime()) //TODO: validate equivalence
+                //if (n->plink->ets)
                 {
-                    OUTSTREAM << ", has attributes " << p + 1;
+                    OUTSTREAM << " temporal";
                 }
+                else
+                {
+                    OUTSTREAM << " permanent";
+                }
+                OUTSTREAM << " file link";
+            }
+            break;
 
+        case MegaNode::TYPE_FOLDER:
+        {
+            OUTSTREAM << "folder";
+            MegaShareList* outShares = api->getOutShares(n);
+            if (outShares)
+            {
+                for (int i=0;i<outShares->size();i++)
+                {
+                    if (outShares->get(i))
+                    {
+                        OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << ", access "
+                             << getAccessLevelStr(outShares->get(i)->getAccess());
+                    }
+                }
                 if (UNDEF != n->getPublicHandle())
                 //if (n->plink)
                 {
                     OUTSTREAM << ", shared as exported";
                     if (n->getExpirationTime()) //TODO: validate equivalence
-                    //if (n->plink->ets)
+//                        if (n->plink->ets)
                     {
                         OUTSTREAM << " temporal";
                     }
@@ -1960,68 +2157,66 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* title 
                     {
                         OUTSTREAM << " permanent";
                     }
-                    OUTSTREAM << " file link";
+                    OUTSTREAM << " folder link";
                 }
-                break;
-
-            case MegaNode::TYPE_FOLDER:
-            {
-                OUTSTREAM << "folder";
-                MegaShareList* outShares = api->getOutShares(n);
-                if (outShares)
-                {
-                    for (int i=0;i<outShares->size();i++)
-                    {
-                        if (outShares->get(i))
-                        {
-                            OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << ", access "
-                                 << getAccessLevelStr(outShares->get(i)->getAccess());
-                        }
-                    }
-                    if (UNDEF != n->getPublicHandle())
-                    //if (n->plink)
-                    {
-                        OUTSTREAM << ", shared as exported";
-                        if (n->getExpirationTime()) //TODO: validate equivalence
-//                        if (n->plink->ets)
-                        {
-                            OUTSTREAM << " temporal";
-                        }
-                        else
-                        {
-                            OUTSTREAM << " permanent";
-                        }
-                        OUTSTREAM << " folder link";
-                    }
-                    delete outShares;
-                }
-
-                MegaShareList* pendingoutShares= api->getPendingOutShares(n);
-                if(pendingoutShares)
-                {
-                    for (int i=0;i<pendingoutShares->size();i++)
-                    {
-                        if (pendingoutShares->get(i))
-                        {
-                            OUTSTREAM << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
-                                 << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
-                        }
-                    }
-                    delete pendingoutShares;
-                }
-
-                if (n->isInShare())
-                {
-                    //OUTSTREAM << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
-                    OUTSTREAM << ", inbound " << api->getAccess(n) << " share"; //TODO: validate & delete
-                }
-                break;
+                delete outShares;
             }
 
-            default:
-                OUTSTREAM << "unsupported type, please upgrade";
+            MegaShareList* pendingoutShares= api->getPendingOutShares(n);
+            if(pendingoutShares)
+            {
+                for (int i=0;i<pendingoutShares->size();i++)
+                {
+                    if (pendingoutShares->get(i))
+                    {
+                        OUTSTREAM << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
+                             << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
+                    }
+                }
+                delete pendingoutShares;
+            }
+
+            if (n->isInShare())
+            {
+                //OUTSTREAM << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
+                OUTSTREAM << ", inbound " << api->getAccess(n) << " share"; //TODO: validate & delete
+            }
+            break;
         }
-        OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
+
+        default:
+            OUTSTREAM << "unsupported type, please upgrade";
+    }
+    OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
+}
+
+static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* pathRelativeTo = NULL)
+{
+    if (depth)
+    {
+        if (pathRelativeTo)
+        {
+            if (!n->getName()) dumpNode(n,depth,"CRYPTO_ERROR");
+            else
+            {
+                char * nodepath = api->getNodePath(n);
+                char *pathToShow = strstr(nodepath,pathRelativeTo);
+
+                if (pathToShow == NULL || !strcmp(pathRelativeTo,"/"))
+                    pathToShow=nodepath;
+                else
+                {
+                    pathToShow+=strlen(pathRelativeTo);
+                    if (*pathToShow=='/') pathToShow++;
+                }
+
+                dumpNode(n,depth,pathToShow);
+
+                delete nodepath;
+            }
+        }
+        else
+            dumpNode(n,depth);
 
         if (!recurse)
         {
@@ -3310,18 +3505,53 @@ static void process_line(char* l)
 
                         if ((int) words.size() > 1)
                         {
-                            n = nodebypath(words[1].c_str());
+                            char * rNpath = NULL;
+                            MegaNode *rN = NULL;
+                            if (words[1].find('/') != string::npos)
+                            {
+                                rN=getRootNodeByPath(words[1].c_str());
+                                rNpath = api->getNodePath(rN);
+                            }
+
+                            if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
+                            {
+                                vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
+                                for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
+                                {
+                                    MegaNode * n = *it;
+                                    if (n)
+                                    {
+                                        dumptree(n, recursive, 1,rNpath);
+                                        delete n;
+                                    }
+                                }
+                                nodesToList->clear();
+                                delete nodesToList ;
+                            }
+                            else
+                            {
+                                n = nodebypath(words[1].c_str());
+                                if (n)
+                                {
+                                    dumptree(n, recursive,1,rNpath);
+                                    delete n;
+                                }
+                            }
+
+                            delete rN;
+                            delete rNpath;
                         }
                         else
                         {
                             n = api->getNodeByHandle(cwd);
+                            if (n)
+                            {
+                                dumptree(n, recursive);
+                                delete n;
+                            }
                         }
 
-                        if (n)
-                        {
-                            dumptree(n, recursive);
-                            delete n;
-                        }
+
 
                         return;
                     }
@@ -3367,7 +3597,7 @@ static void process_line(char* l)
                         {
                             for (uint i = 1; i < words.size(); i++ )
                             {
-                                if (words[i].find('*')!=string::npos)
+                                if (words[i].find('*')!=string::npos || words[i].find('?')!=string::npos)
                                 {
                                     vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
                                     for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin() ; it != nodesToDelete->end(); ++it)
