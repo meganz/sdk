@@ -1627,6 +1627,270 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
     return n;
 }
 
+
+bool patternMatches(const char *what,const char *pattern)
+{
+    //return std::regex_match (pattern, std::regex(what) ); //c++11
+
+    // If we reach at the end of both strings, we are done
+    if (*pattern == '\0' && *what == '\0')
+        return true;
+
+    // Make sure that the characters after '*' are present
+    // in what string. This function assumes that the pattern
+    // string will not contain two consecutive '*'
+    if (*pattern == '*' && *(pattern+1) != '\0' && *what == '\0')
+        return false;
+
+    // If the pattern string contains '?', or current characters
+    // of both strings match
+    if (*pattern == '?' || *pattern == *what)
+    {
+        if(*what == '\0') return false;
+        return patternMatches(what+1, pattern+1);
+    }
+
+    // If there is *, then there are two possibilities
+    // a) We consider current character of what string
+    // b) We ignore current character of what string.
+    if (*pattern == '*')
+        return patternMatches(what, pattern+1) || patternMatches(what+1, pattern);
+
+    return false;
+}
+
+
+/**
+  TODO: doc. delete of added MegaNodes * into nodesMatching responsibility for the caller
+ * @brief getNodesMatching
+ * @param parentNode
+ * @param c
+ * @param nodesMatching
+ */
+void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching)
+{
+    if (!pathParts.size()) return;
+
+    string currentPart = pathParts.front();
+    pathParts.pop();
+
+    if (currentPart == ".")
+    {
+        getNodesMatching(parentNode, pathParts, nodesMatching);
+    }
+
+
+    MegaNodeList* children= api->getChildren(parentNode);
+    if (children)
+    {
+        for (int i=0;i<children->size();i++)
+        {
+            MegaNode *childNode = children->get(i);
+            if (patternMatches(childNode->getName(),currentPart.c_str()))
+            {
+                if (pathParts.size()==0) //last leave
+                {
+                    nodesMatching->push_back(childNode->copy());
+                }
+                else
+                {
+                    getNodesMatching(childNode, pathParts, nodesMatching);
+                }
+            }
+        }
+        delete children;
+    }
+}
+
+
+
+// returns node pointer determined by path relative to cwd
+// path naming conventions:
+// * path is relative to cwd
+// * /path is relative to ROOT
+// * //in is in INBOX
+// * //bin is in RUBBISH
+// * X: is user X's INBOX
+// * X:SHARE is share SHARE from user X
+// * : and / filename components, as well as the \, must be escaped by \.
+// (correct UTF-8 encoding is assumed)
+// returns NULL if path malformed or not found
+// TODO: dosctrings, delete responsibility of the caller (included the meganodes within the list!!)
+vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+{
+    vector<MegaNode *> *nodesMatching = new vector<MegaNode *> ();
+    queue<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0;
+    MegaNode* n;
+    MegaNode* nn;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (*ptr == '/' || *ptr == ':' || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return nodesMatching;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*ptr & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*ptr & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*ptr & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*ptr & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (c.size() == 2 && !c.back().size())
+        {
+            if (user)
+            {
+                *user = c.front();
+            }
+
+            return NULL;
+        }
+
+        //TODO: implement finding users share node.
+//        User* u;
+//        itll be sth like: if ((u = finduser(c[0].c_str()))) //TODO: implement findUser
+//        if ((u = client->finduser(c[0].c_str())))
+//        {/*
+//            // locate matching share from this user
+//            handle_set::iterator sit;
+//            string name;
+//            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+//            {
+//                if ((n = client->nodebyhandle(*sit)))
+//                {
+//                    if(!name.size())
+//                    {
+//                        name =  c[1];
+//                        n->client->fsaccess->normalize(&name);
+//                    }
+
+//                    if (!strcmp(name.c_str(), n->displayname()))
+//                    {
+//                        l = 2;
+//                        break;
+//                    }
+//                }
+//            }
+//        }*/
+
+        if (!l)
+        {
+            return NULL;
+        }
+    }
+    else //local
+    {
+        // path starting with /
+        if (c.size() > 1 && !c.front().size())
+        {
+            c.pop();
+            // path starting with //
+            if (c.size() > 1 && !c.front().size())
+            {
+                c.pop();
+                if (c.front() == "in")
+                {
+                    n = api->getInboxNode();
+                }
+                else if (c.front() == "bin")
+                {
+                    n = api->getRubbishNode();
+                }
+                else
+                {
+                    return nodesMatching;
+                }
+            }
+            else
+            {
+                n = api->getRootNode();
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+    }
+
+    getNodesMatching(n, c, nodesMatching);
+
+    return nodesMatching;
+}
+
+
+
+
 static void listnodeshares(MegaNode* n)
 {
     MegaShareList* outShares=api->getOutShares(n);
@@ -3101,16 +3365,38 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            for (uint i=1;i<words.size();i++ )
+                            for (uint i = 1; i < words.size(); i++ )
                             {
-                                MegaNode * nodeToDelete = nodebypath(words[i].c_str());
-                                if (nodeToDelete)
+                                if (words[i].find('*')!=string::npos)
                                 {
-                                    LOG_verbose << "Deleting recursively: " << words[i];
-                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                    api->remove(nodeToDelete, megaCmdListener);
-                                    actUponDeleteNode(megaCmdListener);
-                                    delete nodeToDelete;
+                                    vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
+                                    for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin() ; it != nodesToDelete->end(); ++it)
+                                    {
+                                        MegaNode * nodeToDelete = *it;
+                                        if (nodeToDelete)
+                                        {
+                                            LOG_verbose << "Deleting recursively: " << words[i];
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                            api->remove(nodeToDelete, megaCmdListener);
+                                            actUponDeleteNode(megaCmdListener);
+                                            delete nodeToDelete;
+                                        }
+                                    }
+                                    nodesToDelete->clear();
+                                    delete nodesToDelete ;
+                                }
+                                else
+                                {
+
+                                    MegaNode * nodeToDelete = nodebypath(words[i].c_str());
+                                    if (nodeToDelete)
+                                    {
+                                        LOG_verbose << "Deleting recursively: " << words[i];
+                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                        api->remove(nodeToDelete, megaCmdListener);
+                                        actUponDeleteNode(megaCmdListener);
+                                        delete nodeToDelete;
+                                    }
                                 }
 
                             }
