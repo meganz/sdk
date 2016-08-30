@@ -11062,21 +11062,20 @@ void MegaApiImpl::sendPendingTransfers()
                                 }
                             }
                         }
-                        else
+
+                        //Already existing transfer
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+
+                        long long overquotaDelay = getBandwidthOverquotaDelay();
+                        if (overquotaDelay)
                         {
-                            //Already existing transfer
-                            transferMap[nextTag]=transfer;
-                            transfer->setTag(nextTag);
-                            fireOnTransferStart(transfer);
-
-                            long long overquotaDelay = getBandwidthOverquotaDelay();
-                            if (overquotaDelay)
-                            {
-                                fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
-                            }
-
-                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                            fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
                         }
+
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+
                     }
                 }
                 else
