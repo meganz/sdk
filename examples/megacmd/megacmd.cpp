@@ -386,6 +386,10 @@ const char * getUsageStr(const char *command)
     return "command not found";
 }
 
+bool validCommand(string thecommand){
+    return getUsageStr(thecommand.c_str()) != "command not found";
+}
+
 
 string getHelpStr(const char *command)
 {
@@ -3018,13 +3022,18 @@ static void process_line(char* l)
                 validParams.insert("s");
             }
 
+            if (!validCommand(thecommand)) { //unknown command
+                OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+                return;
+            }
+
             if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
 
             setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v"));
 
             if(getFlag(&clflags,"help")) {
-                string h = getHelpStr(words[0].c_str()) ;
-                 OUTSTREAM << getHelpStr(words[0].c_str()) << endl;
+                string h = getHelpStr(thecommand.c_str()) ;
+                 OUTSTREAM << h << endl;
                  return;
             }
 
@@ -3035,9 +3044,9 @@ static void process_line(char* l)
 //                        int recursive = words.size() > 1 && words[1] == "-R";
                         int recursive = getFlag(&clflags,"R");
 
-                        if ((int) words.size() > recursive + 1)
+                        if ((int) words.size() > 1)
                         {
-                            n = nodebypath(words[recursive + 1].c_str());
+                            n = nodebypath(words[1].c_str());
                         }
                         else
                         {
