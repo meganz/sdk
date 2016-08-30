@@ -1016,12 +1016,12 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
 
 struct MegaFile : public File
 {
-    // app-internal sequence number for queue management
-    int seqno;
-    static int nextseqno;
+    int tag;
     MegaFile();
 
     void setTransfer(MegaTransferPrivate *transfer);
+    void setTag(int tag);
+    int getTag();
     MegaTransferPrivate *getTransfer();
     virtual bool serialize(string*);
 

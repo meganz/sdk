@@ -3004,17 +3004,24 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestL
         list[i] = new MegaContactRequestPrivate(requestList->get(i));
 }
 
-int MegaFile::nextseqno = 0;
-
 MegaFile::MegaFile() : File()
 {
-    seqno = ++nextseqno;
     megaTransfer = NULL;
 }
 
 void MegaFile::setTransfer(MegaTransferPrivate *transfer)
 {
     this->megaTransfer = transfer;
+}
+
+void MegaFile::setTag(int tag)
+{
+    this->tag = tag;
+}
+
+int MegaFile::getTag()
+{
+    return tag;
 }
 
 MegaTransferPrivate *MegaFile::getTransfer()
@@ -7490,8 +7497,8 @@ void MegaApiImpl::transfer_resume(string *d)
         return;
     }
 
+    file->setTag(client->nextreqtag());
     currentTransfer = file->getTransfer();
-    client->nextreqtag();
     client->startxfer((direction_t)type, file);
     waiter->notify();
 }
@@ -11005,6 +11012,7 @@ void MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
+                    f->setTag(nextTag);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, true);
                     if(!started)
@@ -11153,6 +11161,7 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
+                    f->setTag(nextTag);
                     f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
