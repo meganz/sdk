@@ -1846,10 +1846,12 @@ MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
                 if (c.front() == "in")
                 {
                     n = api->getInboxNode();
+                    c.pop();
                 }
                 else if (c.front() == "bin")
                 {
                     n = api->getRubbishNode();
+                    c.pop();
                 }
                 else
                 {
@@ -2029,10 +2031,12 @@ vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* n
                 if (c.front() == "in")
                 {
                     n = api->getInboxNode();
+                    c.pop();
                 }
                 else if (c.front() == "bin")
                 {
                     n = api->getRubbishNode();
+                    c.pop();
                 }
                 else
                 {
@@ -2190,25 +2194,35 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
     OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
 }
 
-static void dumptree(MegaNode* n, int recurse, int depth = 0, const char* pathRelativeTo = NULL)
+static void dumptree(MegaNode* n, int recurse, int depth = 0, string pathRelativeTo = "NULL")
 {
     if (depth)
     {
-        if (pathRelativeTo)
+        if (pathRelativeTo != "NULL")
         {
             if (!n->getName()) dumpNode(n,depth,"CRYPTO_ERROR");
             else
             {
                 char * nodepath = api->getNodePath(n);
-                char *pathToShow = strstr(nodepath,pathRelativeTo);
 
-                if (pathToShow == NULL || !strcmp(pathRelativeTo,"/"))
-                    pathToShow=nodepath;
-                else
-                {
-                    pathToShow+=strlen(pathRelativeTo);
-                    if (*pathToShow=='/') pathToShow++;
-                }
+
+                char *pathToShow = NULL;
+                if (pathRelativeTo != "")
+                    pathToShow = strstr(nodepath,pathRelativeTo.c_str());
+
+//                if (pathToShow == NULL )// || !strcmp(pathRelativeTo,"/"))
+//                    pathToShow=nodepath;
+//                else
+//                {
+                    if (pathToShow == nodepath) //found at beginning
+                    {
+                        pathToShow+=pathRelativeTo.size();
+                        if (*pathToShow=='/' && pathRelativeTo != "/") pathToShow++;
+                    }
+                    else
+                        pathToShow=nodepath;
+
+//                }
 
                 dumpNode(n,depth,pathToShow);
 
@@ -3505,12 +3519,20 @@ static void process_line(char* l)
 
                         if ((int) words.size() > 1)
                         {
-                            char * rNpath = NULL;
+                            string rNpath = "NULL";
                             MegaNode *rN = NULL;
+                            string cwpath;
                             if (words[1].find('/') != string::npos)
                             {
-                                rN=getRootNodeByPath(words[1].c_str());
-                                rNpath = api->getNodePath(rN);
+                                nodepath(cwd, &cwpath);
+                                if (words[1].find_first_of(cwpath)  == 0 )
+                                {
+                                    rNpath = "";
+                                }
+                                else
+                                {
+                                    rNpath = cwpath;
+                                }
                             }
 
                             if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
@@ -3539,7 +3561,7 @@ static void process_line(char* l)
                             }
 
                             delete rN;
-                            delete rNpath;
+//                            delete rNpath;
                         }
                         else
                         {
