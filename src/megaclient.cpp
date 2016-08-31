@@ -9882,6 +9882,9 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                 }
             }
+            f->file_it = t->files.insert(t->files.begin(), f);
+            f->transfer = t;
+            filecacheadd(f);
         }
         else
         {
@@ -9928,6 +9931,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             t->lastaccesstime = time(NULL);
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+
+            f->file_it = t->files.insert(t->files.begin(), f);
+            f->transfer = t;
+            filecacheadd(f);
+
             transferlist.addtransfer(t);
             app->transfer_added(t);
             looprequested = true;
@@ -9939,11 +9947,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 t->bt.backoff(timeleft);
             }
         }
-
-        f->file_it = t->files.insert(t->files.begin(), f);
-        f->transfer = t;
-
-        filecacheadd(f);
     }
 
     return true;

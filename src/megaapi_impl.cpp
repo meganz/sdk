@@ -7269,10 +7269,19 @@ long long SizeProcessor::getTotalBytes()
 void MegaApiImpl::transfer_added(Transfer *t)
 {
 	MegaTransferPrivate *transfer = currentTransfer;
-    if(!transfer)
+    if (!transfer)
     {
         transfer = new MegaTransferPrivate(t->type);
         transfer->setSyncTransfer(true);
+
+        if (t->type == GET)
+        {
+            transfer->setNodeHandle(t->files.back()->h);
+        }
+
+        string path;
+        fsAccess->local2path(&(t->files.back()->localname), &path);
+        transfer->setPath(path.c_str());
     }
 
 	currentTransfer = NULL;
@@ -7345,15 +7354,6 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     {
         return;
     }
-
-    if (t->type == GET)
-    {
-        transfer->setNodeHandle(t->files.back()->h);
-    }
-
-    string path;
-    fsAccess->local2path(&(t->files.back()->localname), &path);
-    transfer->setPath(path.c_str());
 
     processTransferPrepare(t, transfer);
 }
