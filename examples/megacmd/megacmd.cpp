@@ -3258,7 +3258,6 @@ bool pathExits(string path){//TODO: move to MegaFileSystemAccess
     return ret==0;
 }
 
-// execute command
 void downloadNode(string localPath, MegaApi* api, MegaNode *node)
 {
     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
@@ -3269,7 +3268,22 @@ void downloadNode(string localPath, MegaApi* api, MegaNode *node)
     LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
     delete megaCmdTransferListener;
 }
+void uploadNode(string localPath, MegaApi* api, MegaNode *node)
+{
+    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+    LOG_debug << "Starting download: " << node->getName() << " to : " << localPath;
+    api->startUpload(localPath.c_str(),node,megaCmdTransferListener);
+    megaCmdTransferListener->wait();
+    //TODO: process errors
+    char * destinyPath=api->getNodePath(node);
+    LOG_info << "Upload complete: " << megaCmdTransferListener->getTransfer()->getFileName() << " to " << destinyPath;
+    delete destinyPath;
+    delete megaCmdTransferListener;
+}
 
+
+
+// execute command
 static void process_line(char* l)
 {
     switch (prompt)
@@ -4234,28 +4248,50 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    else if (words[0] == "put")
-//                    {
-//                        if (words.size() > 1)
-//                        {
-////                            AppFile* f;
-//                            handle target = cwd;
-//                            string targetuser;
-//                            string newname;
-//                            int total = 0;
-//                            string localname;
-//                            string name;
-//                            nodetype_t type;
+                    else if (words[0] == "put")
+                    {
+                        if (words.size() > 1)
+                        {
+                            string targetuser;
+                            string newname;
+                            string localname;
 
-//                            if (words.size() > 2)
-//                            {
-//                                Node* n;
+                            MegaNode *n = NULL;
 
-//                                if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
-//                                {
-//                                    target = n->nodehandle;
-//                                }
-//                            }
+                            if (words.size() > 2)
+                            {
+                                n = nodebypath(words[2].c_str(), &targetuser, &newname);
+                            }
+                            else
+                            {
+                                n=api->getNodeByHandle(cwd);
+                            }
+                            if (n)
+                            {
+                                if (n->getType() != MegaNode::TYPE_FILE)
+                                {
+                                    fsAccessCMD->path2local(&words[1], &localname);
+                                    if (pathExits(localname))
+                                    {
+                                        uploadNode(localname, api, n);
+                                    }
+                                    else
+                                    {
+                                        OUTSTREAM << "Could not find local path" << endl;
+                                    }
+                                }
+                                else
+                                {
+                                    OUTSTREAM << "Destination is not valid (expected folder or alike)" << endl;
+                                }
+                                delete n;
+                            }
+                            else
+                            {
+                                OUTSTREAM << "Couln't find destination folder" << endl;
+                            }
+
+
 
 //                            //TODO: modify using API
 ////                            if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
@@ -4292,14 +4328,14 @@ static void process_line(char* l)
 
 ////                            OUTSTREAM << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
 ////                                 << " file(s) in queue" << endl;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      put localpattern [dstremotepath|dstemail:]" << endl;
-//                        }
+                        }
+                        else
+                        {
+                            OUTSTREAM << "      " << getUsageStr("put") << endl;
+                        }
 
-//                        return;
-//                    }
+                        return;
+                    }
                     else if (words[0] == "log")
                     {
                         if (words.size()==1)
