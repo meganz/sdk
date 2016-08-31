@@ -3232,6 +3232,11 @@ int getLinkType(string link){
     return MegaNode::TYPE_FILE;
 }
 
+bool isPublicLink(string link){
+    if (link.find_first_of("#") == 0 && link.find_first_of("#") != string::npos ) return true;
+    return false;
+}
+
 bool isFolder(string path){
 //TODO: move to MegaFileSystemAccess
 
@@ -3255,6 +3260,17 @@ bool pathExits(string path){//TODO: move to MegaFileSystemAccess
 }
 
 // execute command
+void downloadNode(string localPath, MegaApi* api, MegaNode *node)
+{
+    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+    LOG_debug << "Starting download: " << node->getName() << " to : " << localPath;
+    api->startDownload(node,localPath.c_str(),megaCmdTransferListener);
+    megaCmdTransferListener->wait();
+    //TODO: process errors
+    LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
+    delete megaCmdTransferListener;
+}
+
 static void process_line(char* l)
 {
     switch (prompt)
@@ -3560,100 +3576,116 @@ static void process_line(char* l)
                                 }
                             }
 
-                            if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
-                            {
-                                vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
-                                if (nodesToList)
+                                if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
                                 {
-                                    for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
+                                    vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
+                                    if (nodesToList)
                                     {
-                                        MegaNode * n = *it;
-                                        if (n)
+                                        for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
                                         {
-                                            dumptree(n, recursive, extended_info, 1,rNpath);
-                                            delete n;
+                                            MegaNode * n = *it;
+                                            if (n)
+                                            {
+                                                dumptree(n, recursive, extended_info, 1,rNpath);
+                                                delete n;
+                                            }
                                         }
+                                        nodesToList->clear();
+                                        delete nodesToList ;
                                     }
-                                    nodesToList->clear();
-                                    delete nodesToList ;
+
+                                }
+                                else
+                                {
+                                    n = nodebypath(words[1].c_str());
+                                    if (n)
+                                    {
+                                        dumptree(n, recursive, extended_info, 1,rNpath);
+                                        delete n;
+                                    }
                                 }
 
+                                delete rN;
+    //                            delete rNpath;
                             }
                             else
                             {
-                                n = nodebypath(words[1].c_str());
+                                n = api->getNodeByHandle(cwd);
                                 if (n)
                                 {
-                                    dumptree(n, recursive, extended_info, 1,rNpath);
+                                    dumptree(n, recursive, extended_info);
                                     delete n;
                                 }
                             }
 
-                            delete rN;
-//                            delete rNpath;
+
+
+                            return;
                         }
-                        else
+                        else if (words[0] == "cd")
                         {
-                            n = api->getNodeByHandle(cwd);
-                            if (n)
+                            if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return; }
+                            if (words.size() > 1)
                             {
-                                dumptree(n, recursive, extended_info);
-                                delete n;
-                            }
-                        }
-
-
-
-                        return;
-                    }
-                    else if (words[0] == "cd")
-                    {
-                        if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return; }
-                        if (words.size() > 1)
-                        {
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if (n->getType() == MegaNode::TYPE_FILE)
+                                if ((n = nodebypath(words[1].c_str())))
                                 {
-                                    LOG_err << words[1] << ": Not a directory";
+                                    if (n->getType() == MegaNode::TYPE_FILE)
+                                    {
+                                        LOG_err << words[1] << ": Not a directory";
+                                    }
+                                    else
+                                    {
+                                        cwd = n->getHandle();
+                                    }
+                                    delete n;
                                 }
                                 else
                                 {
-                                    cwd = n->getHandle();
+                                    LOG_err << words[1] << ": No such file or directory";
                                 }
-                                delete n;
                             }
                             else
                             {
-                                LOG_err << words[1] << ": No such file or directory";
-                            }
-                        }
-                        else
-                        {
-                            MegaNode * rootNode = api->getRootNode();
-                            if (!rootNode) {
-                                LOG_err << "nodes not fetched";
+                                MegaNode * rootNode = api->getRootNode();
+                                if (!rootNode) {
+                                    LOG_err << "nodes not fetched";
+                                    delete rootNode;
+                                    return;
+                                }
+                                cwd = rootNode->getHandle();
                                 delete rootNode;
-                                return;
                             }
-                            cwd = rootNode->getHandle();
-                            delete rootNode;
-                        }
 
-                        return;
-                    }
-                    else if (words[0] == "rm")
-                    {
-                        if (words.size() > 1)
+                            return;
+                        }
+                        else if (words[0] == "rm")
                         {
-                            for (uint i = 1; i < words.size(); i++ )
+                            if (words.size() > 1)
                             {
-                                if (words[i].find('*')!=string::npos || words[i].find('?')!=string::npos)
+                                for (uint i = 1; i < words.size(); i++ )
                                 {
-                                    vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
-                                    for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin() ; it != nodesToDelete->end(); ++it)
+                                    if (words[i].find('*')!=string::npos || words[i].find('?')!=string::npos)
                                     {
-                                        MegaNode * nodeToDelete = *it;
+                                        vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
+                                        for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin() ; it != nodesToDelete->end(); ++it)
+                                        {
+                                            MegaNode * nodeToDelete = *it;
+                                            if (nodeToDelete)
+                                            {
+                                                LOG_verbose << "Deleting recursively: " << words[i];
+                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                api->remove(nodeToDelete, megaCmdListener);
+                                                actUponDeleteNode(megaCmdListener);
+                                                delete nodeToDelete;
+                                            }
+                                        }
+                                        nodesToDelete->clear();
+                                        delete nodesToDelete ;
+                                    }
+                                    else
+                                    {
+
+                                        MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                                         if (nodeToDelete)
                                         {
                                             LOG_verbose << "Deleting recursively: " << words[i];
@@ -3663,247 +3695,114 @@ static void process_line(char* l)
                                             delete nodeToDelete;
                                         }
                                     }
-                                    nodesToDelete->clear();
-                                    delete nodesToDelete ;
-                                }
-                                else
-                                {
 
-                                    MegaNode * nodeToDelete = nodebypath(words[i].c_str());
-                                    if (nodeToDelete)
-                                    {
-                                        LOG_verbose << "Deleting recursively: " << words[i];
-                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                        api->remove(nodeToDelete, megaCmdListener);
-                                        actUponDeleteNode(megaCmdListener);
-                                        delete nodeToDelete;
-                                    }
                                 }
-
                             }
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      rm remotepath" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "mv")
-                    {
-                        MegaNode* tn; //target node
-                        string newname;
-
-                        if (words.size() > 2)
-                        {
-                            // source node must exist
-                            if ((n = nodebypath(words[1].c_str())))
+                            else
                             {
+                                OUTSTREAM << "      rm remotepath" << endl;
+                            }
 
-                                // we have four situations:
-                                // 1. target path does not exist - fail
-                                // 2. target node exists and is folder - move
-                                // 3. target node exists and is file - delete and rename (unless same)
-                                // 4. target path exists, but filename does not - rename
-                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
+                            return;
+                        }
+                        else if (words[0] == "mv")
+                        {
+                            MegaNode* tn; //target node
+                            string newname;
+
+                            if (words.size() > 2)
+                            {
+                                // source node must exist
+                                if ((n = nodebypath(words[1].c_str())))
                                 {
-                                    if (tn->getHandle() == n->getHandle())
+
+                                    // we have four situations:
+                                    // 1. target path does not exist - fail
+                                    // 2. target node exists and is folder - move
+                                    // 3. target node exists and is file - delete and rename (unless same)
+                                    // 4. target path exists, but filename does not - rename
+                                    if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
                                     {
-                                        LOG_err << "Source and destiny are the same";
-                                    }
-                                    else
-                                    {
-                                        if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
+                                        if (tn->getHandle() == n->getHandle())
                                         {
-                                            if (tn->getType() == MegaNode::TYPE_FILE)
-                                            {
-                                                OUTSTREAM << words[2] << ": Not a directory" << endl;
-                                                delete tn;
-                                                delete n;
-                                                return;
-                                            }
-                                            else //move and rename!
-                                            {
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                api->moveNode(n,tn,megaCmdListener);
-                                                megaCmdListener->wait(); // TODO: act upon move. log access denied...
-                                                delete megaCmdListener;
-                                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
-                                                {
-                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                    api->renameNode(n,newname.c_str(),megaCmdListener);
-                                                    megaCmdListener->wait(); // TODO: act upon rename. log access denied...
-                                                    delete megaCmdListener;
-                                                }
-                                                else
-                                                {
-                                                    LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                                }
-                                            }
+                                            LOG_err << "Source and destiny are the same";
                                         }
-                                        else //target found
+                                        else
                                         {
-                                            if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
+                                            if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
                                             {
-                                                // (there should never be any orphaned filenodes)
-                                                MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
-                                                if (tnParentNode )
+                                                if (tn->getType() == MegaNode::TYPE_FILE)
                                                 {
-
-                                                    delete tnParentNode;
-
-                                                    //move into the parent of target node
+                                                    OUTSTREAM << words[2] << ": Not a directory" << endl;
+                                                    delete tn;
+                                                    delete n;
+                                                    return;
+                                                }
+                                                else //move and rename!
+                                                {
                                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                    api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
-                                                    megaCmdListener->wait(); //TODO: do actuponmove...
+                                                    api->moveNode(n,tn,megaCmdListener);
+                                                    megaCmdListener->wait(); // TODO: act upon move. log access denied...
                                                     delete megaCmdListener;
-
-                                                    const char* name_to_replace = tn->getName();
-
-                                                    //remove (replaced) target node
-                                                    if (n != tn) //just in case moving to same location
-                                                    {
-                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                        api->remove(tn,megaCmdListener); //remove target node
-                                                        megaCmdListener->wait(); //TODO: actuponremove ...
-                                                        delete megaCmdListener;
-                                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                                        {
-                                                            LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                                        }
-                                                    }
-
-                                                    // rename moved node with the new name
                                                     if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
                                                     {
-                                                        if (!strcmp(name_to_replace,n->getName()))
-                                                        {
-                                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                            api->renameNode(n,name_to_replace,megaCmdListener);
-                                                            megaCmdListener->wait(); // TODO: act upon rename. log access denied...
-                                                            delete megaCmdListener;
-                                                        }
+                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                        api->renameNode(n,newname.c_str(),megaCmdListener);
+                                                        megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                        delete megaCmdListener;
                                                     }
                                                     else
                                                     {
                                                         LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                     }
                                                 }
-                                                else
-                                                {
-                                                    LOG_fatal << "Destiny node is orphan!!!";
-                                                }
                                             }
-                                            else // target is a folder
+                                            else //target found
                                             {
-    //                                            e = client->checkmove(n, tn);
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                api->moveNode(n,tn,megaCmdListener);
-                                                megaCmdListener->wait();
-                                                delete megaCmdListener;
-                                                //TODO: act upon...
-                                            }
-                                        }
-                                    }
-                                    delete tn;
-                                }
-                                else //target not found (not even its folder), cant move
-                                {
-                                    OUTSTREAM << words[2] << ": No such directory" << endl;
-                                }
-                                delete n;
-                            }
-                            else
-                            {
-                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "cp")
-                    {
-                        MegaNode* tn;
-                        string targetuser;
-                        string newname;
-
-                        if (words.size() > 2)
-                        {
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if ((tn = nodebypath(words[2].c_str(), &targetuser, &newname)))
-                                {
-                                    if (tn->getHandle() == n->getHandle())
-                                    {
-                                        LOG_err << "Source and destiny are the same";
-                                    }
-                                    else
-                                    {
-                                        if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
-                                        {
-                                            if (n->getType() == MegaNode::TYPE_FILE)
-                                            {
-                                                //copy with new name
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                api->copyNode(n,tn,newname.c_str(),megaCmdListener); //only works for files
-                                                megaCmdListener->wait();//TODO: actupon...
-                                                delete megaCmdListener;
-
-                                                //TODO: newname is ignored in case of public node!!!!
-                                            }
-                                            else//copy & rename
-                                            {
-                                                //copy with new name
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                api->copyNode(n,tn,megaCmdListener);
-                                                megaCmdListener->wait();//TODO: actupon...
-                                                delete megaCmdListener;
-
-                                                MegaNode * newNode=api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
-                                                if (newNode)
+                                                if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
                                                 {
-                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                    api->renameNode(newNode,newname.c_str(),megaCmdListener);
-                                                    megaCmdListener->wait(); // TODO: act upon rename. log access denied...
-                                                    delete megaCmdListener;
-                                                    delete newNode;
-                                                }
-                                                else
-                                                {
-                                                    LOG_err << " Couldn't find new node created upon cp";
-                                                }
-                                            }
-                                        }
-                                        else
-                                        { //target exists
-                                            if (tn->getType() == MegaNode::TYPE_FILE)
-                                            {
-                                                if (n->getType() == MegaNode::TYPE_FILE)
-                                                {
-                                                    // overwrite target if source and target are files
+                                                    // (there should never be any orphaned filenodes)
                                                     MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
-                                                    if (tnParentNode )// (there should never be any orphaned filenodes)
+                                                    if (tnParentNode )
                                                     {
-                                                        const char* name_to_replace = tn->getName();
-                                                        //copy with new name
-                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                        api->copyNode(n,tnParentNode,name_to_replace,megaCmdListener);
-                                                        megaCmdListener->wait();//TODO: actupon...
-                                                        delete megaCmdListener;
+
                                                         delete tnParentNode;
 
-                                                        //remove target node
-                                                        megaCmdListener = new MegaCmdListener(api,NULL);
-                                                        api->remove(tn,megaCmdListener);
-                                                        megaCmdListener->wait(); //TODO: actuponremove ...
+                                                        //move into the parent of target node
+                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                        api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
+                                                        megaCmdListener->wait(); //TODO: do actuponmove...
                                                         delete megaCmdListener;
-                                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+
+                                                        const char* name_to_replace = tn->getName();
+
+                                                        //remove (replaced) target node
+                                                        if (n != tn) //just in case moving to same location
                                                         {
-                                                            LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                            api->remove(tn,megaCmdListener); //remove target node
+                                                            megaCmdListener->wait(); //TODO: actuponremove ...
+                                                            delete megaCmdListener;
+                                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                                                            {
+                                                                LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                                                            }
+                                                        }
+
+                                                        // rename moved node with the new name
+                                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                                        {
+                                                            if (!strcmp(name_to_replace,n->getName()))
+                                                            {
+                                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                                api->renameNode(n,name_to_replace,megaCmdListener);
+                                                                megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                                delete megaCmdListener;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                                         }
                                                     }
                                                     else
@@ -3911,204 +3810,385 @@ static void process_line(char* l)
                                                         LOG_fatal << "Destiny node is orphan!!!";
                                                     }
                                                 }
-                                                else
+                                                else // target is a folder
                                                 {
-                                                    OUTSTREAM << "Cannot overwrite file with folder" << endl;
+        //                                            e = client->checkmove(n, tn);
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                    api->moveNode(n,tn,megaCmdListener);
+                                                    megaCmdListener->wait();
+                                                    delete megaCmdListener;
+                                                    //TODO: act upon...
+                                                }
+                                            }
+                                        }
+                                        delete tn;
+                                    }
+                                    else //target not found (not even its folder), cant move
+                                    {
+                                        OUTSTREAM << words[2] << ": No such directory" << endl;
+                                    }
+                                    delete n;
+                                }
+                                else
+                                {
+                                    OUTSTREAM << words[1] << ": No such file or directory" << endl;
+                                }
+                            }
+                            else
+                            {
+                                OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
+                            }
+
+                            return;
+                        }
+                        else if (words[0] == "cp")
+                        {
+                            MegaNode* tn;
+                            string targetuser;
+                            string newname;
+
+                            if (words.size() > 2)
+                            {
+                                if ((n = nodebypath(words[1].c_str())))
+                                {
+                                    if ((tn = nodebypath(words[2].c_str(), &targetuser, &newname)))
+                                    {
+                                        if (tn->getHandle() == n->getHandle())
+                                        {
+                                            LOG_err << "Source and destiny are the same";
+                                        }
+                                        else
+                                        {
+                                            if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
+                                            {
+                                                if (n->getType() == MegaNode::TYPE_FILE)
+                                                {
+                                                    //copy with new name
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                    api->copyNode(n,tn,newname.c_str(),megaCmdListener); //only works for files
+                                                    megaCmdListener->wait();//TODO: actupon...
+                                                    delete megaCmdListener;
+
+                                                    //TODO: newname is ignored in case of public node!!!!
+                                                }
+                                                else//copy & rename
+                                                {
+                                                    //copy with new name
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                    api->copyNode(n,tn,megaCmdListener);
+                                                    megaCmdListener->wait();//TODO: actupon...
+                                                    delete megaCmdListener;
+
+                                                    MegaNode * newNode=api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+                                                    if (newNode)
+                                                    {
+                                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                        api->renameNode(newNode,newname.c_str(),megaCmdListener);
+                                                        megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                                        delete megaCmdListener;
+                                                        delete newNode;
+                                                    }
+                                                    else
+                                                    {
+                                                        LOG_err << " Couldn't find new node created upon cp";
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            { //target exists
+                                                if (tn->getType() == MegaNode::TYPE_FILE)
+                                                {
+                                                    if (n->getType() == MegaNode::TYPE_FILE)
+                                                    {
+                                                        // overwrite target if source and target are files
+                                                        MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
+                                                        if (tnParentNode )// (there should never be any orphaned filenodes)
+                                                        {
+                                                            const char* name_to_replace = tn->getName();
+                                                            //copy with new name
+                                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                            api->copyNode(n,tnParentNode,name_to_replace,megaCmdListener);
+                                                            megaCmdListener->wait();//TODO: actupon...
+                                                            delete megaCmdListener;
+                                                            delete tnParentNode;
+
+                                                            //remove target node
+                                                            megaCmdListener = new MegaCmdListener(api,NULL);
+                                                            api->remove(tn,megaCmdListener);
+                                                            megaCmdListener->wait(); //TODO: actuponremove ...
+                                                            delete megaCmdListener;
+                                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                                                            {
+                                                                LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            LOG_fatal << "Destiny node is orphan!!!";
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        OUTSTREAM << "Cannot overwrite file with folder" << endl;
+                                                        return;
+                                                    }
+                                                }
+                                                else //copying into folder
+                                                {
+                                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                                    api->copyNode(n,tn,megaCmdListener);
+                                                    megaCmdListener->wait();//TODO: actupon...
+                                                    delete megaCmdListener;
+                                                }
+                                            }
+                                        }
+                                        delete tn;
+                                    }
+                                    delete n;
+                                }
+                                else
+                                {
+                                    OUTSTREAM << words[1] << ": No such file or directory" << endl;
+                                }
+                            }
+                            else
+                            {
+                                OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+                            }
+
+                            return;
+                        }
+                        else if (words[0] == "du")
+                        {
+                            TreeProcDU du;
+
+                            if (words.size() > 1)
+                            {
+                                if (!(n = nodebypath(words[1].c_str())))
+                                {
+                                    OUTSTREAM << words[1] << ": No such file or directory" << endl;
+
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                //TODO: modify using API
+    //                            n = client->nodebyhandle(cwd);
+                            }
+
+                            if (n)
+                            {
+                                //TODO: modify using API
+    //                            client->proctree(n, &du);
+
+                                OUTSTREAM << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
+                                OUTSTREAM << "Total # of files: " << du.numfiles << endl;
+                                OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
+                            }
+
+                            return;
+                        }
+                        else if (words[0] == "get")
+                        {
+                            if (words.size() > 1)
+                            {
+                                //TODO: modify using API
+    //                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
+    //                            {
+    //                                OUTSTREAM << "Checking link..." << endl;
+    //                                return;
+    //                            }
+                                string localPath = getCurrentLocalPath()+"/";
+
+                                if (isPublicLink(words[1]))
+                                {
+                                    if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
+                                    {
+                                        if (words.size()>2)
+                                        {
+                                            //TODO: check permissions before download
+                                            localPath=words[2];
+                                            if (isFolder(localPath)) localPath+="/";
+                                            else
+                                            {
+                                                string containingFolder=localPath.substr(0,localPath.find_last_of("/"));
+                                                if(!isFolder(containingFolder))
+                                                {
+                                                    OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
                                                     return;
                                                 }
                                             }
-                                            else //copying into folder
+                                        }
+                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+
+                                        api->getPublicNode(words[1].c_str(),megaCmdListener);
+                                        megaCmdListener->wait();
+
+                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                                        {
+                                            LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
+                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
                                             {
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                                                api->copyNode(n,tn,megaCmdListener);
-                                                megaCmdListener->wait();//TODO: actupon...
-                                                delete megaCmdListener;
+                                                OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
+                                            }
+                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+                                            {
+                                                OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
                                             }
                                         }
-                                    }
-                                    delete tn;
-                                }
-                                delete n;
-                            }
-                            else
-                            {
-                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "du")
-                    {
-                        TreeProcDU du;
-
-                        if (words.size() > 1)
-                        {
-                            if (!(n = nodebypath(words[1].c_str())))
-                            {
-                                OUTSTREAM << words[1] << ": No such file or directory" << endl;
-
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            //TODO: modify using API
-//                            n = client->nodebyhandle(cwd);
-                        }
-
-                        if (n)
-                        {
-                            //TODO: modify using API
-//                            client->proctree(n, &du);
-
-                            OUTSTREAM << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
-                            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
-                            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "get")
-                    {
-                        if (words.size() > 1)
-                        {
-                            //TODO: modify using API
-//                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
-//                            {
-//                                OUTSTREAM << "Checking link..." << endl;
-//                                return;
-//                            }
-                            string localPath = getCurrentLocalPath()+"/";
-
-                            if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
-                            {
-                                if (words.size()>2)
-                                {
-                                    //TODO: check permissions before download
-                                    localPath=words[2];
-                                    if (isFolder(localPath)) localPath+="/";
-                                    else
-                                    {
-                                        string containingFolder=localPath.substr(0,localPath.find_last_of("/"));
-                                        if(!isFolder(containingFolder))
-                                        {
-                                            OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
-                                            return;
+                                        else{
+                                            if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag())
+                                            {
+                                                LOG_err << "Key not valid " << words[1].c_str();
+                                            }
+                                            if (megaCmdListener->getRequest())
+                                            {
+                                                MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
+                                                downloadNode(localPath, api, n);
+                                                delete n;
+                                            }
+                                            else{
+                                                LOG_err << "Empty Request at get";
+                                            }
                                         }
-                                        //TODO: check if last folder is accesible
-                                    }
-                                }
-                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-
-                                api->getPublicNode(words[1].c_str(),megaCmdListener);
-                                megaCmdListener->wait();
-
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                {
-                                    LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
-                                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
+                                        delete megaCmdListener;
+                                    } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
                                     {
-                                        OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
-                                    }
-                                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
-                                    {
-                                        OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
-                                    }
-                                }
-                                else{
-                                    if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag())
-                                    {
-                                        LOG_err << "Key not valid " << words[1].c_str();
-                                    }
-                                    if (megaCmdListener->getRequest())
-                                    {
-                                        MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
+                                        if (words.size()>2)
+                                        {
+                                            if (isFolder(words[2])) localPath=words[2]+"/";
+                                            else
+                                            {
+                                                OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
+                                                return;
+                                            }
+                                        }
 
-                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                        api->startDownload(n,localPath.c_str(),megaCmdTransferListener);
+                                        MegaApi* apiFolder = getFreeApiFolder();
 
-                                        megaCmdTransferListener->wait();
-                                        //TODO: process errors
-                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-                                        delete megaCmdTransferListener;
-                                        delete n;
-                                    }
-                                    else{
-                                        LOG_err << "Empty Request at get";
-                                    }
-                                }
-                                delete megaCmdListener;
-                            } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
-                            {
-                                if (words.size()>2)
-                                {
-                                    if (isFolder(words[2])) localPath=words[2]+"/";
-                                    else
-                                    {
-                                        OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
-                                        return;
-                                    }
-                                }
+                                        MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
+                                        apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
+                                        megaCmdListener->wait();
+                                        if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                        {
+                                            MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
+                                            apiFolder->fetchNodes(megaCmdListener2);
+                                            actUponFetchNodes(megaCmdListener2);
+                                            delete megaCmdListener2;
+                                            MegaNode *folderRootNode = apiFolder->getRootNode();
+                                            MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
 
-                                MegaApi* apiFolder = getFreeApiFolder();
+                                            if (authorizedNode !=NULL)
+                                            {
+                                                //TODO: in short future: try this
 
-                                MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
-                                apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
-                                megaCmdListener->wait();
-                                if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
-                                {
-                                    MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
-                                    apiFolder->fetchNodes(megaCmdListener2);
-                                    actUponFetchNodes(megaCmdListener2);
-                                    delete megaCmdListener2;
-                                    MegaNode *folderRootNode = apiFolder->getRootNode();
-                                    MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
+                                                MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
+                                                downloadNode(localPath, api, authorizedNode);
 
-                                    if (authorizedNode !=NULL)
-                                    {
-                                        //TODO: in short future: try this
+                                                delete authorizedNode;
+                                            }
+                                            else
+                                            {
+                                                LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
 
-                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
-                                        api->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
-                                        megaCmdTransferListener->wait();
-                                        //TODO: process errors
-                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-                                        delete megaCmdTransferListener;
-                                        delete authorizedNode;
+                                                downloadNode(localPath, apiFolder, folderRootNode);
+                                            }
+                                            delete folderRootNode;
+                                        }
+                                        else{
+                                            LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
+                                        }
+                                        delete megaCmdListener;
+
+        //                                MegaCmdListener *megaCmdListenerLogout = new MegaCmdListener(apiFolder,NULL);
+        //                                apiFolder->logout(megaCmdListenerLogout); //todo wait for it a
+        //                                megaCmdListenerLogout->wait(); //TODO: check errors
+        //                                delete megaCmdListenerLogout;
+                                        freeApiFolder(apiFolder);
                                     }
                                     else
                                     {
-                                        LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                                        MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(apiFolder,NULL);
-                                        apiFolder->startDownload(folderRootNode,localPath.c_str(),megaCmdTransferListener);
-                                        megaCmdTransferListener->wait();
-                                        //TODO: process errors
-                                        LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-                                        delete megaCmdTransferListener;
+                                        OUTSTREAM << "Invalid link: " << words[1] << endl;
+                                        //TODO: print usage
                                     }
-                                    delete folderRootNode;
                                 }
-                                else{
-                                    LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
-                                }
-                                delete megaCmdListener;
+                                else //remote file
+                                {
+                                    //wildcar
+                                    if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
+                                    {
+                                        if (words.size()>2)
+                                        {
+                                            if (isFolder(words[2])) localPath=words[2]+"/";
+                                            else
+                                            {
+                                                OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
+                                                return;
+                                            }
+                                        }
 
-//                                MegaCmdListener *megaCmdListenerLogout = new MegaCmdListener(apiFolder,NULL);
-//                                apiFolder->logout(megaCmdListenerLogout); //todo wait for it a
-//                                megaCmdListenerLogout->wait(); //TODO: check errors
-//                                delete megaCmdListenerLogout;
-                                freeApiFolder(apiFolder);
-                            }
-                            else
-                            {
-                                OUTSTREAM << "Invalid link: " << words[1] << endl;
-                                //TODO: print usage
-                            }
+                                        vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
+                                        if (nodesToList)
+                                        {
+                                            for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
+                                            {
+                                                MegaNode * n = *it;
+                                                if (n)
+                                                {
+                                                    downloadNode(localPath, api, n);
+                                                    delete n;
+                                                }
+                                            }
+                                            nodesToList->clear();
+                                            delete nodesToList ;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        MegaNode *n = nodebypath(words[1].c_str());
+                                        if (n)
+                                        {
+
+                                            if (words.size()>2)
+                                            {
+                                                if (n->getType() == MegaNode::TYPE_FILE)
+                                                {
+
+                                                    //TODO: check permissions before download
+                                                    localPath=words[2];
+                                                    if (isFolder(localPath)) localPath+="/";
+                                                    else
+                                                    {
+                                                        string containingFolder=localPath.substr(0,localPath.find_last_of("/"));
+                                                        if(!isFolder(containingFolder))
+                                                        {
+                                                            OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
+                                                            return;
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    if (isFolder(words[2])) localPath=words[2]+"/";
+                                                    else
+                                                    {
+                                                        OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
+                                                        return;
+                                                    }
+                                                }
+                                            }
+
+
+                                            downloadNode(localPath, api, n);
+                                            delete n;
+                                        }
+                                        else
+                                        {
+                                            OUTSTREAM << "Couldn't find file" << endl;
+                                        }
+                                    }
+                                }
 
 //                            n = nodebypath(words[1].c_str());
 
