@@ -125,7 +125,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
 struct MEGA_API TransferList
 {
-    static const uint64_t PRIORITY_START = 0x0000100000000000;
+    static const uint64_t PRIORITY_START = 0x0000800000000000;
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000;
 
     TransferList();

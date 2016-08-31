@@ -1307,6 +1307,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 {
     if (it == dstit)
     {
+        LOG_warn << "Trying to move to the same position";
         return;
     }
 
@@ -1314,12 +1315,14 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     if (it == (transfers[transfer->type].end() - 1)
             && dstit == transfers[transfer->type].end())
     {
+        LOG_warn << "Trying to move the last transfer down";
         return;
     }
 
     if (dstit == transfers[transfer->type].end()
             || (dstit + 1) == transfers[transfer->type].end())
     {
+        LOG_debug << "Moving transfer to the last position";
         if (transfer->slot)
         {
             transfer_list::iterator cit = it + 1;
@@ -1348,6 +1351,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 
     int srcindex = std::distance(transfers[transfer->type].begin(), it);
     int dstindex = std::distance(transfers[transfer->type].begin(), dstit);
+    LOG_debug << "Moving transfer from " << srcindex << " to " << dstindex;
 
     uint64_t prevpriority = 0;
     uint64_t nextpriority = 0;
@@ -1391,8 +1395,31 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     }
 
     uint64_t newpriority = (prevpriority + nextpriority) / 2;
-    transfer->priority = newpriority;
+    LOG_debug << "Moving transfer between priority " << prevpriority << " and " << nextpriority << ". New: " << newpriority;
+    if (prevpriority == newpriority)
+    {
+        LOG_warn << "There is no space for the move. Adjusting priorities.";
+        int positions = dstindex;
+        if (srcindex < dstindex)
+        {
+            positions++;
+        }
 
+        uint64_t fixedPriority = transfers[transfer->type][0]->priority - PRIORITY_STEP * (positions + 1);
+        for (int i = 0; i < positions; i++)
+        {
+            Transfer *t = transfers[transfer->type][i];
+            LOG_debug << "Adjusting priority of transfer " << i << " to " << fixedPriority;
+            t->priority = fixedPriority;
+            client->transfercacheadd(t);
+            client->app->transfer_update(t);
+            fixedPriority += PRIORITY_STEP;
+        }
+        newpriority = fixedPriority;
+        LOG_debug << "Fixed priority: " << fixedPriority;
+    }
+
+    transfer->priority = newpriority;
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
@@ -1565,6 +1592,7 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 {
     if (!transfer)
     {
+        LOG_warn << "Getting iterator of a NULL transfer";
         return transfers[transfer->type].end();
     }
 
@@ -1573,6 +1601,7 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
     {
         return it;
     }
+    LOG_debug << "Transfer not found";
     return transfers[transfer->type].end();
 }
 
