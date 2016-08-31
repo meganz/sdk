@@ -345,7 +345,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"import") ) return "import exportedfilelink#key";
     if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
     if(!strcmp(command,"putq") ) return "putq [cancelslot]";
-    if(!strcmp(command,"get") ) return "get exportedlink#key [localpath]";
+    if(!strcmp(command,"get") ) return "get exportedlink#key|remotepath [localpath]";
     //if(!strcmp(command,"get") ) return "get remotepath [offset [length]]"; //TODO: implement this?
     //if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
     if(!strcmp(command,"getq") ) return "getq [cancelslot]";
@@ -465,7 +465,7 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
     if(!strcmp(command,"get") )
     {
-        os << "Downloads a public link " << endl;
+        os << "Downloads a remote file/folder or a public link " << endl;
         os << endl;
         os << "In case it is a file, the file will be downloaded at the specified folder (or at the current folder if none specified) " << endl;
         os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl;
@@ -473,7 +473,6 @@ string getHelpStr(const char *command)
         os << "For folders, the entire contents (and the root folder itself) will be downloaded into the destination folder" << endl;
         os << "If the folder already exists, the contents will be merged with the downloaded one (preserving the existing files)" << endl;
     }
-//    if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
 //    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
 //    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
 //    if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
@@ -4082,8 +4081,6 @@ static void process_line(char* l)
                                             if (authorizedNode !=NULL)
                                             {
                                                 //TODO: in short future: try this
-
-                                                MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
                                                 downloadNode(localPath, api, authorizedNode);
 
                                                 delete authorizedNode;
@@ -4091,7 +4088,6 @@ static void process_line(char* l)
                                             else
                                             {
                                                 LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-
                                                 downloadNode(localPath, apiFolder, folderRootNode);
                                             }
                                             delete folderRootNode;
@@ -4154,7 +4150,6 @@ static void process_line(char* l)
                                             {
                                                 if (n->getType() == MegaNode::TYPE_FILE)
                                                 {
-
                                                     //TODO: check permissions before download
                                                     localPath=words[2];
                                                     if (isFolder(localPath)) localPath+="/";
@@ -4178,8 +4173,6 @@ static void process_line(char* l)
                                                     }
                                                 }
                                             }
-
-
                                             downloadNode(localPath, api, n);
                                             delete n;
                                         }

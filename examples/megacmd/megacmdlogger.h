@@ -36,6 +36,16 @@ public:
     }
 
     int getMaxLogLevel();
+
+    int getApiLoggerLevel(){
+        return this->apiLoggerLevel;
+    }
+
+    int getCmdLoggerLevel(){
+        return this->cmdLoggerLevel;
+    }
+
+
 };
 
 #endif // MEGACMDLOGGER_H
