@@ -338,6 +338,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"mount") ) return "mount";
     if(!strcmp(command,"ls") ) return "ls [-lRr] [remotepath]";
     if(!strcmp(command,"cd") ) return "cd [remotepath]";
+    if(!strcmp(command,"log") ) return "log [-sc] level";
     if(!strcmp(command,"pwd") ) return "pwd";
     if(!strcmp(command,"lcd") ) return "lcd [localpath]";
     if(!strcmp(command,"lpwd") ) return "lpwd";
@@ -417,7 +418,7 @@ string getHelpStr(const char *command)
         os << "Lists files in a remote folder" << endl;
         os << "it accepts wildcards (? and *). e.g.: ls /a/b*/f00?.txt" << endl;
         os << endl;
-        os << "Opciones:" << endl;
+        os << "Options:" << endl;
         os << " -R|-r" << "\t" << "list folders recursively" << endl;
         os << " -l" << "\t" << "include extra information" << endl;
     }
@@ -426,6 +427,14 @@ string getHelpStr(const char *command)
         os << "Changes the current remote folder" << endl;
         os << endl;
         os << "If no folder is provided, it will be changed to the root folder" << endl;
+    }
+    else if(!strcmp(command,"log") )
+    {
+        os << "Prints/Modifies the current logs level" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -c" << "\t" << "CMD log level (higher). Messages captured by the command line." << endl;
+        os << " -s" << "\t" << "SDK log level (lower). Messages captured by the engine and libs" << endl;
     }
     else if(!strcmp(command,"pwd") )
     {
@@ -3433,6 +3442,7 @@ static void process_line(char* l)
                 OUTSTREAM << "      " << getUsageStr("mount") << endl;
                 OUTSTREAM << "      " << getUsageStr("ls") << endl;
                 OUTSTREAM << "      " << getUsageStr("cd") << endl;
+                OUTSTREAM << "      " << getUsageStr("log") << endl;
                 OUTSTREAM << "      " << getUsageStr("pwd") << endl;
                 OUTSTREAM << "      " << getUsageStr("lcd") << endl;
                 OUTSTREAM << "      " << getUsageStr("lpwd") << endl;
@@ -3499,7 +3509,11 @@ static void process_line(char* l)
                 validParams.insert("r");
                 validParams.insert("l");
             }
-            else if ("sync" == thecommand)
+            else if ("log" == thecommand)
+            {
+                validParams.insert("c");
+                validParams.insert("s");
+            }else if ("sync" == thecommand)
             {
                 validParams.insert("d");
                 validParams.insert("s");
@@ -4213,6 +4227,52 @@ static void process_line(char* l)
 
 //                        return;
 //                    }
+                    else if (words[0] == "log")
+                    {
+                        if (words.size()==1)
+                        {
+                            if (!getFlag(&clflags,"s") && ! getFlag(&clflags,"c"))
+                            {
+                                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel()<< endl;
+                                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel()<< endl;
+                            }
+                            else if (getFlag(&clflags,"s") )
+                            {
+                                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel()<< endl;
+                            }
+                            else if (getFlag(&clflags,"c") )
+                            {
+                                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel()<< endl;
+                            }
+                        }
+                        else
+                        {
+                            int newLogLevel = atoi (words[1].c_str());
+                            newLogLevel = max(newLogLevel,(int)MegaApi::LOG_LEVEL_FATAL);
+                            newLogLevel = min(newLogLevel,(int)MegaApi::LOG_LEVEL_MAX);
+                            if (!getFlag(&clflags,"s") && ! getFlag(&clflags,"c"))
+                            {
+                                loggerCMD->setCmdLoggerLevel(newLogLevel);
+                                loggerCMD->setApiLoggerLevel(newLogLevel);
+                                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel()<< endl;
+                                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel()<< endl;
+                            }
+                            else if (getFlag(&clflags,"s") )
+                            {
+                                loggerCMD->setApiLoggerLevel(newLogLevel);
+                                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel()<< endl;
+                            }
+                            else if (getFlag(&clflags,"c") )
+                            {
+                                loggerCMD->setCmdLoggerLevel(newLogLevel);
+                                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel()<< endl;
+                            }
+                        }
+
+
+
+                        return;
+                    }
                     else if (words[0] == "pwd")
                     {
                         string path;
