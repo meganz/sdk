@@ -4253,7 +4253,7 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             string targetuser;
-                            string newname;
+                            string newname ="";
                             string localname;
 
                             MegaNode *n = NULL;
@@ -4261,6 +4261,11 @@ static void process_line(char* l)
                             if (words.size() > 2)
                             {
                                 n = nodebypath(words[2].c_str(), &targetuser, &newname);
+                                if (newname != "")
+                                {
+                                    //TODO: create new node?
+                                    n = NULL;
+                                }
                             }
                             else
                             {
