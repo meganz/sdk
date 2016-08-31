@@ -10919,6 +10919,10 @@ void MegaApiImpl::sendPendingTransfers()
                     }
                     else if(transfer->getTag() == -1)
                     {
+
+
+
+
                         //Already existing transfer
                         //Delete the new one and set the transfer as regular
                         transfer_map::iterator it = client->transfers[PUT].find(f);
@@ -10929,9 +10933,17 @@ void MegaApiImpl::sendPendingTransfers()
                             {
                                 MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
                                 previousTransfer->setSyncTransfer(false);
-                                delete transfer;
+
+                                //temporary fix to prevent uploadfolder to never end in case of a file with same fingerprint
+                                //TODO: delete this whenever transfer are manager correctly when repeated files
+                                transferMap[nextTag]=transfer;
+                                transfer->setTag(nextTag);
+                                fireOnTransferStart(transfer);
+                                fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+//                                delete transfer;
                             }
                         }
+
                     }
                     currentTransfer=NULL;
                 }
