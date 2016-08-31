@@ -343,7 +343,8 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"lcd") ) return "lcd [localpath]";
     if(!strcmp(command,"lpwd") ) return "lpwd";
     if(!strcmp(command,"import") ) return "import exportedfilelink#key";
-    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
+//    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
+    if(!strcmp(command,"put") ) return "put localfile [localfile2 localfile3 ...] [dstremotepath]";
     if(!strcmp(command,"putq") ) return "putq [cancelslot]";
     if(!strcmp(command,"get") ) return "get exportedlink#key|remotepath [localpath]";
     //if(!strcmp(command,"get") ) return "get remotepath [offset [length]]"; //TODO: implement this?
@@ -461,9 +462,11 @@ string getHelpStr(const char *command)
         os << "Logs out, invalidating the session and the local caches" << endl;
     }
 //    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
-//    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
+    else if(!strcmp(command,"put") ) {
+        os << "Uploads files/folders to a remote folder" << endl;
+    }
 //    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
-    if(!strcmp(command,"get") )
+    else if(!strcmp(command,"get") )
     {
         os << "Downloads a remote file/folder or a public link " << endl;
         os << endl;
@@ -4255,12 +4258,14 @@ static void process_line(char* l)
                             string targetuser;
                             string newname ="";
                             string localname;
+                            string destinationFolder="";
 
                             MegaNode *n = NULL;
 
                             if (words.size() > 2)
                             {
-                                n = nodebypath(words[2].c_str(), &targetuser, &newname);
+                                destinationFolder=words[words.size()-1];
+                                n = nodebypath(destinationFolder.c_str(), &targetuser, &newname);
                                 if (newname != "")
                                 {
                                     //TODO: create new node?
@@ -4275,14 +4280,17 @@ static void process_line(char* l)
                             {
                                 if (n->getType() != MegaNode::TYPE_FILE)
                                 {
-                                    fsAccessCMD->path2local(&words[1], &localname);
-                                    if (pathExits(localname))
+                                    for (int i=1;i<max(1,(int)words.size()-1);i++)
                                     {
-                                        uploadNode(localname, api, n);
-                                    }
-                                    else
-                                    {
-                                        OUTSTREAM << "Could not find local path" << endl;
+                                        fsAccessCMD->path2local(&words[i], &localname);
+                                        if (pathExits(localname))
+                                        {
+                                            uploadNode(localname, api, n);
+                                        }
+                                        else
+                                        {
+                                            OUTSTREAM << "Could not find local path" << endl;
+                                        }
                                     }
                                 }
                                 else
@@ -4293,7 +4301,7 @@ static void process_line(char* l)
                             }
                             else
                             {
-                                OUTSTREAM << "Couln't find destination folder" << endl;
+                                OUTSTREAM << "Couln't find destination folder: " << destinationFolder << endl;
                             }
 
 
