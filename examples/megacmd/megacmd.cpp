@@ -336,7 +336,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"confirm") ) return "confirm";
     if(!strcmp(command,"session") ) return "session";
     if(!strcmp(command,"mount") ) return "mount";
-    if(!strcmp(command,"ls") ) return "ls [-R] [remotepath]";
+    if(!strcmp(command,"ls") ) return "ls [-lRr] [remotepath]";
     if(!strcmp(command,"cd") ) return "cd [remotepath]";
     if(!strcmp(command,"pwd") ) return "pwd";
     if(!strcmp(command,"lcd") ) return "lcd [localpath]";
@@ -415,9 +415,11 @@ string getHelpStr(const char *command)
     else if(!strcmp(command,"ls") )
     {
         os << "Lists files in a remote folder" << endl;
+        os << "it accepts wildcards (? and *). e.g.: ls /a/b*/f00?.txt" << endl;
         os << endl;
         os << "Opciones:" << endl;
-        os << " -R" << "\t" << "list folders recursively" << endl;
+        os << " -R|-r" << "\t" << "list folders recursively" << endl;
+        os << " -l" << "\t" << "include extra information" << endl;
     }
     else if(!strcmp(command,"cd") )
     {
@@ -2091,7 +2093,7 @@ static void listnodeshares(MegaNode* n)
 //    listnodeshares(n);
 //}
 
-void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
+void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL)
 {
 
     if (!title && !(title = n->getName()))
@@ -2105,9 +2107,12 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
         OUTSTREAM << "\t";
     }
 
-    OUTSTREAM << title << " (";
-    switch (n->getType())
+    OUTSTREAM << title;
+    if (extended_info)
     {
+        OUTSTREAM << " (";
+        switch (n->getType())
+        {
         case MegaNode::TYPE_FILE:
             OUTSTREAM << n->getSize();
 
@@ -2118,11 +2123,11 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
             }
 
             if (UNDEF != n->getPublicHandle())
-            //if (n->plink)
+                //if (n->plink)
             {
                 OUTSTREAM << ", shared as exported";
                 if (n->getExpirationTime()) //TODO: validate equivalence
-                //if (n->plink->ets)
+                    //if (n->plink->ets)
                 {
                     OUTSTREAM << " temporal";
                 }
@@ -2145,15 +2150,15 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
                     if (outShares->get(i))
                     {
                         OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << ", access "
-                             << getAccessLevelStr(outShares->get(i)->getAccess());
+                                  << getAccessLevelStr(outShares->get(i)->getAccess());
                     }
                 }
                 if (UNDEF != n->getPublicHandle())
-                //if (n->plink)
+                    //if (n->plink)
                 {
                     OUTSTREAM << ", shared as exported";
                     if (n->getExpirationTime()) //TODO: validate equivalence
-//                        if (n->plink->ets)
+                        //                        if (n->plink->ets)
                     {
                         OUTSTREAM << " temporal";
                     }
@@ -2174,7 +2179,7 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
                     if (pendingoutShares->get(i))
                     {
                         OUTSTREAM << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
-                             << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
+                                  << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
                     }
                 }
                 delete pendingoutShares;
@@ -2190,17 +2195,20 @@ void dumpNode(MegaNode* n, int depth = 0, const char* title = NULL)
 
         default:
             OUTSTREAM << "unsupported type, please upgrade";
+        }
+        OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "");
     }
-    OUTSTREAM << ")" << (n->isRemoved() ? " (DELETED)" : "") << endl;
+
+    OUTSTREAM << endl;
 }
 
-static void dumptree(MegaNode* n, int recurse, int depth = 0, string pathRelativeTo = "NULL")
+static void dumptree(MegaNode* n, int recurse, int extended_info, int depth = 0, string pathRelativeTo = "NULL")
 {
     if (depth)
     {
         if (pathRelativeTo != "NULL")
         {
-            if (!n->getName()) dumpNode(n,depth,"CRYPTO_ERROR");
+            if (!n->getName()) dumpNode(n, extended_info, depth,"CRYPTO_ERROR");
             else
             {
                 char * nodepath = api->getNodePath(n);
@@ -2224,13 +2232,13 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, string pathRelativ
 
 //                }
 
-                dumpNode(n,depth,pathToShow);
+                dumpNode(n, extended_info,depth,pathToShow);
 
                 delete nodepath;
             }
         }
         else
-            dumpNode(n,depth);
+            dumpNode(n, extended_info,depth);
 
         if (!recurse)
         {
@@ -2245,7 +2253,7 @@ static void dumptree(MegaNode* n, int recurse, int depth = 0, string pathRelativ
         {
             for (int i=0;i<children->size();i++)
             {
-                dumptree(children->get(i), recurse, depth + 1);
+                dumptree(children->get(i), recurse, extended_info, depth + 1);
             }
         delete children;
         }
@@ -3488,6 +3496,8 @@ static void process_line(char* l)
             if ("ls" == thecommand)
             {
                 validParams.insert("R");
+                validParams.insert("r");
+                validParams.insert("l");
             }
             else if ("sync" == thecommand)
             {
@@ -3515,7 +3525,8 @@ static void process_line(char* l)
                     {
                         if (!api->isLoggedIn()) { LOG_err << "Not logged in"; return;}
 //                        int recursive = words.size() > 1 && words[1] == "-R";
-                        int recursive = getFlag(&clflags,"R");
+                        int recursive = getFlag(&clflags,"R") + getFlag(&clflags,"r") ;
+                        int extended_info = getFlag(&clflags,"l");
 
                         if ((int) words.size() > 1)
                         {
@@ -3538,24 +3549,28 @@ static void process_line(char* l)
                             if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
                             {
                                 vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
-                                for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
+                                if (nodesToList)
                                 {
-                                    MegaNode * n = *it;
-                                    if (n)
+                                    for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
                                     {
-                                        dumptree(n, recursive, 1,rNpath);
-                                        delete n;
+                                        MegaNode * n = *it;
+                                        if (n)
+                                        {
+                                            dumptree(n, recursive, extended_info, 1,rNpath);
+                                            delete n;
+                                        }
                                     }
+                                    nodesToList->clear();
+                                    delete nodesToList ;
                                 }
-                                nodesToList->clear();
-                                delete nodesToList ;
+
                             }
                             else
                             {
                                 n = nodebypath(words[1].c_str());
                                 if (n)
                                 {
-                                    dumptree(n, recursive,1,rNpath);
+                                    dumptree(n, recursive, extended_info, 1,rNpath);
                                     delete n;
                                 }
                             }
@@ -3568,7 +3583,7 @@ static void process_line(char* l)
                             n = api->getNodeByHandle(cwd);
                             if (n)
                             {
-                                dumptree(n, recursive);
+                                dumptree(n, recursive, extended_info);
                                 delete n;
                             }
                         }
