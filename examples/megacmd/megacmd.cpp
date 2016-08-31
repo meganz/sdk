@@ -161,7 +161,7 @@ void freeApiFolder(MegaApi *apiFolder){
 class MegaCmdListener : public SynchronousRequestListener
 {
 private:
-    float percentFetchnodes;
+    float percentFetchnodes = 0.0f;
 public:
     MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();
@@ -2406,7 +2406,9 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                     thesync->active = true;
 
                     syncsmap[thesync->localpath]=thesync;
-                    LOG_info << "Loaded sync: " << thesync->localpath << " to " << api->getNodePath(node);
+                    char *nodepath = api->getNodePath(node);
+                    LOG_info << "Loaded sync: " << thesync->localpath << " to " << nodepath;
+                    delete []nodepath;
                 }
 
                 delete megaCmdListener;
@@ -2704,10 +2706,27 @@ int loadfile(string* name, string* data)
 //    }
 //}
 
+void delete_finished_threads()
+{
+    for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
+        /* std::cout << *it; ... */
+        MegaThread *mt = (MegaThread *)*it;
+#ifdef USE_QT
+        if (mt->isFinished())
+        {
+            delete mt;
+            it=petitionThreads.erase(it);
+        }
+        else
+#endif
+            ++it;
+    }
+}
 
 void finalize()
 {
     LOG_info << "closing application ..." ;
+    delete_finished_threads();
     delete cm;
     delete console;
     delete api;
@@ -2724,6 +2743,7 @@ void finalize()
 
     delete loggerCMD;
     delete megaCmdGlobalListener;
+    delete fsAccessCMD;
 
     OUTSTREAM << "resources have been cleaned ..."  << endl;
 
@@ -3280,7 +3300,7 @@ void uploadNode(string localPath, MegaApi* api, MegaNode *node)
     //TODO: process errors
     char * destinyPath=api->getNodePath(node);
     LOG_info << "Upload complete: " << megaCmdTransferListener->getTransfer()->getFileName() << " to " << destinyPath;
-    delete destinyPath;
+    delete []destinyPath;
     delete megaCmdTransferListener;
 }
 
@@ -3709,6 +3729,7 @@ static void process_line(char* l)
                                             api->remove(nodeToDelete, megaCmdListener);
                                             actUponDeleteNode(megaCmdListener);
                                             delete nodeToDelete;
+                                            delete megaCmdListener;
                                         }
                                     }
 
@@ -6534,24 +6555,6 @@ void * doProcessLine(void *pointer)
     cm->returnAndClosePetition(inf,&s);
 
     return NULL;
-}
-
-void delete_finished_threads()
-{
-    for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
-        /* std::cout << *it; ... */
-        MegaThread *mt = (MegaThread *)*it;
-#ifdef USE_QT
-        if (mt->isFinished())
-        {
-            delete mt;
-            it=petitionThreads.erase(it);
-        }
-        else
-#endif
-            ++it;
-    }
-
 }
 
 // main loop

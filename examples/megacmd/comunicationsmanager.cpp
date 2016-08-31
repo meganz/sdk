@@ -91,6 +91,7 @@ int ComunicationsManager::initialize(){
         LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": "<< errno;
     }
     fsAccess->setdefaultfolderpermissions(oldPermissions);
+    delete fsAccess;
 
 
 //        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);

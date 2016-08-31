@@ -51,6 +51,7 @@ void ConfigurationManager::loadConfigDir(){
         return;
     }
     fsAccess->setdefaultfolderpermissions(oldPermissions);
+    delete fsAccess;
 }
 
 
