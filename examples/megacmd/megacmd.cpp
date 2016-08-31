@@ -3255,7 +3255,7 @@ int getLinkType(string link){
 }
 
 bool isPublicLink(string link){
-    if (link.find_first_of("#") == 0 && link.find_first_of("#") != string::npos ) return true;
+    if (link.find_first_of("http") == 0 && link.find_first_of("#") != string::npos ) return true;
     return false;
 }
 
@@ -6765,7 +6765,7 @@ int main()
     }
     mutexapiFolders.init(false);
 
-    loggerCMD = new MegaCMDLogger(&cout); //TODO: never deleted
+    loggerCMD = new MegaCMDLogger(&cout);
 
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
 //    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_MAX);
