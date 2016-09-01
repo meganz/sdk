@@ -14544,6 +14544,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     localpath.append(client->fsaccess->localseparator);
     MegaNodeList *children = NULL;
+    bool childrenneedsdelete = false;
     if (node->isForeign())
     {
         children = node->getChildren();
@@ -14551,6 +14552,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     else
     {
         children = megaApi->getChildren(node);
+        childrenneedsdelete=true;
     }
 
     if (!children)
@@ -14626,7 +14628,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     recursive--;
     checkCompletion();
-    if (!node->isForeign()){
+    if (childrenneedsdelete){
         delete children;
     } 
 }
