@@ -1050,6 +1050,7 @@ MegaNodePrivate::~MegaNodePrivate()
     delete customAttrs;
     delete plink;
     delete sharekey;
+    delete children;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -6641,7 +6642,6 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
             MegaNodePrivate *privNode = (MegaNodePrivate *)children->get(i);
             authorizeMegaNodePrivate(privNode);
         }
-    }
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
