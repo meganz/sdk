@@ -120,6 +120,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->children = node->getChildren();
+    if (this->children) this->children = this->children->copy()
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
@@ -10975,7 +10976,7 @@ void MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
-                if (!transfer->isStreamingTransfer() && ((node && node->type != FILENODE) || publicNode->getType() == FOLDERNODE))
+                if (!transfer->isStreamingTransfer() && ((node && node->type != FILENODE) || (publicNode && publicNode->getType() == FOLDERNODE)) )
                 {
                     // Folder download
                     transferMap[nextTag] = transfer;
@@ -14625,6 +14626,9 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     recursive--;
     checkCompletion();
+    if (!node->isForeign()){
+        delete children;
+    } 
 }
 
 void MegaFolderDownloadController::checkCompletion()
