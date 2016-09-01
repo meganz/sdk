@@ -2715,6 +2715,75 @@ class MegaTransfer
 };
 
 /**
+ * @brief Provides information about transfer queues
+ *
+ * This object is used as the return value of the function MegaApi::getTransferData
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the transfer
+ * queues when the object is created, they are immutable.
+ *
+ */
+class MegaTransferData
+{
+public:
+    virtual ~MegaTransferData();
+
+    /**
+     * @brief Creates a copy of this MegaTransferData object
+     *
+     * The resulting object is fully independent of the source MegaTransferData,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTransferData object
+     */
+    virtual MegaTransferData *copy() const;
+
+    /**
+     * @brief Returns the number of downloads in the transfer queue
+     * @return Number of downloads in the transfer queue
+     */
+    virtual int getNumDownloads() const;
+
+    /**
+     * @brief Returns the number of uploads in the transfer queue
+     * @return Number of uploads in the transfer queue
+     */
+    virtual int getNumUploads() const;
+
+    /**
+     * @brief Returns the tag of the download at index i
+     * @param i index of the selected download. It must be between 0 and MegaTransferData::getNumDownloads (not included)
+     * @return Tag of the download at index i
+     */
+    virtual int getDownloadTag(int i) const;
+
+    /**
+     * @brief Returns the tag of the upload at index i
+     * @param i index of the selected upload. It must be between 0 and MegaTransferData::getNumUploads (not included)
+     * @return Tag of the upload at index i
+     */
+    virtual int getUploadTag(int i) const;
+
+    /**
+     * @brief Returns the priority of the download at index i
+     * @param i index of the selected download. It must be between 0 and MegaTransferData::getNumDownloads (not included)
+     * @return Priority of the download at index i
+     */
+    virtual unsigned long long getDownloadPriority(int i) const;
+
+    /**
+     * @brief Returns the priority of the upload at index i
+     * @param i index of the selected upload. It must be between 0 and MegaTransferData::getNumUploads (not included)
+     * @return Priority of the upload at index i
+     */
+    virtual unsigned long long getUploadPriority(int i) const;
+};
+
+
+/**
  * @brief Provides information about a contact request
  *
  * Developers can use listeners (MegaListener, MegaGlobalListener)
@@ -6594,6 +6663,37 @@ class MegaApi
          * @return Active transfer method for uploads
          */
         int getUploadMethod();
+
+        /**
+         * @brief Get information about transfer queues
+         * @param listener MegaTransferListener to start receiving information about transfers
+         * @return Information about transfer queues
+         */
+        MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Force an onTransferUpdate callback for the specified transfer
+         *
+         * The callback will be received by transfer listeners registered to receive all
+         * callbacks related to callbacks and additionally by the listener in the last
+         * parameter of this function, if it's not NULL.
+         *
+         * @param transfer Transfer that will be provided in the onTransferUpdate callback
+         * @param listener Listener that will receive the callback
+         */
+        void notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Force an onTransferUpdate callback for the specified transfer
+         *
+         * The callback will be received by transfer listeners registered to receive all
+         * callbacks related to callbacks and additionally by the listener in the last
+         * parameter of this function, if it's not NULL.
+         *
+         * @param transferTag Tag of the transfer that will be provided in the onTransferUpdate callback
+         * @param listener Listener that will receive the callback
+         */
+        void notifyTransferByTag(int transferTag, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Get all active transfers

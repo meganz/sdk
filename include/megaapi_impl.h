@@ -466,6 +466,30 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         const char* appData;
 };
 
+class MegaTransferDataPrivate : public MegaTransferData
+{
+public:
+    MegaTransferDataPrivate(TransferList *transferList);
+    MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData);
+
+    virtual ~MegaTransferDataPrivate();
+    virtual MegaTransferData *copy() const;
+    virtual int getNumDownloads() const;
+    virtual int getNumUploads() const;
+    virtual int getDownloadTag(int i) const;
+    virtual int getUploadTag(int i) const;
+    virtual unsigned long long getDownloadPriority(int i) const;
+    virtual unsigned long long getUploadPriority(int i) const;
+
+protected:
+    int numDownloads;
+    int numUploads;
+    vector<int> downloadTags;
+    vector<int> uploadTags;
+    vector<uint64_t> downloadPriorities;
+    vector<uint64_t> uploadPriorities;
+};
+
 class MegaContactRequestPrivate : public MegaContactRequest
 {
 public:
@@ -1349,6 +1373,8 @@ class MegaApiImpl : public MegaApp
         void setUploadMethod(int method);
         int getDownloadMethod();
         int getUploadMethod();
+        MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+        void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
         MegaTransfer* getTransferByTag(int transferTag);

@@ -5243,6 +5243,39 @@ int MegaApiImpl::getUploadMethod()
     return MegaApi::TRANSFER_METHOD_NORMAL;
 }
 
+MegaTransferData *MegaApiImpl::getTransferData(MegaTransferListener *listener)
+{
+    MegaTransferData *data;
+    sdkMutex.lock();
+    data = new MegaTransferDataPrivate(&client->transferlist);
+    if (listener)
+    {
+        transferListeners.insert(listener);
+    }
+    sdkMutex.unlock();
+    return data;
+}
+
+void MegaApiImpl::notifyTransfer(int transferTag, MegaTransferListener *listener)
+{
+    sdkMutex.lock();
+    MegaTransferPrivate *t = getMegaTransferPrivate(transferTag);
+    if (!t)
+    {
+        sdkMutex.unlock();
+        return;
+    }
+
+    fireOnTransferUpdate(t);
+    if (listener)
+    {
+        activeTransfer = t;
+        listener->onTransferUpdate(api, t);
+        activeTransfer = NULL;
+    }
+    sdkMutex.unlock();
+}
+
 MegaTransferList *MegaApiImpl::getTransfers()
 {
     sdkMutex.lock();
@@ -16388,4 +16421,75 @@ PublicLinkProcessor::~PublicLinkProcessor() {}
 vector<Node *> &PublicLinkProcessor::getNodes()
 {
     return nodes;
+}
+
+MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList)
+{
+    this->numDownloads = transferList->transfers[GET].size();
+    this->downloadTags.reserve(numDownloads);
+    this->downloadPriorities.reserve(numDownloads);
+    for (transfer_list::iterator it = transferList->begin(GET); it != transferList->end(GET); it++)
+    {
+        this->downloadTags.push_back((*it)->tag);
+        this->downloadPriorities.push_back((*it)->priority);
+    }
+
+    this->numUploads = transferList->transfers[PUT].size();
+    this->uploadTags.reserve(numUploads);
+    this->uploadPriorities.reserve(numUploads);
+    for (transfer_list::iterator it = transferList->begin(PUT); it != transferList->end(PUT); it++)
+    {
+        this->uploadTags.push_back((*it)->tag);
+        this->uploadPriorities.push_back((*it)->priority);
+    }
+}
+
+MegaTransferDataPrivate::MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData)
+{
+    this->numDownloads = transferData->numDownloads;
+    this->numUploads = transferData->numUploads;
+    this->downloadTags = transferData->downloadTags;
+    this->uploadTags = transferData->uploadTags;
+    this->downloadPriorities = transferData->downloadPriorities;
+    this->uploadPriorities = transferData->uploadPriorities;
+}
+
+MegaTransferDataPrivate::~MegaTransferDataPrivate()
+{
+
+}
+
+MegaTransferData *MegaTransferDataPrivate::copy() const
+{
+    return new MegaTransferDataPrivate(this);
+}
+
+int MegaTransferDataPrivate::getNumDownloads() const
+{
+    return numDownloads;
+}
+
+int MegaTransferDataPrivate::getNumUploads() const
+{
+    return numUploads;
+}
+
+int MegaTransferDataPrivate::getDownloadTag(int i) const
+{
+    return downloadTags[i];
+}
+
+int MegaTransferDataPrivate::getUploadTag(int i) const
+{
+    return uploadTags[i];
+}
+
+unsigned long long MegaTransferDataPrivate::getDownloadPriority(int i) const
+{
+    return downloadPriorities[i];
+}
+
+unsigned long long MegaTransferDataPrivate::getUploadPriority(int i) const
+{
+    return uploadPriorities[i];
 }

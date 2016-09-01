@@ -1721,6 +1721,21 @@ int MegaApi::getUploadMethod()
     return pImpl->getUploadMethod();
 }
 
+MegaTransferData *MegaApi::getTransferData(MegaTransferListener *listener)
+{
+    return pImpl->getTransferData(listener);
+}
+
+void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->notifyTransfer(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::notifyTransferByTag(int transferTag, MegaTransferListener *listener)
+{
+    pImpl->notifyTransfer(transferTag, listener);
+}
+
 MegaTransferList *MegaApi::getTransfers()
 {
     return pImpl->getTransfers();
@@ -3873,6 +3888,46 @@ void MegaStringMap::set(const char *, const char *)
 }
 
 int MegaStringMap::size() const
+{
+    return 0;
+}
+
+MegaTransferData::~MegaTransferData()
+{
+
+}
+
+MegaTransferData *MegaTransferData::copy() const
+{
+    return NULL;
+}
+
+int MegaTransferData::getNumDownloads() const
+{
+    return 0;
+}
+
+int MegaTransferData::getNumUploads() const
+{
+    return 0;
+}
+
+int MegaTransferData::getDownloadTag(int i) const
+{
+    return 0;
+}
+
+int MegaTransferData::getUploadTag(int i) const
+{
+    return 0;
+}
+
+unsigned long long MegaTransferData::getDownloadPriority(int i) const
+{
+    return 0;
+}
+
+unsigned long long MegaTransferData::getUploadPriority(int i) const
 {
     return 0;
 }
