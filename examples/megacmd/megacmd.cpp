@@ -23,7 +23,7 @@
 #ifdef __linux__
 
 #include "megacmd.h"
-#include "mega.h"
+//#include "mega.h"
 
 #include "megacmdutils.h"
 #include "configurationmanager.h"
@@ -400,8 +400,8 @@ string getHelpStr(const char *command)
     os << getUsageStr(command) << endl;
     if(!strcmp(command,"login") )
     {
-        os << "Logs in. Either with email and password, with session ID, or into an exportedfolder"
-                                        << " If login into an exported folder indicate url#key" << endl;
+        os << "Logs in. Either with email and password, with session ID, or into an exportedfolder";
+        os << " If login into an exported folder indicate url#key" << endl;
     }
 //    if(!strcmp(command,"begin") ) return "begin [ephemeralhandle#ephemeralpw]";
 //    if(!strcmp(command,"signup") ) return "signup [email name|confirmationlink]";
@@ -532,14 +532,14 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"passwd") ) return "passwd";
 //    if(!strcmp(command,"retry") ) return "retry";
 //    if(!strcmp(command,"recon") ) return "recon";
-    if(!strcmp(command,"reload") )
+    else if(!strcmp(command,"reload") )
     {
         os << "Forces a reload of the remote files of the user" << endl;
     }
 //    if(!strcmp(command,"logout") ) return "logout";
 //    if(!strcmp(command,"locallogout") ) return "locallogout";
 //    if(!strcmp(command,"symlink") ) return "symlink";
-    if(!strcmp(command,"version") )
+    else if(!strcmp(command,"version") )
     {
         os << "Prints MEGA SDK version" << endl;
     }
@@ -551,7 +551,7 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"chatu") ) return "chatu chatid";
 //    if(!strcmp(command,"chatga") ) return "chatga chatid nodehandle uid";
 //    if(!strcmp(command,"chatra") ) return "chatra chatid nodehandle uid";
-    if(!strcmp(command,"quit") )
+    else if(!strcmp(command,"quit") )
     {
         os << "Quits" << endl;
         os << endl;
@@ -1527,11 +1527,34 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
             return NULL;
         }
 
-        //TODO: implement finding users share node.
-//        User* u;
-//        itll be sth like: if ((u = finduser(c[0].c_str()))) //TODO: implement findUser
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
+        {
+            if (usersList->get(i)->getEmail() == c[0])
+            {
+                 u=usersList->get(i);
+                 break;
+            }
+        }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c[1])
+                {
+                    n=inshares->get(i)->copy();
+                    l=2;
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
+
 //        if ((u = client->finduser(c[0].c_str())))
-//        {/*
+//        {
 //            // locate matching share from this user
 //            handle_set::iterator sit;
 //            string name;
@@ -1552,7 +1575,7 @@ static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepa
 //                    }
 //                }
 //            }
-//        }*/
+//        }
 
         if (!l)
         {
@@ -1814,38 +1837,32 @@ MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
 
             return NULL;
         }
-
-        //TODO: implement finding users share node.
-//        User* u;
-//        itll be sth like: if ((u = finduser(c[0].c_str()))) //TODO: implement findUser
-//        if ((u = client->finduser(c[0].c_str())))
-//        {/*
-//            // locate matching share from this user
-//            handle_set::iterator sit;
-//            string name;
-//            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-//            {
-//                if ((n = client->nodebyhandle(*sit)))
-//                {
-//                    if(!name.size())
-//                    {
-//                        name =  c[1];
-//                        n->client->fsaccess->normalize(&name);
-//                    }
-
-//                    if (!strcmp(name.c_str(), n->displayname()))
-//                    {
-//                        l = 2;
-//                        break;
-//                    }
-//                }
-//            }
-//        }*/
-
-        if (!l)
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
         {
-            return NULL;
+            if (usersList->get(i)->getEmail() == c.front())
+            {
+                u=usersList->get(i);
+                c.pop();
+                break;
+            }
         }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c.front())
+                {
+                    n=inshares->get(i)->copy();
+                    c.pop();
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
     }
     else //local
     {
@@ -2000,37 +2017,32 @@ vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* n
             return NULL;
         }
 
-        //TODO: implement finding users share node.
-//        User* u;
-//        itll be sth like: if ((u = finduser(c[0].c_str()))) //TODO: implement findUser
-//        if ((u = client->finduser(c[0].c_str())))
-//        {/*
-//            // locate matching share from this user
-//            handle_set::iterator sit;
-//            string name;
-//            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-//            {
-//                if ((n = client->nodebyhandle(*sit)))
-//                {
-//                    if(!name.size())
-//                    {
-//                        name =  c[1];
-//                        n->client->fsaccess->normalize(&name);
-//                    }
-
-//                    if (!strcmp(name.c_str(), n->displayname()))
-//                    {
-//                        l = 2;
-//                        break;
-//                    }
-//                }
-//            }
-//        }*/
-
-        if (!l)
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
         {
-            return NULL;
+            if (usersList->get(i)->getEmail() == c.front())
+            {
+                u=usersList->get(i);
+                c.pop();
+                break;
+            }
         }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c.front())
+                {
+                    n=inshares->get(i)->copy();
+                    c.pop();
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
     }
     else //local
     {
@@ -2297,8 +2309,9 @@ static void nodepath(handle h, string* path)
                 if (n->isInShare())
                 {
                     path->insert(0, ":");
+                    string suser=getUserInSharedNode(n,api);
 
-                    if (const char * suser=getUserInSharedNode(n,api))
+                    if (suser.size())
                     {
                         path->insert(0, suser);
                     }

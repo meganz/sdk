@@ -16,7 +16,7 @@ using namespace mega;
  */
 int * getNumFolderFiles(MegaNode *,MegaApi *);
 
-const char * getUserInSharedNode(MegaNode *n, MegaApi *api);
+string getUserInSharedNode(MegaNode *n, MegaApi *api);
 
 const char* getAccessLevelStr(int level);
 

@@ -33,7 +33,7 @@ int * getNumFolderFiles(MegaNode *n, MegaApi *api){
     return nFolderFiles;
 }
 
-const char * getUserInSharedNode(MegaNode *n, MegaApi *api)
+string getUserInSharedNode(MegaNode *n, MegaApi *api)
 {
     MegaShareList * msl = api->getInSharesList();
     for (int i=0;i<msl->size();i++)
@@ -42,12 +42,13 @@ const char * getUserInSharedNode(MegaNode *n, MegaApi *api)
 
         if (share->getNodeHandle() == n->getHandle())
         {
+            string suser = share->getUser();
             delete (msl);
-            return share->getUser();
+            return suser;
         }
     }
     delete (msl);
-    return NULL;
+    return "";
 }
 
 
