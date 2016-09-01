@@ -14467,7 +14467,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     if (!node)
     {
-        megaApi->getNodeByHandle(transfer->getNodeHandle());
+        node = megaApi->getNodeByHandle(transfer->getNodeHandle());
         if (!node)
         {
             LOG_debug << "Folder download failed. Node not found";
