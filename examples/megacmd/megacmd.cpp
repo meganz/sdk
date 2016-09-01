@@ -2584,7 +2584,7 @@ MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferL
 
 
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size){
-
+    return true;
 }
 
 
@@ -3307,7 +3307,10 @@ void downloadNode(string localPath, MegaApi* api, MegaNode *node)
     }
     else
     {
-        LOG_err << "Download failed: " << megaCmdTransferListener->getError()->getErrorString();
+        if (megaCmdTransferListener->getError())
+            LOG_err << "Download failed: " << megaCmdTransferListener->getError()->getErrorString();
+        else
+            LOG_err << "Download failed";
     }
     delete megaCmdTransferListener;
 
@@ -4169,13 +4172,11 @@ static void process_line(char* l)
                                             actUponFetchNodes(megaCmdListener2);
                                             delete megaCmdListener2;
                                             MegaNode *folderRootNode = apiFolder->getRootNode();
+//
                                             MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
-
                                             if (authorizedNode !=NULL)
                                             {
-                                                //TODO: in short future: try this
                                                 downloadNode(localPath, api, authorizedNode);
-
                                                 delete authorizedNode;
                                             }
                                             else
