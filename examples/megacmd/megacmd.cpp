@@ -6815,8 +6815,10 @@ int main()
 //                            "." TOSTRING(MEGA_MICRO_VERSION));
 
 
+    ConfigurationManager::loadConfiguration();
 
-    api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+//    api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+    api=new MegaApi("BdARkQSQ",ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
     for (int i=0;i<10;i++)
     {
         MegaApi *apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
@@ -6869,7 +6871,6 @@ int main()
             // so that we can use rl_message or rl_resize_terminal safely before ever
             // prompting anything.
 
-    ConfigurationManager::loadConfiguration();
     if (!ConfigurationManager::session.empty())
     {
         stringstream logLine;

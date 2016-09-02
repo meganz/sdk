@@ -15,6 +15,12 @@ string ConfigurationManager::configFolder;
 map<string,sync_struct *> ConfigurationManager::configuredSyncs;
 string ConfigurationManager::session;
 
+
+std::string ConfigurationManager::getConfigFolder()
+{
+    return configFolder;
+}
+
 void ConfigurationManager::loadConfigDir(){
     const char *homedir = NULL;
     homedir = getenv("HOME");
