@@ -49,7 +49,7 @@ public:
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(petition_info_t *inf,std::ostringstream *s);
+    void returnAndClosePetition(petition_info_t *inf,std::ostringstream *s,int);
 
 
     /**

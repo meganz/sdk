@@ -170,6 +170,7 @@ int ComunicationsManager::initialize(){
            return errno;
        }
     }
+    return 0;
 }
 
 bool ComunicationsManager::receivedReadlineInput (int readline_fd){
@@ -221,7 +222,7 @@ int ComunicationsManager::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostringstream *s){
+void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostringstream *s, int outCode){
 
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof(cliAddr);
@@ -237,7 +238,12 @@ void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostr
     }
     string sout = s->str();
 
-    int n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
+    int n = send(connectedsocket,(void *)&outCode,sizeof(outCode),MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing output Code to socket: " << errno;
+    }
+    n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
     if (n < 0)
     {
         LOG_err << "ERROR writing to socket: " << errno;

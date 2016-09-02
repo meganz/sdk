@@ -28,7 +28,7 @@ PosixConsole::PosixConsole()
     if (tcgetattr(STDIN_FILENO, &term) < 0)
     {
         perror("tcgetattr");
-      //  exit(1);
+        exit(1);
     }
 
     oldlflag = term.c_lflag;
@@ -39,7 +39,7 @@ PosixConsole::PosixConsole()
     if (tcsetattr(STDIN_FILENO, TCSANOW, &term) < 0)
     {
         perror("tcsetattr");
-       // exit(1);
+        exit(1);
     }
 }
 
@@ -51,7 +51,7 @@ PosixConsole::~PosixConsole()
     if (tcsetattr(STDIN_FILENO, TCSANOW, &term) < 0)
     {
         perror("tcsetattr");
-//        exit(1);
+        exit(1);
     }
 }
 

@@ -8,8 +8,11 @@
 #define OUTSTREAM getCurrentOut()
 
 int getCurrentThread();
+
 ostream &getCurrentOut();
 void setCurrentThreadOutStream(ostream *);
+int getCurrentOutCode();
+void setCurrentOutCode(int );
 int getCurrentThreadLogLevel();
 void setCurrentThreadLogLevel(int);
 

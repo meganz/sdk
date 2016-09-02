@@ -8,6 +8,7 @@ using namespace std;
 // different outstreams for every thread. to gather all the output data
 map<int,ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
 map<int,int> threadLogLevel;
+map<int,int> threadoutCode;
 
 int getCurrentThread(){
     //return std::this_thread::get_id();
@@ -29,6 +30,16 @@ ostream &getCurrentOut(){
     }
 }
 
+int getCurrentOutCode(){
+    int currentThread=getCurrentThread();
+    if ( threadoutCode.find(currentThread) == threadoutCode.end() ) {
+      return 0; //default OK
+    } else {
+      return threadoutCode[currentThread];
+    }
+}
+
+
 int getCurrentThreadLogLevel(){
     int currentThread=getCurrentThread();
     if ( threadLogLevel.find(currentThread) == threadLogLevel.end() ) {
@@ -46,6 +57,9 @@ void setCurrentThreadOutStream(ostream *s){
     outstreams[getCurrentThread()]=s;
 }
 
+void setCurrentOutCode(int outCode){
+    threadoutCode[getCurrentThread()]=outCode;
+}
 
 void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {

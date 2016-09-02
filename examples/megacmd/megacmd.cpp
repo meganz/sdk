@@ -2737,12 +2737,18 @@ void delete_finished_threads()
     }
 }
 
+
+bool consoleFailed = false;
+bool doExit = false;
+
+
 void finalize()
 {
     LOG_info << "closing application ..." ;
     delete_finished_threads();
     delete cm;
-    delete console;
+    if (!consoleFailed)
+        delete console;
     delete api;
     while (!apiFolders.empty())
     {
@@ -2769,8 +2775,6 @@ static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
 
-bool consoleFailed = false;
-
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
 {
@@ -2778,13 +2782,15 @@ static void store_line(char* l)
     {
 //        finalize();
 //        delete console;
-        if (!consoleFailed)
-        {
-            LOG_debug << "Console failed, disabling";
-            consoleFailed=true;
-        }
-        return;
+//        if (!consoleFailed)
+//        {
+//            LOG_debug << "Console failed, disabling";
+//            consoleFailed=true;
+//        }
+//        return;
 //        exit(0);
+        doExit = true;
+        return;
     }
 
     if (*l && prompt == COMMAND)
@@ -6036,6 +6042,7 @@ static void process_line(char* l)
                     }
                     else
                     {
+                        setCurrentOutCode(1);
                         OUTSTREAM << "Invalid command:" << words[0]<<  endl;
                     }
                     break;
@@ -6612,7 +6619,7 @@ void * doProcessLine(void *pointer)
     std::ostringstream   s;
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
-
+    setCurrentOutCode(0);
 
     LOG_verbose << " Processing " << inf->line << " in thread: " << getCurrentThread()
               << " socket output: " <<  inf->outSocket ;
@@ -6624,7 +6631,7 @@ void * doProcessLine(void *pointer)
 
     LOG_verbose << "Output to write in socket " <<inf->outSocket << ": <<" << s.str() << ">>";
 
-    cm->returnAndClosePetition(inf,&s);
+    cm->returnAndClosePetition(inf,&s, getCurrentOutCode());
 
     return NULL;
 }
@@ -6780,6 +6787,7 @@ void megacmd()
             free(line);
             line = NULL;
         }
+        if (doExit) exit(0);
 
         // pass the CPU to the engine (nonblocking)
         //TODO: modify using API
@@ -6866,7 +6874,18 @@ int main()
     //    SimpleLogger::setLogLevel(logFatal);
         SimpleLogger::setLogLevel(logMax); // log level checking is done by loggerCMD
 
-    console = new CONSOLE_CLASS;
+    struct termios term;
+
+    // set up the console
+    if (tcgetattr(STDIN_FILENO, &term) < 0)
+    {
+        consoleFailed=true;
+        console = NULL;
+    }
+    else
+    {
+        console = new CONSOLE_CLASS;
+    }
 
     cm = new ComunicationsManager();
 

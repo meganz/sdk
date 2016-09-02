@@ -60,6 +60,9 @@ try:
 	sockout.connect(('/tmp/megaCMD_'+suid+'/srv_'+str(sockOutId)))
 
 	if (debug): print " at ",getframeinfo(currentframe()).lineno
+	#outCode = sockout.recv(4); #get out code
+	outCode, = struct.unpack('i', sockout.recv(4))#get out code
+
 	data = sockout.recv(100);
 	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	commandOutput=""
@@ -79,6 +82,9 @@ try:
 		print commandOutput,
 
 	#print "<"+str(commandOutput)+">",
+	#print repr(int(outCode))
+	exit(outCode)
 except Exception as ex:
 	print "Unable to connect to service",ex
+	exit(1)
 
