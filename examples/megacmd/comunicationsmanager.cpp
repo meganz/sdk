@@ -199,6 +199,24 @@ int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
     return 0;
 }
 
+
+int ComunicationsManager::waitForPetition()
+{
+    FD_ZERO(&fds);
+    if (sockfd)
+        FD_SET(sockfd, &fds);
+    int rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
+    if (rc < 0)
+    {
+        if (errno  != EINTR) //syscall
+        {
+            LOG_fatal << "Error at select: " << errno;
+            return errno;
+        }
+    }
+    return 0;
+}
+
 /**
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within

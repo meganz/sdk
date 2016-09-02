@@ -2769,6 +2769,8 @@ static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
 
+bool consoleFailed = false;
+
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
 {
@@ -2776,7 +2778,13 @@ static void store_line(char* l)
     {
 //        finalize();
 //        delete console;
-        exit(0);
+        if (!consoleFailed)
+        {
+            LOG_debug << "Console failed, disabling";
+            consoleFailed=true;
+        }
+        return;
+//        exit(0);
     }
 
     if (*l && prompt == COMMAND)
@@ -3448,7 +3456,8 @@ static void process_line(char* l)
         case COMMAND:
             if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
             {
-                store_line(NULL);
+//                store_line(NULL);
+                exit(0);
             }
 
             vector<string> words;
@@ -6025,11 +6034,12 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else
+                    {
+                        OUTSTREAM << "Invalid command:" << words[0]<<  endl;
+                    }
                     break;
             }
-
-            OUTSTREAM << "?Invalid command" << endl;
-
 }
 /*
 // callback for non-EAGAIN request-level errors
@@ -6702,7 +6712,6 @@ void megacmd()
             rl_redisplay();
         }
 //        int rc = -1;
-
         // command editing loop - exits when a line is submitted or the engine requires the CPU
         for (;;)
         {
@@ -6714,7 +6723,11 @@ void megacmd()
             {
                 if (prompt == COMMAND)
                 {
-                    cm->waitForPetitionOrReadlineInput(readline_fd);
+                    if (consoleFailed)
+                        cm->waitForPetition();
+                    else
+                        cm->waitForPetitionOrReadlineInput(readline_fd);
+
 
                     if (cm->receivedReadlineInput(readline_fd)) {
                         rl_callback_read_char();
@@ -6817,8 +6830,7 @@ int main()
 
     ConfigurationManager::loadConfiguration();
 
-//    api=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
-    api=new MegaApi("BdARkQSQ",ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
+    api=new MegaApi("BdARkQSQ",ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent"); // TODO: store user agent somewhere
     for (int i=0;i<10;i++)
     {
         MegaApi *apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!

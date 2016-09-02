@@ -43,6 +43,7 @@ public:
     bool receivedPetition();
 
     int waitForPetitionOrReadlineInput(int readline_fd);
+    int waitForPetition();
 
     /**
      * @brief returnAndClosePetition
