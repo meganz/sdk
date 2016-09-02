@@ -4161,6 +4161,7 @@ static void process_line(char* l)
                                         }
 
                                         MegaApi* apiFolder = getFreeApiFolder();
+                                        apiFolder->setAccountAuth(api->getAccountAuth());
 
                                         MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
                                         apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
