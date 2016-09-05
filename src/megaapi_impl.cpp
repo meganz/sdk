@@ -13273,19 +13273,7 @@ void MegaApiImpl::update()
     sdkMutex.lock();
 
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
-    if(client->curfa == client->newfa.end())
-    {
-        LOG_debug << "PendingFA? 0";
-    }
-    else
-    {
-        HttpReqCommandPutFA* fa = *client->curfa;
-        if(fa)
-        {
-            LOG_debug << "PendingFA? " << client->newfa.size() << " STATUS: " << fa->status;
-        }
-    }
-
+    LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity << " " << client->syncadded
               << " " << client->syncdownrequired << " " << client->syncdownretry
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed

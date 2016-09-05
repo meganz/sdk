@@ -421,6 +421,12 @@ private:
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 24;
 
+    // maximum number of queued putfa before halting the upload queue
+    static const int MAXQUEUEDFA = 24;
+
+    // maximum number of concurrent putfa
+    static const int MAXPUTFA = 6;
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
@@ -530,10 +536,10 @@ public:
     bool statecurrent;
 
     // pending file attribute writes
-    putfa_list newfa;
+    putfa_list queuedfa;
 
-    // current attribute being sent
-    putfa_list::iterator curfa;
+    // current file attributes being sent
+    putfa_list activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands

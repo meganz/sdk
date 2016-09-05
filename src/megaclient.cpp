@@ -752,7 +752,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     pendingcs = NULL;
     pendingsc = NULL;
 
-    curfa = newfa.end();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -894,99 +893,110 @@ void MegaClient::exec()
         looprequested = false;
 
         // file attribute puts (handled sequentially as a FIFO)
-        if (curfa != newfa.end())
+        if (activefa.size())
         {
-            HttpReqCommandPutFA* fa = *curfa;
-
-            switch (fa->status)
+            putfa_list::iterator curfa = activefa.begin();
+            while (curfa != activefa.end())
             {
-                case REQ_SUCCESS:
-                    if (fa->in.size() == sizeof(handle))
-                    {
-                        LOG_debug << "File attribute uploaded OK - " << fa->th;
+                HttpReqCommandPutFA* fa = *curfa;
 
-                        // successfully wrote file attribute - store handle &
-                        // remove from list
-                        handle fah = MemAccess::get<handle>(fa->in.data());
-
-                        Node* n;
-                        handle h;
-                        handlepair_set::iterator it;
-
-                        // do we have a valid upload handle?
-                        h = fa->th;
-
-                        it = uhnh.lower_bound(pair<handle, handle>(h, 0));
-
-                        if (it != uhnh.end() && it->first == h)
+                switch (fa->status)
+                {
+                    case REQ_SUCCESS:
+                        if (fa->in.size() == sizeof(handle))
                         {
-                            h = it->second;
-                        }
+                            LOG_debug << "File attribute uploaded OK - " << fa->th;
 
-                        // are we updating a live node? issue command directly.
-                        // otherwise, queue for processing upon upload
-                        // completion.
-                        if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
-                        {
-                            LOG_debug << "Attaching file attribute";
-                            reqs.add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
+                            // successfully wrote file attribute - store handle &
+                            // remove from list
+                            handle fah = MemAccess::get<handle>(fa->in.data());
+
+                            Node* n;
+                            handle h;
+                            handlepair_set::iterator it;
+
+                            // do we have a valid upload handle?
+                            h = fa->th;
+
+                            it = uhnh.lower_bound(pair<handle, handle>(h, 0));
+
+                            if (it != uhnh.end() && it->first == h)
+                            {
+                                h = it->second;
+                            }
+
+                            // are we updating a live node? issue command directly.
+                            // otherwise, queue for processing upon upload
+                            // completion.
+                            if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
+                            {
+                                LOG_debug << "Attaching file attribute";
+                                reqs.add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
+                            }
+                            else
+                            {
+                                pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                                LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
+                                checkfacompletion(fa->th);
+                            }
                         }
                         else
                         {
-                            pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                            LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                            checkfacompletion(fa->th);
-                        }
-                    }
-                    else
-                    {
-                        LOG_warn << "Error attaching attribute";
+                            LOG_warn << "Error attaching attribute";
 
-                        // check if the failed attribute belongs to an active upload
-                        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
-                        {
-                            Transfer *transfer = it->second;
-                            if (transfer->uploadhandle == fa->th)
+                            // check if the failed attribute belongs to an active upload
+                            for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
                             {
-                                // reduce the number of required attributes to let the upload continue
-                                transfer->minfa--;
-                                checkfacompletion(fa->th);                                
-                                int creqtag = reqtag;
-                                reqtag = 0;
-                                sendevent(99407,"Attribute attach failed during active upload");
-                                reqtag = creqtag;
-                                break;
+                                Transfer *transfer = it->second;
+                                if (transfer->uploadhandle == fa->th)
+                                {
+                                    // reduce the number of required attributes to let the upload continue
+                                    transfer->minfa--;
+                                    checkfacompletion(fa->th);
+                                    int creqtag = reqtag;
+                                    reqtag = 0;
+                                    sendevent(99407,"Attribute attach failed during active upload");
+                                    reqtag = creqtag;
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    delete fa;
-                    newfa.erase(curfa);
-                    LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
+                        delete fa;
+                        curfa = activefa.erase(curfa);
+                        LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
+                        btpfa.reset();
+                        break;
 
-                    btpfa.reset();
-                    curfa = newfa.end();
-                    break;
+                    case REQ_FAILURE:
+                        // repeat request with exponential backoff
+                        LOG_warn << "Error setting file attribute";
+                        curfa = activefa.erase(curfa);
+                        fa->status = REQ_READY;
+                        queuedfa.push_back(fa);
+                        btpfa.backoff();
+                        break;
 
-                case REQ_FAILURE:
-                    // repeat request with exponential backoff
-                    LOG_warn << "Error setting file attribute";
-                    curfa = newfa.end();
-                    btpfa.backoff();
-
-                default:
-                    ;
+                    default:
+                        curfa++;
+                }
             }
         }
 
-        if (newfa.size() && curfa == newfa.end() && btpfa.armed())
+        if (btpfa.armed())
         {
-            // dispatch most recent file attribute put
-            curfa = newfa.begin();
+            while (queuedfa.size() && activefa.size() < MAXPUTFA)
+            {
+                // dispatch most recent file attribute put
+                putfa_list::iterator curfa = queuedfa.begin();
+                HttpReqCommandPutFA* fa = *curfa;
+                queuedfa.erase(curfa);
+                activefa.push_back(fa);
 
-            LOG_debug << "Adding file attribute to the request queue";
-            (*curfa)->status = REQ_INFLIGHT;
-            reqs.add(*curfa);
+                LOG_debug << "Adding file attribute to the request queue";
+                fa->status = REQ_INFLIGHT;
+                reqs.add(fa);
+            }
         }
 
         if (fafcs.size())
@@ -1947,7 +1957,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed file attribute puts
-        if (curfa == newfa.end())
+        if (activefa.size() < MAXPUTFA)
         {
             btpfa.update(&nds);
         }
@@ -2105,7 +2115,7 @@ bool MegaClient::abortbackoff(bool includexfers)
         r = true;
     }
 
-    if (curfa == newfa.end() && btpfa.arm())
+    if (activefa.size() < MAXPUTFA && btpfa.arm())
     {
         r = true;
     }
@@ -2134,9 +2144,9 @@ bool MegaClient::dispatch(direction_t d)
     }
 
     // file attribute jam? halt uploads.
-    if (d == PUT && newfa.size() > 32)
+    if (d == PUT && queuedfa.size() > MAXQUEUEDFA)
     {
-        LOG_warn << "Attribute queue full: " << newfa.size();
+        LOG_warn << "Attribute queue full: " << queuedfa.size();
         return false;
     }
 
@@ -2509,7 +2519,7 @@ void MegaClient::disconnect()
         (it++)->second->retry(API_OK);
     }
 
-    for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
+    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
     {
         (*it)->disconnect();
     }
@@ -2567,13 +2577,18 @@ void MegaClient::locallogout()
     delete pendingcs;
     pendingcs = NULL;
 
-    for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
+    for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
         delete *it;
     }
 
-    newfa.clear();
-    curfa = newfa.end();
+    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
+    {
+        delete *it;
+    }
+
+    queuedfa.clear();
+    activefa.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -3237,14 +3252,18 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    newfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
-    LOG_debug << "File attribute added to queue - " << th << " : " << newfa.size();
+    queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
+    LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
-    if (curfa == newfa.end())
+    while (activefa.size() < MAXPUTFA && queuedfa.size())
     {
-        curfa = newfa.begin();
-        reqs.add(*curfa);
+        putfa_list::iterator curfa = queuedfa.begin();
+        HttpReqCommandPutFA *fa = *curfa;
+        queuedfa.erase(curfa);
+        activefa.push_back(fa);
+        fa->status = REQ_INFLIGHT;
+        reqs.add(fa);
     }
 }
 
