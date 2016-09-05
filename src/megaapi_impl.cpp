@@ -12675,6 +12675,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
