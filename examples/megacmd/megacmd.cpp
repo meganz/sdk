@@ -1418,7 +1418,7 @@ string expanseLocalPath(string path){ //TODO: posix dependent!
 
 bool includeIfIsExported(MegaApi *api, MegaNode * n, void *arg)
 {
-    if (n->isExported())
+   if (n->isExported())
     {
         ((vector<MegaNode*> *) arg)->push_back(n->copy());
     }
@@ -1443,12 +1443,14 @@ bool processTree(MegaApi *api,MegaNode *n, bool processor(MegaApi *, MegaNode *,
     if (children){
         for (int i=0;i<children->size();i++)
         {
-            toret = toret && processor(api,children->get(i),arg);
+            bool childret = processTree(api,children->get(i),processor,arg);
+            toret = toret && childret;
         }
         delete children;
     }
 
-    return processor(api,n,arg);
+    bool currentret = processor(api,n,arg);
+    return toret && currentret;
 }
 
 
@@ -3399,8 +3401,98 @@ void uploadNode(string localPath, MegaApi* api, MegaNode *node)
 }
 
 
+//string getDisplayPath(string givenPath, MegaNode* n, char *pathToShow)
+//{
+//    char * nodepath = api->getNodePath(n);
 
-// execute command
+//    string pathRelativeTo = "NULL"; //TODO: encapsulate all this
+//    string cwpath;
+//    if (givenPath !="" && givenPath.find('/') != string::npos) //TODO: fix in case words <=1
+//    {
+//        nodepath(cwd, &cwpath);
+//        if (givenPath.find_first_of(cwpath)  == 0 )
+//        {
+//            pathRelativeTo = "";
+//        }
+//        else
+//        {
+//            pathRelativeTo = cwpath;
+//        }
+//    }
+//    else
+//        pathRelativeTo = cwpath;
+
+//    if (pathRelativeTo != "")
+//        pathToShow = strstr(nodepath,pathRelativeTo.c_str());
+
+//        if (pathToShow == nodepath) //found at beginning
+//        {
+//            pathToShow+=pathRelativeTo.size();
+//            if (*pathToShow=='/' && pathRelativeTo != "/") pathToShow++;
+//        }
+//        else
+//            pathToShow=nodepath;
+
+//    delete []nodepath;
+//    return pathToShow;
+//}
+
+string getDisplayPath(string givenPath, MegaNode* n)
+{
+    char * pathToNode = api->getNodePath(n);
+    char * pathToShow=pathToNode;
+
+    string pathRelativeTo = "NULL"; //TODO: encapsulate all this
+    string cwpath;
+    //if (givenPath.find('/') != string::npos && !givenPath.find("./") == 0)
+    if (givenPath.find('/') == 0)
+    {
+        pathRelativeTo="";
+    }
+    else{
+        nodepath(cwd, &cwpath); //TODO: cwpath could be taken as argument
+        if (cwpath=="/")
+            pathRelativeTo = cwpath;
+        else
+            pathRelativeTo = cwpath+"/";
+    }
+
+    if (""==givenPath && !strcmp(pathToNode,cwpath.c_str())) { pathToNode[0]= '.'; pathToNode[1]= '\0';}
+
+
+
+    if (pathRelativeTo != "")
+        pathToShow = strstr(pathToNode,pathRelativeTo.c_str());
+
+        if (pathToShow == pathToNode) //found at beginning
+        {
+            pathToShow+=pathRelativeTo.size();
+//            if (*pathToShow=='/' && pathRelativeTo != "/") pathToShow++;
+        }
+        else
+            pathToShow=pathToNode;
+
+    string toret(pathToShow);
+//    string spathToNode(pathToNode);
+//    if (spathToNode.find(pathRelativeTo)==0 && givenPath.find(".")==0)
+//    {
+//        size_t begininrep = 0;
+//        for (int j=0;j<givenPath.size();j++)
+//        {
+//            if (spathToNode.find(givenPath.substr(j))==0)
+//            {
+//                begininrep = j;
+//                break;
+//            }
+//        }
+
+//        toret = givenPath.substr(0,begininrep)+pathToNode;//cuidado con cosas como /a/a/a/b //cuidado con delete posterior
+//    }
+
+    delete []pathToNode;
+    return toret;
+}
+
 static void process_line(char* l)
 {
     switch (prompt)
@@ -3692,7 +3784,6 @@ static void process_line(char* l)
                         if ((int) words.size() > 1)
                         {
                             string rNpath = "NULL";
-                            MegaNode *rN = NULL;
                             string cwpath;
                             if (words[1].find('/') != string::npos)
                             {
@@ -3736,7 +3827,6 @@ static void process_line(char* l)
                                     }
                                 }
 
-                                delete rN;
     //                            delete rNpath;
                             }
                             else
@@ -5845,6 +5935,7 @@ static void process_line(char* l)
                         }
                         if (n)
                         {
+
                             //TODO: add del and ?ets? functionality
 
                             vector<MegaNode *> listOfExported;
@@ -5854,7 +5945,8 @@ static void process_line(char* l)
                                 MegaNode * n = *it;
                                 if (n)
                                 {
-                                    dumpNode(n, 2, 1);//,rNpath); //TODO: poner rNpath adecuado
+                                    string pathToShow = getDisplayPath(words.size()>1?words[1]:"", n);
+                                    dumpNode(n, 2, 1,pathToShow.c_str());//,rNpath); //TODO: poner rNpath adecuado
 
                                     delete n;
                                 }
