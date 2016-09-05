@@ -1416,6 +1416,42 @@ string expanseLocalPath(string path){ //TODO: posix dependent!
     }
 }
 
+bool includeIfIsExported(MegaApi *api, MegaNode * n, void *arg)
+{
+    if (n->isExported())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+    }
+    return true;
+}
+
+bool includeIfIsShared(MegaApi *api, MegaNode * n, void *arg)
+{
+    if (n->isShared())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+    }
+    return true;
+}
+
+bool processTree(MegaApi *api,MegaNode *n, bool processor(MegaApi *, MegaNode *, void *),void *(arg))
+{
+
+    if (!n) return false;
+    bool toret=true;
+    MegaNodeList *children = api->getChildren(n);
+    if (children){
+        for (int i=0;i<children->size();i++)
+        {
+            toret = toret && processor(api,children->get(i),arg);
+        }
+        delete children;
+    }
+
+    return processor(api,n,arg);
+}
+
+
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
 // * path is relative to cwd
@@ -2160,6 +2196,12 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
                     OUTSTREAM << " permanent";
                 }
                 OUTSTREAM << " file link";
+                if (extended_info>1)
+                {
+                    char * publicLink = n->getPublicLink();
+                    OUTSTREAM << ": " << publicLink;
+                    delete []publicLink;
+                }
             }
             break;
 
@@ -2191,6 +2233,12 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
                         OUTSTREAM << " permanent";
                     }
                     OUTSTREAM << " folder link";
+                    if (extended_info>1)
+                    {
+                        char * publicLink = n->getPublicLink();
+                        OUTSTREAM << ": " << publicLink;
+                        delete []publicLink;
+                    }
                 }
                 delete outShares;
             }
@@ -4892,6 +4940,46 @@ static void process_line(char* l)
                         {
                             case 1:		// list all shares (incoming and outgoing)
                                 {
+                                //TODO: deal with switch
+                                //TODO: alt: do this with getoutshares
+                                MegaNode * n;
+                                //                            int del = 0;
+                                //                            int ets = 0;
+
+
+                                if (words.size() > 1)
+                                {
+                                    n = nodebypath(words[1].c_str());
+                                }
+                                else
+                                {
+                                    n=api->getNodeByHandle(cwd);
+                                }
+                                if (n)
+                                {
+                                    //TODO: add del and ?ets? functionality
+
+                                    vector<MegaNode *> listOfShared;
+                                    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
+                                    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+                                    {
+                                        MegaNode * n = *it;
+                                        if (n)
+                                        {
+                                            dumpNode(n, 2, 1);//,rNpath); //TODO: poner rNpath adecuado
+
+                                            delete n;
+                                        }
+                                    }
+                                    listOfShared.clear();
+                                }
+                                else
+                                {
+                                    OUTSTREAM << words[1] << ": Not found" << endl;
+                                }
+
+
+
 //                                    TreeProcListOutShares listoutshares;
 //                                    Node* n;
 
@@ -5739,48 +5827,78 @@ static void process_line(char* l)
 
                         return;
                     }
-//                    else if (words[0] == "export")
-//                    {
-//                        if (words.size() > 1)
-//                        {
-//                            Node* n;
-//                            int del = 0;
-//                            int ets = 0;
-
-//                            if ((n = nodebypath(words[1].c_str())))
-//                            {
-//                                if (words.size() > 2)
-//                                {
-//                                    del = (words[2] == "del");
-//                                    if (!del)
-//                                    {
-//                                        ets = atol(words[2].c_str());
-//                                    }
-//                                }
-
-//                                OUTSTREAM << "Exporting..." << endl;
-
-//                                error e;
-//                                //TODO: modify using API
-////                                if ((e = client->exportnode(n, del, ets)))
-////                                {
-////                                    OUTSTREAM << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
-////                                }
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << words[1] << ": Not found" << endl;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
-//                        }
-
-//                        return;
-//                    }
-                    else if (words[0] == "import")
+                    else if (words[0] == "export")
                     {
+
+                        MegaNode * n;
+                        //                            int del = 0;
+                        //                            int ets = 0;
+
+
+                        if (words.size() > 1)
+                        {
+                            n = nodebypath(words[1].c_str());
+                        }
+                        else
+                        {
+                            n=api->getNodeByHandle(cwd);
+                        }
+                        if (n)
+                        {
+                            //TODO: add del and ?ets? functionality
+
+                            vector<MegaNode *> listOfExported;
+                            processTree(api, n,includeIfIsExported,(void *)&listOfExported);
+                            for (std::vector< MegaNode * >::iterator it = listOfExported.begin() ; it != listOfExported.end(); ++it)
+                            {
+                                MegaNode * n = *it;
+                                if (n)
+                                {
+                                    dumpNode(n, 2, 1);//,rNpath); //TODO: poner rNpath adecuado
+
+                                    delete n;
+                                }
+                            }
+                            listOfExported.clear();
+                        }
+                        else
+                        {
+                            OUTSTREAM << words[1] << ": Not found" << endl;
+                        }
+
+                        //                            //TODO: print and delete all meganodes
+
+
+
+                        //                                        if (words.size() > 2)
+                        //                            {
+                        //                                            //                                    del = (words[2] == "del");
+                        //                                            if (!del)
+                        //                                            {
+                        //                                                ets = atol(words[2].c_str());
+                        //                                            }
+                        //                                        }
+
+                        //                                        OUTSTREAM << "Exporting..." << endl;
+
+                        //                                    error e;
+                        //                            //TODO: modify using API
+                        //                            //                                if ((e = client->exportnode(n, del, ets)))
+                        //                            //                                {
+                        //                            //                                    OUTSTREAM << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+                        //                            //                                }
+
+
+//                    }
+//                    else
+//                    {
+//                        OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
+//                    }
+
+        return;
+    }
+    else if (words[0] == "import")
+    {
                         if (words.size() > 1)
                         {
                             //TODO: modify using API
