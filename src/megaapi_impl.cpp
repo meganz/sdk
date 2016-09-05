@@ -3071,6 +3071,8 @@ MegaFile *MegaFile::unserialize(string *d)
 
     d->erase(0, ptr - d->data());
 
+    transfer->setSourceFileTemporary(megaFile->temporaryfile);
+
     megaFile->setTransfer(transfer);
     return megaFile;
 }
