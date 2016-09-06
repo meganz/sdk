@@ -39,7 +39,7 @@
     self.users = [[MEGASdkManager sharedMEGASdk] contacts];
     for (NSInteger i = 0; i < [[self.users size] integerValue] ; i++) {
         MEGAUser *u = [self.users userAtIndex:i];
-        if ([u access] == MEGAUserVisibilityVisible)
+        if ([u visibility] == MEGAUserVisibilityVisible)
         [self.usersArray addObject:u];
     }
 }
