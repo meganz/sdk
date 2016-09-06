@@ -358,7 +358,8 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"mv") ) return "mv srcremotepath dstremotepath";
     if(!strcmp(command,"cp") ) return "cp srcremotepath dstremotepath|dstemail:";
     if(!strcmp(command,"sync") ) return "sync [localpath dstremotepath| [-ds] cancelslot]";
-    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
+//    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
+    if(!strcmp(command,"export") ) return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
     if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
     if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
     if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
@@ -435,8 +436,8 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the current logs level" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -c" << "\t" << "CMD log level (higher). Messages captured by the command line." << endl;
-        os << " -s" << "\t" << "SDK log level (lower). Messages captured by the engine and libs" << endl;
+        os << " -c" << "\t" << "CMD log level (higher level messages). Messages captured by the command line." << endl;
+        os << " -s" << "\t" << "SDK log level (lower level messages). Messages captured by the engine and libs" << endl;
     }
     else if(!strcmp(command,"pwd") )
     {
@@ -514,7 +515,17 @@ string getHelpStr(const char *command)
         os << "-d" << " " << "ID " << "\t" << "deletes a synchronization" << endl;
         os << "-s" << " " << "ID " << "\t" << "stops(pauses) a synchronization" << endl;
     }
-//    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
+    else if(!strcmp(command,"export") )
+    {
+        os << "Prints/Modifies the status of current exports" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -a" << "\t" << "Adds an export (or modifies it if existing)" << endl;
+        os << " --expire=TIMEDELAY" << "\t" << "Determines the expiration time of a node." << endl;
+        os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), minutes(M), seconds(s), months(m) or years(y)" << endl;
+        os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, 12 days and 3 hours after the current moment" << endl;
+        os << " -d" << "\t" << "Deletes an export" << endl;
+    }
 //    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
 //    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
 //    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
@@ -537,7 +548,6 @@ string getHelpStr(const char *command)
     {
         os << "Forces a reload of the remote files of the user" << endl;
     }
-//    if(!strcmp(command,"logout") ) return "logout";
 //    if(!strcmp(command,"locallogout") ) return "locallogout";
 //    if(!strcmp(command,"symlink") ) return "symlink";
     else if(!strcmp(command,"version") )
@@ -6151,89 +6161,85 @@ static void process_line(char* l)
                         MegaNode * n;
                         //                            int del = 0;
                         //                            int ets = 0;
-                    time_t expireTime = 0;
-                    string sexpireTime = getOption(&cloptions,"expire","");
-                    if ("" != sexpireTime) expireTime = getTimeStampAfter(sexpireTime);
-                    if (expireTime < 0)
-                    {
-                        setCurrentOutCode(2);
-                        OUTSTREAM << "Invalid time " << sexpireTime << endl;
-                        return;
-                    }
-
-                    if (words.size()<=1) words.push_back(string("")); //give at leas an empty so that cwd is used
-
-                    for (int i=1;i<words.size();i++)
-                    {
-                        if (hasWildCards(words[i]))
+                        time_t expireTime = 0;
+                        string sexpireTime = getOption(&cloptions,"expire","");
+                        if ("" != sexpireTime) expireTime = getTimeStampAfter(sexpireTime);
+                        if (expireTime < 0)
                         {
-                            vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
-                            if (nodes)
-                            {
-                                if (!nodes->size())
-                                {
-                                    setCurrentOutCode(2);
-                                    OUTSTREAM << "Nodes not found: " << words[i] << endl;
-                                }
-                                for (std::vector< MegaNode * >::iterator it = nodes->begin() ; it != nodes->end(); ++it)
-                                {
-                                    MegaNode * n = *it;
-                                    if (n)
-                                    {
-                                        if (getFlag(&clflags,"a") )
-                                        {
-                                            LOG_debug << " exporting ... " << n->getName() << " expireTime=" << expireTime;
-                                            exportNode(api, n,expireTime);
-                                        }
-                                        else if (getFlag(&clflags,"d") )
-                                        {
-                                            LOG_debug << " deleting export ... " << n->getName();
-                                            disableExport(api, n);
-                                        }
-                                        else
-                                            dumpListOfExported(api, n, words[i]);
-                                        delete n;
-                                    }
-                                }
-                                nodes->clear();
-                                delete nodes ;
-                            }
-                            else
-                            {
-                                setCurrentOutCode(2);
-                                OUTSTREAM << "Node not found: " << words[i] << endl;
-                            }
+                            setCurrentOutCode(2);
+                            OUTSTREAM << "Invalid time " << sexpireTime << endl;
+                            return;
                         }
-                        else
+
+                        if (words.size()<=1) words.push_back(string("")); //give at leas an empty so that cwd is used
+
+                        for (int i=1;i<words.size();i++)
                         {
-                            MegaNode *n = nodebypath(words[i].c_str());
-                            if (n)
+                            if (hasWildCards(words[i]))
                             {
-                                if (getFlag(&clflags,"a") )
+                                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
+                                if (nodes)
                                 {
-                                    LOG_debug << " exporting ... " << n->getName();
-                                    exportNode(api, n,expireTime);
-                                }
-                                else if (getFlag(&clflags,"d") )
-                                {
-                                    LOG_debug << " deleting export ... " << n->getName();
-                                    disableExport(api, n);
+                                    if (!nodes->size())
+                                    {
+                                        setCurrentOutCode(2);
+                                        OUTSTREAM << "Nodes not found: " << words[i] << endl;
+                                    }
+                                    for (std::vector< MegaNode * >::iterator it = nodes->begin() ; it != nodes->end(); ++it)
+                                    {
+                                        MegaNode * n = *it;
+                                        if (n)
+                                        {
+                                            if (getFlag(&clflags,"a") )
+                                            {
+                                                LOG_debug << " exporting ... " << n->getName() << " expireTime=" << expireTime;
+                                                exportNode(api, n,expireTime);
+                                            }
+                                            else if (getFlag(&clflags,"d") )
+                                            {
+                                                LOG_debug << " deleting export ... " << n->getName();
+                                                disableExport(api, n);
+                                            }
+                                            else
+                                                dumpListOfExported(api, n, words[i]);
+                                            delete n;
+                                        }
+                                    }
+                                    nodes->clear();
+                                    delete nodes ;
                                 }
                                 else
-                                    dumpListOfExported(api, n, words[i]);
-                                delete n;
+                                {
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Node not found: " << words[i] << endl;
+                                }
                             }
                             else
                             {
-                                setCurrentOutCode(2);
-                                OUTSTREAM << "Node not found: " << words[i] << endl;
+                                MegaNode *n = nodebypath(words[i].c_str());
+                                if (n)
+                                {
+                                    if (getFlag(&clflags,"a") )
+                                    {
+                                        LOG_debug << " exporting ... " << n->getName();
+                                        exportNode(api, n,expireTime);
+                                    }
+                                    else if (getFlag(&clflags,"d") )
+                                    {
+                                        LOG_debug << " deleting export ... " << n->getName();
+                                        disableExport(api, n);
+                                    }
+                                    else
+                                        dumpListOfExported(api, n, words[i]);
+                                    delete n;
+                                }
+                                else
+                                {
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Node not found: " << words[i] << endl;
+                                }
                             }
                         }
-//                        else
-//                        {
-//                            OUTSTREAM << "      " << getUsageStr("export") << endl;
-//                        }
-                    }
 
                         //                            //TODO: print and delete all meganodes
 
