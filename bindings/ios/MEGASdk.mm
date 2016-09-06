@@ -97,6 +97,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers() cMemoryOwn:YES];
 }
 
+- (MEGATransferList *)downloadTransfers {
+    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_DOWNLOAD) cMemoryOwn:YES];
+}
+
+- (MEGATransferList *)uploadTransfers {
+    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_UPLOAD) cMemoryOwn:YES];
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
