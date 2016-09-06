@@ -11175,14 +11175,13 @@ void MegaApiImpl::sendPendingTransfers()
                 }
 
                 // File download
-                currentTransfer=transfer;
                 if (!transfer->isStreamingTransfer())
                 {
                     string name;
                     string securename;
                     string path;
 
-					if(parentPath)
+                    if (parentPath)
 					{
 						path = parentPath;
 					}
@@ -11195,10 +11194,9 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					MegaFileGet *f;
-
-					if(node)
+                    if (node)
 					{
-						if(!fileName)
+                        if (!fileName)
                         {
                             attr_map::iterator ait = node->attrs.map.find('n');
                             if(ait == node->attrs.map.end())
@@ -11222,7 +11220,6 @@ void MegaApiImpl::sendPendingTransfers()
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
-						f = new MegaFileGet(client, node, path);
 					}
 					else
 					{
@@ -11234,9 +11231,65 @@ void MegaApiImpl::sendPendingTransfers()
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
-						f = new MegaFileGet(client, publicNode, path);
 					}
 
+                    string wLocalPath;
+                    FileFingerprint *prevFp = NULL;
+                    fsAccess->path2local(&path, &wLocalPath);
+                    FileAccess *fa = fsAccess->newfileaccess();
+                    if (fa->fopen(&wLocalPath, true, false))
+                    {
+                        FileFingerprint fp;
+                        fp.genfingerprint(fa);
+                        if (node)
+                        {
+                            prevFp = node;
+                        }
+                        else
+                        {
+                            const char *fpstring = publicNode->getFingerprint();
+                            prevFp = getFileFingerprintInternal(fpstring);
+                        }
+
+                        if (prevFp && fp == *prevFp)
+                        {
+                            transfer->setState(MegaTransfer::STATE_QUEUED);
+                            transferMap[nextTag] = transfer;
+                            transfer->setTag(nextTag);
+                            transfer->setTotalBytes(fa->size);
+                            transfer->setPath(path.c_str());
+                            fireOnTransferStart(transfer);
+                            if (node)
+                            {
+                                transfer->setNodeHandle(node->nodehandle);
+                            }
+                            else
+                            {
+                                transfer->setNodeHandle(publicNode->getHandle());
+                                delete prevFp;
+                            }
+                            transfer->setDeltaSize(fa->size);
+                            transfer->setSpeed(0);
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
+                            transfer->setState(MegaTransfer::STATE_COMPLETED);
+                            fireOnTransferFinish(transfer, MegaError(API_OK));
+                            delete fa;
+                            break;
+                        }
+                    }
+                    delete fa;
+
+                    currentTransfer = transfer;
+                    if (node)
+                    {
+                        f = new MegaFileGet(client, node, path);
+                    }
+                    else
+                    {
+                        delete prevFp;
+                        f = new MegaFileGet(client, publicNode, path);
+                    }
 					transfer->setPath(path.c_str());
                     f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
@@ -11260,6 +11313,7 @@ void MegaApiImpl::sendPendingTransfers()
                 }
                 else
                 {
+                    currentTransfer = transfer;
                 	m_off_t startPos = transfer->getStartPos();
                 	m_off_t endPos = transfer->getEndPos();
                     if(startPos < 0 || endPos < 0 || startPos > endPos)
