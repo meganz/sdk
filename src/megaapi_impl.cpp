@@ -1831,6 +1831,7 @@ MegaTransferPrivate::~MegaTransferPrivate()
 	delete[] path;
 	delete[] parentPath;
 	delete [] fileName;
+    delete [] appData;
     delete publicNode;
 }
 
