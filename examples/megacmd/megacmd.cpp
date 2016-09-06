@@ -525,6 +525,9 @@ string getHelpStr(const char *command)
         os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), minutes(M), seconds(s), months(m) or years(y)" << endl;
         os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, 12 days and 3 hours after the current moment" << endl;
         os << " -d" << "\t" << "Deletes an export" << endl;
+        os << endl;
+        os << "If a remote path is given it'll be used to add/delete or in case of option selected,"<< endl;
+        os << " it will display all the exports existing in the tree of that path" << endl;
     }
 //    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
 //    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
@@ -2276,8 +2279,8 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
                 OUTSTREAM << ", has attributes " << p + 1;
             }
 
-            if (UNDEF != n->getPublicHandle())
-                //if (n->plink)
+            if (INVALID_HANDLE != n->getPublicHandle())
+//            if (n->isExported())
             {
                 OUTSTREAM << ", shared as exported";
                 if (n->getExpirationTime()) //TODO: validate equivalence
@@ -2294,7 +2297,12 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
                 {
                     char * publicLink = n->getPublicLink();
                     OUTSTREAM << ": " << publicLink;
-                    if (n->getExpirationTime()) OUTSTREAM << " expires at " << getReadableTime(n->getExpirationTime());
+                    if (n->getExpirationTime())
+                    {
+                        if (n->isExpired()) OUTSTREAM << " expired at ";
+                        else OUTSTREAM << " expires at ";
+                        OUTSTREAM << " at " << getReadableTime(n->getExpirationTime());
+                    }
                     delete []publicLink;
                 }
             }
@@ -7332,7 +7340,7 @@ int main()
     ConfigurationManager::loadConfiguration();
 
     api=new MegaApi("BdARkQSQ",ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent"); // TODO: store user agent somewhere
-    for (int i=0;i<10;i++)
+    for (int i=0;i<5;i++)
     {
         MegaApi *apiFolder=new MegaApi("BdARkQSQ",(const char*)NULL, "MegaCMD User Agent"); // TODO: store user agent somewhere, and use path to cache!
         apiFolders.push(apiFolder);
