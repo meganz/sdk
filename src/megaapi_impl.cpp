@@ -11256,23 +11256,39 @@ void MegaApiImpl::sendPendingTransfers()
 
                     string wLocalPath;
                     FileFingerprint *prevFp = NULL;
+                    m_off_t size = 0;
                     fsAccess->path2local(&path, &wLocalPath);
                     FileAccess *fa = fsAccess->newfileaccess();
                     if (fa->fopen(&wLocalPath, true, false))
                     {
-                        FileFingerprint fp;
-                        fp.genfingerprint(fa);
                         if (node)
                         {
                             prevFp = node;
+                            size = node->size;
                         }
                         else
                         {
                             const char *fpstring = publicNode->getFingerprint();
                             prevFp = getFileFingerprintInternal(fpstring);
+                            size = publicNode->getSize();
                         }
 
-                        if (prevFp && fp == *prevFp)
+                        bool duplicate = false;
+                        if (prevFp && prevFp->isvalid)
+                        {
+                            FileFingerprint fp;
+                            fp.genfingerprint(fa);
+                            if (fp == *prevFp)
+                            {
+                                duplicate = true;
+                            }
+                        }
+                        else if (fa->size == size)
+                        {
+                            duplicate = true;
+                        }
+
+                        if (duplicate)
                         {
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
