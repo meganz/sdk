@@ -11072,11 +11072,35 @@ void MegaApiImpl::sendPendingTransfers()
                 }
 
                 nodetype_t type = fa->type;
+                Node *previousNode = client->childnodebyname(parent, fileName);
+                if (previousNode && previousNode->type == type && type == FILENODE)
+                {
+                    FileFingerprint fp;
+                    fp.genfingerprint(fa);
+                    if (fp == *((FileFingerprint *)previousNode))
+                    {
+                        transfer->setState(MegaTransfer::STATE_QUEUED);
+                        transferMap[nextTag] = transfer;
+                        transfer->setTag(nextTag);
+                        transfer->setTotalBytes(fa->size);
+                        fireOnTransferStart(transfer);
+                        transfer->setNodeHandle(previousNode->nodehandle);
+                        transfer->setDeltaSize(fa->size);
+                        transfer->setSpeed(0);
+                        transfer->setStartTime(Waiter::ds);
+                        transfer->setUpdateTime(Waiter::ds);
+                        transfer->setState(MegaTransfer::STATE_COMPLETED);
+                        fireOnTransferFinish(transfer, MegaError(API_OK));
+                        delete fa;
+                        break;
+                    }
+                }
+
                 delete fa;
 
                 if (type == FILENODE)
                 {
-                    currentTransfer = transfer;
+                    currentTransfer = transfer;                    
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
                     f->setTransfer(transfer);
@@ -11084,10 +11108,10 @@ void MegaApiImpl::sendPendingTransfers()
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
-                        if(!f->isvalid)
+                        if (!f->isvalid)
                         {
                             //Unable to read the file
-                            transferMap[nextTag]=transfer;
+                            transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
                             transfer->setState(MegaTransfer::STATE_FAILED);
@@ -11096,10 +11120,11 @@ void MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             //Already existing transfer
-                            transferMap[nextTag]=transfer;
+                            transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
+                            transfer->setTotalBytes(f->size);
                             fireOnTransferStart(transfer);
-                            transfer->setState(MegaTransfer::STATE_COMPLETED);
+                            transfer->setState(MegaTransfer::STATE_CANCELLED);
                             fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
@@ -11229,7 +11254,7 @@ void MegaApiImpl::sendPendingTransfers()
                             fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
                         }
 
-                        transfer->setState(MegaTransfer::STATE_COMPLETED);
+                        transfer->setState(MegaTransfer::STATE_CANCELLED);
                         fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                     }
                 }
