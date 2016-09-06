@@ -34,6 +34,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    tag = 0;
     h = UNDEF;
 }
 
@@ -272,7 +273,7 @@ void File::completed(Transfer* t, LocalNode* l)
         {
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
-            t->client->reqtag = t->tag;
+            t->client->reqtag = tag;
             t->client->putnodes(targetuser.c_str(), newnode, 1);
             t->client->reqtag = creqtag;
         }
@@ -294,7 +295,7 @@ void File::completed(Transfer* t, LocalNode* l)
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
-                                                                  t->tag,
+                                                                  tag,
 #ifdef ENABLE_SYNC
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP));
 #else

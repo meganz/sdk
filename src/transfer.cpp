@@ -403,6 +403,11 @@ void Transfer::failed(error e, dstime timeleft)
         LOG_debug << "Removing transfer";
         state = TRANSFERSTATE_FAILED;
         finished = true;
+
+        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        {
+            client->app->file_removed(*it, API_EFAILED);
+        }
         client->app->transfer_removed(this);
         delete this;
     }
@@ -701,6 +706,7 @@ void Transfer::complete()
                     {
                         // prevent deletion of associated Transfer object in completed()
                         client->filecachedel(*it);
+                        client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
                     }
@@ -709,10 +715,11 @@ void Transfer::complete()
                     {
                         File* f = (*it);
                         files.erase(it++);
-                        if(!success)
+                        if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f);
+                            client->app->file_removed(*it, API_EFAILED);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -783,6 +790,7 @@ void Transfer::completefiles()
     {
         // prevent deletion of associated Transfer object in completed()
         ids.push_back((*it)->dbid);
+        client->app->file_complete(*it);
         (*it)->transfer = NULL;
         (*it)->completed(this, NULL);
         files.erase(it++);

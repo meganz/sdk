@@ -2458,8 +2458,8 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
     }
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;    
-    t->completefiles();
     t->state = TRANSFERSTATE_COMPLETED;
+    t->completefiles();
     looprequested = true;
     app->transfer_complete(t);
     delete t;
@@ -2723,7 +2723,7 @@ bool MegaClient::procsc()
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 tctable->del(cachedfilesdbids.at(i));
-                                app->transfer_resume(&cachedfiles.at(i));
+                                app->file_resume(&cachedfiles.at(i));
                             }
                             cachedfiles.clear();
                             cachedfilesdbids.clear();
@@ -7818,7 +7818,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             tctable->del(cachedfilesdbids.at(i));
-            app->transfer_resume(&cachedfiles.at(i));
+            app->file_resume(&cachedfiles.at(i));
         }
         cachedfiles.clear();
         cachedfilesdbids.clear();
@@ -9903,7 +9903,16 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             }
             f->file_it = t->files.insert(t->files.begin(), f);
             f->transfer = t;
+            f->tag = reqtag;
             filecacheadd(f);
+            app->file_added(f);
+
+            if (overquotauntil && overquotauntil > Waiter::ds)
+            {
+                dstime timeleft = overquotauntil - Waiter::ds;
+                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                t->bt.backoff(timeleft);
+            }
         }
         else
         {
@@ -9949,6 +9958,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             t->lastaccesstime = time(NULL);
             t->tag = reqtag;
+            f->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
 
             f->file_it = t->files.insert(t->files.begin(), f);
@@ -9957,6 +9967,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             transferlist.addtransfer(t);
             app->transfer_added(t);
+            app->file_added(f);
             looprequested = true;
 
             if (overquotauntil && overquotauntil > Waiter::ds)
@@ -9981,6 +9992,7 @@ void MegaClient::stopxfer(File* f)
         Transfer *transfer = f->transfer;
         transfer->files.erase(f->file_it);
         filecachedel(f);
+        app->file_removed(f, API_EINCOMPLETE);
         f->transfer = NULL;
         f->terminated();
 

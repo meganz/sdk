@@ -1040,12 +1040,9 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
 
 struct MegaFile : public File
 {
-    int tag;
     MegaFile();
 
     void setTransfer(MegaTransferPrivate *transfer);
-    void setTag(int tag);
-    int getTag();
     MegaTransferPrivate *getTransfer();
     virtual bool serialize(string*);
 
@@ -1605,6 +1602,8 @@ protected:
         void processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer);
         void processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
+        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error error, dstime timeleft);
+        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e);
 
         MegaApi *api;
         MegaThread thread;
@@ -1775,13 +1774,14 @@ protected:
         virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
 
         // global transfer queue updates (separate signaling towards the queued objects)
-        virtual void transfer_added(Transfer*);
-        virtual void transfer_removed(Transfer*);
+        virtual void file_added(File*);
+        virtual void file_removed(File*, error e);
+        virtual void file_complete(File*);
+        virtual void file_resume(string*);
+
         virtual void transfer_prepare(Transfer*);
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
-        virtual void transfer_complete(Transfer*);
-        virtual void transfer_resume(string*);
 
         virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);

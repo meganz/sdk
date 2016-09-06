@@ -97,6 +97,9 @@ struct MEGA_API File: public FileFingerprint
     virtual bool serialize(string*);
 
     static File* unserialize(string*);
+
+    // tag of the file
+    int tag;
 };
 
 struct MEGA_API SyncFileGet: public File

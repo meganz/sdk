@@ -3017,16 +3017,6 @@ void MegaFile::setTransfer(MegaTransferPrivate *transfer)
     this->megaTransfer = transfer;
 }
 
-void MegaFile::setTag(int tag)
-{
-    this->tag = tag;
-}
-
-int MegaFile::getTag()
-{
-    return tag;
-}
-
 MegaTransferPrivate *MegaFile::getTransfer()
 {
     return megaTransfer;
@@ -5284,10 +5274,14 @@ MegaTransferList *MegaApiImpl::getTransfers()
     {
         for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != client->transferlist.end((direction_t)d); it++)
         {
-            MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
-            if (transfer)
+            Transfer *t = (*it);
+            for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
             {
-                transfers.push_back(transfer);
+                MegaTransferPrivate* transfer = getMegaTransferPrivate((*it2)->tag);
+                if (transfer)
+                {
+                    transfers.push_back(transfer);
+                }
             }
         }
     }
@@ -5339,10 +5333,14 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
     vector<MegaTransfer *> transfers;
     for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != client->transferlist.end((direction_t)type); it++)
     {
-        MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
-        if (transfer)
+        Transfer *t = (*it);
+        for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
         {
-            transfers.push_back(transfer);
+            MegaTransferPrivate* transfer = getMegaTransferPrivate((*it2)->tag);
+            if (transfer)
+            {
+                transfers.push_back(transfer);
+            }
         }
     }
     MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
@@ -6975,22 +6973,18 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
+void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
 {
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(tr->tag);
-    if (!transfer)
+    for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
-        return;
+        MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
+        if (!transfer)
+        {
+            continue;
+        }
+        processTransferFailed(t, transfer, e, timeleft);
     }
 
-    MegaError megaError(e, timeleft / 10);
-    transfer->setStartTime(Waiter::ds);
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setDeltaSize(0);
-    transfer->setSpeed(0);
-    transfer->setLastError(megaError);
-    transfer->setState(tr->state);
-    transfer->setPriority(tr->priority);
 
     if (e == API_EOVERQUOTA && timeleft)
     {
@@ -7009,8 +7003,6 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
             }
         }
     }
-
-    fireOnTransferTemporaryError(transfer, megaError);
 }
 
 char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
@@ -7299,9 +7291,10 @@ long long SizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-void MegaApiImpl::transfer_added(Transfer *t)
+void MegaApiImpl::file_added(File *f)
 {
-	MegaTransferPrivate *transfer = currentTransfer;
+    Transfer *t = f->transfer;
+    MegaTransferPrivate *transfer = currentTransfer;
     if (!transfer)
     {
         transfer = new MegaTransferPrivate(t->type);
@@ -7309,22 +7302,22 @@ void MegaApiImpl::transfer_added(Transfer *t)
 
         if (t->type == GET)
         {
-            transfer->setNodeHandle(t->files.back()->h);
+            transfer->setNodeHandle(f->h);
         }
 
         string path;
-        fsAccess->local2path(&(t->files.back()->localname), &path);
+        fsAccess->local2path(&f->localname, &path);
         transfer->setPath(path.c_str());
     }
 
-	currentTransfer = NULL;
+    currentTransfer = NULL;
     transfer->setTransfer(t);
     transfer->setState(t->state);
     transfer->setPriority(t->priority);
     transfer->setTotalBytes(t->size);
     transfer->setTransferredBytes(t->progresscompleted);
-    transfer->setTag(t->tag);
-	transferMap[t->tag]=transfer;
+    transfer->setTag(f->tag);
+    transferMap[f->tag] = transfer;
 
     if (t->type == GET)
     {
@@ -7340,94 +7333,67 @@ void MegaApiImpl::transfer_added(Transfer *t)
     fireOnTransferStart(transfer);
 }
 
-void MegaApiImpl::transfer_removed(Transfer *t)
+void MegaApiImpl::file_removed(File *f, error e)
 {
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
-    if (!transfer)
+    MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
+    if (transfer)
     {
-        return;
+        processTransferRemoved(f->transfer, transfer, e);
     }
+}
 
-    if (t->type == GET)
+void MegaApiImpl::file_complete(File *f)
+{
+    MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
+    if (transfer)
     {
-        if (pendingDownloads > 0)
-        {
-            pendingDownloads--;
-        }
-
-        if (totalDownloads > 0)
-        {
-            totalDownloads--;
-        }
+        processTransferComplete(f->transfer, transfer);
     }
-    else
-    {
-        if (pendingUploads > 0)
-        {
-            pendingUploads--;
-        }
-
-        if (totalUploads > 0)
-        {
-            totalUploads--;
-        }
-    }
-
-    transfer->setStartTime(Waiter::ds);
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setState(t->state);
-    transfer->setPriority(t->priority);
-    fireOnTransferFinish(transfer, transfer->getLastError());
 }
 
 void MegaApiImpl::transfer_prepare(Transfer *t)
 {
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
-    if (!transfer)
+    for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
-        return;
+        MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
+        if (!transfer)
+        {
+            continue;
+        }
+        processTransferPrepare(t, transfer);
     }
-
-    processTransferPrepare(t, transfer);
 }
 
-void MegaApiImpl::transfer_update(Transfer *tr)
+void MegaApiImpl::transfer_update(Transfer *t)
 {
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(tr->tag);
-    if (!transfer)
+    for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
-        return;
-    }
+        MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
+        if (!transfer)
+        {
+            continue;
+        }
 
-    if (transfer->getUpdateTime() == Waiter::ds
-            && transfer->getState() == tr->state
-            && transfer->getPriority() == tr->priority
-            && (!tr->slot
-                || (tr->slot->progressreported
-                    && tr->slot->progressreported != tr->size)))
-    {
-        // don't send more than one callback per decisecond
-        // if the state doesn't change, the priority doesn't change
-        // and there isn't anything new or it's not the first
-        // nor the last callback
-        return;
-    }
+        if (it == t->files.begin()
+                && transfer->getUpdateTime() == Waiter::ds
+                && transfer->getState() == t->state
+                && transfer->getPriority() == t->priority
+                && (!t->slot
+                    || (t->slot->progressreported
+                        && t->slot->progressreported != t->size)))
+        {
+            // don't send more than one callback per decisecond
+            // if the state doesn't change, the priority doesn't change
+            // and there isn't anything new or it's not the first
+            // nor the last callback
+            return;
+        }
 
-    processTransferUpdate(tr, transfer);
+        processTransferUpdate(t, transfer);
+    }
 }
 
-void MegaApiImpl::transfer_complete(Transfer* tr)
-{
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(tr->tag);
-    if (!transfer)
-    {
-        return;
-    }
-
-    processTransferComplete(tr, transfer);
-}
-
-void MegaApiImpl::transfer_resume(string *d)
+void MegaApiImpl::file_resume(string *d)
 {
     if (!d || d->size() < sizeof(char))
     {
@@ -7471,7 +7437,7 @@ void MegaApiImpl::transfer_resume(string *d)
         return;
     }
 
-    file->setTag(client->nextreqtag());
+    client->nextreqtag();
     currentTransfer = file->getTransfer();
     client->startxfer((direction_t)type, file);
     waiter->notify();
@@ -9247,7 +9213,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                                                    fingerprint.size() ? fingerprint.c_str() : NULL,
                                                    INVALID_HANDLE));
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
-	}
+    }
 }
 
 // reload needed
@@ -10158,16 +10124,26 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
 
 void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer)
 {
-    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-    long long speed = integrateSpeed(deltaSize, tr->type);
     dstime currentTime = Waiter::ds;
+    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
+    if (tr->tag == transfer->getTag())
+    {
+        integrateSpeed(deltaSize, tr->type);
+    }
 
     transfer->setStartTime(currentTime);
     transfer->setUpdateTime(currentTime);
     transfer->setTransferredBytes(tr->size);
     transfer->setPriority(tr->priority);
     transfer->setDeltaSize(deltaSize);
-    transfer->setSpeed(speed);
+    if (tr->type == GET)
+    {
+        transfer->setSpeed(downloadSpeed);
+    }
+    else
+    {
+        transfer->setSpeed(uploadSpeed);
+    }
 
     if (tr->type == GET)
     {
@@ -10176,10 +10152,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
             pendingDownloads--;
         }
 
-        string path;
-        fsAccess->local2path(&tr->localfilename, &path);
-        transfer->setPath(path.c_str());
-        transfer->setState(tr->state);
+        transfer->setState(MegaTransfer::STATE_COMPLETED);
         fireOnTransferFinish(transfer, MegaError(API_OK));
     }
     else
@@ -10188,6 +10161,53 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
     }
+}
+
+void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error e, dstime timeleft)
+{
+    MegaError megaError(e, timeleft / 10);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
+    transfer->setLastError(megaError);
+    transfer->setState(tr->state);
+    transfer->setPriority(tr->priority);
+    fireOnTransferTemporaryError(transfer, megaError);
+}
+
+void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e)
+{
+    if (tr->type == GET)
+    {
+        if (pendingDownloads > 0)
+        {
+            pendingDownloads--;
+        }
+
+        if (totalDownloads > 0)
+        {
+            totalDownloads--;
+        }
+    }
+    else
+    {
+        if (pendingUploads > 0)
+        {
+            pendingUploads--;
+        }
+
+        if (totalUploads > 0)
+        {
+            totalUploads--;
+        }
+    }
+
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
+    transfer->setPriority(tr->priority);
+    fireOnTransferFinish(transfer, transfer->getLastError());
 }
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
@@ -11050,7 +11070,6 @@ void MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
-                    f->setTag(nextTag);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, true);
                     if (!started)
@@ -11058,7 +11077,6 @@ void MegaApiImpl::sendPendingTransfers()
                         if(!f->isvalid)
                         {
                             //Unable to read the file
-                            transfer->setSyncTransfer(false);
                             transferMap[nextTag]=transfer;
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
@@ -11071,21 +11089,6 @@ void MegaApiImpl::sendPendingTransfers()
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
                             fireOnTransferFinish(transfer, MegaError(API_EEXIST));
-                        }
-                    }
-                    else if(transfer->getTag() == -1)
-                    {
-                        //Already existing transfer
-                        //Delete the new one and set the transfer as regular
-                        transfer_map::iterator it = client->transfers[PUT].find(f);
-                        if (it != client->transfers[PUT].end())
-                        {
-                            MegaTransferPrivate* previousTransfer = getMegaTransferPrivate(it->second->tag);
-                            if (previousTransfer)
-                            {
-                                previousTransfer->setSyncTransfer(false);
-                                delete transfer;
-                            }
                         }
                     }
                     currentTransfer = NULL;
@@ -11198,40 +11201,22 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
-                    f->setTag(nextTag);
                     f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
-                    if(transfer->getTag() == -1)
+                    if (!ok)
                     {
                         //Already existing transfer
-                        if (ok)
-                        {
-                            //Set the transfer as regular
-                            transfer_map::iterator it = client->transfers[GET].find(f);
-                            if(it != client->transfers[GET].end())
-                            {
-                                MegaTransferPrivate* previousTransfer = getMegaTransferPrivate(it->second->tag);
-                                if (previousTransfer)
-                                {
-                                    previousTransfer->setSyncTransfer(false);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            //Already existing transfer
-                            transferMap[nextTag]=transfer;
-                            transfer->setTag(nextTag);
-                            fireOnTransferStart(transfer);
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
 
-                            long long overquotaDelay = getBandwidthOverquotaDelay();
-                            if (overquotaDelay)
-                            {
-                                fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
-                            }
-
-                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                        long long overquotaDelay = getBandwidthOverquotaDelay();
+                        if (overquotaDelay)
+                        {
+                            fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
                         }
+
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                     }
                 }
                 else
@@ -12691,7 +12676,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 #ifdef _WIN32
-                    if(transfer->type==GET)
+                    if (transfer->type == GET)
                     {
                         transfer->localfilename.append("", 1);
                         WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -12701,18 +12686,35 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 #endif
 
-                megaTransfer->setSyncTransfer(true);
                 megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
 
+                bool found = false;
                 file_list files = transfer->files;
                 file_list::iterator iterator = files.begin();
                 while (iterator != files.end())
                 {
                     File *file = *iterator;
                     iterator++;
-                    if(!file->syncxfer) client->stopxfer(file);
+                    if (file->tag == transferTag)
+                    {
+                        found = true;
+                        if (!file->syncxfer)
+                        {
+                            client->stopxfer(file);
+                            fireOnRequestFinish(request, MegaError(API_OK));
+                        }
+                        else
+                        {
+                            fireOnRequestFinish(request, MegaError(API_EACCESS));
+                        }
+                        break;
+                    }
                 }
-                fireOnRequestFinish(request, MegaError(API_OK));
+
+                if (!found)
+                {
+                    fireOnRequestFinish(request, MegaError(API_ENOENT));
+                }
             }
             else
             {
@@ -12749,13 +12751,6 @@ void MegaApiImpl::sendPendingRequests()
             for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; )
             {
                 Transfer *transfer = it->second;
-                MegaTransferPrivate* megaTransfer = getMegaTransferPrivate(transfer->tag);
-                if (megaTransfer)
-                {
-                    megaTransfer->setSyncTransfer(true);
-                    megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
-                }
-
                 it++;
 
                 file_list files = transfer->files;
@@ -12766,7 +12761,12 @@ void MegaApiImpl::sendPendingRequests()
 					iterator++;
                     if (!file->syncxfer)
                     {
-                        client->stopxfer(file);
+                        MegaTransferPrivate* megaTransfer = getMegaTransferPrivate(file->tag);
+                        if (megaTransfer)
+                        {
+                            megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
+                            client->stopxfer(file);
+                        }
                     }
 				}
             }
