@@ -34,6 +34,10 @@
  #define MEGA_API
 #endif
 
+// it needs to be reviewed that serialization/unserialization is not relying on this
+typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
+// if your build fails here, please contact MEGA developers
+
 // platform-specific includes and defines
 #ifdef _WIN32
 #include "mega/win32/megasys.h"
@@ -266,6 +270,9 @@ typedef deque<Transfer*> transfer_list;
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
+
+// map a request tag with pending paths of temporary files
+typedef map<int, vector<string> > pendingfiles_map;
 
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;

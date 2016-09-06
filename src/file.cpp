@@ -34,8 +34,9 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
-    tag = 0;
+    temporaryfile = false;
     h = UNDEF;
+    tag = 0;
 }
 
 File::~File()
@@ -93,7 +94,10 @@ bool File::serialize(string *d)
     flag = syncxfer;
     d->append((const char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10);
+    flag = temporaryfile;
+    d->append((const char*)&flag, sizeof(flag));
+
+    d->append("\0\0\0\0\0\0\0\0", 9);
 
     return true;
 }
@@ -203,13 +207,16 @@ File *File::unserialize(string *d)
     file->syncxfer = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
+    file->temporaryfile = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0", 9))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 10;
+    ptr += 9;
 
     d->erase(0, ptr - d->data());
     return file;

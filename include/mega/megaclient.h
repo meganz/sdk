@@ -622,6 +622,10 @@ public:
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
 
+    // path of temporary files
+    // waiting for the completion of a putnodes
+    pendingfiles_map pendingfiles;
+
     // transfer tslots
     transferslot_list tslots;
 
@@ -939,6 +943,9 @@ public:
 
     // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
     handle getrootpublicfolder();
+
+    // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
+    handle getpublicfolderhandle();
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false);
