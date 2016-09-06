@@ -111,6 +111,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
                                                                        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     if (!imageOptions) {
+        CGDataProviderRelease(dataProvider);
         return false;
     }
     
