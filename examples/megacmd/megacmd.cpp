@@ -4588,8 +4588,7 @@ static void process_line(char* l)
                                 }
                                 else //remote file
                                 {
-                                    //wildcar
-                                    if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
+                                    if (hasWildCards(words[1]))
                                     {
                                         if (words.size()>2)
                                         {
