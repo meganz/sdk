@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+
 using namespace mega;
 
 //void clear_display(){
@@ -1942,6 +1943,11 @@ MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
 }
 
 
+bool hasWildCards(string &what)
+{
+    return what.find('*')!=string::npos || what.find('?')!=string::npos;// || what.find('/')!=string::npos
+}
+
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
 // * path is relative to cwd
@@ -2155,6 +2161,82 @@ static void listnodeshares(MegaNode* n)
 //    listnodeshares(n);
 //}
 
+
+std::string getReadableTime(const time_t rawtime)
+{
+    struct tm * dt;
+    char buffer [40];
+    dt = localtime(&rawtime);
+    strftime(buffer, sizeof(buffer), "%a, %d %b %Y %T %z", dt); // Folloging RFC 2822 (as in date -R)
+    return std::string(buffer);
+}
+
+
+time_t getTimeStampAfter(string timestring)
+{
+    char *buffer = new char[timestring.size()+1];
+    strcpy(buffer,timestring.c_str());
+
+    time_t days=0,hours=0,minutes=0,seconds=0,months=0,years=0;
+
+    char * ptr = buffer;
+    char * last = buffer;
+    while (*ptr!='\0')
+    {
+        if (*ptr < '0' || *ptr > '9')
+        {
+            switch (*ptr)
+            {
+            case 'd':
+                *ptr='\0';
+                days = atoi (last);
+                break;
+            case 'h':
+                *ptr='\0';
+                hours = atoi (last);
+                break;
+            case 'M':
+                *ptr='\0';
+                minutes = atoi (last);
+                break;
+            case 's':
+                *ptr='\0';
+                seconds = atoi (last);
+                break;
+            case 'm':
+                *ptr='\0';
+                months = atoi (last);
+                break;
+            case 'y':
+                *ptr='\0';
+                years = atoi (last);
+                break;
+            default:
+            {
+                delete[] buffer;
+                return -1;
+            }
+            }
+            last = ptr+1;
+        }
+        ptr++;
+    }
+    struct tm * dt;
+    time_t now = time(NULL);
+    dt = localtime(&now);
+
+    dt->tm_mday += days;
+    dt->tm_hour += hours;
+    dt->tm_min += minutes;
+    dt->tm_sec += seconds;
+    dt->tm_mon += months;
+    dt->tm_year += years;
+
+    delete [] buffer;
+    return mktime(dt);
+}
+
+
 void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL)
 {
 
@@ -2202,6 +2284,7 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
                 {
                     char * publicLink = n->getPublicLink();
                     OUTSTREAM << ": " << publicLink;
+                    if (n->getExpirationTime()) OUTSTREAM << " expires at " << getReadableTime(n->getExpirationTime());
                     delete []publicLink;
                 }
             }
@@ -3216,7 +3299,7 @@ static inline std::string &rtrim(std::string &s, const char &c) {
 }
 
 //
-bool setOptionsAndFlags(map<string,string> *opt,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
+bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
 {
     bool discarded = false;
     //delete finished threads
@@ -3254,6 +3337,20 @@ bool setOptionsAndFlags(map<string,string> *opt,map<string,int> *flags,vector<st
                     LOG_err << "Invalid argument: "<< optname;
                     discarded = true;
                 }
+            }
+            else
+            {
+                string cleared = ltrim(w,'-');
+                size_t p=cleared.find_first_of("=");
+                string option = cleared.substr(0,p);
+
+//                if (p+1<cleared.size())
+//                {
+                    string value = cleared.substr(p+1);
+                    (*opts)[option] = value;
+
+//                }
+
             }
             it=ws->erase(it);
         }
@@ -3324,6 +3421,26 @@ int getFlag(map<string,int> *flags, const char * optname)
 {
     return flags->count(optname)?(*flags)[optname]:0;
 }
+
+
+string getOption(map<string,string> *cloptions, const char * optname, string defaultValue="")
+{
+    return cloptions->count(optname)?(*cloptions)[optname]:defaultValue;
+}
+
+int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue=0)
+{
+    if (cloptions->count(optname))
+    {
+        int i;
+        istringstream is((*cloptions)[optname]);
+        is >> i;
+        return i;
+    }
+    else
+        return defaultValue;
+}
+
 
 int getLinkType(string link){
     int posHash=link.find_first_of("#");
@@ -3491,6 +3608,113 @@ string getDisplayPath(string givenPath, MegaNode* n)
 
     delete []pathToNode;
     return toret;
+}
+
+void exportNode(MegaApi *api, MegaNode *n,int expireTime)
+{
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+
+    api->exportNode(n,expireTime,megaCmdListener);
+    megaCmdListener->wait();
+    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    {
+        MegaNode *nexported = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+        if (nexported)
+        {
+            char *nodepath = api->getNodePath(nexported);
+            OUTSTREAM << "Exported " << nodepath << " : "  << nexported->getPublicLink();
+            if (nexported->getExpirationTime())
+            {
+                OUTSTREAM << " expires at " << getReadableTime(nexported->getExpirationTime());
+            }
+            OUTSTREAM << endl;
+            delete[] nodepath;
+            delete nexported;
+        }
+        else{
+            setCurrentOutCode(2);
+            LOG_err << "Exported node not found!" ;
+        }
+    }
+    else
+    {
+        //TODO: deal with errors
+        if (megaCmdListener->getError())
+        {
+            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
+            OUTSTREAM << "Could not exportNode" << megaCmdListener->getError()->getErrorString() << endl;
+        }
+        else
+        {
+            setCurrentOutCode(3);
+            LOG_fatal << "Empty error at exportNode" ;
+        }
+
+    }
+    //TODO: errors!
+    delete megaCmdListener;
+}
+
+void disableExport(MegaApi *api, MegaNode *n)
+{
+    if (!n->isExported())
+    {
+        setCurrentOutCode(3);
+        OUTSTREAM << "Could not disable export: node not exported." << endl;
+        return;
+    }
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+
+    api->disableExport(n,megaCmdListener);
+    megaCmdListener->wait();
+    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    {
+        MegaNode *nexported = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+        if (nexported)
+        {
+            char *nodepath = api->getNodePath(nexported);
+            OUTSTREAM << "Disabled export " << nodepath << " : "  << nexported->getPublicLink() << endl;
+            delete[] nodepath;
+            delete nexported;
+        }
+        else{
+            setCurrentOutCode(2);
+            LOG_err << "Exported node not found!" ;
+        }
+    }
+    else
+    {
+        //TODO: deal with errors
+        if (megaCmdListener->getError())
+        {
+            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
+            OUTSTREAM << "Could not disable export: " << megaCmdListener->getError()->getErrorString() << endl;
+        }
+        else
+        {
+            setCurrentOutCode(3);
+            LOG_fatal << "Empty error at disable Export" ;
+        }
+
+    }
+    delete megaCmdListener;
+}
+void dumpListOfExported(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfExported;
+    processTree(api, n,includeIfIsExported,(void *)&listOfExported);
+    for (std::vector< MegaNode * >::iterator it = listOfExported.begin() ; it != listOfExported.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            dumpNode(n, 2, 1,pathToShow.c_str());//,rNpath); //TODO: poner rNpath adecuado
+
+            delete n;
+        }
+    }
+    listOfExported.clear();
 }
 
 static void process_line(char* l)
@@ -3756,6 +3980,11 @@ static void process_line(char* l)
             {
                 validParams.insert("d");
                 validParams.insert("s");
+            }else if ("export" == thecommand)
+            {
+                validParams.insert("a");
+                validParams.insert("d");
+                validParams.insert("expire");
             }
 
             if (!validCommand(thecommand)) { //unknown command
@@ -3798,7 +4027,7 @@ static void process_line(char* l)
                                 }
                             }
 
-                                if (words[1].find('*')!=string::npos || words[1].find('?')!=string::npos)// || words[1].find('/')!=string::npos)
+                                if (hasWildCards(words[1]))
                                 {
                                     vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
                                     if (nodesToList)
@@ -3885,7 +4114,7 @@ static void process_line(char* l)
                             {
                                 for (uint i = 1; i < words.size(); i++ )
                                 {
-                                    if (words[i].find('*')!=string::npos || words[i].find('?')!=string::npos)
+                                    if (hasWildCards(words[i]))
                                     {
                                         vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
                                         for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin() ; it != nodesToDelete->end(); ++it)
@@ -5923,40 +6152,89 @@ static void process_line(char* l)
                         MegaNode * n;
                         //                            int del = 0;
                         //                            int ets = 0;
+                    time_t expireTime = 0;
+                    string sexpireTime = getOption(&cloptions,"expire","");
+                    if ("" != sexpireTime) expireTime = getTimeStampAfter(sexpireTime);
+                    if (expireTime < 0)
+                    {
+                        setCurrentOutCode(2);
+                        OUTSTREAM << "Invalid time " << sexpireTime << endl;
+                        return;
+                    }
 
+                    if (words.size()<=1) words.push_back(string("")); //give at leas an empty so that cwd is used
 
-                        if (words.size() > 1)
+                    for (int i=1;i<words.size();i++)
+                    {
+                        if (hasWildCards(words[i]))
                         {
-                            n = nodebypath(words[1].c_str());
-                        }
-                        else
-                        {
-                            n=api->getNodeByHandle(cwd);
-                        }
-                        if (n)
-                        {
-
-                            //TODO: add del and ?ets? functionality
-
-                            vector<MegaNode *> listOfExported;
-                            processTree(api, n,includeIfIsExported,(void *)&listOfExported);
-                            for (std::vector< MegaNode * >::iterator it = listOfExported.begin() ; it != listOfExported.end(); ++it)
+                            vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
+                            if (nodes)
                             {
-                                MegaNode * n = *it;
-                                if (n)
+                                if (!nodes->size())
                                 {
-                                    string pathToShow = getDisplayPath(words.size()>1?words[1]:"", n);
-                                    dumpNode(n, 2, 1,pathToShow.c_str());//,rNpath); //TODO: poner rNpath adecuado
-
-                                    delete n;
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Nodes not found: " << words[i] << endl;
                                 }
+                                for (std::vector< MegaNode * >::iterator it = nodes->begin() ; it != nodes->end(); ++it)
+                                {
+                                    MegaNode * n = *it;
+                                    if (n)
+                                    {
+                                        if (getFlag(&clflags,"a") )
+                                        {
+                                            LOG_debug << " exporting ... " << n->getName() << " expireTime=" << expireTime;
+                                            exportNode(api, n,expireTime);
+                                        }
+                                        else if (getFlag(&clflags,"d") )
+                                        {
+                                            LOG_debug << " deleting export ... " << n->getName();
+                                            disableExport(api, n);
+                                        }
+                                        else
+                                            dumpListOfExported(api, n, words[i]);
+                                        delete n;
+                                    }
+                                }
+                                nodes->clear();
+                                delete nodes ;
                             }
-                            listOfExported.clear();
+                            else
+                            {
+                                setCurrentOutCode(2);
+                                OUTSTREAM << "Node not found: " << words[i] << endl;
+                            }
                         }
                         else
                         {
-                            OUTSTREAM << words[1] << ": Not found" << endl;
+                            MegaNode *n = nodebypath(words[i].c_str());
+                            if (n)
+                            {
+                                if (getFlag(&clflags,"a") )
+                                {
+                                    LOG_debug << " exporting ... " << n->getName();
+                                    exportNode(api, n,expireTime);
+                                }
+                                else if (getFlag(&clflags,"d") )
+                                {
+                                    LOG_debug << " deleting export ... " << n->getName();
+                                    disableExport(api, n);
+                                }
+                                else
+                                    dumpListOfExported(api, n, words[i]);
+                                delete n;
+                            }
+                            else
+                            {
+                                setCurrentOutCode(2);
+                                OUTSTREAM << "Node not found: " << words[i] << endl;
+                            }
                         }
+//                        else
+//                        {
+//                            OUTSTREAM << "      " << getUsageStr("export") << endl;
+//                        }
+                    }
 
                         //                            //TODO: print and delete all meganodes
 
@@ -5987,10 +6265,10 @@ static void process_line(char* l)
 //                        OUTSTREAM << "      export remotepath [expireTime|del]" << endl;
 //                    }
 
-        return;
-    }
-    else if (words[0] == "import")
-    {
+                            return;
+                        }
+                        else if (words[0] == "import")
+                        {
                         if (words.size() > 1)
                         {
                             //TODO: modify using API
