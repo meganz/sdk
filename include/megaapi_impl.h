@@ -856,6 +856,8 @@ public:
     MegaTextChatPrivate(const MegaTextChat *);
     MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
+    virtual MegaTextChat *copy() const;
+
     virtual ~MegaTextChatPrivate();
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;

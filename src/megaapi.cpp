@@ -3715,6 +3715,11 @@ MegaTextChat::~MegaTextChat()
 
 }
 
+MegaTextChat *MegaTextChat::copy() const
+{
+    return NULL;
+}
+
 MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;

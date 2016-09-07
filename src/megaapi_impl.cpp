@@ -16023,6 +16023,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int sh
     this->title = title;
 }
 
+MegaTextChat *MegaTextChatPrivate::copy() const
+{
+    return new MegaTextChatPrivate(this);
+}
+
 MegaTextChatPrivate::~MegaTextChatPrivate()
 {
     delete peers;

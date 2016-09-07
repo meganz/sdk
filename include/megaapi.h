@@ -1339,6 +1339,19 @@ public:
     virtual ~MegaTextChat();
 
     /**
+     * @brief Creates a copy of this MegaTextChat object
+     *
+     * The resulting object is fully independent of the source MegaTextChat,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChat object
+     */
+    virtual MegaTextChat *copy() const;
+
+    /**
      * @brief getHandle Returns the MegaHandle of the chat.
      * @return MegaHandle of the chat.
      */
