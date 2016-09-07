@@ -58,7 +58,7 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 static string changeemail, changecode;
 
 // chained folder link creation
-static handle h = UNDEF;
+static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
@@ -780,22 +780,30 @@ void DemoApp::share_result(error e)
     }
     else
     {
-        if (h != UNDEF && !del)
+        if (hlink != UNDEF)
         {
-            Node *n = client->nodebyhandle(h);
-            if (!n)
+            if (!del)
             {
-                char buf[sizeof h * 4 / 3 + 3];
-                Base64::btoa((byte *)&h, sizeof h, buf);
+                Node *n = client->nodebyhandle(hlink);
+                if (!n)
+                {
+                    char buf[sizeof hlink * 4 / 3 + 3];
+                    Base64::btoa((byte *)&hlink, sizeof hlink, buf);
 
-                cout << "Node was not found. (" << buf << ")" << endl;
+                    cout << "Node was not found. (" << buf << ")" << endl;
 
-                h = UNDEF;
-                del = ets = 0;
-                return;
+                    hlink = UNDEF;
+                    del = ets = 0;
+                    return;
+                }
+
+                client->getpubliclink(n, del, ets);
             }
-
-            client->getpubliclink(n, del, ets);
+            else
+            {
+                hlink = UNDEF;
+                del = ets = 0;
+            }
         }
     }
 }
@@ -3678,7 +3686,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            h = UNDEF;
+                            hlink = UNDEF;
                             del = ets = 0;
 
                             Node* n;
@@ -3706,7 +3714,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    h = n->nodehandle;
+                                    hlink = n->nodehandle;
                                     ets = etstmp;
                                     del = deltmp;
                                 }
@@ -4380,7 +4388,7 @@ void DemoApp::exportnode_result(error e)
     }
 
     del = ets = 0;
-    h = UNDEF;
+    hlink = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -4413,7 +4421,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
             cout << "No key available for exported folder" << endl;
 
             del = ets = 0;
-            h = UNDEF;
+            hlink = UNDEF;
             return;
         }
 
@@ -4425,7 +4433,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
     }
 
     del = ets = 0;
-    h = UNDEF;
+    hlink = UNDEF;
 }
 
 // the requested link could not be opened
