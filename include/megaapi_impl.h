@@ -882,7 +882,7 @@ class MegaTextChatListPrivate : public MegaTextChatList
 {
 public:
     MegaTextChatListPrivate();
-    MegaTextChatListPrivate(textchat_vector *list);
+    MegaTextChatListPrivate(textchat_map *list);
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
@@ -1772,7 +1772,7 @@ protected:
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
 
-        virtual void chats_updated(textchat_vector *);
+        virtual void chats_updated(textchat_map *);
 #endif
 
 #ifdef ENABLE_SYNC

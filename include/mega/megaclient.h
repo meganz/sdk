@@ -674,7 +674,7 @@ public:
     void filecachedel(File*);
 
 #ifdef ENABLE_CHAT
-    textchat_vector chatnotify;
+    textchat_map chatnotify;
     void notifychat(TextChat *);
 #endif
 

@@ -6960,7 +6960,7 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify.push_back(chat);
+    chatnotify[chat->id] = chat;
 }
 
 #endif

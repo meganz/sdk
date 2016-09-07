@@ -7781,8 +7781,8 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     if (!e)
     {
         // encapsulate the chat in a list for the request
-        textchat_vector chatList;
-        chatList.push_back(chat);
+        textchat_map chatList;
+        chatList[chat->id] = chat;
 
         MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
         request->setMegaTextChatList(megaChatList);
@@ -7903,7 +7903,7 @@ void MegaApiImpl::chatsettitle_result(error e)
 
 
 
-void MegaApiImpl::chats_updated(textchat_vector *chats)
+void MegaApiImpl::chats_updated(textchat_map *chats)
 {
     if (!chats || !chats->size())
     {
@@ -16143,15 +16143,16 @@ MegaTextChatListPrivate::MegaTextChatListPrivate()
 
 }
 
-MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
+MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 {
     MegaTextChatPrivate *megaChat;
     MegaTextChatPeerListPrivate *chatPeers;
     TextChat *chat;
 
-    for (unsigned i = 0; i < list->size(); i++)
+    textchat_map::iterator it;
+    for (it = list->begin(); it != list->end(); it++)
     {
-        chat = list->at(i);
+        chat = it->second;
         chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
         megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->url, chat->shard, chatPeers, chat->group, chat->ou, chat->title);
 

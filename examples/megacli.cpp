@@ -620,7 +620,7 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_vector *chats)
+void DemoApp::chats_updated(textchat_map *chats)
 {
     if (chats)
     {
@@ -633,9 +633,10 @@ void DemoApp::chats_updated(textchat_vector *chats)
             cout << chats->size() << " chats updated or created" << endl;
         }
 
-        for (int i = 0; i < chats->size(); i++)
+        textchat_map::iterator it;
+        for (it = chats->begin(); it != chats->end(); it++)
         {
-            printChatInformation(chats->at(i));
+            printChatInformation(it->second);
         }
     }
 }
