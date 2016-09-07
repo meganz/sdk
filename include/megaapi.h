@@ -1398,6 +1398,9 @@ public:
     /**
      * @brief getTitle Returns the title of the chat, if any.
      *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
      * @return The title of the chat as a byte array encoded in Base64URL.
      */
     virtual const char *getTitle() const;

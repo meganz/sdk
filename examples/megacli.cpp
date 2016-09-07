@@ -680,10 +680,11 @@ void DemoApp::printChatInformation(TextChat *chat)
     }
     if (!chat->title.empty())
     {
-        char tstr[chat->title.size() * 4 / 3 + 4];
+        char *tstr = new char[chat->title.size() * 4 / 3 + 4];
         Base64::btoa((const byte *)chat->title.data(), chat->title.size(), tstr);
 
         cout << "\tTitle: " << tstr << endl;
+        delete [] tstr;
     }
 }
 
