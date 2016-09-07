@@ -484,6 +484,9 @@ string getHelpStr(const char *command)
     else if(!strcmp(command,"mkdir") )
     {
         os << "Creates a directory or a directories hierarchy" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -p" << "\t" << "Allow recursive" << endl;
     }
     else if(!strcmp(command,"rm") )
     {
@@ -4004,6 +4007,10 @@ static void process_line(char* l)
                 validParams.insert("d");
                 validParams.insert("expire");
             }
+            else if ("mkdir" == thecommand)
+            {
+                validParams.insert("p");
+            }
 
             if (!validCommand(thecommand)) { //unknown command
                 OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
@@ -5470,6 +5477,7 @@ static void process_line(char* l)
                             MegaNode *currentnode=api->getNodeByHandle(cwd);
                             if (currentnode)
                             {
+
                                 string rest = words[1];
                                 while ( rest.length() )
                                 {
@@ -5488,6 +5496,13 @@ static void process_line(char* l)
                                         MegaNode *existing_node = api->getChildNode(currentnode,newfoldername.c_str());
                                         if (!existing_node)
                                         {
+                                            if (!getFlag(&clflags,"p") && !lastleave )
+                                            {
+                                                setCurrentOutCode(2);
+                                                OUTSTREAM << "Use -p to create folders recursively" << endl;
+                                                delete currentnode;
+                                                return;
+                                            }
                                             LOG_verbose << "Creating (sub)folder: " << newfoldername;
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                             api->createFolder(newfoldername.c_str(),currentnode,megaCmdListener);
