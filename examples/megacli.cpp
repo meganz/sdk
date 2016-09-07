@@ -585,6 +585,41 @@ void DemoApp::chatremoveaccess_result(error e)
     }
 }
 
+void DemoApp::chatupdatepermissions_result(error e)
+{
+    if (e)
+    {
+        cout << "Permissions update failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Permissions updated successfully" << endl;
+    }
+}
+
+void DemoApp::chattruncate_result(error e)
+{
+    if (e)
+    {
+        cout << "Truncate message/s failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Message/s truncated successfully" << endl;
+    }
+}
+void DemoApp::chatsettitle_result(error e)
+{
+    if (e)
+    {
+        cout << "Set title failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Title updated successfully" << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_vector *chats)
 {
     if (chats)
@@ -596,6 +631,11 @@ void DemoApp::chats_updated(textchat_vector *chats)
         else
         {
             cout << chats->size() << " chats updated or created" << endl;
+        }
+
+        for (int i = 0; i < chats->size(); i++)
+        {
+            printChatInformation(chats->at(i));
         }
     }
 }
@@ -637,6 +677,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << " no peers (only you as participant)" << endl;
+    }
+    if (!chat->title.empty())
+    {
+        char *tstr = new char[chat->title.size() * 4 / 3 + 4];
+        Base64::btoa((const byte *)chat->title.data(), chat->title.size(), tstr);
+
+        cout << "\tTitle: " << tstr << endl;
+        delete [] tstr;
     }
 }
 
@@ -1939,13 +1987,13 @@ static void process_line(char* l)
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chatf " << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
+                cout << "      chatst chatid title64" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -3810,6 +3858,29 @@ static void process_line(char* l)
                         else
                         {
                             cout << "       chatra chatid nodehandle uid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatst")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            if (words.size() == 2)  // empty title / remove title
+                            {
+                                client->setChatTitle(chatid, "");
+                            }
+                            else if (words.size() == 3)
+                            {
+                                client->setChatTitle(chatid, words[2].c_str());
+                            }
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatst chatid title64" << endl;
                             return;
                         }
                     }

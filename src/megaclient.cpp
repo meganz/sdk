@@ -4343,6 +4343,7 @@ void MegaClient::sc_chatupdate()
     userpriv_vector *upnotif = NULL;
     bool group = false;
     handle ou = UNDEF;
+    string title;
 
     bool done = false;
     while (!done)
@@ -4373,6 +4374,11 @@ void MegaClient::sc_chatupdate()
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
+            case MAKENAMEID2('c','t'):
+                jsonsc.storeobject(&title);
+                break;
+
+
             case EOO:
                 done = true;
 
@@ -4397,6 +4403,7 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->url = ""; // not received in action packets
                     chat->ou = ou;
+                    chat->title = title;
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -7129,6 +7136,7 @@ void MegaClient::procmcf(JSON *j)
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
+            string title;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -7159,6 +7167,10 @@ void MegaClient::procmcf(JSON *j)
                     group = j->getint();
                     break;
 
+                case MAKENAMEID2('c','t'):
+                    j->storeobject(&title);
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
                             && shard != -1)
@@ -7169,6 +7181,7 @@ void MegaClient::procmcf(JSON *j)
                         chat->url = url;
                         chat->shard = shard;
                         chat->group = group;
+                        chat->title = title;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)
@@ -10117,9 +10130,9 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
+void MegaClient::inviteToChat(handle chatid, const char *uid, int priv, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));
+    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv, title));
 }
 
 void MegaClient::removeFromChat(handle chatid, const char *uid)
@@ -10207,6 +10220,11 @@ void MegaClient::updateChatPermissions(handle chatid, const char *uid, int priv)
 void MegaClient::truncateChat(handle chatid, handle messageid)
 {
     reqs.add(new CommandChatTruncate(this, chatid, messageid));
+}
+
+void MegaClient::setChatTitle(handle chatid, const char *title)
+{
+    reqs.add(new CommandChatSetTitle(this, chatid, title));
 }
 
 #endif
