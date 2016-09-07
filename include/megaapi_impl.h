@@ -399,6 +399,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
+        void setSourceFileTemporary(bool temporary);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -432,12 +433,17 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual MegaNode *getPublicMegaNode() const;
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
+        virtual bool isSourceFileTemporary() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
         virtual void setAppData(const char *data);
         virtual const char* getAppData() const;
+        virtual void setState(int state);
+        virtual int getState() const;
+        virtual void setPriority(unsigned long long p);
+        virtual unsigned long long getPriority() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -445,11 +451,14 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 	protected:		
 		int type;
 		int tag;
+        int state;
+        uint64_t priority;
 
         struct
         {
             bool syncTransfer : 1;
             bool streamingTransfer : 1;
+            bool temporarySourceFile : 1;
         };
 
         int64_t startTime;
@@ -476,6 +485,30 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaError lastError;
         int folderTransferTag;
         const char* appData;
+};
+
+class MegaTransferDataPrivate : public MegaTransferData
+{
+public:
+    MegaTransferDataPrivate(TransferList *transferList);
+    MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData);
+
+    virtual ~MegaTransferDataPrivate();
+    virtual MegaTransferData *copy() const;
+    virtual int getNumDownloads() const;
+    virtual int getNumUploads() const;
+    virtual int getDownloadTag(int i) const;
+    virtual int getUploadTag(int i) const;
+    virtual unsigned long long getDownloadPriority(int i) const;
+    virtual unsigned long long getUploadPriority(int i) const;
+
+protected:
+    int numDownloads;
+    int numUploads;
+    vector<int> downloadTags;
+    vector<int> uploadTags;
+    vector<uint64_t> downloadPriorities;
+    vector<uint64_t> uploadPriorities;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -1028,9 +1061,6 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
 
 struct MegaFile : public File
 {
-    // app-internal sequence number for queue management
-    int seqno;
-    static int nextseqno;
     MegaFile();
 
     void setTransfer(MegaTransferPrivate *transfer);
@@ -1065,7 +1095,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*);
     void terminated();
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
+    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
     virtual bool serialize(string*);
@@ -1338,7 +1368,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
+        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -1347,6 +1377,12 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
+        void pauseTransfer(int transferTag, bool pause, MegaRequestListener* listener = NULL);
+        void moveTransferUp(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferDown(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferToFirst(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
+        void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         void enableTransferResumption(const char* loggedOutId);
         void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
@@ -1355,6 +1391,8 @@ class MegaApiImpl : public MegaApp
         void setUploadMethod(int method);
         int getDownloadMethod();
         int getUploadMethod();
+        MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+        void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
         MegaTransfer* getTransferByTag(int transferTag);
@@ -1558,6 +1596,9 @@ protected:
         static void *threadEntryPoint(void *param);
         static ExternalLogger *externalLogger;
 
+        long long integrateSpeed(long long numBytes, direction_t direction);
+        MegaTransferPrivate* getMegaTransferPrivate(int tag);
+
         void fireOnRequestStart(MegaRequestPrivate *request);
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
@@ -1579,6 +1620,12 @@ protected:
 #ifdef ENABLE_CHAT
         void fireOnChatsUpdate(MegaTextChatList *chats);
 #endif
+
+        void processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer);
+        void processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer);
+        void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
+        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error error, dstime timeleft);
+        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e);
 
         MegaApi *api;
         MegaThread thread;
@@ -1749,13 +1796,14 @@ protected:
         virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
 
         // global transfer queue updates (separate signaling towards the queued objects)
-        virtual void transfer_added(Transfer*);
-        virtual void transfer_removed(Transfer*);
+        virtual void file_added(File*);
+        virtual void file_removed(File*, error e);
+        virtual void file_complete(File*);
+        virtual void file_resume(string*);
+
         virtual void transfer_prepare(Transfer*);
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
-        virtual void transfer_complete(Transfer*);
-        virtual void transfer_resume(string*);
 
         virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);

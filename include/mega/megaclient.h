@@ -27,6 +27,7 @@
 #include "gfx.h"
 #include "filefingerprint.h"
 #include "request.h"
+#include "transfer.h"
 #include "treeproc.h"
 #include "sharenodekeys.h"
 #include "account.h"
@@ -303,6 +304,9 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+    // determine if more transfers fit in the pipeline
+    bool moretransfers(direction_t);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -417,8 +421,11 @@ private:
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 24;
 
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
+    // maximum number of queued putfa before halting the upload queue
+    static const int MAXQUEUEDFA = 24;
+
+    // maximum number of concurrent putfa
+    static const int MAXPUTFA = 6;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -529,10 +536,10 @@ public:
     bool statecurrent;
 
     // pending file attribute writes
-    putfa_list newfa;
+    putfa_list queuedfa;
 
-    // current attribute being sent
-    putfa_list::iterator curfa;
+    // current file attributes being sent
+    putfa_list activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -601,6 +608,9 @@ public:
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
 
+    // transfer list to manage the priority of transfers
+    TransferList transferlist;
+
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];
 
@@ -611,6 +621,10 @@ public:
     // database IDs of cached files and transfers
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
+
+    // path of temporary files
+    // waiting for the completion of a putnodes
+    pendingfiles_map pendingfiles;
 
     // transfer tslots
     transferslot_list tslots;

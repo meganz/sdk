@@ -829,7 +829,7 @@ main() {
         case $opt in
             h)
                 display_help $0
-                exit
+                exit 1
                 ;;
             a)
                 echo "* Enabling MegaApi"
@@ -917,11 +917,11 @@ main() {
                 ;;
             \?)
                 display_help $0
-                exit
+                exit 1
                 ;;
             *)
                 display_help $0
-                exit
+                exit 1
                 ;;
         esac
     done
