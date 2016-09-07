@@ -4064,7 +4064,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->targetemail;
 
                                 char buffer[12];
-                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4081,7 +4081,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->originatoremail;
 
                                 char buffer[12];
-                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4860,7 +4860,7 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     else
     {
         char id[12];
-        int size = Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
+        Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
         cout << "Session with id " << id << " has been killed" << endl;
     }
 }

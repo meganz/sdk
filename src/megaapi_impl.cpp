@@ -16082,7 +16082,7 @@ const char *MegaTextChatPrivate::getTitle() const
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
-    for (unsigned int i = 0; i < size(); i++)
+    for (unsigned int i = 0; i < (unsigned int) size(); i++)
     {
         delete list.at(i);
     }
@@ -16095,7 +16095,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 
 const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 {
-    if (i >= size())
+    if (i >= (unsigned int) size())
     {
         return NULL;
     }
@@ -16107,7 +16107,7 @@ const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 
 MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
 {
-    if (i >= size())
+    if (i >= (unsigned int) size())
     {
         return NULL;
     }
@@ -16131,7 +16131,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *
 {
     MegaTextChatPrivate *chat;
 
-    for (unsigned int i = 0; i < list->size(); i++)
+    for (unsigned int i = 0; i < (unsigned) list->size(); i++)
     {
         chat = new MegaTextChatPrivate(list->get(i));
         this->list.push_back(chat);
