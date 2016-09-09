@@ -3484,6 +3484,17 @@ int getintOption(map<string,string> *cloptions, const char * optname, int defaul
         return defaultValue;
 }
 
+string visibilityToString(int visibility)
+{
+    //VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE = 1, INACTIVE = 2, BLOCKED = 3
+    if (visibility==MegaUser::VISIBILITY_VISIBLE) return "visible";
+    if (visibility==MegaUser::VISIBILITY_HIDDEN) return "hidden";
+    if (visibility==MegaUser::VISIBILITY_UNKNOWN) return "unkown visibility";
+    if (visibility==MegaUser::VISIBILITY_INACTIVE) return "inactive";
+    if (visibility==MegaUser::VISIBILITY_BLOCKED) return "blocked";
+    return "undefined visibility";
+}
+
 
 int getLinkType(string link){
     int posHash=link.find_first_of("#");
@@ -5305,8 +5316,6 @@ static void process_line(char* l)
                                     const char* ptr;
                                     if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
                                     {
-                                        //TODO: deal with all this
-//                                        return client->app->login_result(client->folderaccess(words[1].c_str()));
                                         MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
                                         api->loginToFolder(words[1].c_str(),megaCmdListener);
                                         actUponLogin(megaCmdListener);
@@ -5607,6 +5616,43 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "users")
                     {
+                        MegaUserList* usersList=api->getContacts();
+                        if (usersList){
+                            for (int i=0;i<usersList->size(); i++){
+                                MegaUser *user = usersList->get(i);
+                                OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
+                                if (user->getTimestamp()) OUTSTREAM << " since " << getReadableTime(user->getTimestamp());
+                                OUTSTREAM << endl;
+
+                                MegaShareList *shares = api->getOutShares();
+                                if (shares)
+                                {
+                                    bool first_share = true;
+                                    for (int j=0;j<shares->size();j++)
+                                    {
+                                        if (!strcmp(shares->get(j)->getUser(),user->getEmail()))
+                                        {
+                                            MegaNode * n = api->getNodeByHandle(shares->get(j)->getNodeHandle() );
+                                            if (n)
+                                            {
+                                                if (first_share)
+                                                {
+                                                    OUTSTREAM << "\tSharing:" << endl;
+                                                    first_share=false;
+                                                }
+
+                                                OUTSTREAM << "\t";
+                                                dumpNode(n,2,0,getDisplayPath("/",n).c_str());
+                                                delete n;
+                                            }
+                                        }
+                                    }
+                                    delete shares;
+                                }
+                            }
+                            delete usersList;
+                        }
+
                         //TODO: modify using API
 //                        for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
 //                        {
