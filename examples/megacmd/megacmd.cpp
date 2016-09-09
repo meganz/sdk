@@ -2211,7 +2211,7 @@ std::string getReadableTime(const time_t rawtime)
 }
 
 
-time_t getTimeStampAfter(string timestring)
+time_t getTimeStampAfter(time_t initial, string timestring)
 {
     char *buffer = new char[timestring.size()+1];
     strcpy(buffer,timestring.c_str());
@@ -2261,8 +2261,7 @@ time_t getTimeStampAfter(string timestring)
         ptr++;
     }
     struct tm * dt;
-    time_t now = time(NULL);
-    dt = localtime(&now);
+    dt = localtime(&initial);
 
     dt->tm_mday += days;
     dt->tm_hour += hours;
@@ -2275,6 +2274,11 @@ time_t getTimeStampAfter(string timestring)
     return mktime(dt);
 }
 
+time_t getTimeStampAfter(string timestring)
+{
+    time_t initial = time(NULL);
+    return getTimeStampAfter(initial,timestring);
+}
 
 void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL)
 {
@@ -4135,6 +4139,12 @@ static void process_line(char* l)
             else if ("users" == thecommand)
             {
                 validParams.insert("s");
+            }
+            else if ("invite" == thecommand)
+            {
+                validParams.insert("d");
+                validParams.insert("r");
+                validParams.insert("message");
             }
 
             if (!validCommand(thecommand)) { //unknown command
@@ -6294,6 +6304,46 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
+                        if (words.size()>1)
+                        {
+                            string email = words[1];
+                            //TODO: add email validation
+                            if (email.find("@") == string::npos
+                                    || email.find(".") == string::npos
+                                    || (email.find("@") >  email.find(".") ) )
+                            {
+                                OUTSTREAM << "No valid email provided" << endl;
+                                OUTSTREAM << "      "<< getUsageStr("invite") << endl;
+                            }
+                            else
+                            {
+                                int action = MegaContactRequest::INVITE_ACTION_ADD;
+                                if (getFlag(&clflags,"d") ) action = MegaContactRequest::INVITE_ACTION_DELETE;
+                                if (getFlag(&clflags,"r") ) action = MegaContactRequest::INVITE_ACTION_REMIND;
+
+                                string message = getOption(&cloptions,"message","");
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                api->inviteContact(email.c_str(),message.c_str(),action,megaCmdListener);
+                                megaCmdListener->wait();
+                                if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                {
+                                    OUTSTREAM << "Invitation sent to user: " << email << endl;
+                                }
+                                else if (megaCmdListener->getError()->getErrorCode() == MegaError::API_EACCESS)
+                                {
+                                    setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
+                                    OUTSTREAM << "Reminder not yet available: " << " available after 15 days" << endl;
+                                    //TODO:  output time when remiender will be available << getReadableTime(getTimeStampAfter(GETCRTIMESTAMP),"15d")) ))
+                                }
+                                else{
+
+                                    setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
+                                    OUTSTREAM << "Failed to invite " << email << ": " << megaCmdListener->getError()->getErrorString() << endl;
+                                }
+                                delete megaCmdListener;
+                            }
+                        }
+
                         //TODO: modify using API
 //                        if (client->finduser(client->me)->email.compare(words[1]))
 //                        {
