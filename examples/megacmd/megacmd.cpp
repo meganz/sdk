@@ -2319,7 +2319,7 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
             {
                 for (int i=0;i<outShares->size();i++)
                 {
-                    if (outShares->get(i))
+                    if (outShares->get(i)->getNodeHandle()==n->getHandle())
                     {
                         OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << ", access "
                                   << getAccessLevelStr(outShares->get(i)->getAccess());
@@ -2354,10 +2354,9 @@ void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title =
             {
                 for (int i=0;i<pendingoutShares->size();i++)
                 {
-                    if (pendingoutShares->get(i))
+                    if (pendingoutShares->get(i)->getNodeHandle()==n->getHandle()) // TODO: == node?
                     {
-                        OUTSTREAM << ", shared (still pending) with " << pendingoutShares->get(i)->getUser() << ", access "
-                                  << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
+                        OUTSTREAM << ", shared (still pending), access " << getAccessLevelStr(pendingoutShares->get(i)->getAccess());
                     }
                 }
                 delete pendingoutShares;
@@ -3359,19 +3358,21 @@ bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<s
                     discarded = true;
                 }
             }
-            else
+            else //option=value
             {
                 string cleared = ltrim(w,'-');
                 size_t p=cleared.find_first_of("=");
-                string option = cleared.substr(0,p);
-
-//                if (p+1<cleared.size())
-//                {
+                string optname = cleared.substr(0,p);
+                if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                {
                     string value = cleared.substr(p+1);
-                    (*opts)[option] = value;
-
-//                }
-
+                    (*opts)[optname] = value;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: "<< optname;
+                    discarded = true;
+                }
             }
             it=ws->erase(it);
         }
@@ -3720,6 +3721,60 @@ void disableExport(MegaApi *api, MegaNode *n)
     }
     delete megaCmdListener;
 }
+
+
+void shareNode(MegaApi *api, MegaNode *n,string with,int level=MegaShare::ACCESS_READ)
+{
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+
+    api->share(n,with.c_str(),level,megaCmdListener);
+    megaCmdListener->wait();
+    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    {
+        MegaNode *nshared = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+        if (nshared)
+        {
+            char *nodepath = api->getNodePath(nshared);
+            if (megaCmdListener->getRequest()->getAccess()==MegaShare::ACCESS_UNKNOWN)
+            {
+                OUTSTREAM << "Stopped sharing " << nodepath << " with "  << megaCmdListener->getRequest()->getEmail() << endl;
+            }
+            else
+            {
+                OUTSTREAM << "Shared " << nodepath << " : "  << megaCmdListener->getRequest()->getEmail()
+                          << " accessLevel="<<megaCmdListener->getRequest()->getAccess() << endl;
+            }
+            delete[] nodepath;
+            delete nshared;
+        }
+        else{
+            setCurrentOutCode(2);
+            LOG_err << "Shared node not found!" ;
+        }
+    }
+    else
+    {
+        if (megaCmdListener->getError())
+        {
+            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
+            OUTSTREAM << "Could not share node" << megaCmdListener->getError()->getErrorString() << endl;
+        }
+        else
+        {
+            setCurrentOutCode(3);
+            LOG_fatal << "Empty error at shareNode" ;
+        }
+
+    }
+    //TODO: errors!
+    delete megaCmdListener;
+}
+
+void disableShare(MegaApi *api, MegaNode *n, string with)
+{
+   shareNode(api, n,with,MegaShare::ACCESS_UNKNOWN);
+}
+
 void dumpListOfExported(MegaApi *api, MegaNode* n, string givenPath)
 {
     vector<MegaNode *> listOfExported;
@@ -3736,6 +3791,24 @@ void dumpListOfExported(MegaApi *api, MegaNode* n, string givenPath)
         }
     }
     listOfExported.clear();
+}
+
+void dumpListOfShared(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfShared;
+    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
+    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            dumpNode(n, 2, 1,pathToShow.c_str());
+
+            delete n;
+        }
+    }
+    listOfShared.clear();
 }
 
 static void process_line(char* l)
@@ -3997,15 +4070,25 @@ static void process_line(char* l)
             {
                 validParams.insert("c");
                 validParams.insert("s");
-            }else if ("sync" == thecommand)
+            }
+            else if ("sync" == thecommand)
             {
                 validParams.insert("d");
                 validParams.insert("s");
-            }else if ("export" == thecommand)
+            }
+            else if ("export" == thecommand)
             {
                 validParams.insert("a");
                 validParams.insert("d");
                 validParams.insert("expire");
+            }
+            else if ("share" == thecommand)
+            {
+                validParams.insert("a");
+                validParams.insert("d");
+                validParams.insert("with");
+                validParams.insert("level");
+                validParams.insert("personal-representation");
             }
             else if ("mkdir" == thecommand)
             {
@@ -5279,144 +5362,225 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "share")
                     {
-                        switch (words.size())
+                        string with = getOption(&cloptions,"with","");
+                        if ((getFlag(&clflags,"a") || getFlag(&clflags,"d") )&& "" == with)
                         {
-                            case 1:		// list all shares (incoming and outgoing)
-                                {
-                                //TODO: deal with switch
-                                //TODO: alt: do this with getoutshares
-                                MegaNode * n;
-                                //                            int del = 0;
-                                //                            int ets = 0;
+                            setCurrentOutCode(2);
+                            OUTSTREAM << " Required --with destiny" << endl << getUsageStr("share") << endl;
+                            return;
+                        }
+                        int level = getintOption(&cloptions,"access-level",MegaShare::ACCESS_READ);
 
+                        if (words.size()<=1) words.push_back(string("")); //give at least an empty so that cwd is used
 
-                                if (words.size() > 1)
+                        for (int i=1;i<words.size();i++)
+                        {
+                            if (hasWildCards(words[i]))
+                            {
+                                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
+                                if (nodes)
                                 {
-                                    n = nodebypath(words[1].c_str());
-                                }
-                                else
-                                {
-                                    n=api->getNodeByHandle(cwd);
-                                }
-                                if (n)
-                                {
-                                    //TODO: add del and ?ets? functionality
-
-                                    vector<MegaNode *> listOfShared;
-                                    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
-                                    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+                                    if (!nodes->size())
+                                    {
+                                        setCurrentOutCode(2);
+                                        OUTSTREAM << "Nodes not found: " << words[i] << endl;
+                                    }
+                                    for (std::vector< MegaNode * >::iterator it = nodes->begin() ; it != nodes->end(); ++it)
                                     {
                                         MegaNode * n = *it;
                                         if (n)
                                         {
-                                            dumpNode(n, 2, 1);//,rNpath); //TODO: poner rNpath adecuado
-
+                                            if (getFlag(&clflags,"a") )
+                                            {
+                                                LOG_debug << " sharing ... " << n->getName() << " with " << with;
+                                                shareNode(api,n,with,level);
+                                            }
+                                            else if (getFlag(&clflags,"d") )
+                                            {
+                                                LOG_debug << " deleting share ... " << n->getName();
+                                                disableShare(api, n, with);
+                                                //TODO: disable with all
+                                            }
+                                            else
+                                                dumpListOfShared(api, n, words[i]);
                                             delete n;
                                         }
                                     }
-                                    listOfShared.clear();
+                                    nodes->clear();
+                                    delete nodes ;
                                 }
                                 else
                                 {
-                                    OUTSTREAM << words[1] << ": Not found" << endl;
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Node not found: " << words[i] << endl;
                                 }
-
-
-
-//                                    TreeProcListOutShares listoutshares;
-//                                    Node* n;
-
-//                                    OUTSTREAM << "Shared folders:" << endl;
-
-//                                    //TODO: modify using API
-//                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-//                                    {
-//                                        if ((n = client->nodebyhandle(client->rootnodes[i])))
-//                                        {
-//                                            client->proctree(n, &listoutshares);
-//                                        }
-//                                    }
-
-                                    //TODO: modify using API
-//                                    for (user_map::iterator uit = client->users.begin();
-//                                         uit != client->users.end(); uit++)
-//                                    {
-//                                        User* u = &uit->second;
-//                                        Node* n;
-
-//                                        if (u->show == VISIBLE && u->sharing.size())
-//                                        {
-//                                            OUTSTREAM << "From " << u->email << ":" << endl;
-
-//                                            for (handle_set::iterator sit = u->sharing.begin();
-//                                                 sit != u->sharing.end(); sit++)
-//                                            {
-//                                                //TODO: modify using API
-////                                                if ((n = client->nodebyhandle(*sit)))
-////                                                {
-////                                                    OUTSTREAM << "\t" << n->displayname() << " ("
-////                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
-////                                                }
-//                                            }
-//                                        }
-//                                    }
-                                }
-                                break;
-
-                            case 2:	    // list all outgoing shares on this path
-                            case 3:	    // remove outgoing share to specified e-mail address
-                            case 4:	    // add outgoing share to specified e-mail address
-                            case 5:     // user specified a personal representation to appear as for the invitation
-                                if ((n = nodebypath(words[1].c_str())))
+                            }
+                            else // non-wildcard
+                            {
+                                MegaNode *n = nodebypath(words[i].c_str());
+                                if (n)
                                 {
-                                    if (words.size() == 2)
+                                    if (getFlag(&clflags,"a") )
                                     {
-                                        listnodeshares(n);
+                                        LOG_debug << " sharing ... " << n->getName() << " with " << with;
+                                        shareNode(api,n,with,level);
+                                    }
+                                    else if (getFlag(&clflags,"d") )
+                                    {
+                                        LOG_debug << " deleting share ... " << n->getName();
+                                        disableShare(api, n, with);
                                     }
                                     else
-                                    {
-                                        accesslevel_t a = ACCESS_UNKNOWN;
-                                        const char* personal_representation = NULL;
-                                        if (words.size() > 3)
-                                        {
-                                            if (words[3] == "r" || words[3] == "ro")
-                                            {
-                                                a = RDONLY;
-                                            }
-                                            else if (words[3] == "rw")
-                                            {
-                                                a = RDWR;
-                                            }
-                                            else if (words[3] == "full")
-                                            {
-                                                a = FULL;
-                                            }
-                                            else
-                                            {
-                                                OUTSTREAM << "Access level must be one of r, rw or full" << endl;
-
-                                                return;
-                                            }
-
-                                            if (words.size() > 4)
-                                            {
-                                                personal_representation = words[4].c_str();
-                                            }
-                                        }
-                                        //TODO: modify using API
-//                                        client->setshare(n, words[2].c_str(), a, personal_representation);
-                                    }
+                                        dumpListOfShared(api, n, words[i]);
+                                    delete n;
                                 }
                                 else
                                 {
-                                    OUTSTREAM << words[1] << ": No such directory" << endl;
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Node not found: " << words[i] << endl;
                                 }
-
-                                break;
-
-                            default:
-                                OUTSTREAM << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
+                            }
                         }
+
+
+//                        switch (words.size())
+//                        {
+//                            case 1:		// list all shares (incoming and outgoing)
+//                                {
+//                                //TODO: deal with switch
+//                                //TODO: alt: do this with getoutshares
+//                                MegaNode * n;
+//                                //                            int del = 0;
+//                                //                            int ets = 0;
+
+
+//                                if (words.size() > 1)
+//                                {
+//                                    n = nodebypath(words[1].c_str());
+//                                }
+//                                else
+//                                {
+//                                    n=api->getNodeByHandle(cwd);
+//                                }
+//                                if (n)
+//                                {
+//                                    //TODO: add del and ?ets? functionality
+
+//                                    vector<MegaNode *> listOfShared;
+//                                    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
+//                                    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+//                                    {
+//                                        MegaNode * n = *it;
+//                                        if (n)
+//                                        {
+//                                            dumpNode(n, 2, 1);//,rNpath); //TODO: poner rNpath adecuado
+
+//                                            delete n;
+//                                        }
+//                                    }
+//                                    listOfShared.clear();
+//                                }
+//                                else
+//                                {
+//                                    OUTSTREAM << words[1] << ": Not found" << endl;
+//                                }
+
+
+
+////                                    TreeProcListOutShares listoutshares;
+////                                    Node* n;
+
+////                                    OUTSTREAM << "Shared folders:" << endl;
+
+////                                    //TODO: modify using API
+////                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
+////                                    {
+////                                        if ((n = client->nodebyhandle(client->rootnodes[i])))
+////                                        {
+////                                            client->proctree(n, &listoutshares);
+////                                        }
+////                                    }
+
+//                                    //TODO: modify using API
+////                                    for (user_map::iterator uit = client->users.begin();
+////                                         uit != client->users.end(); uit++)
+////                                    {
+////                                        User* u = &uit->second;
+////                                        Node* n;
+
+////                                        if (u->show == VISIBLE && u->sharing.size())
+////                                        {
+////                                            OUTSTREAM << "From " << u->email << ":" << endl;
+
+////                                            for (handle_set::iterator sit = u->sharing.begin();
+////                                                 sit != u->sharing.end(); sit++)
+////                                            {
+////                                                //TODO: modify using API
+//////                                                if ((n = client->nodebyhandle(*sit)))
+//////                                                {
+//////                                                    OUTSTREAM << "\t" << n->displayname() << " ("
+//////                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
+//////                                                }
+////                                            }
+////                                        }
+////                                    }
+//                                }
+//                                break;
+
+//                            case 2:	    // list all outgoing shares on this path
+//                            case 3:	    // remove outgoing share to specified e-mail address
+//                            case 4:	    // add outgoing share to specified e-mail address
+//                            case 5:     // user specified a personal representation to appear as for the invitation
+//                                if ((n = nodebypath(words[1].c_str())))
+//                                {
+//                                    if (words.size() == 2)
+//                                    {
+//                                        listnodeshares(n);
+//                                    }
+//                                    else
+//                                    {
+//                                        accesslevel_t a = ACCESS_UNKNOWN;
+//                                        const char* personal_representation = NULL;
+//                                        if (words.size() > 3)
+//                                        {
+//                                            if (words[3] == "r" || words[3] == "ro")
+//                                            {
+//                                                a = RDONLY;
+//                                            }
+//                                            else if (words[3] == "rw")
+//                                            {
+//                                                a = RDWR;
+//                                            }
+//                                            else if (words[3] == "full")
+//                                            {
+//                                                a = FULL;
+//                                            }
+//                                            else
+//                                            {
+//                                                OUTSTREAM << "Access level must be one of r, rw or full" << endl;
+
+//                                                return;
+//                                            }
+
+//                                            if (words.size() > 4)
+//                                            {
+//                                                personal_representation = words[4].c_str();
+//                                            }
+//                                        }
+//                                        //TODO: modify using API
+////                                        client->setshare(n, words[2].c_str(), a, personal_representation);
+//                                    }
+//                                }
+//                                else
+//                                {
+//                                    OUTSTREAM << words[1] << ": No such directory" << endl;
+//                                }
+
+//                                break;
+
+//                            default:
+//                                OUTSTREAM << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
+//                        }
 
                         return;
                     }
@@ -6182,8 +6346,6 @@ static void process_line(char* l)
                     {
 
                         MegaNode * n;
-                        //                            int del = 0;
-                        //                            int ets = 0;
                         time_t expireTime = 0;
                         string sexpireTime = getOption(&cloptions,"expire","");
                         if ("" != sexpireTime) expireTime = getTimeStampAfter(sexpireTime);
@@ -6194,7 +6356,7 @@ static void process_line(char* l)
                             return;
                         }
 
-                        if (words.size()<=1) words.push_back(string("")); //give at leas an empty so that cwd is used
+                        if (words.size()<=1) words.push_back(string("")); //give at least an empty so that cwd is used
 
                         for (int i=1;i<words.size();i++)
                         {
