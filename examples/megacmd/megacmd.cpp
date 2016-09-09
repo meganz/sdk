@@ -3079,7 +3079,7 @@ void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeou
                     MegaAccountPurchase *purchase = details->getPurchase(i);
 
                     time_t ts = purchase->getTimestamp();
-                    strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                    strftime(timebuf, sizeof timebuf, "%c", localtime(&ts)); //TODO: do this with OUTSTREAM
                     printf("\tID: %.11s Time: %s Amount: %.3s %.02f Payment method: %d\n",
                            purchase->getHandle(), timebuf, purchase->getCurrency(), purchase->getAmount(), purchase->getMethod());
                 }
@@ -6712,51 +6712,49 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "showpcr")
                     {
-                        string outgoing = "";
-                        string incoming = "";
-                        //TODO: modify using API
-//                        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
-//                        {
-//                            if (it->second->isoutgoing)
-//                            {
-//                                ostringstream os;
-//                                os << setw(34) << it->second->targetemail;
+                        MegaContactRequestList *ocrl = api->getOutgoingContactRequests();
+                        if (ocrl && ocrl->size()){
+                            OUTSTREAM << "Outgoing PCRs:" << endl;
+                            for (int i=0;i<ocrl->size();i++)
+                            {
+                                MegaContactRequest * cr = ocrl->get(i);
+                                OUTSTREAM << " " <<  setw(28)  << cr->getTargetEmail();
 
-//                                char buffer[12];
-//                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
-//                                os << "\t(id: ";
-//                                os << buffer;
+                                MegaHandle id = cr->getHandle();
+                                char sid[12];
+                                Base64::btoa((byte*)&(id), sizeof(id), sid);
 
-//                                os << ", ts: ";
+                                OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
+                                          << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
+//                                OUTSTREAM << ": " << cr->getSourceMessage();
 
-//                                os << it->second->ts;
+                                OUTSTREAM << endl;
+                            }
+                            delete ocrl;
+                        }
+                        MegaContactRequestList *icrl = api->getIncomingContactRequests();
+                        if (icrl && icrl->size()){
+                            OUTSTREAM << "Incoming PCRs:" << endl;
 
-//                                outgoing.append(os.str());
-//                                outgoing.append(")\n");
-//                            }
-//                            else
-//                            {
-//                                ostringstream os;
-//                                os << setw(34) << it->second->originatoremail;
+                            for (int i=0;i<icrl->size();i++)
+                            {
+                                MegaContactRequest * cr = icrl->get(i);
+                                OUTSTREAM << " " << setw(28) << cr->getSourceEmail();
 
-//                                char buffer[12];
-//                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
-//                                os << "\t(id: ";
-//                                os << buffer;
+                                MegaHandle id = cr->getHandle();
+                                char sid[12];
+                                Base64::btoa((byte*)&(id), sizeof(id), sid);
 
-//                                os << ", ts: ";
+                                OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
+                                          << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
+                                if (cr->getSourceMessage()) OUTSTREAM << ": " << cr->getSourceMessage();
 
-//                                os << it->second->ts;
-
-//                                incoming.append(os.str());
-//                                incoming.append(")\n");
-//                            }
-//                        }
-//                        OUTSTREAM << "Incoming PCRs:" << endl << incoming << endl;
-//                        OUTSTREAM << "Outgoing PCRs:" << endl << outgoing << endl;
-//                        return;
+                                OUTSTREAM << endl;
+                            }
+                            delete icrl;
+                        }
+                        return;
                     }
-
                     else if (words[0] == "killsession")
                     {
                         if (words.size() == 2)
