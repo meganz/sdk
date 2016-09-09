@@ -141,6 +141,49 @@ static void setprompt(prompttype p)
     }
 }
 
+void updateprompt(MegaApi *api, MegaHandle handle){
+
+    MegaNode *n = api->getNodeByHandle(handle);
+
+    MegaUser *u = api->getMyUser();
+    char *ptraux = dynamicprompt;
+    char *lastpos = dynamicprompt+sizeof(dynamicprompt)/sizeof(dynamicprompt[0]);
+    if (u)
+    {
+        const char *email = u->getEmail();
+        strncpy(dynamicprompt,email,(lastpos-ptraux)/sizeof(dynamicprompt[0]));
+        ptraux+=strlen(email);
+        ptraux = min(ptraux,lastpos-2);
+        delete u;
+    }
+    if (n)
+    {
+        char *np = api->getNodePath(n);
+        *ptraux++=':';
+        ptraux = min(ptraux,lastpos-2);
+        strncpy(ptraux,np,(lastpos-ptraux)/sizeof(dynamicprompt[0]));
+        ptraux += strlen(np);
+        ptraux = min(ptraux,lastpos-2);
+        delete n;
+        delete np;
+
+    }
+    if (ptraux==dynamicprompt)
+    {
+        strcpy(ptraux,prompts[0]);
+    }
+    else
+    {
+        *ptraux++='$';
+        ptraux = min(ptraux,lastpos-1);
+
+        *ptraux++=' ';
+        ptraux = min(ptraux,lastpos);
+
+        *ptraux='\0';
+    }
+}
+
 
 MegaApi* getFreeApiFolder(){
     semaphoreapiFolders.wait();
@@ -370,7 +413,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
     if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
     if(!strcmp(command,"killsession") ) return "killsession [all|sessionid]";
-    if(!strcmp(command,"whoami") ) return "whoami";
+    if(!strcmp(command,"whoami") ) return "whoami [-l]";
     if(!strcmp(command,"passwd") ) return "passwd";
     if(!strcmp(command,"retry") ) return "retry";
     if(!strcmp(command,"recon") ) return "recon";
@@ -568,7 +611,8 @@ string getHelpStr(const char *command)
     {
         os << "Print info of the user" << endl;
         os << endl;
-        os << "It will report info like total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
+        os << "Options:" << endl;
+        os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
     }
 //    if(!strcmp(command,"passwd") ) return "passwd";
 //    if(!strcmp(command,"retry") ) return "retry";
@@ -3183,6 +3227,7 @@ void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1)
             delete rootNode;
         }
         if (cwdNode) delete cwdNode;
+        updateprompt(api,cwd);
         LOG_debug << " Fetch nodes correctly";
     }
     else
@@ -3253,11 +3298,13 @@ void actUponLogout(SynchronousRequestListener *srl,int timeout=0)
         cwd = UNDEF;
         delete []session;
         session=NULL;
+        ConfigurationManager::saveSession("");
     }
     else
     {
         LOG_err << "actUponLogout failed to logout: " << srl->getError()->getErrorString();
     }
+    updateprompt(api,cwd);
 }
 
 int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0)
@@ -3349,6 +3396,7 @@ static inline std::string &rtrim(std::string &s, const char &c) {
     return s;
 }
 
+
 //
 bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
 {
@@ -3391,12 +3439,15 @@ bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<s
             }
             else //option=value
             {
+
                 string cleared = ltrim(w,'-');
                 size_t p=cleared.find_first_of("=");
                 string optname = cleared.substr(0,p);
                 if (vvalidOptions.find(optname) !=vvalidOptions.end())
                 {
                     string value = cleared.substr(p+1);
+
+                    value=rtrim(ltrim(value,'"'),'"');
                     (*opts)[optname] = value;
                 }
                 else
@@ -4017,6 +4068,10 @@ static void process_line(char* l)
 
                     while ((unsigned char) *ptr > ' ')
                     {
+                        if (*ptr == '"')
+                        {
+                            while(*++ptr != '"' && *ptr!='\0') { }
+                        }
                         ptr++;
                     }
 
@@ -4106,6 +4161,10 @@ static void process_line(char* l)
             {
                 validParams.insert("R");
                 validParams.insert("r");
+                validParams.insert("l");
+            }
+            else if ("whoami" == thecommand)
+            {
                 validParams.insert("l");
             }
             else if ("log" == thecommand)
@@ -4246,6 +4305,8 @@ static void process_line(char* l)
                                     else
                                     {
                                         cwd = n->getHandle();
+
+                                        updateprompt(api,cwd);
                                     }
                                     delete n;
                                 }
@@ -5302,7 +5363,6 @@ static void process_line(char* l)
                         {
                             if (words.size() > 1)
                             {
-                                static string pw_key;
                                 if (strchr(words[1].c_str(), '@'))
                                 {
                                     // full account login
@@ -6438,10 +6498,13 @@ static void process_line(char* l)
                         if (u)
                         {
                             OUTSTREAM << "Account e-mail: " << u->getEmail() << endl;
-                            MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                            api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
-                            actUponGetExtendedAccountDetails(megaCmdListener);
-                            delete megaCmdListener;
+                            if (getFlag(&clflags,"l"))
+                            {
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
+                                api->getExtendedAccountDetails(true,true,true,megaCmdListener);//TODO: continue this.
+                                actUponGetExtendedAccountDetails(megaCmdListener);
+                                delete megaCmdListener;
+                            }
                             delete u;
                         }
                         else
@@ -6768,7 +6831,7 @@ static void process_line(char* l)
                             for (int i=0;i<ocrl->size();i++)
                             {
                                 MegaContactRequest * cr = ocrl->get(i);
-                                OUTSTREAM << " " <<  setw(28)  << cr->getTargetEmail();
+                                OUTSTREAM << " " <<  setw(22)  << cr->getTargetEmail();
 
                                 MegaHandle id = cr->getHandle();
                                 char sid[12];
@@ -6789,7 +6852,7 @@ static void process_line(char* l)
                             for (int i=0;i<icrl->size();i++)
                             {
                                 MegaContactRequest * cr = icrl->get(i);
-                                OUTSTREAM << " " << setw(28) << cr->getSourceEmail();
+                                OUTSTREAM << " " << setw(22) << cr->getSourceEmail();
 
                                 MegaHandle id = cr->getHandle();
                                 char sid[12];
@@ -6797,7 +6860,8 @@ static void process_line(char* l)
 
                                 OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
                                           << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
-                                if (cr->getSourceMessage()) OUTSTREAM << ": " << cr->getSourceMessage();
+                                if (cr->getSourceMessage())
+                                    OUTSTREAM << endl << "\t" << "Invitation message: " << cr->getSourceMessage();
 
                                 OUTSTREAM << endl;
                             }
