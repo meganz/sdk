@@ -365,7 +365,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
     if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
     if(!strcmp(command,"showpcr") ) return "showpcr";
-    if(!strcmp(command,"users") ) return "users";
+    if(!strcmp(command,"users") ) return "users [-s]";
     if(!strcmp(command,"getua") ) return "getua attrname [email]";
     if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
     if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
@@ -533,7 +533,7 @@ string getHelpStr(const char *command)
         os << "If a remote path is given it'll be used to add/delete or in case of no option selected,"<< endl;
         os << " it will display all the exports existing in the tree of that path" << endl;
     }
-    if(!strcmp(command,"share") )
+    else if(!strcmp(command,"share") )
     {
         os << "Prints/Modifies the status of current shares" << endl;
         os << endl;
@@ -553,7 +553,13 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
 //    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
 //    if(!strcmp(command,"showpcr") ) return "showpcr";
-//    if(!strcmp(command,"users") ) return "users";
+    else if(!strcmp(command,"users") )
+    {
+        os << "List contacts" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -s" << "\t" << "Show shared folders" << endl;
+    }
 //    if(!strcmp(command,"getua") ) return "getua attrname [email]";
 //    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
 //    if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
@@ -4126,6 +4132,10 @@ static void process_line(char* l)
             {
                 validParams.insert("p");
             }
+            else if ("users" == thecommand)
+            {
+                validParams.insert("s");
+            }
 
             if (!validCommand(thecommand)) { //unknown command
                 OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
@@ -5623,31 +5633,33 @@ static void process_line(char* l)
                                 OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
                                 if (user->getTimestamp()) OUTSTREAM << " since " << getReadableTime(user->getTimestamp());
                                 OUTSTREAM << endl;
-
-                                MegaShareList *shares = api->getOutShares();
-                                if (shares)
+                                if (getFlag(&clflags,"s") )
                                 {
-                                    bool first_share = true;
-                                    for (int j=0;j<shares->size();j++)
+                                    MegaShareList *shares = api->getOutShares();
+                                    if (shares)
                                     {
-                                        if (!strcmp(shares->get(j)->getUser(),user->getEmail()))
+                                        bool first_share = true;
+                                        for (int j=0;j<shares->size();j++)
                                         {
-                                            MegaNode * n = api->getNodeByHandle(shares->get(j)->getNodeHandle() );
-                                            if (n)
+                                            if (!strcmp(shares->get(j)->getUser(),user->getEmail()))
                                             {
-                                                if (first_share)
+                                                MegaNode * n = api->getNodeByHandle(shares->get(j)->getNodeHandle() );
+                                                if (n)
                                                 {
-                                                    OUTSTREAM << "\tSharing:" << endl;
-                                                    first_share=false;
-                                                }
+                                                    if (first_share)
+                                                    {
+                                                        OUTSTREAM << "\tSharing:" << endl;
+                                                        first_share=false;
+                                                    }
 
-                                                OUTSTREAM << "\t";
-                                                dumpNode(n,2,0,getDisplayPath("/",n).c_str());
-                                                delete n;
+                                                    OUTSTREAM << "\t";
+                                                    dumpNode(n,2,0,getDisplayPath("/",n).c_str());
+                                                    delete n;
+                                                }
                                             }
                                         }
+                                        delete shares;
                                     }
-                                    delete shares;
                                 }
                             }
                             delete usersList;
