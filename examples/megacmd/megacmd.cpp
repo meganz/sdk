@@ -360,7 +360,8 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"sync") ) return "sync [localpath dstremotepath| [-ds] cancelslot]";
 //    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
     if(!strcmp(command,"export") ) return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
-    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+//    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+    if(!strcmp(command,"share") ) return "share [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath]";
     if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
     if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
     if(!strcmp(command,"showpcr") ) return "showpcr";
@@ -529,10 +530,26 @@ string getHelpStr(const char *command)
         os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, 12 days and 3 hours after the current moment" << endl;
         os << " -d" << "\t" << "Deletes an export" << endl;
         os << endl;
-        os << "If a remote path is given it'll be used to add/delete or in case of option selected,"<< endl;
+        os << "If a remote path is given it'll be used to add/delete or in case of no option selected,"<< endl;
         os << " it will display all the exports existing in the tree of that path" << endl;
     }
-//    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
+    if(!strcmp(command,"share") )
+    {
+        os << "Prints/Modifies the status of current shares" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " --with=TIMEDELAY" << "\t" << "Determines the email of the user to [no longer] share with" << endl;
+        os << " -d" << "\t" << "Stop sharing with the selected user" << endl;
+        os << " -a" << "\t" << "Adds a share (or modifies it if existing)" << endl;
+        os << " --level=LEVEL" << "\t" << "Level of acces given to the user" << endl;
+        os << "              " << "\t" << "0: " << "Read access" << endl;
+        os << "              " << "\t" << "1: " << "Read and write" << endl;
+        os << "              " << "\t" << "2: " << "Full access" << endl;
+        os << "              " << "\t" << "3: " << "Owner access" << endl; //TODO: check this. also add value validation
+        os << endl;
+        os << "If a remote path is given it'll be used to add/delete or in case of no option selected,"<< endl;
+        os << " it will display all the shares existing in the tree of that path" << endl;
+    }
 //    if(!strcmp(command,"invite") ) return "invite dstemail [origemail|del|rmd]";
 //    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
 //    if(!strcmp(command,"showpcr") ) return "showpcr";
@@ -2505,10 +2522,14 @@ static void nodepath(handle h, string* path)
 
 //appfile_list appxferq[2];
 
+bool loginInAtStartup=false;
+
 #ifdef __linux__
 void sigint_handler(int signum)
 {
     LOG_verbose << "Received signal: " << signum;
+    if (loginInAtStartup) exit(-2);
+
     rl_replace_line("", 0); //clean contents of actual command
     rl_crlf(); //move to nextline
 
@@ -7570,8 +7591,6 @@ int main()
 #ifdef __linux__
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
-
-
 #endif
 
     atexit(finalize);
@@ -7582,10 +7601,12 @@ int main()
 
     if (!ConfigurationManager::session.empty())
     {
+        loginInAtStartup = true;
         stringstream logLine;
         logLine << "login " << ConfigurationManager::session;
         LOG_debug << "Executing ... " << logLine.str();
         process_line((char *)logLine.str().c_str());
+        loginInAtStartup = false;
     }
 
     megacmd();
