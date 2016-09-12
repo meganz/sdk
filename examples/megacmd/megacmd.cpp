@@ -29,7 +29,7 @@
 #include "configurationmanager.h"
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
-#include "synchronousrequestlistener.h"
+#include "listeners.h"
 #include "megaapi_impl.h" //to use such things as MegaThread. It might be interesting to move the typedefs to a separate .h file
 
 
@@ -59,7 +59,7 @@ MegaMutex mutexapiFolders;
 MegaCMDLogger *loggerCMD;
 
 //Syncs
-map<string,sync_struct *> syncsmap;
+//map<string,sync_struct *> syncsmap;
 MegaMutex mtxSyncMap;
 
 std::vector<MegaThread *> petitionThreads;
@@ -119,6 +119,21 @@ Console* console;
 
 MegaMutex mutexHistory;
 
+#ifdef __linux__
+void sigint_handler(int signum)
+{
+    LOG_verbose << "Received signal: " << signum;
+    if (loginInAtStartup) exit(-2);
+
+    rl_replace_line("", 0); //clean contents of actual command
+    rl_crlf(); //move to nextline
+
+    // reset position and print prompt
+    pw_buf_pos = 0;
+    OUTSTREAM << prompts[prompt] << flush;
+}
+#endif
+
 static void setprompt(prompttype p)
 {
     prompt = p;
@@ -133,6 +148,41 @@ static void setprompt(prompttype p)
         OUTSTREAM << prompts[p] << flush;
         console->setecho(false);
     }
+}
+
+// readline callback - exit if EOF, add to history unless password
+static void store_line(char* l)
+{
+    if (!l)
+    {
+        doExit = true;
+        return;
+    }
+
+    if (*l && prompt == COMMAND)
+    {
+        mutexHistory.lock();
+        add_history(l);
+        mutexHistory.unlock();
+    }
+
+    line = l;
+}
+
+void printHistory()
+{
+//    //TODO: this might need to be protected betweeen mutex
+    int length = history_length;
+    int offset =1;
+    int rest=length;
+    while(rest>=10) {offset++;rest=rest/10;}
+
+    mutexHistory.lock();
+    for(int i = 0; i < length; i++) {
+      history_set_pos(i);
+      OUTSTREAM << setw(offset) <<  i << "  " << current_history()->line << endl;
+    }
+    mutexHistory.unlock();
 }
 
 /**
@@ -201,157 +251,6 @@ void freeApiFolder(MegaApi *apiFolder){
     mutexapiFolders.unlock();
 }
 
-class MegaCmdListener : public SynchronousRequestListener
-{
-private:
-    float percentFetchnodes = 0.0f;
-public:
-    MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
-    virtual ~MegaCmdListener();
-
-    //Request callbacks
-    virtual void onRequestStart(MegaApi* api, MegaRequest *request);
-    virtual void doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
-    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
-    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
-
-protected:
-    //virtual void customEvent(QEvent * event);
-
-    MegaRequestListener *listener;
-};
-
-
-class MegaCmdTransferListener : public SynchronousTransferListener
-{
-private:
-    float percentFetchnodes;
-public:
-    MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener = NULL);
-    virtual ~MegaCmdTransferListener();
-
-    //Transfer callbacks
-    virtual void onTransferStart(MegaApi* api, MegaTransfer *transfer);
-    virtual void doOnTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    virtual void onTransferUpdate(MegaApi* api, MegaTransfer *transfer);
-    virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-    virtual bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
-
-protected:
-    //virtual void customEvent(QEvent * event);
-
-    MegaTransferListener *listener;
-};
-
-class MegaCmdGlobalListener : public MegaGlobalListener
-{
-public:
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    void onUsersUpdate(MegaApi* api, MegaUserList *users);
-    void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
-};
-
-void MegaCmdGlobalListener::onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*){}
-
-void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
-{
-    if (users)
-    {
-        if (users->size()==1)
-        {
-            LOG_info <<" 1 user received or updated" ;
-        }
-        else
-        {
-            LOG_info << users->size() << " users received or updated";
-        }
-    }
-    else //initial update or too many changes
-    {
-        MegaUserList *users = api->getContacts();
-
-        if (users)
-        {
-            if (users->size()==1)
-            {
-                LOG_info <<" 1 user received or updated" ;
-            }
-            else
-            {
-                LOG_info << users->size() << " users received or updated";
-            }
-            delete users;
-        }
-    }
-}
-
-void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
-{
-    int nfolders = 0;
-    int nfiles = 0;
-    int rfolders = 0;
-    int rfiles = 0;
-    if (nodes)
-    {
-        for (int i=0;i<nodes->size();i++)
-        {
-            MegaNode *n = nodes->get(i);
-            if (n->getType() == MegaNode::TYPE_FOLDER)
-            {
-                if (n->isRemoved()) rfolders++;
-                else nfolders++;
-            }
-            else if (n->getType() == MegaNode::TYPE_FILE)
-            {
-                if (n->isRemoved()) rfiles++;
-                else nfiles++;
-            }
-        }
-    }
-    else //initial update or too many changes
-    {
-        if (loggerCMD->getMaxLogLevel() >= logInfo)
-        {
-            MegaNode * nodeRoot= api->getRootNode();
-            int * nFolderFiles = getNumFolderFiles(nodeRoot,api);
-            nfolders+=nFolderFiles[0];
-            nfiles+=nFolderFiles[1];
-            delete []nFolderFiles;
-            delete nodeRoot;
-
-            MegaNode * inboxNode= api->getInboxNode();
-            nFolderFiles = getNumFolderFiles(inboxNode,api);
-            nfolders+=nFolderFiles[0];
-            nfiles+=nFolderFiles[1];
-            delete []nFolderFiles;
-            delete inboxNode;
-
-            MegaNode * rubbishNode= api->getRubbishNode();
-            nFolderFiles = getNumFolderFiles(rubbishNode,api);
-            nfolders+=nFolderFiles[0];
-            nfiles+=nFolderFiles[1];
-            delete []nFolderFiles;
-            delete rubbishNode;
-
-            MegaNodeList *inshares = api->getInShares();
-            if (inshares)
-            for (int i=0; i<inshares->size();i++)
-            {
-                nfolders++; //add the share itself
-                nFolderFiles = getNumFolderFiles(inshares->get(i),api);
-                nfolders+=nFolderFiles[0];
-                nfiles+=nFolderFiles[1];
-                delete []nFolderFiles;
-            }
-            delete inshares;
-        }
-
-        if (nfolders) { LOG_info << nfolders << " folders " << "added or updated "; }
-        if (nfiles) { LOG_info << nfiles << " files " << "added or updated "; }
-        if (rfolders) { LOG_info << rfolders << " folders " << "removed"; }
-        if (rfiles) { LOG_info << rfiles << " files " << "removed"; }
-    }
-}
 
 // global listener
 MegaCmdGlobalListener* megaCmdGlobalListener;
@@ -422,7 +321,6 @@ const char * getUsageStr(const char *command)
 bool validCommand(string thecommand){
     return getUsageStr(thecommand.c_str()) != "command not found";
 }
-
 
 string getHelpStr(const char *command)
 {
@@ -2526,224 +2424,6 @@ static void nodepath(handle h, string* path)
 
 //appfile_list appxferq[2];
 
-#ifdef __linux__
-void sigint_handler(int signum)
-{
-    LOG_verbose << "Received signal: " << signum;
-    if (loginInAtStartup) exit(-2);
-
-    rl_replace_line("", 0); //clean contents of actual command
-    rl_crlf(); //move to nextline
-
-    // reset position and print prompt
-    pw_buf_pos = 0;
-    OUTSTREAM << prompts[prompt] << flush;
-}
-#endif
-
-
-////////////////////////////////////////
-///      MegaCmdListener methods     ///
-////////////////////////////////////////
-
-void MegaCmdListener::onRequestStart(MegaApi* api, MegaRequest *request)
-{
-    if (!request)
-    {
-        LOG_err << " onRequestStart for undefined request ";
-        return;
-    }
-
-    LOG_verbose << "onRequestStart request->getType(): " << request->getType();
-}
-
-void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
-{
-    if (!request)
-    {
-        LOG_err << " onRequestFinish for undefined request ";
-        return;
-    }
-
-    LOG_verbose << "onRequestFinish request->getType(): " << request->getType();
-
-    switch(request->getType())
-    {
-        case MegaRequest::TYPE_FETCH_NODES:
-        {
-            map<string,sync_struct *>::iterator itr;
-            int i =0;
-            for(itr = ConfigurationManager::configuredSyncs.begin(); itr != ConfigurationManager::configuredSyncs.end(); ++itr,i++)
-            {
-                sync_struct *thesync = ((sync_struct *)(*itr).second);
-
-                MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
-                MegaNode * node = api->getNodeByHandle(thesync->handle);
-
-                api->resumeSync(thesync->localpath.c_str(), node, thesync->fingerprint,megaCmdListener);
-                megaCmdListener->wait();
-                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
-                {
-                    thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
-                    thesync->active = true;
-
-                    syncsmap[thesync->localpath]=thesync;
-                    char *nodepath = api->getNodePath(node);
-                    LOG_info << "Loaded sync: " << thesync->localpath << " to " << nodepath;
-                    delete []nodepath;
-                }
-
-                delete megaCmdListener;
-                delete node;
-            }
-            break;
-        }
-        default:
-//            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
-// //            rl_message("");
-// //            clear_display();
-            break;
-    }
-}
-
-void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
-    if (!request)
-    {
-        LOG_err << " onRequestUpdate for undefined request ";
-        return;
-    }
-
-    LOG_verbose << "onRequestUpdate request->getType(): " << request->getType();
-
-    switch(request->getType())
-    {
-    case MegaRequest::TYPE_FETCH_NODES:
-    {
-#if defined(RL_ISSTATE) && defined(RL_STATE_INITIALIZED)
-        int rows = 1,cols = 80;
-
-        if (RL_ISSTATE(RL_STATE_INITIALIZED))
-        {
-            rl_resize_terminal();
-            rl_get_screen_size (&rows,&cols);
-        }
-        char outputString[cols+1];
-        for (int i=0;i<cols;i++) outputString[i]='.';
-        outputString[cols]='\0';
-        char * ptr = outputString;
-        sprintf(ptr,"%s","Fetching nodes ||");
-        ptr+=strlen("Fetching nodes ||");
-        *ptr='.'; //replace \0 char
-
-
-        float oldpercent = percentFetchnodes;
-        percentFetchnodes =  request->getTransferredBytes()*1.0/request->getTotalBytes()*100.0;
-        if (percentFetchnodes==oldpercent && oldpercent!=0) return;
-        if (percentFetchnodes <0) percentFetchnodes = 0;
-
-        char aux[40];
-        if (request->getTotalBytes()<0) return; // after a 100% this happens
-        if (request->getTransferredBytes()<0.001*request->getTotalBytes()) return; // after a 100% this happens
-        sprintf(aux,"||(%lld/%lld MB: %.2f %%) ",request->getTransferredBytes()/1024/1024,request->getTotalBytes()/1024/1024,percentFetchnodes);
-        sprintf(outputString+cols-strlen(aux),"%s",aux);
-        for (int i=0; i<= (cols-strlen("Fetching nodes ||")-strlen(aux))*1.0*percentFetchnodes/100.0; i++) *ptr++='#';
-        {
-            if (RL_ISSTATE(RL_STATE_INITIALIZED))
-            {
-                rl_message("%s",outputString);
-            }
-            else
-            {
-                cout << outputString << endl; //too verbose
-            }
-        }
-#endif
-        break;
-
-    }
-    default:
-        LOG_debug << "onRequestUpdate of unregistered type of request: " << request->getType();
-        break;
-    }
-}
-
-void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e){
-
-}
-
-
-MegaCmdListener::~MegaCmdListener(){
-
-}
-
-MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
-{
-    this->megaApi=megaApi;
-    this->listener=listener;
-}
-
-
-////////////////////////////////////////
-///      MegaCmdListener methods     ///
-////////////////////////////////////////
-
-void MegaCmdTransferListener::onTransferStart(MegaApi* api, MegaTransfer *Transfer)
-{
-    if (!Transfer)
-    {
-        LOG_err << " onTransferStart for undefined Transfer ";
-        return;
-    }
-
-    LOG_verbose << "onTransferStart Transfer->getType(): " << Transfer->getType();
-}
-
-void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
-{
-    if (!transfer)
-    {
-        LOG_err << " onTransferFinish for undefined transfer ";
-        return;
-    }
-
-    LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
-}
-
-
-void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *Transfer)
-{
-    if (!Transfer)
-    {
-        LOG_err << " onTransferUpdate for undefined Transfer ";
-        return;
-    }
-
-    LOG_verbose << "onTransferUpdate Transfer->getType(): " << Transfer->getType();
-
-
-}
-
-void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
-{
-
-}
-
-
-MegaCmdTransferListener::~MegaCmdTransferListener()
-{
-
-}
-
-MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener)
-{
-    this->megaApi=megaApi;
-    this->listener=listener;
-}
-
-bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size){
-    return true;
-}
-
 int loadfile(string* name, string* data)
 {
     //TODO: modify using API
@@ -2810,50 +2490,6 @@ void finalize()
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
-
-// readline callback - exit if EOF, add to history unless password
-static void store_line(char* l)
-{
-    if (!l)
-    {
-//        finalize();
-//        delete console;
-//        if (!consoleFailed)
-//        {
-//            LOG_debug << "Console failed, disabling";
-//            consoleFailed=true;
-//        }
-//        return;
-//        exit(0);
-        doExit = true;
-        return;
-    }
-
-    if (*l && prompt == COMMAND)
-    {
-        mutexHistory.lock();
-        add_history(l);
-        mutexHistory.unlock();
-    }
-
-    line = l;
-}
-
-void printHistory()
-{
-//    //TODO: this might need to be protected betweeen mutex
-    int length = history_length;
-    int offset =1;
-    int rest=length;
-    while(rest>=10) {offset++;rest=rest/10;}
-
-    mutexHistory.lock();
-    for(int i = 0; i < length; i++) {
-      history_set_pos(i);
-      OUTSTREAM << setw(offset) <<  i << "  " << current_history()->line << endl;
-    }
-    mutexHistory.unlock();
-}
 
 void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeout=-1)
 {
@@ -3713,11 +3349,13 @@ static void process_line(char* l)
             return;
 
         case COMMAND:
+
             if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
             {
 //                store_line(NULL);
                 exit(0);
             }
+
 
             vector<string> words;
 
@@ -4795,7 +4433,7 @@ static void process_line(char* l)
                                 thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
                                 thesync->localpath = string(megaCmdListener->getRequest()->getFile());
                                 thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
-                                syncsmap[megaCmdListener->getRequest()->getFile()] = thesync;
+                                ConfigurationManager::loadedSyncs[megaCmdListener->getRequest()->getFile()] = thesync;
 
                                 OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << api->getNodePath(n);
                             }
@@ -4822,7 +4460,7 @@ static void process_line(char* l)
                     int id = atoi(words[1].c_str()); //TODO: check if not a number and look by path
                     map<string,sync_struct *>::iterator itr;
                     int i =0;
-                    for(itr = syncsmap.begin(); itr != syncsmap.end(); i++)
+                    for(itr = ConfigurationManager::loadedSyncs.begin(); itr != ConfigurationManager::loadedSyncs.end(); i++)
                     {
                         string key = (*itr).first;
                         sync_struct *thesync = ((sync_struct *)(*itr).second);
@@ -4876,7 +4514,7 @@ static void process_line(char* l)
                                         megaCmdListener->wait();//TODO: actupon...
                                         if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
                                         {
-                                            syncsmap.erase(itr++);
+                                            ConfigurationManager::loadedSyncs.erase(itr++);
                                             erased = true;
                                             delete (thesync);
                                             OUTSTREAM << "Removed sync "<< key << " to " << api->getNodePath(n) << endl;
@@ -4889,7 +4527,7 @@ static void process_line(char* l)
                                     else //if !active simply remove
                                     {
                                         //TODO: if the sdk ever provides a way to clean cache, call it
-                                        syncsmap.erase(itr++);
+                                        ConfigurationManager::loadedSyncs.erase(itr++);
                                         erased = true;
                                         delete (thesync);
                                     }
@@ -4918,7 +4556,7 @@ static void process_line(char* l)
                 {
                     map<string,sync_struct *>::const_iterator itr;
                     int i =0;
-                    for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr)
+                    for(itr = ConfigurationManager::loadedSyncs.begin(); itr != ConfigurationManager::loadedSyncs.end(); ++itr)
                     {
                         sync_struct *thesync = ((sync_struct *)(*itr).second);
                         MegaNode * n = api->getNodeByHandle(thesync->handle);
@@ -4954,7 +4592,7 @@ static void process_line(char* l)
                     mtxSyncMap.unlock();
                     return;
                 }
-                ConfigurationManager::saveSyncs(syncsmap);
+                ConfigurationManager::saveSyncs(ConfigurationManager::loadedSyncs);
                 mtxSyncMap.unlock();
                 return;
             }
@@ -7052,7 +6690,7 @@ int main()
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
-    megaCmdGlobalListener =  new MegaCmdGlobalListener();
+    megaCmdGlobalListener =  new MegaCmdGlobalListener(loggerCMD);
     api->addGlobalListener(megaCmdGlobalListener);
 
     // set up the console

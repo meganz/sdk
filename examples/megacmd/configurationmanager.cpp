@@ -14,6 +14,7 @@ bool is_file_exist(const char *fileName)
 string ConfigurationManager::configFolder;
 map<string,sync_struct *> ConfigurationManager::configuredSyncs;
 string ConfigurationManager::session;
+map<string,sync_struct *> ConfigurationManager::loadedSyncs;
 
 
 std::string ConfigurationManager::getConfigFolder()

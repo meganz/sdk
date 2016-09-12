@@ -28,12 +28,14 @@ else {
 }
 
 SOURCES += ../../../examples/megacmd/megacmd.cpp \
+    ../../../examples/megacmd/listeners.cpp \
     ../../../examples/megacmd/megacmdlogger.cpp \
     ../../../examples/megacmd/configurationmanager.cpp \
     ../../../examples/megacmd/comunicationsmanager.cpp \
     ../../../examples/megacmd/megacmdutils.cpp \
     ../../../examples/megacmd/synchronousrequestlistener.cpp
 HEADERS += ../../../examples/megacmd/megacmd.h \
+    ../../../examples/megacmd/listeners.h \
     ../../../examples/megacmd/megacmdlogger.h \
     ../../../examples/megacmd/configurationmanager.h \
     ../../../examples/megacmd/comunicationsmanager.h \
