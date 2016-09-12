@@ -1367,6 +1367,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
                     transfer->state = TRANSFERSTATE_QUEUED;
                     break;
                 }
+                cit++;
             }
         }
 
@@ -1417,6 +1418,13 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
                     transfer->state = TRANSFERSTATE_QUEUED;
                     break;
                 }
+
+                if (cit == dstit)
+                {
+                    break;
+                }
+
+                cit++;
             }
         }
 
