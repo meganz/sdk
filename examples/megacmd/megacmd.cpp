@@ -7658,7 +7658,7 @@ void megacmd()
             }
 
 //            if (w & Waiter::NEEDEXEC || line)
-            if (Waiter::NEEDEXEC || line)
+            if (line)
             {
                 break;
             }
