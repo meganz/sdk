@@ -431,6 +431,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"chatga") ) return "chatga chatid nodehandle uid";
     if(!strcmp(command,"chatra") ) return "chatra chatid nodehandle uid";
     if(!strcmp(command,"quit") ) return "quit";
+    if(!strcmp(command,"history") ) return "history";
     return "command not found";
 }
 
@@ -3027,6 +3028,22 @@ static void store_line(char* l)
     }
 
     line = l;
+}
+
+void printHistory()
+{
+//    //TODO: this might need to be protected betweeen mutex
+    int length = history_length;
+    int offset =1;
+    int rest=length;
+    while(rest>=10) {offset++;rest=rest/10;}
+
+    for(int i = 0; i < length; i++) {
+      history_set_pos(i);
+      OUTSTREAM << setw(offset) <<  i << "  " << current_history()->line << endl;
+    }
+
+
 }
 
 void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeout=-1)
@@ -6762,6 +6779,11 @@ static void process_line(char* l)
                         }
                         return;
                     }
+                    else if (words[0] == "history")
+                    {
+                        printHistory();
+                        return;
+                    }
                     else if (words[0] == "symlink")
                     {
                         //TODO: modify using API
@@ -7495,6 +7517,8 @@ void * doProcessLine(void *pointer)
 
     process_line(inf->line);
 
+    add_history(inf->line); //TODO: decide if delete
+
     LOG_verbose << " Procesed " << inf->line << " in thread: " << getCurrentThread()
               << " socket output: " <<  inf->outSocket ;
 
@@ -7706,6 +7730,8 @@ int main()
 
 
     ConfigurationManager::loadConfiguration();
+
+   // using_history();
 
     api=new MegaApi("BdARkQSQ",ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent"); // TODO: store user agent somewhere
     for (int i=0;i<5;i++)
