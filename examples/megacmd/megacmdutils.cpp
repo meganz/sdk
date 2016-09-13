@@ -339,3 +339,28 @@ bool patternMatches(const char *what,const char *pattern)
 
     return false;
 }
+
+
+
+int getFlag(map<string,int> *flags, const char * optname)
+{
+    return flags->count(optname)?(*flags)[optname]:0;
+}
+
+string getOption(map<string,string> *cloptions, const char * optname, string defaultValue)
+{
+    return cloptions->count(optname)?(*cloptions)[optname]:defaultValue;
+}
+
+int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue)
+{
+    if (cloptions->count(optname))
+    {
+        int i;
+        istringstream is((*cloptions)[optname]);
+        is >> i;
+        return i;
+    }
+    else
+        return defaultValue;
+}

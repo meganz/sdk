@@ -24,6 +24,7 @@
 
 #include "megaapi.h"
 
+using namespace std;
 using namespace mega;
 
 typedef struct sync_struct{
@@ -34,18 +35,26 @@ typedef struct sync_struct{
 } sync_struct;
 
 
+enum prompttype
+{
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+};
 
-//extern MegaClient* client;
-//extern MegaApi* api;
+static const char* prompts[] =
+{
+    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+};
 
+void changeprompt(const char *newprompt);
 
-extern void megacmd();
+MegaApi* getFreeApiFolder();
+void freeApiFolder(MegaApi *apiFolder);
 
-extern void term_init();
-extern void term_restore();
-extern void term_echo(int);
+const char * getUsageStr(const char *command);
 
-extern void read_pw_char(char*, int, int*, char**);
+void setprompt(prompttype p);
+
+void printHistory();
 
 //typedef list<struct AppFile*> appfile_list;
 

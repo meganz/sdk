@@ -58,4 +58,10 @@ std::string &rtrim(std::string &s, const char &c);
 
 bool patternMatches(const char *what,const char *pattern);
 
+int getFlag(map<string,int> *flags, const char * optname);
+
+string getOption(map<string,string> *cloptions, const char * optname, string defaultValue="");
+
+int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue=0);
+
 #endif // MEGACMDUTILS_H
