@@ -5984,6 +5984,17 @@ class MegaApi
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
 
         /**
+         * @brief Upload a file or a folder with a custom modification time
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener=NULL);
+
+        /**
          * @brief Upload a file or folder with a custom name
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
