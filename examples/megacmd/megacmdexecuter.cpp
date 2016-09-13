@@ -3071,14 +3071,12 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     {
                         MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
                         apiFolder->fetchNodes(megaCmdListener2);
-                        bool fetchedOK = actUponFetchNodes(apiFolder, megaCmdListener2);
-                        if (fetchedOK)
+                        megaCmdListener2->wait();
+                        if(megaCmdListener2->getError()->getErrorCode() == MegaError::API_OK)
                         {
-                            delete megaCmdListener2;
                             MegaNode *folderRootNode = apiFolder->getRootNode();
                             if (folderRootNode)
                             {
-
                                 MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
                                 if (authorizedNode !=NULL)
                                 {
@@ -3099,9 +3097,11 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                         }
                         else
                         {
-                            setCurrentOutCode(2);
+                            setCurrentOutCode(megaCmdListener2->getError()->getErrorCode());
                             OUTSTREAM << "Failed to access folder link, perhaps link is incorrect" << endl;
                         }
+                        delete megaCmdListener2;
+
                     }
                     else{
                         LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;

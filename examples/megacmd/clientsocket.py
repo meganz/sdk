@@ -83,6 +83,7 @@ try:
 
 	#print "<"+str(commandOutput)+">",
 	#print repr(int(outCode))
+	if (outCode <0): exit(-outCode)
 	exit(outCode)
 except Exception as ex:
 	print "Unable to connect to service",ex
