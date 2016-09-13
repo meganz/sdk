@@ -26,6 +26,34 @@ const char* errorstring(int e);
 
 const char * getErrorCodeStr(MegaError *e);
 
-bool ifPathAFolder(const char * path);
+bool isFolder(string path);
+
+int getLinkType(string link);
+
+bool isPublicLink(string link);
+
+bool isRegularFile(string path);
+
+bool pathExits(string path);
+
+string getCurrentLocalPath();
+
+string expanseLocalPath(string path);
+
+bool hasWildCards(string &what);
+
+std::string getReadableTime(const time_t rawtime);
+
+time_t getTimeStampAfter(time_t initial, string timestring);
+
+time_t getTimeStampAfter(string timestring);
+
+// trim from start
+std::string &ltrim(std::string &s, const char &c);
+
+// trim at the end
+std::string &rtrim(std::string &s, const char &c);
+
+bool patternMatches(const char *what,const char *pattern);
 
 #endif // MEGACMDUTILS_H
