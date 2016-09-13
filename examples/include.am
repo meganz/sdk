@@ -15,7 +15,7 @@ $(EXAMPLES): $(top_builddir)/src/libmega.la
 # rules
 examples_megacli_SOURCES = examples/megacli.cpp
 examples_megaclidir=examples
-noinst_HEADERS = examples/megacli.h examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/synchronousrequestlistener.h
+noinst_HEADERS = examples/megacli.h examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/synchronousrequestlistener.h examples/megacmd/listeners.h
 examples_megasimplesync_SOURCES = examples/megasimplesync.cpp
 
 
@@ -29,7 +29,7 @@ examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_
 else
 
 EXAMPLES += examples/mcmd
-examples_mcmd_SOURCES = examples/megacmd/megacmd.cpp examples/megacmd/comunicationsmanager.cpp examples/megacmd/megacmdutils.cpp examples/megacmd/configurationmanager.cpp examples/megacmd/megacmdlogger.cpp examples/megacmd/synchronousrequestlistener.cpp
+examples_mcmd_SOURCES = examples/megacmd/megacmd.cpp examples/megacmd/comunicationsmanager.cpp examples/megacmd/megacmdutils.cpp examples/megacmd/configurationmanager.cpp examples/megacmd/megacmdlogger.cpp examples/megacmd/synchronousrequestlistener.cpp examples/megacmd/listeners.cpp
 examples_mcmddir=examples
 examples_mcmd_CXXFLAGS=$(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS) -DENABLE_SYNC=1 -DENABLE_CHAT=1  -DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_PTHREAD -Dlinux
 examples_mcmd_LDADD=$(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
