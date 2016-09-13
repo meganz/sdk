@@ -22,6 +22,8 @@ const char* getAccessLevelStr(int level);
 
 const char* getSyncStateStr(int state);
 
+string visibilityToString(int visibility);
+
 const char* errorstring(int e);
 
 const char * getErrorCodeStr(MegaError *e);

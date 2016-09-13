@@ -70,8 +70,6 @@ MegaCmdGlobalListener* megaCmdGlobalListener;
 
 MegaFileSystemAccess *fsAccessCMD;
 
-static AccountDetails account;
-
 static handle cwd = UNDEF;
 static char *session;
 
@@ -93,8 +91,8 @@ static string signupemail, signupname;
 //// signup code being confirmed
 static string signupcode;
 
-bool consoleFailed = false;
 bool doExit = false;
+bool consoleFailed = false;
 
 static char dynamicprompt[128];
 
@@ -318,6 +316,66 @@ bool validCommand(string thecommand){
     return getUsageStr(thecommand.c_str()) != "command not found";
 }
 
+void printAvailableCommands()
+{
+    OUTSTREAM << "      " << getUsageStr("login") << endl;
+    OUTSTREAM << "      " << getUsageStr("begin") << endl;
+    OUTSTREAM << "      " << getUsageStr("signup") << endl;
+    OUTSTREAM << "      " << getUsageStr("confirm") << endl;
+    OUTSTREAM << "      " << getUsageStr("session") << endl;
+    OUTSTREAM << "      " << getUsageStr("mount") << endl;
+    OUTSTREAM << "      " << getUsageStr("ls") << endl;
+    OUTSTREAM << "      " << getUsageStr("cd") << endl;
+    OUTSTREAM << "      " << getUsageStr("log") << endl;
+    OUTSTREAM << "      " << getUsageStr("pwd") << endl;
+    OUTSTREAM << "      " << getUsageStr("lcd") << endl;
+    OUTSTREAM << "      " << getUsageStr("lpwd") << endl;
+    OUTSTREAM << "      " << getUsageStr("import") << endl;
+    OUTSTREAM << "      " << getUsageStr("put") << endl;
+    OUTSTREAM << "      " << getUsageStr("putq") << endl;
+    OUTSTREAM << "      " << getUsageStr("get") << endl;
+    OUTSTREAM << "      " << getUsageStr("getq") << endl;
+    OUTSTREAM << "      " << getUsageStr("pause") << endl;
+    OUTSTREAM << "      " << getUsageStr("getfa") << endl;
+    OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
+    OUTSTREAM << "      " << getUsageStr("rm") << endl;
+    OUTSTREAM << "      " << getUsageStr("mv") << endl;
+    OUTSTREAM << "      " << getUsageStr("cp") << endl;
+    #ifdef ENABLE_SYNC
+    OUTSTREAM << "      " << getUsageStr("sync") << endl;
+    #endif
+    OUTSTREAM << "      " << getUsageStr("export") << endl;
+    OUTSTREAM << "      " << getUsageStr("share") << endl;
+    OUTSTREAM << "      " << getUsageStr("invite") << endl;
+    OUTSTREAM << "      " << getUsageStr("ipc") << endl;
+    OUTSTREAM << "      " << getUsageStr("showpcr") << endl;
+    OUTSTREAM << "      " << getUsageStr("users") << endl;
+    OUTSTREAM << "      " << getUsageStr("getua") << endl;
+    OUTSTREAM << "      " << getUsageStr("putua") << endl;
+    OUTSTREAM << "      " << getUsageStr("putbps") << endl;
+    OUTSTREAM << "      " << getUsageStr("killsession") << endl;
+    OUTSTREAM << "      " << getUsageStr("whoami") << endl;
+    OUTSTREAM << "      " << getUsageStr("passwd") << endl;
+    OUTSTREAM << "      " << getUsageStr("retry") << endl;
+    OUTSTREAM << "      " << getUsageStr("recon") << endl;
+    OUTSTREAM << "      " << getUsageStr("reload") << endl;
+    OUTSTREAM << "      " << getUsageStr("logout") << endl;
+    OUTSTREAM << "      " << getUsageStr("locallogout") << endl;
+    OUTSTREAM << "      " << getUsageStr("symlink") << endl;
+    OUTSTREAM << "      " << getUsageStr("version") << endl;
+    OUTSTREAM << "      " << getUsageStr("debug") << endl;
+    #ifdef ENABLE_CHAT
+    OUTSTREAM << "      " << getUsageStr("chatf") << endl;
+    OUTSTREAM << "      " << getUsageStr("chatc") << endl;
+    OUTSTREAM << "      " << getUsageStr("chati") << endl;
+    OUTSTREAM << "      " << getUsageStr("chatr") << endl;
+    OUTSTREAM << "      " << getUsageStr("chatu") << endl;
+    OUTSTREAM << "      " << getUsageStr("chatga") << endl;
+    OUTSTREAM << "      " << getUsageStr("chatra") << endl;
+    #endif
+    OUTSTREAM << "      " << getUsageStr("quit") << endl;
+}
+
 string getHelpStr(const char *command)
 {
     ostringstream os;
@@ -525,6 +583,801 @@ string getHelpStr(const char *command)
 
 
     return os.str();
+}
+
+
+bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
+{
+    bool discarded = false;
+
+    for(std::vector<string>::iterator it = ws->begin(); it != ws->end();) {
+        /* std::cout << *it; ... */
+        string w = (string)*it;
+        if (w.length() && w.at(0)=='-') //begins with "-"
+        {
+            if (w.length()>1 && w.at(1)!='-'){ //single character flags!
+                for (uint i=1;i<w.length();i++)
+                {
+                    string optname = w.substr(i,1);
+                    if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                    {
+                        (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+                    }
+                    else
+                    {
+                        LOG_err << "Invalid argument: "<< optname;
+                        discarded = true;
+                    }
+                }
+            }
+            else if (w.find_first_of("=") == std::string::npos) //flag
+            {
+                string optname = ltrim(w,'-');
+                if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                {
+                    (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: "<< optname;
+                    discarded = true;
+                }
+            }
+            else //option=value
+            {
+
+                string cleared = ltrim(w,'-');
+                size_t p=cleared.find_first_of("=");
+                string optname = cleared.substr(0,p);
+                if (vvalidOptions.find(optname) !=vvalidOptions.end())
+                {
+                    string value = cleared.substr(p+1);
+
+                    value=rtrim(ltrim(value,'"'),'"');
+                    (*opts)[optname] = value;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: "<< optname;
+                    discarded = true;
+                }
+            }
+            it=ws->erase(it);
+        }
+        else //not an option/flag
+        {
+            if (global)
+                return discarded; //leave the others
+            ++it;
+        }
+    }
+    return discarded;
+}
+
+int getFlag(map<string,int> *flags, const char * optname)
+{
+    return flags->count(optname)?(*flags)[optname]:0;
+}
+
+string getOption(map<string,string> *cloptions, const char * optname, string defaultValue="")
+{
+    return cloptions->count(optname)?(*cloptions)[optname]:defaultValue;
+}
+
+int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue=0)
+{
+    if (cloptions->count(optname))
+    {
+        int i;
+        istringstream is((*cloptions)[optname]);
+        is >> i;
+        return i;
+    }
+    else
+        return defaultValue;
+}
+
+
+// list available top-level nodes and contacts/incoming shares
+static void listtrees()
+{
+    for (int i = 0; i < (int) (sizeof rootnodenames/sizeof *rootnodenames); i++)
+    {
+        OUTSTREAM << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
+        if (!api->isLoggedIn()) break; //only show /root
+    }
+
+    MegaShareList * msl = api->getInSharesList();
+    for (int i=0;i<msl->size();i++)
+    {
+        MegaShare *share = msl->get(i);
+        MegaNode *n= api->getNodeByHandle(share->getNodeHandle());
+
+        OUTSTREAM << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
+        delete n;
+    }
+
+    delete (msl);
+}
+
+bool includeIfIsExported(MegaApi *api, MegaNode * n, void *arg)
+{
+   if (n->isExported())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+       return true;
+    }
+    return false;
+}
+
+bool includeIfIsShared(MegaApi *api, MegaNode * n, void *arg)
+{
+    if (n->isShared())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+        return true;
+    }
+    return false;
+}
+
+bool includeIfIsPendingOutShare(MegaApi *api, MegaNode * n, void *arg)
+{
+    MegaShareList* pendingoutShares= api->getPendingOutShares(n);
+    if(pendingoutShares && pendingoutShares->size())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+        return true;
+    }
+    if(pendingoutShares)
+        delete pendingoutShares;
+    return false;
+}
+
+
+bool includeIfIsSharedOrPendingOutShare(MegaApi *api, MegaNode * n, void *arg)
+{
+    if (n->isShared())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+        return true;
+    }
+    MegaShareList* pendingoutShares= api->getPendingOutShares(n);
+    if(pendingoutShares && pendingoutShares->size())
+    {
+        ((vector<MegaNode*> *) arg)->push_back(n->copy());
+        return true;
+    }
+    if(pendingoutShares)
+        delete pendingoutShares;
+    return false;
+}
+
+
+bool processTree(MegaApi *api,MegaNode *n, bool processor(MegaApi *, MegaNode *, void *),void *(arg))
+{
+    if (!n) return false;
+    bool toret=true;
+    MegaNodeList *children = api->getChildren(n);
+    if (children){
+        for (int i=0;i<children->size();i++)
+        {
+            bool childret = processTree(api,children->get(i),processor,arg);
+            toret = toret && childret;
+        }
+        delete children;
+    }
+
+    bool currentret = processor(api,n,arg);
+    return toret && currentret;
+}
+
+
+// returns node pointer determined by path relative to cwd
+// path naming conventions:
+// * path is relative to cwd
+// * /path is relative to ROOT
+// * //in is in INBOX
+// * //bin is in RUBBISH
+// * X: is user X's INBOX
+// * X:SHARE is share SHARE from user X
+// * : and / filename components, as well as the \, must be escaped by \.
+// (correct UTF-8 encoding is assumed)
+// returns NULL if path malformed or not found
+static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+{
+    vector<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0;
+    MegaNode* n;
+    MegaNode* nn;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push_back(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (*ptr == '/' || *ptr == ':' || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push_back(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*ptr & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*ptr & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*ptr & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*ptr & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (c.size() == 2 && !c[1].size())
+        {
+            if (user)
+            {
+                *user = c[0];
+            }
+
+            return NULL;
+        }
+
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
+        {
+            if (usersList->get(i)->getEmail() == c[0])
+            {
+                 u=usersList->get(i);
+                 break;
+            }
+        }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c[1])
+                {
+                    n=inshares->get(i)->copy();
+                    l=2;
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
+
+        if (!l)
+        {
+            return NULL;
+        }
+    }
+    else //local
+    {
+        // path starting with /
+        if (c.size() > 1 && !c[0].size())
+        {
+            // path starting with //
+            if (c.size() > 2 && !c[1].size())
+            {
+                if (c[2] == "in")
+                {
+                    n = api->getInboxNode();
+                }
+                else if (c[2] == "bin")
+                {
+                    n = api->getRubbishNode();
+                }
+                else
+                {
+                    return NULL;
+                }
+
+                l = 3;
+            }
+            else
+            {
+                n = api->getRootNode();
+                l = 1;
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+    }
+
+    // parse relative path
+    while (n && l < (int)c.size())
+    {
+        if (c[l] != ".")
+        {
+            if (c[l] == "..")
+            {
+                MegaNode * aux;
+                aux = n;
+                n = api->getParentNode(n);
+                if (n!=aux) delete aux;
+            }
+            else
+            {
+                // locate child node (explicit ambiguity resolution: not implemented)
+                if (c[l].size())
+                {
+                    nn = api->getChildNode(n, c[l].c_str());
+
+                    if (!nn) //NOT FOUND
+                    {
+                        // mv command target? return name part of not found
+                        if (namepart && l == (int) c.size() - 1) //if this is the last part, we will pass that one, so that a mv command know the name to give the the new node
+                        {
+                            *namepart = c[l];
+                            return n;
+                        }
+
+                        delete n;
+                        return NULL;
+                    }
+
+                    if (n!=nn) delete n;
+                    n = nn;
+                }
+            }
+        }
+
+        l++;
+    }
+
+    return n;
+}
+
+/**
+  TODO: doc. delete of added MegaNodes * into nodesMatching responsibility for the caller
+ * @brief getNodesMatching
+ * @param parentNode
+ * @param c
+ * @param nodesMatching
+ */
+void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching)
+{
+    if (!pathParts.size()) return;
+
+    string currentPart = pathParts.front();
+    pathParts.pop();
+
+    if (currentPart == ".")
+    {
+        getNodesMatching(parentNode, pathParts, nodesMatching);
+    }
+
+
+    MegaNodeList* children= api->getChildren(parentNode);
+    if (children)
+    {
+        for (int i=0;i<children->size();i++)
+        {
+            MegaNode *childNode = children->get(i);
+            if (patternMatches(childNode->getName(),currentPart.c_str()))
+            {
+                if (pathParts.size()==0) //last leave
+                {
+                    nodesMatching->push_back(childNode->copy());
+                }
+                else
+                {
+                    getNodesMatching(childNode, pathParts, nodesMatching);
+                }
+            }
+        }
+        delete children;
+    }
+}
+
+MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
+{
+    queue<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0;
+    MegaNode* n;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (*ptr == '/' || *ptr == ':' || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*ptr & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*ptr & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*ptr & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*ptr & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (c.size() == 2 && !c.back().size())
+        {
+            if (user)
+            {
+                *user = c.front();
+            }
+
+            return NULL;
+        }
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
+        {
+            if (usersList->get(i)->getEmail() == c.front())
+            {
+                u=usersList->get(i);
+                c.pop();
+                break;
+            }
+        }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c.front())
+                {
+                    n=inshares->get(i)->copy();
+                    c.pop();
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
+    }
+    else //local
+    {
+        // path starting with /
+        if (c.size() > 1 && !c.front().size())
+        {
+            c.pop();
+            // path starting with //
+            if (c.size() > 1 && !c.front().size())
+            {
+                c.pop();
+                if (c.front() == "in")
+                {
+                    n = api->getInboxNode();
+                    c.pop();
+                }
+                else if (c.front() == "bin")
+                {
+                    n = api->getRubbishNode();
+                    c.pop();
+                }
+                else
+                {
+                    return NULL;
+                }
+            }
+            else
+            {
+                n = api->getRootNode();
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+    }
+
+    return n;
+}
+
+// returns node pointer determined by path relative to cwd
+// path naming conventions:
+// * path is relative to cwd
+// * /path is relative to ROOT
+// * //in is in INBOX
+// * //bin is in RUBBISH
+// * X: is user X's INBOX
+// * X:SHARE is share SHARE from user X
+// * : and / filename components, as well as the \, must be escaped by \.
+// (correct UTF-8 encoding is assumed)
+// returns NULL if path malformed or not found
+// TODO: dosctrings, delete responsibility of the caller (included the meganodes within the list!!)
+vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+{
+    vector<MegaNode *> *nodesMatching = new vector<MegaNode *> ();
+    queue<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0;
+    MegaNode* n;
+    MegaNode* nn;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (*ptr == '/' || *ptr == ':' || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return nodesMatching;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*ptr & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*ptr & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*ptr & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*ptr & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (c.size() == 2 && !c.back().size())
+        {
+            if (user)
+            {
+                *user = c.front();
+            }
+
+            return NULL;
+        }
+
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i=0;i<usersList->size();i++)
+        {
+            if (usersList->get(i)->getEmail() == c.front())
+            {
+                u=usersList->get(i);
+                c.pop();
+                break;
+            }
+        }
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i=0;i<inshares->size();i++)
+            {
+                if (inshares->get(i)->getName() == c.front())
+                {
+                    n=inshares->get(i)->copy();
+                    c.pop();
+                    break;
+                }
+            }
+            delete inshares;
+        }
+        delete usersList;
+    }
+    else //local
+    {
+        // path starting with /
+        if (c.size() > 1 && !c.front().size())
+        {
+            c.pop();
+            // path starting with //
+            if (c.size() > 1 && !c.front().size())
+            {
+                c.pop();
+                if (c.front() == "in")
+                {
+                    n = api->getInboxNode();
+                    c.pop();
+                }
+                else if (c.front() == "bin")
+                {
+                    n = api->getRubbishNode();
+                    c.pop();
+                }
+                else
+                {
+                    return nodesMatching;
+                }
+            }
+            else
+            {
+                n = api->getRootNode();
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+    }
+
+    getNodesMatching(n, c, nodesMatching);
+
+    return nodesMatching;
 }
 
 //AppFile::AppFile()
@@ -1326,718 +2179,6 @@ void DemoApp::notify_retry(dstime dsdelta)
 //    }
 //}
 
-// list available top-level nodes and contacts/incoming shares
-static void listtrees()
-{
-    for (int i = 0; i < (int) (sizeof rootnodenames/sizeof *rootnodenames); i++)
-    {
-        OUTSTREAM << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-        if (!api->isLoggedIn()) break; //only show /root
-    }
-
-    MegaShareList * msl = api->getInSharesList();
-    for (int i=0;i<msl->size();i++)
-    {
-        MegaShare *share = msl->get(i);
-        MegaNode *n= api->getNodeByHandle(share->getNodeHandle());
-
-        OUTSTREAM << "INSHARE on " << share->getUser() << ":" << n->getName() << " (" << getAccessLevelStr(share->getAccess()) << ")" << endl;
-        delete n;
-    }
-
-    delete (msl);
-}
-
-bool includeIfIsExported(MegaApi *api, MegaNode * n, void *arg)
-{
-   if (n->isExported())
-    {
-        ((vector<MegaNode*> *) arg)->push_back(n->copy());
-       return true;
-    }
-    return false;
-}
-
-bool includeIfIsShared(MegaApi *api, MegaNode * n, void *arg)
-{
-    if (n->isShared())
-    {
-        ((vector<MegaNode*> *) arg)->push_back(n->copy());
-        return true;
-    }
-    return false;
-}
-
-bool includeIfIsPendingOutShare(MegaApi *api, MegaNode * n, void *arg)
-{
-    MegaShareList* pendingoutShares= api->getPendingOutShares(n);
-    if(pendingoutShares && pendingoutShares->size())
-    {
-        ((vector<MegaNode*> *) arg)->push_back(n->copy());
-        return true;
-    }
-    if(pendingoutShares)
-        delete pendingoutShares;
-    return false;
-}
-
-
-bool includeIfIsSharedOrPendingOutShare(MegaApi *api, MegaNode * n, void *arg)
-{
-    if (n->isShared())
-    {
-        ((vector<MegaNode*> *) arg)->push_back(n->copy());
-        return true;
-    }
-    MegaShareList* pendingoutShares= api->getPendingOutShares(n);
-    if(pendingoutShares && pendingoutShares->size())
-    {
-        ((vector<MegaNode*> *) arg)->push_back(n->copy());
-        return true;
-    }
-    if(pendingoutShares)
-        delete pendingoutShares;
-    return false;
-}
-
-
-bool processTree(MegaApi *api,MegaNode *n, bool processor(MegaApi *, MegaNode *, void *),void *(arg))
-{
-    if (!n) return false;
-    bool toret=true;
-    MegaNodeList *children = api->getChildren(n);
-    if (children){
-        for (int i=0;i<children->size();i++)
-        {
-            bool childret = processTree(api,children->get(i),processor,arg);
-            toret = toret && childret;
-        }
-        delete children;
-    }
-
-    bool currentret = processor(api,n,arg);
-    return toret && currentret;
-}
-
-
-// returns node pointer determined by path relative to cwd
-// path naming conventions:
-// * path is relative to cwd
-// * /path is relative to ROOT
-// * //in is in INBOX
-// * //bin is in RUBBISH
-// * X: is user X's INBOX
-// * X:SHARE is share SHARE from user X
-// * : and / filename components, as well as the \, must be escaped by \.
-// (correct UTF-8 encoding is assumed)
-// returns NULL if path malformed or not found
-static MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
-{
-    vector<string> c;
-    string s;
-    int l = 0;
-    const char* bptr = ptr;
-    int remote = 0;
-    MegaNode* n;
-    MegaNode* nn;
-
-    // split path by / or :
-    do {
-        if (!l)
-        {
-            if (*ptr >= 0)
-            {
-                if (*ptr == '\\')
-                {
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ++ptr;
-
-                    if (*bptr == 0)
-                    {
-                        c.push_back(s);
-                        break;
-                    }
-
-                    ptr++;
-                    continue;
-                }
-
-                if (*ptr == '/' || *ptr == ':' || !*ptr)
-                {
-                    if (*ptr == ':')
-                    {
-                        if (c.size())
-                        {
-                            return NULL;
-                        }
-
-                        remote = 1;
-                    }
-
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ptr + 1;
-
-                    c.push_back(s);
-
-                    s.erase();
-                }
-            }
-            else if ((*ptr & 0xf0) == 0xe0)
-            {
-                l = 1;
-            }
-            else if ((*ptr & 0xf8) == 0xf0)
-            {
-                l = 2;
-            }
-            else if ((*ptr & 0xfc) == 0xf8)
-            {
-                l = 3;
-            }
-            else if ((*ptr & 0xfe) == 0xfc)
-            {
-                l = 4;
-            }
-        }
-        else
-        {
-            l--;
-        }
-    } while (*ptr++);
-
-    if (l)
-    {
-        return NULL;
-    }
-
-    if (remote)
-    {
-        // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c[1].size())
-        {
-            if (user)
-            {
-                *user = c[0];
-            }
-
-            return NULL;
-        }
-
-        MegaUserList * usersList = api->getContacts();
-        MegaUser *u = NULL;
-        for (int i=0;i<usersList->size();i++)
-        {
-            if (usersList->get(i)->getEmail() == c[0])
-            {
-                 u=usersList->get(i);
-                 break;
-            }
-        }
-        if (u)
-        {
-            MegaNodeList* inshares = api->getInShares(u);
-            for (int i=0;i<inshares->size();i++)
-            {
-                if (inshares->get(i)->getName() == c[1])
-                {
-                    n=inshares->get(i)->copy();
-                    l=2;
-                    break;
-                }
-            }
-            delete inshares;
-        }
-        delete usersList;
-
-        if (!l)
-        {
-            return NULL;
-        }
-    }
-    else //local
-    {
-        // path starting with /
-        if (c.size() > 1 && !c[0].size())
-        {
-            // path starting with //
-            if (c.size() > 2 && !c[1].size())
-            {
-                if (c[2] == "in")
-                {
-                    n = api->getInboxNode();
-                }
-                else if (c[2] == "bin")
-                {
-                    n = api->getRubbishNode();
-                }
-                else
-                {
-                    return NULL;
-                }
-
-                l = 3;
-            }
-            else
-            {
-                n = api->getRootNode();
-                l = 1;
-            }
-        }
-        else
-        {
-            n = api->getNodeByHandle(cwd);
-        }
-    }
-
-    // parse relative path
-    while (n && l < (int)c.size())
-    {
-        if (c[l] != ".")
-        {
-            if (c[l] == "..")
-            {
-                MegaNode * aux;
-                aux = n;
-                n = api->getParentNode(n);
-                if (n!=aux) delete aux;
-            }
-            else
-            {
-                // locate child node (explicit ambiguity resolution: not implemented)
-                if (c[l].size())
-                {
-                    nn = api->getChildNode(n, c[l].c_str());
-
-                    if (!nn) //NOT FOUND
-                    {
-                        // mv command target? return name part of not found
-                        if (namepart && l == (int) c.size() - 1) //if this is the last part, we will pass that one, so that a mv command know the name to give the the new node
-                        {
-                            *namepart = c[l];
-                            return n;
-                        }
-
-                        delete n;
-                        return NULL;
-                    }
-
-                    if (n!=nn) delete n;
-                    n = nn;
-                }
-            }
-        }
-
-        l++;
-    }
-
-    return n;
-}
-
-/**
-  TODO: doc. delete of added MegaNodes * into nodesMatching responsibility for the caller
- * @brief getNodesMatching
- * @param parentNode
- * @param c
- * @param nodesMatching
- */
-void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching)
-{
-    if (!pathParts.size()) return;
-
-    string currentPart = pathParts.front();
-    pathParts.pop();
-
-    if (currentPart == ".")
-    {
-        getNodesMatching(parentNode, pathParts, nodesMatching);
-    }
-
-
-    MegaNodeList* children= api->getChildren(parentNode);
-    if (children)
-    {
-        for (int i=0;i<children->size();i++)
-        {
-            MegaNode *childNode = children->get(i);
-            if (patternMatches(childNode->getName(),currentPart.c_str()))
-            {
-                if (pathParts.size()==0) //last leave
-                {
-                    nodesMatching->push_back(childNode->copy());
-                }
-                else
-                {
-                    getNodesMatching(childNode, pathParts, nodesMatching);
-                }
-            }
-        }
-        delete children;
-    }
-}
-
-MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL)
-{
-    queue<string> c;
-    string s;
-    int l = 0;
-    const char* bptr = ptr;
-    int remote = 0;
-    MegaNode* n;
-
-    // split path by / or :
-    do {
-        if (!l)
-        {
-            if (*ptr >= 0)
-            {
-                if (*ptr == '\\')
-                {
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ++ptr;
-
-                    if (*bptr == 0)
-                    {
-                        c.push(s);
-                        break;
-                    }
-
-                    ptr++;
-                    continue;
-                }
-
-                if (*ptr == '/' || *ptr == ':' || !*ptr)
-                {
-                    if (*ptr == ':')
-                    {
-                        if (c.size())
-                        {
-                            return NULL;
-                        }
-
-                        remote = 1;
-                    }
-
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ptr + 1;
-
-                    c.push(s);
-
-                    s.erase();
-                }
-            }
-            else if ((*ptr & 0xf0) == 0xe0)
-            {
-                l = 1;
-            }
-            else if ((*ptr & 0xf8) == 0xf0)
-            {
-                l = 2;
-            }
-            else if ((*ptr & 0xfc) == 0xf8)
-            {
-                l = 3;
-            }
-            else if ((*ptr & 0xfe) == 0xfc)
-            {
-                l = 4;
-            }
-        }
-        else
-        {
-            l--;
-        }
-    } while (*ptr++);
-
-    if (l)
-    {
-        return NULL;
-    }
-
-    if (remote)
-    {
-        // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c.back().size())
-        {
-            if (user)
-            {
-                *user = c.front();
-            }
-
-            return NULL;
-        }
-        MegaUserList * usersList = api->getContacts();
-        MegaUser *u = NULL;
-        for (int i=0;i<usersList->size();i++)
-        {
-            if (usersList->get(i)->getEmail() == c.front())
-            {
-                u=usersList->get(i);
-                c.pop();
-                break;
-            }
-        }
-        if (u)
-        {
-            MegaNodeList* inshares = api->getInShares(u);
-            for (int i=0;i<inshares->size();i++)
-            {
-                if (inshares->get(i)->getName() == c.front())
-                {
-                    n=inshares->get(i)->copy();
-                    c.pop();
-                    break;
-                }
-            }
-            delete inshares;
-        }
-        delete usersList;
-    }
-    else //local
-    {
-        // path starting with /
-        if (c.size() > 1 && !c.front().size())
-        {
-            c.pop();
-            // path starting with //
-            if (c.size() > 1 && !c.front().size())
-            {
-                c.pop();
-                if (c.front() == "in")
-                {
-                    n = api->getInboxNode();
-                    c.pop();
-                }
-                else if (c.front() == "bin")
-                {
-                    n = api->getRubbishNode();
-                    c.pop();
-                }
-                else
-                {
-                    return NULL;
-                }
-            }
-            else
-            {
-                n = api->getRootNode();
-            }
-        }
-        else
-        {
-            n = api->getNodeByHandle(cwd);
-        }
-    }
-
-    return n;
-}
-
-// returns node pointer determined by path relative to cwd
-// path naming conventions:
-// * path is relative to cwd
-// * /path is relative to ROOT
-// * //in is in INBOX
-// * //bin is in RUBBISH
-// * X: is user X's INBOX
-// * X:SHARE is share SHARE from user X
-// * : and / filename components, as well as the \, must be escaped by \.
-// (correct UTF-8 encoding is assumed)
-// returns NULL if path malformed or not found
-// TODO: dosctrings, delete responsibility of the caller (included the meganodes within the list!!)
-vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL)
-{
-    vector<MegaNode *> *nodesMatching = new vector<MegaNode *> ();
-    queue<string> c;
-    string s;
-    int l = 0;
-    const char* bptr = ptr;
-    int remote = 0;
-    MegaNode* n;
-    MegaNode* nn;
-
-    // split path by / or :
-    do {
-        if (!l)
-        {
-            if (*ptr >= 0)
-            {
-                if (*ptr == '\\')
-                {
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ++ptr;
-
-                    if (*bptr == 0)
-                    {
-                        c.push(s);
-                        break;
-                    }
-
-                    ptr++;
-                    continue;
-                }
-
-                if (*ptr == '/' || *ptr == ':' || !*ptr)
-                {
-                    if (*ptr == ':')
-                    {
-                        if (c.size())
-                        {
-                            return nodesMatching;
-                        }
-
-                        remote = 1;
-                    }
-
-                    if (ptr > bptr)
-                    {
-                        s.append(bptr, ptr - bptr);
-                    }
-
-                    bptr = ptr + 1;
-
-                    c.push(s);
-
-                    s.erase();
-                }
-            }
-            else if ((*ptr & 0xf0) == 0xe0)
-            {
-                l = 1;
-            }
-            else if ((*ptr & 0xf8) == 0xf0)
-            {
-                l = 2;
-            }
-            else if ((*ptr & 0xfc) == 0xf8)
-            {
-                l = 3;
-            }
-            else if ((*ptr & 0xfe) == 0xfc)
-            {
-                l = 4;
-            }
-        }
-        else
-        {
-            l--;
-        }
-    } while (*ptr++);
-
-    if (l)
-    {
-        return NULL;
-    }
-
-    if (remote)
-    {
-        // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c.back().size())
-        {
-            if (user)
-            {
-                *user = c.front();
-            }
-
-            return NULL;
-        }
-
-        MegaUserList * usersList = api->getContacts();
-        MegaUser *u = NULL;
-        for (int i=0;i<usersList->size();i++)
-        {
-            if (usersList->get(i)->getEmail() == c.front())
-            {
-                u=usersList->get(i);
-                c.pop();
-                break;
-            }
-        }
-        if (u)
-        {
-            MegaNodeList* inshares = api->getInShares(u);
-            for (int i=0;i<inshares->size();i++)
-            {
-                if (inshares->get(i)->getName() == c.front())
-                {
-                    n=inshares->get(i)->copy();
-                    c.pop();
-                    break;
-                }
-            }
-            delete inshares;
-        }
-        delete usersList;
-    }
-    else //local
-    {
-        // path starting with /
-        if (c.size() > 1 && !c.front().size())
-        {
-            c.pop();
-            // path starting with //
-            if (c.size() > 1 && !c.front().size())
-            {
-                c.pop();
-                if (c.front() == "in")
-                {
-                    n = api->getInboxNode();
-                    c.pop();
-                }
-                else if (c.front() == "bin")
-                {
-                    n = api->getRubbishNode();
-                    c.pop();
-                }
-                else
-                {
-                    return nodesMatching;
-                }
-            }
-            else
-            {
-                n = api->getRootNode();
-            }
-        }
-        else
-        {
-            n = api->getNodeByHandle(cwd);
-        }
-    }
-
-    getNodesMatching(n, c, nodesMatching);
-
-    return nodesMatching;
-}
-
-string visibilityToString(int visibility)
-{
-    if (visibility==MegaUser::VISIBILITY_VISIBLE) return "visible";
-    if (visibility==MegaUser::VISIBILITY_HIDDEN) return "hidden";
-    if (visibility==MegaUser::VISIBILITY_UNKNOWN) return "unkown visibility";
-    if (visibility==MegaUser::VISIBILITY_INACTIVE) return "inactive";
-    if (visibility==MegaUser::VISIBILITY_BLOCKED) return "blocked";
-    return "undefined visibility";
-}
-
 void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL)
 {
 
@@ -2291,6 +2432,149 @@ static void nodepath(handle h, string* path)
     }
 }
 
+string getDisplayPath(string givenPath, MegaNode* n)
+{
+    char * pathToNode = api->getNodePath(n);
+    char * pathToShow=pathToNode;
+
+    string pathRelativeTo = "NULL";
+    string cwpath;
+
+    if (givenPath.find('/') == 0)
+    {
+        pathRelativeTo="";
+    }
+    else{
+        nodepath(cwd, &cwpath); //TODO: cwpath could be taken as argument
+        if (cwpath=="/")
+            pathRelativeTo = cwpath;
+        else
+            pathRelativeTo = cwpath+"/";
+    }
+
+    if (""==givenPath && !strcmp(pathToNode,cwpath.c_str())) { pathToNode[0]= '.'; pathToNode[1]= '\0';}
+
+    if (pathRelativeTo != "")
+        pathToShow = strstr(pathToNode,pathRelativeTo.c_str());
+
+        if (pathToShow == pathToNode) //found at beginning
+        {
+            pathToShow+=pathRelativeTo.size();
+        }
+        else
+            pathToShow=pathToNode;
+
+    string toret(pathToShow);
+    delete []pathToNode;
+    return toret;
+}
+
+void dumpListOfExported(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfExported;
+    processTree(api, n,includeIfIsExported,(void *)&listOfExported);
+    for (std::vector< MegaNode * >::iterator it = listOfExported.begin() ; it != listOfExported.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            dumpNode(n, 2, 1,pathToShow.c_str());//,rNpath); //TODO: poner rNpath adecuado
+
+            delete n;
+        }
+    }
+    listOfExported.clear();
+}
+
+/**
+ * @brief listnodeshares For a node, it prints all the shares it has
+ * @param n
+ * @param name
+ */
+static void listnodeshares(MegaNode* n, string name)
+{
+    MegaShareList* outShares=api->getOutShares(n);
+    if(outShares)
+    {
+        for (int i=0;i<outShares->size();i++)
+        {
+
+            OUTSTREAM << name?name:n->getName();
+
+            if (outShares->get(i))
+            {
+                OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << " (" << getAccessLevelStr(outShares->get(i)->getAccess()) << ")"
+                     << endl;
+            }
+            else
+            {
+                OUTSTREAM << ", shared as exported folder link" << endl;
+            }
+        }
+        delete outShares;
+    }
+}
+
+void dumpListOfShared(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfShared;
+    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
+    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            //dumpNode(n, 3, 1,pathToShow.c_str());
+            listnodeshares(n,pathToShow);
+
+            delete n;
+        }
+    }
+    listOfShared.clear();
+}
+
+//includes pending and normal shares
+void dumpListOfAllShared(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfShared;
+    processTree(api, n,includeIfIsSharedOrPendingOutShare,(void *)&listOfShared);
+    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            dumpNode(n, 3, 1,pathToShow.c_str());
+            //notice: some nodes may be dumped twice
+
+            delete n;
+        }
+    }
+    listOfShared.clear();
+}
+
+void dumpListOfPendingShares(MegaApi *api, MegaNode* n, string givenPath)
+{
+    vector<MegaNode *> listOfShared;
+    processTree(api, n,includeIfIsPendingOutShare,(void *)&listOfShared);
+
+    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow = getDisplayPath(givenPath, n);
+            dumpNode(n, 3, 1,pathToShow.c_str());
+
+            delete n;
+        }
+    }
+    listOfShared.clear();
+}
+
+
 //appfile_list appxferq[2];
 
 int loadfile(string* name, string* data)
@@ -2310,49 +2594,6 @@ int loadfile(string* name, string* data)
 //    delete fa;
 
     return 0;
-}
-
-void delete_finished_threads()
-{
-    for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
-        /* std::cout << *it; ... */
-        MegaThread *mt = (MegaThread *)*it;
-#ifdef USE_QT
-        if (mt->isFinished())
-        {
-            delete mt;
-            it=petitionThreads.erase(it);
-        }
-        else
-#endif
-            ++it;
-    }
-}
-
-void finalize()
-{
-    LOG_info << "closing application ..." ;
-    delete_finished_threads();
-    delete cm;
-    if (!consoleFailed)
-        delete console;
-    delete api;
-    while (!apiFolders.empty())
-    {
-        delete apiFolders.front();
-        apiFolders.pop();
-    }
-    for (std::vector< MegaApi * >::iterator it = occupiedapiFolders.begin() ; it != occupiedapiFolders.end(); ++it)
-    {
-        delete (*it);
-    }
-    occupiedapiFolders.clear();
-
-    delete loggerCMD;
-    delete megaCmdGlobalListener;
-    delete fsAccessCMD;
-
-    OUTSTREAM << "resources have been cleaned ..."  << endl;
 }
 
 // password change-related state information
@@ -2700,97 +2941,6 @@ int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0)
     }
 }
 
-bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
-{
-    bool discarded = false;
-
-    for(std::vector<string>::iterator it = ws->begin(); it != ws->end();) {
-        /* std::cout << *it; ... */
-        string w = (string)*it;
-        if (w.length() && w.at(0)=='-') //begins with "-"
-        {
-            if (w.length()>1 && w.at(1)!='-'){ //single character flags!
-                for (uint i=1;i<w.length();i++)
-                {
-                    string optname = w.substr(i,1);
-                    if (vvalidOptions.find(optname) !=vvalidOptions.end())
-                    {
-                        (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
-                    }
-                    else
-                    {
-                        LOG_err << "Invalid argument: "<< optname;
-                        discarded = true;
-                    }
-                }
-            }
-            else if (w.find_first_of("=") == std::string::npos) //flag
-            {
-                string optname = ltrim(w,'-');
-                if (vvalidOptions.find(optname) !=vvalidOptions.end())
-                {
-                    (*flags)[optname]=(flags->count(optname)?(*flags)[optname]:0) + 1;
-                }
-                else
-                {
-                    LOG_err << "Invalid argument: "<< optname;
-                    discarded = true;
-                }
-            }
-            else //option=value
-            {
-
-                string cleared = ltrim(w,'-');
-                size_t p=cleared.find_first_of("=");
-                string optname = cleared.substr(0,p);
-                if (vvalidOptions.find(optname) !=vvalidOptions.end())
-                {
-                    string value = cleared.substr(p+1);
-
-                    value=rtrim(ltrim(value,'"'),'"');
-                    (*opts)[optname] = value;
-                }
-                else
-                {
-                    LOG_err << "Invalid argument: "<< optname;
-                    discarded = true;
-                }
-            }
-            it=ws->erase(it);
-        }
-        else //not an option/flag
-        {
-            if (global)
-                return discarded; //leave the others
-            ++it;
-        }
-    }
-    return discarded;
-}
-
-int getFlag(map<string,int> *flags, const char * optname)
-{
-    return flags->count(optname)?(*flags)[optname]:0;
-}
-
-string getOption(map<string,string> *cloptions, const char * optname, string defaultValue="")
-{
-    return cloptions->count(optname)?(*cloptions)[optname]:defaultValue;
-}
-
-int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue=0)
-{
-    if (cloptions->count(optname))
-    {
-        int i;
-        istringstream is((*cloptions)[optname]);
-        is >> i;
-        return i;
-    }
-    else
-        return defaultValue;
-}
-
 void downloadNode(string localPath, MegaApi* api, MegaNode *node)
 {
     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api,NULL);
@@ -2829,61 +2979,6 @@ void uploadNode(string localPath, MegaApi* api, MegaNode *node)
         LOG_err << "Upload failed: " << megaCmdTransferListener->getError()->getErrorString();
     }
     delete megaCmdTransferListener;
-}
-
-string getDisplayPath(string givenPath, MegaNode* n)
-{
-    char * pathToNode = api->getNodePath(n);
-    char * pathToShow=pathToNode;
-
-    string pathRelativeTo = "NULL";
-    string cwpath;
-
-    if (givenPath.find('/') == 0)
-    {
-        pathRelativeTo="";
-    }
-    else{
-        nodepath(cwd, &cwpath); //TODO: cwpath could be taken as argument
-        if (cwpath=="/")
-            pathRelativeTo = cwpath;
-        else
-            pathRelativeTo = cwpath+"/";
-    }
-
-    if (""==givenPath && !strcmp(pathToNode,cwpath.c_str())) { pathToNode[0]= '.'; pathToNode[1]= '\0';}
-
-    if (pathRelativeTo != "")
-        pathToShow = strstr(pathToNode,pathRelativeTo.c_str());
-
-        if (pathToShow == pathToNode) //found at beginning
-        {
-            pathToShow+=pathRelativeTo.size();
-        }
-        else
-            pathToShow=pathToNode;
-
-    string toret(pathToShow);
-    delete []pathToNode;
-    return toret;
-}
-
-void dumpListOfExported(MegaApi *api, MegaNode* n, string givenPath)
-{
-    vector<MegaNode *> listOfExported;
-    processTree(api, n,includeIfIsExported,(void *)&listOfExported);
-    for (std::vector< MegaNode * >::iterator it = listOfExported.begin() ; it != listOfExported.end(); ++it)
-    {
-        MegaNode * n = *it;
-        if (n)
-        {
-            string pathToShow = getDisplayPath(givenPath, n);
-            dumpNode(n, 2, 1,pathToShow.c_str());//,rNpath); //TODO: poner rNpath adecuado
-
-            delete n;
-        }
-    }
-    listOfExported.clear();
 }
 
 void exportNode(MegaApi *api, MegaNode *n,int expireTime)
@@ -3023,155 +3118,6 @@ void shareNode(MegaApi *api, MegaNode *n,string with,int level=MegaShare::ACCESS
 void disableShare(MegaApi *api, MegaNode *n, string with)
 {
    shareNode(api, n,with,MegaShare::ACCESS_UNKNOWN);
-}
-
-
-/**
- * @brief listnodeshares For a node, it prints all the shares it has
- * @param n
- * @param name
- */
-static void listnodeshares(MegaNode* n, string name)
-{
-    MegaShareList* outShares=api->getOutShares(n);
-    if(outShares)
-    {
-        for (int i=0;i<outShares->size();i++)
-        {
-
-            OUTSTREAM << name?name:n->getName();
-
-            if (outShares->get(i))
-            {
-                OUTSTREAM << ", shared with " << outShares->get(i)->getUser() << " (" << getAccessLevelStr(outShares->get(i)->getAccess()) << ")"
-                     << endl;
-            }
-            else
-            {
-                OUTSTREAM << ", shared as exported folder link" << endl;
-            }
-        }
-        delete outShares;
-    }
-}
-
-void dumpListOfShared(MegaApi *api, MegaNode* n, string givenPath)
-{
-    vector<MegaNode *> listOfShared;
-    processTree(api, n,includeIfIsShared,(void *)&listOfShared);
-    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
-    {
-        MegaNode * n = *it;
-        if (n)
-        {
-            string pathToShow = getDisplayPath(givenPath, n);
-            //dumpNode(n, 3, 1,pathToShow.c_str());
-            listnodeshares(n,pathToShow);
-
-            delete n;
-        }
-    }
-    listOfShared.clear();
-}
-
-//includes pending and normal shares
-void dumpListOfAllShared(MegaApi *api, MegaNode* n, string givenPath)
-{
-    vector<MegaNode *> listOfShared;
-    processTree(api, n,includeIfIsSharedOrPendingOutShare,(void *)&listOfShared);
-    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
-    {
-        MegaNode * n = *it;
-        if (n)
-        {
-            string pathToShow = getDisplayPath(givenPath, n);
-            dumpNode(n, 3, 1,pathToShow.c_str());
-            //notice: some nodes may be dumped twice
-
-            delete n;
-        }
-    }
-    listOfShared.clear();
-}
-
-void dumpListOfPendingShares(MegaApi *api, MegaNode* n, string givenPath)
-{
-    vector<MegaNode *> listOfShared;
-    processTree(api, n,includeIfIsPendingOutShare,(void *)&listOfShared);
-
-    for (std::vector< MegaNode * >::iterator it = listOfShared.begin() ; it != listOfShared.end(); ++it)
-    {
-        MegaNode * n = *it;
-        if (n)
-        {
-            string pathToShow = getDisplayPath(givenPath, n);
-            dumpNode(n, 3, 1,pathToShow.c_str());
-
-            delete n;
-        }
-    }
-    listOfShared.clear();
-}
-
-
-void printAvailableCommands()
-{
-    OUTSTREAM << "      " << getUsageStr("login") << endl;
-    OUTSTREAM << "      " << getUsageStr("begin") << endl;
-    OUTSTREAM << "      " << getUsageStr("signup") << endl;
-    OUTSTREAM << "      " << getUsageStr("confirm") << endl;
-    OUTSTREAM << "      " << getUsageStr("session") << endl;
-    OUTSTREAM << "      " << getUsageStr("mount") << endl;
-    OUTSTREAM << "      " << getUsageStr("ls") << endl;
-    OUTSTREAM << "      " << getUsageStr("cd") << endl;
-    OUTSTREAM << "      " << getUsageStr("log") << endl;
-    OUTSTREAM << "      " << getUsageStr("pwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("lcd") << endl;
-    OUTSTREAM << "      " << getUsageStr("lpwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("import") << endl;
-    OUTSTREAM << "      " << getUsageStr("put") << endl;
-    OUTSTREAM << "      " << getUsageStr("putq") << endl;
-    OUTSTREAM << "      " << getUsageStr("get") << endl;
-    OUTSTREAM << "      " << getUsageStr("getq") << endl;
-    OUTSTREAM << "      " << getUsageStr("pause") << endl;
-    OUTSTREAM << "      " << getUsageStr("getfa") << endl;
-    OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
-    OUTSTREAM << "      " << getUsageStr("rm") << endl;
-    OUTSTREAM << "      " << getUsageStr("mv") << endl;
-    OUTSTREAM << "      " << getUsageStr("cp") << endl;
-    #ifdef ENABLE_SYNC
-    OUTSTREAM << "      " << getUsageStr("sync") << endl;
-    #endif
-    OUTSTREAM << "      " << getUsageStr("export") << endl;
-    OUTSTREAM << "      " << getUsageStr("share") << endl;
-    OUTSTREAM << "      " << getUsageStr("invite") << endl;
-    OUTSTREAM << "      " << getUsageStr("ipc") << endl;
-    OUTSTREAM << "      " << getUsageStr("showpcr") << endl;
-    OUTSTREAM << "      " << getUsageStr("users") << endl;
-    OUTSTREAM << "      " << getUsageStr("getua") << endl;
-    OUTSTREAM << "      " << getUsageStr("putua") << endl;
-    OUTSTREAM << "      " << getUsageStr("putbps") << endl;
-    OUTSTREAM << "      " << getUsageStr("killsession") << endl;
-    OUTSTREAM << "      " << getUsageStr("whoami") << endl;
-    OUTSTREAM << "      " << getUsageStr("passwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("retry") << endl;
-    OUTSTREAM << "      " << getUsageStr("recon") << endl;
-    OUTSTREAM << "      " << getUsageStr("reload") << endl;
-    OUTSTREAM << "      " << getUsageStr("logout") << endl;
-    OUTSTREAM << "      " << getUsageStr("locallogout") << endl;
-    OUTSTREAM << "      " << getUsageStr("symlink") << endl;
-    OUTSTREAM << "      " << getUsageStr("version") << endl;
-    OUTSTREAM << "      " << getUsageStr("debug") << endl;
-    #ifdef ENABLE_CHAT
-    OUTSTREAM << "      " << getUsageStr("chatf") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatc") << endl;
-    OUTSTREAM << "      " << getUsageStr("chati") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatr") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatu") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatga") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatra") << endl;
-    #endif
-    OUTSTREAM << "      " << getUsageStr("quit") << endl;
 }
 
 void executecommand(char* ptr){
@@ -6388,6 +6334,50 @@ void * doProcessLine(void *pointer)
     cm->returnAndClosePetition(inf,&s, getCurrentOutCode());
 
     return NULL;
+}
+
+
+void delete_finished_threads()
+{
+    for(std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end();) {
+        /* std::cout << *it; ... */
+        MegaThread *mt = (MegaThread *)*it;
+#ifdef USE_QT
+        if (mt->isFinished())
+        {
+            delete mt;
+            it=petitionThreads.erase(it);
+        }
+        else
+#endif
+            ++it;
+    }
+}
+
+void finalize()
+{
+    LOG_info << "closing application ..." ;
+    delete_finished_threads();
+    delete cm;
+    if (!consoleFailed)
+        delete console;
+    delete api;
+    while (!apiFolders.empty())
+    {
+        delete apiFolders.front();
+        apiFolders.pop();
+    }
+    for (std::vector< MegaApi * >::iterator it = occupiedapiFolders.begin() ; it != occupiedapiFolders.end(); ++it)
+    {
+        delete (*it);
+    }
+    occupiedapiFolders.clear();
+
+    delete loggerCMD;
+    delete megaCmdGlobalListener;
+    delete fsAccessCMD;
+
+    OUTSTREAM << "resources have been cleaned ..."  << endl;
 }
 
 // main loop

@@ -75,6 +75,16 @@ const char* getSyncStateStr(int state){
     return "undefined";
 }
 
+string visibilityToString(int visibility)
+{
+    if (visibility==MegaUser::VISIBILITY_VISIBLE) return "visible";
+    if (visibility==MegaUser::VISIBILITY_HIDDEN) return "hidden";
+    if (visibility==MegaUser::VISIBILITY_UNKNOWN) return "unkown visibility";
+    if (visibility==MegaUser::VISIBILITY_INACTIVE) return "inactive";
+    if (visibility==MegaUser::VISIBILITY_BLOCKED) return "blocked";
+    return "undefined visibility";
+}
+
 const char* errorstring(int e)
 {
     switch (e)
