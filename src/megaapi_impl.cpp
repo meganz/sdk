@@ -353,8 +353,20 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->isPublicNode = false;
     this->foreign = false;
 
-    // if there's only one share and it has no user --> public link
-    this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
+    this->outShares = false;
+    if (node->outshares)
+    {
+        for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+        {
+            Share *share = it->second;
+            if (share->user && (share->user->show == VISIBLE))
+            {
+                this->outShares = true;
+                break;
+            }
+        }
+    }
+
     this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
     if (plink && type == FOLDERNODE && node->sharekey)
