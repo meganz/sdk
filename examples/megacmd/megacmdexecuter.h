@@ -51,7 +51,7 @@ public:
     //acting
     void loginWithPassword(char *password);
     void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeout=-1);
-    void actUponFetchNodes(SynchronousRequestListener *srl,int timeout=-1);
+    bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl,int timeout=-1);
     void actUponLogin(SynchronousRequestListener *srl,int timeout=-1);
     void actUponLogout(SynchronousRequestListener *srl,int timeout=0);
     int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0);

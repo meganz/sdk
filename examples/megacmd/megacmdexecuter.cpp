@@ -2184,7 +2184,7 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
     }
 }
 
-void MegaCmdExecuter::actUponFetchNodes(SynchronousRequestListener *srl,int timeout)
+bool MegaCmdExecuter::actUponFetchNodes(MegaApi *api, SynchronousRequestListener *srl,int timeout)
 {
     if (timeout==-1)
         srl->wait();
@@ -2193,7 +2193,7 @@ void MegaCmdExecuter::actUponFetchNodes(SynchronousRequestListener *srl,int time
         int trywaitout=srl->trywait(timeout);
         if (trywaitout){
            LOG_err << "Fetch nodes took too long, it may have failed. No further actions performed";
-           return;
+           return false;
         }
     }
 
@@ -2211,11 +2211,13 @@ void MegaCmdExecuter::actUponFetchNodes(SynchronousRequestListener *srl,int time
         if (cwdNode) delete cwdNode;
         updateprompt(api,cwd);
         LOG_debug << " Fetch nodes correctly";
+        return true;
     }
     else
     {
         LOG_err << " failed to fetch nodes. Error: " << srl->getError()->getErrorString();
     }
+    return false;
 }
 
 
@@ -2254,7 +2256,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl,int timeout)
         session = srl->getApi()->dumpSession();
         ConfigurationManager::saveSession(session);
         srl->getApi()->fetchNodes(srl);
-        actUponFetchNodes(srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
+        actUponFetchNodes(api, srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
     }
     else //TODO: complete error control
     {
@@ -3069,22 +3071,37 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     {
                         MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
                         apiFolder->fetchNodes(megaCmdListener2);
-                        actUponFetchNodes(megaCmdListener2);
-                        delete megaCmdListener2;
-                        MegaNode *folderRootNode = apiFolder->getRootNode();
-                        //
-                        MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
-                        if (authorizedNode !=NULL)
+                        bool fetchedOK = actUponFetchNodes(apiFolder, megaCmdListener2);
+                        if (fetchedOK)
                         {
-                            downloadNode(localPath, api, authorizedNode);
-                            delete authorizedNode;
+                            delete megaCmdListener2;
+                            MegaNode *folderRootNode = apiFolder->getRootNode();
+                            if (folderRootNode)
+                            {
+
+                                MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
+                                if (authorizedNode !=NULL)
+                                {
+                                    downloadNode(localPath, api, authorizedNode);
+                                    delete authorizedNode;
+                                }
+                                else
+                                {
+                                    LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
+                                    downloadNode(localPath, apiFolder, folderRootNode);
+                                }
+                                delete folderRootNode;
+                            }
+                            else
+                            {
+                                LOG_err << "Couldn't get root folder for folder link";
+                            }
                         }
                         else
                         {
-                            LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                            downloadNode(localPath, apiFolder, folderRootNode);
+                            setCurrentOutCode(2);
+                            OUTSTREAM << "Failed to access folder link, perhaps link is incorrect" << endl;
                         }
-                        delete folderRootNode;
                     }
                     else{
                         LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
@@ -4650,7 +4667,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
         OUTSTREAM << "Reloading account..." << endl;
         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
         api->fetchNodes(megaCmdListener);
-        actUponFetchNodes(megaCmdListener);
+        actUponFetchNodes(api, megaCmdListener);
         delete megaCmdListener;
         return;
     }
