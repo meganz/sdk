@@ -1,4 +1,3 @@
-
 #include "megacmdexecuter.h"
 #include "megacmd.h"
 
@@ -2024,7 +2023,7 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
         }
     }
 
-    if (srl->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(srl->getError(), "failed to GetExtendedAccountDetails"))
     {
         char timebuf[32], timebuf2[32];
 
@@ -2178,10 +2177,6 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
         delete details;
         }
     }
-    else
-    {
-        LOG_err << " failed to GetExtendedAccountDetails. Error: " << srl->getError()->getErrorString();
-    }
 }
 
 bool MegaCmdExecuter::actUponFetchNodes(MegaApi *api, SynchronousRequestListener *srl,int timeout)
@@ -2197,7 +2192,7 @@ bool MegaCmdExecuter::actUponFetchNodes(MegaApi *api, SynchronousRequestListener
         }
     }
 
-    if (srl->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(srl->getError(), "fetch nodes"))
     {
         LOG_verbose << "actUponFetchNodes ok";
 
@@ -2212,10 +2207,6 @@ bool MegaCmdExecuter::actUponFetchNodes(MegaApi *api, SynchronousRequestListener
         updateprompt(api,cwd);
         LOG_debug << " Fetch nodes correctly";
         return true;
-    }
-    else
-    {
-        LOG_err << " failed to fetch nodes. Error: " << srl->getError()->getErrorString();
     }
     return false;
 }
@@ -2249,7 +2240,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl,int timeout)
     {
         LOG_err << "Login failed: unconfirmed account. Please confirm your account";
     }
-    else if(srl->getError()->getErrorCode() == MegaError::API_OK) //login success:
+    else if (checkNoErrors(srl->getError(), "Login")) //login success:
     {
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
 
@@ -2257,10 +2248,6 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl,int timeout)
         ConfigurationManager::saveSession(session);
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(api, srl,timeout);//TODO: should more accurately be max(0,timeout-timespent)
-    }
-    else //TODO: complete error control
-    {
-        LOG_err << "Login failed: " << srl->getError()->getErrorString();
     }
 }
 
@@ -2276,17 +2263,13 @@ void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl,int timeout)
            return;
         }
     }
-    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    if (checkNoErrors(srl->getError(), "logout"))
     {
         LOG_verbose << "actUponLogout logout ok";
         cwd = UNDEF;
         delete []session;
         session=NULL;
         ConfigurationManager::saveSession("");
-    }
-    else
-    {
-        LOG_err << "actUponLogout failed to logout: " << srl->getError()->getErrorString();
     }
     updateprompt(api,cwd);
 }
@@ -2303,23 +2286,13 @@ int MegaCmdExecuter::actUponCreateFolder(SynchronousRequestListener *srl,int tim
            return 1;
         }
     }
-    if (srl->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(srl->getError(), "create folder"))
     {
         LOG_verbose << "actUponCreateFolder Create Folder ok";
         return 0;
     }
-    else
-    {
-        if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
-        {
-            LOG_err << "actUponCreateFolder failed to create folder: Access Denied";
-        }
-        else
-        {
-            LOG_err << "actUponCreateFolder failed to create folder: " << srl->getError()->getErrorString();
-        }
-        return 2;
-    }
+
+    return 2;
 }
 
 int MegaCmdExecuter::actUponDeleteNode(SynchronousRequestListener *srl,int timeout)
@@ -2334,23 +2307,13 @@ int MegaCmdExecuter::actUponDeleteNode(SynchronousRequestListener *srl,int timeo
            return 1;
         }
     }
-    if (srl->getError()->getErrorCode() == MegaError::API_OK) // failed to login
+    if (checkNoErrors(srl->getError(), "delete node"))
     {
+
         LOG_verbose << "actUponDeleteNode delete ok";
         return 0;
     }
-    else
-    {
-        if (srl->getError()->getErrorCode() == MegaError::API_EACCESS)
-        {
-            LOG_err << "actUponDeleteNode failed to delete: Access Denied";
-        }
-        else
-        {
-            LOG_err << "actUponDeleteNode failed to delete: " << srl->getError()->getErrorString();
-        }
-        return 2;
-    }
+    return 2;
 }
 
 void MegaCmdExecuter::downloadNode(string localPath, MegaApi* api, MegaNode *node)
@@ -2359,16 +2322,9 @@ void MegaCmdExecuter::downloadNode(string localPath, MegaApi* api, MegaNode *nod
     LOG_debug << "Starting download: " << node->getName() << " to : " << localPath;
     api->startDownload(node,localPath.c_str(),megaCmdTransferListener);
     megaCmdTransferListener->wait();
-    if (megaCmdTransferListener->getError() && megaCmdTransferListener->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
     {
         LOG_info << "Download complete: " << localPath << megaCmdTransferListener->getTransfer()->getFileName();
-    }
-    else
-    {
-        if (megaCmdTransferListener->getError())
-            LOG_err << "Download failed: " << megaCmdTransferListener->getError()->getErrorString();
-        else
-            LOG_err << "Download failed";
     }
     delete megaCmdTransferListener;
 }
@@ -2379,16 +2335,11 @@ void MegaCmdExecuter::uploadNode(string localPath, MegaApi* api, MegaNode *node)
     LOG_debug << "Starting download: " << node->getName() << " to : " << localPath;
     api->startUpload(localPath.c_str(),node,megaCmdTransferListener);
     megaCmdTransferListener->wait();
-    //TODO: process errors
-    if (megaCmdTransferListener->getError() && megaCmdTransferListener->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
     {
         char * destinyPath=api->getNodePath(node);
         LOG_info << "Upload complete: " << megaCmdTransferListener->getTransfer()->getFileName() << " to " << destinyPath;
         delete []destinyPath;
-    }
-    else
-    {
-        LOG_err << "Upload failed: " << megaCmdTransferListener->getError()->getErrorString();
     }
     delete megaCmdTransferListener;
 }
@@ -2399,7 +2350,7 @@ void MegaCmdExecuter::exportNode(MegaNode *n,int expireTime)
 
     api->exportNode(n,expireTime,megaCmdListener);
     megaCmdListener->wait();
-    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(megaCmdListener->getError(), "export node"))
     {
         MegaNode *nexported = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
         if (nexported)
@@ -2419,21 +2370,6 @@ void MegaCmdExecuter::exportNode(MegaNode *n,int expireTime)
             LOG_err << "Exported node not found!" ;
         }
     }
-    else
-    {
-        //TODO: deal with errors
-        if (megaCmdListener->getError())
-        {
-            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
-            OUTSTREAM << "Could not exportNode" << megaCmdListener->getError()->getErrorString() << endl;
-        }
-        else
-        {
-            setCurrentOutCode(3);
-            LOG_fatal << "Empty error at exportNode" ;
-        }
-
-    }
     delete megaCmdListener;
 }
 
@@ -2449,7 +2385,7 @@ void MegaCmdExecuter::disableExport(MegaNode *n)
 
     api->disableExport(n,megaCmdListener);
     megaCmdListener->wait();
-    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(megaCmdListener->getError(), "disable export"))
     {
         MegaNode *nexported = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
         if (nexported)
@@ -2464,20 +2400,7 @@ void MegaCmdExecuter::disableExport(MegaNode *n)
             LOG_err << "Exported node not found!" ;
         }
     }
-    else
-    {
-        //TODO: deal with errors
-        if (megaCmdListener->getError())
-        {
-            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
-            OUTSTREAM << "Could not disable export: " << megaCmdListener->getError()->getErrorString() << endl;
-        }
-        else
-        {
-            setCurrentOutCode(3);
-            LOG_fatal << "Empty error at disable Export" ;
-        }
-    }
+
     delete megaCmdListener;
 }
 
@@ -2487,7 +2410,7 @@ void MegaCmdExecuter::shareNode(MegaNode *n,string with,int level)
 
     api->share(n,with.c_str(),level,megaCmdListener);
     megaCmdListener->wait();
-    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+    if (checkNoErrors(megaCmdListener->getError(), (level!=MegaShare::ACCESS_UNKNOWN)?"share node":"disable share" ))
     {
         MegaNode *nshared = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
         if (nshared)
@@ -2510,20 +2433,7 @@ void MegaCmdExecuter::shareNode(MegaNode *n,string with,int level)
             LOG_err << "Shared node not found!" ;
         }
     }
-    else
-    {
-        if (megaCmdListener->getError())
-        {
-            setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
-            OUTSTREAM << "Could not share node" << megaCmdListener->getError()->getErrorString() << endl;
-        }
-        else
-        {
-            setCurrentOutCode(3);
-            LOG_fatal << "Empty error at shareNode" ;
-        }
 
-    }
     delete megaCmdListener;
 }
 
@@ -2721,7 +2631,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->moveNode(n,tn,megaCmdListener);
                                 megaCmdListener->wait(); // TODO: act upon move. log access denied...
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                if (checkNoErrors(megaCmdListener->getError(), "move"))
                                 {
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                     api->renameNode(n,newname.c_str(),megaCmdListener);
@@ -2750,11 +2660,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                     api->moveNode(n,api->getNodeByHandle(tn->getParentHandle()),megaCmdListener);
                                     megaCmdListener->wait(); //TODO: do actuponmove...
-                                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                    {
-                                        LOG_err << "Failed to move node: " << megaCmdListener->getError()->getErrorString();
-                                    }
-                                    else
+                                    if (checkNoErrors(megaCmdListener->getError(), "move node"))
                                     {
                                         const char* name_to_replace = tn->getName();
 
@@ -2764,7 +2670,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                             api->remove(tn,megaCmdListener); //remove target node
                                             megaCmdListener->wait(); //TODO: actuponremove ...
-                                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                                            if (!checkNoErrors(megaCmdListener->getError(), "remove target node"))
                                             {
                                                 LOG_err << "Couldnt move " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                             }
@@ -2772,24 +2678,18 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                         }
 
                                         // rename moved node with the new name
-                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                        if (!strcmp(name_to_replace,n->getName()))
                                         {
-                                            if (!strcmp(name_to_replace,n->getName()))
+                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                                            api->renameNode(n,name_to_replace,megaCmdListener);
+                                            megaCmdListener->wait();
+                                            if (!checkNoErrors(megaCmdListener->getError(), "rename moved node"))
                                             {
-                                                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                                api->renameNode(n,name_to_replace,megaCmdListener);
-                                                megaCmdListener->wait(); // TODO: act upon rename. log access denied...
-                                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                                {
-                                                    LOG_err << "Failed to rename moved node: " << megaCmdListener->getError()->getErrorString();
-                                                }
-                                                delete megaCmdListener;
+                                                LOG_err << "Failed to rename moved node: " << megaCmdListener->getError()->getErrorString();
                                             }
+                                            delete megaCmdListener;
                                         }
-                                        else
-                                        {
-                                            LOG_err << "Won't rename, since move failed " << n->getName() <<" to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                        }
+
                                     }
                                     delete megaCmdListener;
                                 }
@@ -2803,10 +2703,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->moveNode(n,tn,megaCmdListener);
                                 megaCmdListener->wait();
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                {
-                                    LOG_err << "Failed to move node: " << megaCmdListener->getError()->getErrorString();
-                                }
+                                checkNoErrors(megaCmdListener->getError(), "move node");
                                 delete megaCmdListener;
                             }
                         }
@@ -2857,10 +2754,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->copyNode(n,tn,newname.c_str(),megaCmdListener); //only works for files
                                 megaCmdListener->wait();
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                {
-                                    LOG_err << "Failed to copy node: " << megaCmdListener->getError()->getErrorString();
-                                }
+                                checkNoErrors(megaCmdListener->getError(), "copy node");
                                 delete megaCmdListener;
 
                                 //TODO: newname is ignored in case of public node!!!!
@@ -2870,8 +2764,8 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 //copy with new name
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->copyNode(n,tn,megaCmdListener);
-                                megaCmdListener->wait();//TODO: actupon...
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                megaCmdListener->wait();
+                                if (checkNoErrors(megaCmdListener->getError(), "copy node"))
                                 {
                                     MegaNode * newNode=api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
                                     if (newNode)
@@ -2879,6 +2773,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                         api->renameNode(newNode,newname.c_str(),megaCmdListener);
                                         megaCmdListener->wait(); // TODO: act upon rename. log access denied...
+                                        checkNoErrors(megaCmdListener->getError(), "rename new node");
                                         delete megaCmdListener;
                                         delete newNode;
                                     }
@@ -2887,13 +2782,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                         LOG_err << " Couldn't find new node created upon cp";
                                     }
                                 }
-                                else
-                                {
-                                    LOG_err << "Failed to copy node: " << megaCmdListener->getError()->getErrorString();
-                                }
                                 delete megaCmdListener;
-
-
                             }
                         }
                         else
@@ -2918,11 +2807,8 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                         megaCmdListener = new MegaCmdListener(NULL);
                                         api->remove(tn,megaCmdListener);
                                         megaCmdListener->wait(); //TODO: actuponremove ...
+                                        checkNoErrors(megaCmdListener->getError(), "delete target node");
                                         delete megaCmdListener;
-                                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
-                                        {
-                                            LOG_err << "Couldnt delete target node" << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                        }
                                     }
                                     else
                                     {
@@ -2939,7 +2825,8 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                             {
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->copyNode(n,tn,megaCmdListener);
-                                megaCmdListener->wait();//TODO: actupon...
+                                megaCmdListener->wait();
+                                checkNoErrors(megaCmdListener->getError(), "copy node");
                                 delete megaCmdListener;
                             }
                         }
@@ -3021,16 +2908,19 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     api->getPublicNode(words[1].c_str(),megaCmdListener);
                     megaCmdListener->wait();
 
-                    if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                    if (!megaCmdListener->getError() )
                     {
-                        LOG_err << "Could not get node for link: " << words[1].c_str() << " : " << megaCmdListener->getError()->getErrorCode();
-                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
+                        LOG_fatal << "No error in listener at get public node";
+                    }
+                    else if (!checkNoErrors(megaCmdListener->getError(), "get public node"))
+                    {
+                        if (megaCmdListener->getError()->getErrorCode() == MegaError::API_EARGS)
                         {
-                            OUTSTREAM << "ERROR: The link provided might be incorrect" << endl;
+                            OUTSTREAM << "ERROR: The link provided might be incorrect: " << words[1].c_str() << endl;
                         }
-                        if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
+                        else if (megaCmdListener->getError()->getErrorCode() == MegaError::API_EINCOMPLETE)
                         {
-                            OUTSTREAM << "ERROR: The key is missing or wrong" << endl;
+                            OUTSTREAM << "ERROR: The key is missing or wrong " << words[1].c_str() << endl;
                         }
                     }
                     else{
@@ -3067,12 +2957,12 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
                     apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
                     megaCmdListener->wait();
-                    if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                    if (checkNoErrors(megaCmdListener->getError(), "login to folder"))
                     {
                         MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
                         apiFolder->fetchNodes(megaCmdListener2);
                         megaCmdListener2->wait();
-                        if(megaCmdListener2->getError()->getErrorCode() == MegaError::API_OK)
+                        if (checkNoErrors(megaCmdListener2->getError(), "access folder link "+words[1]))
                         {
                             MegaNode *folderRootNode = apiFolder->getRootNode();
                             if (folderRootNode)
@@ -3095,16 +2985,8 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 LOG_err << "Couldn't get root folder for folder link";
                             }
                         }
-                        else
-                        {
-                            setCurrentOutCode(megaCmdListener2->getError()->getErrorCode());
-                            OUTSTREAM << "Failed to access folder link, perhaps link is incorrect" << endl;
-                        }
                         delete megaCmdListener2;
 
-                    }
-                    else{
-                        LOG_err << "Failed to login to folder: " << megaCmdListener->getError()->getErrorCode() ;
                     }
                     delete megaCmdListener;
 
@@ -3410,10 +3292,10 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
 
                     api->syncFolder(localpath.c_str(),n,megaCmdListener);
-                    megaCmdListener->wait();//TODO: actuponsyncfolder
+                    megaCmdListener->wait();
                     //TODO:  api->addSyncListener();
 
-                    if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK )
+                    if (checkNoErrors(megaCmdListener->getError(), "sync folder"))
                     {
                         sync_struct *thesync = new sync_struct;
                         thesync->active = true;
@@ -3423,10 +3305,6 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                         ConfigurationManager::loadedSyncs[megaCmdListener->getRequest()->getFile()] = thesync;
 
                         OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << api->getNodePath(n);
-                    }
-                    else
-                    {
-                        LOG_err << "Sync could not be added: " << megaCmdListener->getError()->getErrorString();
                     }
 
                     delete megaCmdListener;
@@ -3468,7 +3346,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
 
                         if (getFlag(&clflags,"s"))
                         {
-                            OUTSTREAM << "Stopping (disabling) sync "<< key << " to " << api->getNodePath(n) << endl;
+                            OUTSTREAM << "Stopping (disabling)/Resuming sync "<< key << " to " << api->getNodePath(n) << endl;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)
                             {
@@ -3479,8 +3357,9 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                                 api->syncFolder(thesync->localpath.c_str(),n,megaCmdListener);
                             }
 
-                            megaCmdListener->wait();//TODO: actupon...
-                            if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                            megaCmdListener->wait();
+
+                            if (checkNoErrors(megaCmdListener->getError(), "stop/resume sync"))
                             {
                                 thesync->active = !thesync->active;
                                 if (thesync->active) //syncFolder
@@ -3499,16 +3378,12 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                             {
                                 api->removeSync(n,megaCmdListener);
                                 megaCmdListener->wait();//TODO: actupon...
-                                if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                                if (checkNoErrors(megaCmdListener->getError(), "remove sync"))
                                 {
                                     ConfigurationManager::loadedSyncs.erase(itr++);
                                     erased = true;
                                     delete (thesync);
                                     OUTSTREAM << "Removed sync "<< key << " to " << api->getNodePath(n) << endl;
-                                }
-                                else
-                                {
-                                    LOG_err << "Couldn't remove sync, errorCode = " << getErrorCodeStr(megaCmdListener->getError());
                                 }
                             }
                             else //if !active simply remove
@@ -4426,7 +4301,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                 api->inviteContact(email.c_str(),message.c_str(),action,megaCmdListener);
                 megaCmdListener->wait();
-                if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                if (checkNoErrors(megaCmdListener->getError(), "(re)invite user"))
                 {
                     OUTSTREAM << "Invitation sent to user: " << email << endl;
                 }
@@ -4435,11 +4310,6 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                     setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
                     OUTSTREAM << "Reminder not yet available: " << " available after 15 days" << endl;
                     //TODO:  output time when remiender will be available << getReadableTime(getTimeStampAfter(GETCRTIMESTAMP),"15d")) ))
-                }
-                else{
-
-                    setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
-                    OUTSTREAM << "Failed to invite " << email << ": " << megaCmdListener->getError()->getErrorString() << endl;
                 }
                 delete megaCmdListener;
             }
@@ -4908,4 +4778,22 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
         setCurrentOutCode(1);
         OUTSTREAM << "Invalid command:" << words[0]<<  endl;
     }
+
+}
+
+bool MegaCmdExecuter::checkNoErrors(MegaError *error, string message)
+{
+    if (!error)
+    {
+        LOG_fatal << "No error at request: " << message;
+        return false;
+    }
+    if (error->getErrorCode() == MegaError::API_OK)
+    {
+        return true;
+    }
+
+    setCurrentOutCode(error->getErrorCode());
+    OUTSTREAM << "Failed to " << message << ": " << error->getErrorString() << endl;
+    return false;
 }

@@ -65,6 +65,8 @@ public:
 
     void executecommand(vector<string> words, map<string,int> &clflags, map<string,string> &cloptions);
 
+    bool checkNoErrors(MegaError *error, string message="");
+
     //doomedtodie
     void syncstat(Sync* sync);
     const char* treestatename(treestate_t ts);
