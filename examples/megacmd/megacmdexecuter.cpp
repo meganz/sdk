@@ -2442,6 +2442,62 @@ void MegaCmdExecuter::disableShare(MegaNode *n, string with)
    shareNode(n,with,MegaShare::ACCESS_UNKNOWN);
 }
 
+vector<string> MegaCmdExecuter::listpaths(string askedPath)
+{
+    MegaNode *n;
+    vector<string> paths;
+    if ((int) askedPath.size())
+    {
+        string rNpath = "NULL";
+        string cwpath;
+        if (askedPath.find('/') != string::npos)
+        {
+            nodepath(cwd, &cwpath);
+            if (askedPath.find_first_of(cwpath)  == 0 )
+            {
+                rNpath = "";
+            }
+            else
+            {
+                rNpath = cwpath;
+            }
+        }
+
+        if (hasWildCards(askedPath))
+        {
+            vector<MegaNode *> *nodesToList = nodesbypath(askedPath.c_str());
+            if (nodesToList)
+            {
+                for (std::vector< MegaNode * >::iterator it = nodesToList->begin() ; it != nodesToList->end(); ++it)
+                {
+                    MegaNode * n = *it;
+                    if (n)
+                    {
+                        string pathToShow = getDisplayPath(askedPath, n);
+                        paths.push_back(pathToShow);
+                        delete n;
+                    }
+                }
+                nodesToList->clear();
+                delete nodesToList ;
+            }
+
+        }
+        else
+        {
+            n = nodebypath(askedPath.c_str());
+            if (n)
+            {
+                string pathToShow = getDisplayPath(askedPath, n);
+//                dumptree(n, recursive, extended_info, 1,rNpath);
+                delete n;
+            }
+        }
+    }
+
+    return paths;
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clflags,map<string,string> &cloptions)
 {
     //TODO: flags and options as pointer rather than reference

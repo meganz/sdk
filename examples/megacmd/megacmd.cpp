@@ -74,6 +74,10 @@ MegaCmdGlobalListener* megaCmdGlobalListener;
 
 bool loginInAtStartup=false;
 
+vector<string> getlistOfWords(char *ptr);
+void insertValidParamsPerCommand(set<string> *validParams, string thecommand); //TODO: place somewhere else
+
+
 static void store_line(char*);
 static void process_line(char *);
 static char* line;
@@ -146,7 +150,10 @@ static void store_line(char* l)
     if (!l)
     {
         doExit = true;
-        OUTSTREAM << "(CTRL+D) Exiting, press RETURN to close ...." << endl;
+//        OUTSTREAM << "(CTRL+D) Exiting, press RETURN to close ...." << endl;
+//        OUTSTREAM << endl;
+//        changeprompt("(CTRL+D) Exiting, press RETURN to close ....");
+        rl_set_prompt("(CTRL+D) Exiting ...\n");
         return;
     }
 
@@ -159,6 +166,168 @@ static void store_line(char* l)
 
     line = l;
 }
+
+
+string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
+"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
+"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
+"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
+"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
+"history" };
+vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
+char *remoteParamsCommand [] = { "ls" };
+
+bool stringcontained (const char * s, char **list){
+    for (int i=0;i<sizeof(list)/sizeof(*list);i++)
+        if (!strcmp(s,list[i]))
+            return true;
+    return false;
+}
+
+char * dupstr (char* s) {
+  char *r;
+
+  r = (char*) malloc (sizeof(char)*(4+ 1));
+  strcpy (r, s);
+  return (r);
+}
+
+char* generic_completion(const char* text, int state, vector<string> validOptions)
+{
+    static int list_index, len;
+    string name;
+
+    if (!state) {
+        list_index = 0;
+        len = strlen (text);
+    }
+    while (list_index < validOptions.size())
+    {
+        name = validOptions.at(list_index);
+        list_index++;
+
+        if (!(strcmp(text,"")) || ( name.size() >=len && strlen(text)>=len && name.find(text) == 0))
+            return dupstr((char *)name.c_str());
+    }
+
+    return ((char *)NULL);
+}
+
+char* commands_completion(const char* text, int state)
+{
+    return generic_completion(text,state,validCommands);
+}
+char* local_completion(const char* text, int state)
+{
+    return ((char *)NULL); //matches will be NULL: readline will use local completion
+}
+char * flags_completion(const char*text, int state)
+{
+    vector<string> validparams;
+
+    char *saved_line = rl_copy_text(0, rl_end);
+    vector<string> words = getlistOfWords(saved_line);
+    if (words.size())
+    {
+        set<string> setvalidparams;
+
+        string thecommand=words[0];
+        insertValidParamsPerCommand(&setvalidparams,thecommand);
+        set<string>::iterator it;
+        for (it = setvalidparams.begin(); it != setvalidparams.end(); ++it)
+        {
+            string param = *it;
+            if ( param.size() > 1 )
+                validparams.push_back("--"+param);
+            else
+                validparams.push_back("-"+param);
+        }
+
+        std::copy(setvalidparams.begin(), setvalidparams.end(), std::back_inserter(validparams));
+    }
+    return generic_completion(text,state,validparams);
+
+}
+
+char* remotepaths_completion(const char* text, int state)
+{
+    string wildtext(text);
+    wildtext+="*";
+    vector<string> validpaths = cmdexecuter->listpaths(wildtext);
+    return generic_completion(text,state,validpaths);
+}
+
+void discardOptionsAndFlags(vector<string> *ws)
+{
+    for(std::vector<string>::iterator it = ws->begin(); it != ws->end();) {
+        /* std::cout << *it; ... */
+        string w = (string)*it;
+        if (w.length() && w.at(0)=='-') //begins with "-"
+        {
+            it=ws->erase(it);
+        }
+        else //not an option/flag
+        {
+            ++it;
+        }
+    }
+}
+
+rl_compentry_func_t *getCompletionFunction (vector<string> words)
+{
+    // Strip words without flags
+    string thecommand = words[0];
+
+    if (words.size() > 1 && words[words.size()-1].find_first_of("-") == 0)
+    {
+        return flags_completion;
+     }
+    discardOptionsAndFlags(&words);
+
+    int currentparameter = words.size();
+    if (thecommand == "put")
+    {
+        if (currentparameter==1)
+            return local_completion;
+        return remotepaths_completion;
+    }
+
+    return remotepaths_completion;
+}
+
+static char** getCompletionMatches( const char * text , int start,  int end)
+{
+    char **matches;
+
+    matches = (char **)NULL;
+
+    if (start == 0)
+    {
+        matches = rl_completion_matches ((char*)text, &commands_completion);
+    }
+    else
+    {
+        char *saved_line = rl_copy_text(0, rl_end);
+        vector<string> words = getlistOfWords(saved_line);
+
+        matches = rl_completion_matches ((char*)text, getCompletionFunction(words));
+
+
+
+//        if (words.size()  && stringcontained(words[0].c_str(),remoteParamsCommand))
+//        {
+//            matches = rl_completion_matches ((char*)text, &remotepaths_completion);
+//        }
+//        else
+//        {
+//            matches = rl_completion_matches ((char*)text, &local_completion);
+//        }
+
+        free(saved_line);
+    }
+    return (matches);
+}
+
 
 void printHistory()
 {
@@ -651,8 +820,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     }
 }
 
-void executecommand(char* ptr){
 
+vector<string> getlistOfWords(char *ptr)
+{
     vector<string> words;
 
     char* wptr;
@@ -713,7 +883,12 @@ void executecommand(char* ptr){
             words.push_back(string(wptr, ptr - wptr));
         }
     }
+    return words;
+}
 
+void executecommand(char* ptr){
+
+    vector<string> words = getlistOfWords(ptr);
     if (!words.size())
     {
         return;
@@ -1597,6 +1772,7 @@ void megacmd()
 
                     if (cm->receivedReadlineInput(readline_fd)) {
                         rl_callback_read_char();
+                        if (doExit) exit(0);
                     }
                     else if (cm->receivedPetition())
                     {
@@ -1711,6 +1887,9 @@ int main()
 #endif
 
     atexit(finalize);
+
+    rl_attempted_completion_function = getCompletionMatches;
+
 
     rl_callback_handler_install(NULL,NULL); //this initializes readline somehow,
             // so that we can use rl_message or rl_resize_terminal safely before ever
