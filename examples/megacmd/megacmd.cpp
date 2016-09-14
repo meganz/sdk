@@ -184,6 +184,13 @@ bool stringcontained (const char * s, char **list){
     return false;
 }
 
+bool stringcontained (const char * s, string *list){
+    for (int i=0;i<sizeof(list);i++)
+        if (!list->compare(s))
+            return true;
+    return false;
+}
+
 char * dupstr (char* s) {
   char *r;
 
@@ -284,13 +291,14 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
      }
     discardOptionsAndFlags(&words);
 
-    int currentparameter = words.size();
-    if (thecommand == "put")
+    int currentparameter = words.size()-1;
+    if (thecommand == "put" || thecommand == "sync")
     {
         if (currentparameter==1)
             return local_completion;
         return remotepaths_completion;
     }
+
 
     return remotepaths_completion;
 }
@@ -309,20 +317,9 @@ static char** getCompletionMatches( const char * text , int start,  int end)
     {
         char *saved_line = rl_copy_text(0, rl_end);
         vector<string> words = getlistOfWords(saved_line);
+        if (strlen(saved_line) && saved_line[strlen(saved_line)-1]==' ') words.push_back("");
 
         matches = rl_completion_matches ((char*)text, getCompletionFunction(words));
-
-
-
-//        if (words.size()  && stringcontained(words[0].c_str(),remoteParamsCommand))
-//        {
-//            matches = rl_completion_matches ((char*)text, &remotepaths_completion);
-//        }
-//        else
-//        {
-//            matches = rl_completion_matches ((char*)text, &local_completion);
-//        }
-
         free(saved_line);
     }
     return (matches);
@@ -427,7 +424,8 @@ const char * getUsageStr(const char *command)
 }
 
 bool validCommand(string thecommand){
-    return getUsageStr(thecommand.c_str()) != "command not found";
+    return stringcontained((char *)thecommand.c_str(),avalidCommands);
+//    return getUsageStr(thecommand.c_str()) != "command not found";
 }
 
 void printAvailableCommands()
