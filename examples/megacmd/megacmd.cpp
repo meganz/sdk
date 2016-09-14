@@ -167,6 +167,20 @@ static void store_line(char* l)
     line = l;
 }
 
+string alocalremotepatterncommands [] = {"put", "sync"};
+vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
+
+string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share"};
+vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
+
+string aremoteremotepatterncommands[] = {"mv", "cp"};
+vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
+
+string aremotelocalpatterncommands[] = {"get"};
+vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelocalpatterncommands + sizeof aremotelocalpatterncommands / sizeof aremotelocalpatterncommands[0]);
+
+string alocalpatterncommands [] = {"lcd"};
+vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
 string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
 "import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
@@ -175,18 +189,10 @@ string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "
 "symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
-char *remoteParamsCommand [] = { "ls" };
 
-bool stringcontained (const char * s, char **list){
-    for (int i=0;i<sizeof(list)/sizeof(*list);i++)
-        if (!strcmp(s,list[i]))
-            return true;
-    return false;
-}
-
-bool stringcontained (const char * s, string *list){
-    for (int i=0;i<sizeof(list);i++)
-        if (!list->compare(s))
+bool stringcontained (const char * s, vector<string> list){
+    for (int i=0;i<list.size();i++)
+        if (list[i] == s)
             return true;
     return false;
 }
@@ -227,6 +233,12 @@ char* commands_completion(const char* text, int state)
 char* local_completion(const char* text, int state)
 {
     return ((char *)NULL); //matches will be NULL: readline will use local completion
+}
+char* empty_completion(const char* text, int state)
+{
+    vector<string> emptyvalid;
+    emptyvalid.push_back("");
+    return generic_completion(text,state,emptyvalid);
 }
 char * flags_completion(const char*text, int state)
 {
@@ -292,15 +304,37 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
     discardOptionsAndFlags(&words);
 
     int currentparameter = words.size()-1;
-    if (thecommand == "put" || thecommand == "sync")
+    if (stringcontained(thecommand.c_str(),localremotepatterncommands))
     {
         if (currentparameter==1)
             return local_completion;
-        return remotepaths_completion;
+        if (currentparameter==2)
+            return remotepaths_completion;
+    }
+    else if (stringcontained(thecommand.c_str(),remotepatterncommands))
+    {
+        if (currentparameter==1)
+            return remotepaths_completion;
+    }
+    else if (stringcontained(thecommand.c_str(),localpatterncommands))
+    {
+        if (currentparameter==1)
+            return local_completion;
+    }
+    else if (stringcontained(thecommand.c_str(),remoteremotepatterncommands))
+    {
+        if (currentparameter==1 || currentparameter==2)
+            return remotepaths_completion;
+    }
+    else if (stringcontained(thecommand.c_str(),remotelocalpatterncommands))
+    {
+        if (currentparameter==1)
+            return remotepaths_completion;
+        if (currentparameter==2)
+            return local_completion;
     }
 
-
-    return remotepaths_completion;
+    return empty_completion;
 }
 
 static char** getCompletionMatches( const char * text , int start,  int end)
@@ -424,7 +458,7 @@ const char * getUsageStr(const char *command)
 }
 
 bool validCommand(string thecommand){
-    return stringcontained((char *)thecommand.c_str(),avalidCommands);
+    return stringcontained((char *)thecommand.c_str(),validCommands);
 //    return getUsageStr(thecommand.c_str()) != "command not found";
 }
 
