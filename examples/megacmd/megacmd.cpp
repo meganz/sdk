@@ -182,12 +182,15 @@ vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelo
 string alocalpatterncommands [] = {"lcd"};
 vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
-string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
-"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
-"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
-"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
-"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
-"history" };
+//string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
+//"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
+//"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
+//"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
+//"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
+//"history" };
+string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
+"put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "whoami",
+"reload", "logout", "version","quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 bool stringcontained (const char * s, vector<string> list){
@@ -200,7 +203,7 @@ bool stringcontained (const char * s, vector<string> list){
 char * dupstr (char* s) {
   char *r;
 
-  r = (char*) malloc (sizeof(char)*(4+ 1));
+  r = (char*) malloc (sizeof(char)*(strlen(s)+1));
   strcpy (r, s);
   return (r);
 }
@@ -249,22 +252,28 @@ char * flags_completion(const char*text, int state)
     if (words.size())
     {
         set<string> setvalidparams;
+        setvalidparams.insert("d");//global flags. TODO: they are repeated twice
+        setvalidparams.insert("help");
 
         string thecommand=words[0];
         insertValidParamsPerCommand(&setvalidparams,thecommand);
         set<string>::iterator it;
-        for (it = setvalidparams.begin(); it != setvalidparams.end(); ++it)
+        for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
         {
             string param = *it;
+            string toinsert;
+
             if ( param.size() > 1 )
-                validparams.push_back("--"+param);
+                toinsert = "--"+param;
             else
-                validparams.push_back("-"+param);
+                toinsert = "-"+param;
+
+            validparams.push_back(toinsert);
         }
 
-        std::copy(setvalidparams.begin(), setvalidparams.end(), std::back_inserter(validparams));
     }
-    return generic_completion(text,state,validparams);
+    char *toret = generic_completion(text,state,validparams);
+    return toret;
 
 }
 

@@ -51,7 +51,7 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle){
         ptraux += strlen(np);
         ptraux = min(ptraux,lastpos-2);
         delete n;
-        delete np;
+        delete []np;
 
     }
     if (ptraux==dynamicprompt)
