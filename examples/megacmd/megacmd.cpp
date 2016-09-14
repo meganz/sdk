@@ -241,9 +241,8 @@ char* local_completion(const char* text, int state)
 
 char* empty_completion(const char* text, int state)
 {
-    vector<string> emptyvalid;
-    emptyvalid.push_back("");
-    return generic_completion(text,state,emptyvalid);
+    if (state==0) return strdup("");
+    return NULL;
 }
 
 char * flags_completion(const char*text, int state)
@@ -415,6 +414,7 @@ static char** getCompletionMatches( const char * text , int start,  int end)
     if (start == 0)
     {
         matches = rl_completion_matches ((char*)text, &commands_completion);
+        if (matches == NULL) matches = rl_completion_matches ((char*)text, &empty_completion);
     }
     else
     {
@@ -1997,7 +1997,6 @@ int main()
     atexit(finalize);
 
     rl_attempted_completion_function = getCompletionMatches;
-
 
     rl_callback_handler_install(NULL,NULL); //this initializes readline somehow,
             // so that we can use rl_message or rl_resize_terminal safely before ever
