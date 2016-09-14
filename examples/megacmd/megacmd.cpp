@@ -76,7 +76,7 @@ bool loginInAtStartup=false;
 
 vector<string> getlistOfWords(char *ptr);
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand); //TODO: place somewhere else
-
+bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false);//TODO: place somewhere else
 
 static void store_line(char*);
 static void process_line(char *);
@@ -223,7 +223,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
         list_index++;
 
         if (!(strcmp(text,"")) || ( name.size() >=len && strlen(text)>=len && name.find(text) == 0))
-            return dupstr((char *)name.c_str());
+                return dupstr((char *)name.c_str());
     }
 
     return ((char *)NULL);
@@ -233,16 +233,19 @@ char* commands_completion(const char* text, int state)
 {
     return generic_completion(text,state,validCommands);
 }
+
 char* local_completion(const char* text, int state)
 {
     return ((char *)NULL); //matches will be NULL: readline will use local completion
 }
+
 char* empty_completion(const char* text, int state)
 {
     vector<string> emptyvalid;
     emptyvalid.push_back("");
     return generic_completion(text,state,emptyvalid);
 }
+
 char * flags_completion(const char*text, int state)
 {
     vector<string> validparams;
@@ -277,6 +280,56 @@ char * flags_completion(const char*text, int state)
 
 }
 
+char * flags_value_completion(const char*text, int state)
+{
+
+    vector<string> validValues;
+
+    char *saved_line = rl_copy_text(0, rl_end);
+    vector<string> words = getlistOfWords(saved_line);
+    if (words.size()>1)
+    {
+        string thecommand=words[0];
+        string currentFlag = words[words.size()-1];
+
+        map<string,string> cloptions;
+        map<string,int> clflags;
+
+        set<string> validParams;
+
+        insertValidParamsPerCommand(&validParams, thecommand);
+
+        if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams,true) )
+        {
+           // return invalid??
+        }
+
+        if (thecommand == "share")
+        {
+            if (currentFlag == "--level=")
+            {
+                char buf[3];
+                sprintf(buf,"%d",MegaShare::ACCESS_UNKNOWN);validValues.push_back(buf);
+                sprintf(buf,"%d",MegaShare::ACCESS_READ);validValues.push_back(buf);
+                sprintf(buf,"%d",MegaShare::ACCESS_READWRITE);validValues.push_back(buf);
+                sprintf(buf,"%d",MegaShare::ACCESS_FULL);validValues.push_back(buf);
+                sprintf(buf,"%d",MegaShare::ACCESS_OWNER);validValues.push_back(buf);
+            }
+            if (currentFlag == "--with=")
+            {
+                char buf[3];
+               //TODO: get current contacts
+            }
+        }
+    }
+
+    if (validValues.empty()) validValues.push_back("");
+
+    char *toret = generic_completion(text,state,validValues);
+    return toret;
+
+}
+
 char* remotepaths_completion(const char* text, int state)
 {
     string wildtext(text);
@@ -306,10 +359,17 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
     // Strip words without flags
     string thecommand = words[0];
 
-    if (words.size() > 1 && words[words.size()-1].find_first_of("-") == 0)
+    if (words.size() > 1)
     {
-        return flags_completion;
-     }
+        string lastword = words[words.size()-1];
+        if (lastword.find_first_of("-") == 0)
+        {
+            if (lastword.find_last_of("=") == lastword.size()-1)
+                return flags_value_completion;
+            else
+                return flags_completion;
+        }
+    }
     discardOptionsAndFlags(&words);
 
     int currentparameter = words.size()-1;
@@ -741,7 +801,7 @@ string getHelpStr(const char *command)
 }
 
 
-bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global=false)
+bool setOptionsAndFlags(map<string,string> *opts,map<string,int> *flags,vector<string> *ws, set<string> vvalidOptions, bool global)
 {
     bool discarded = false;
 
