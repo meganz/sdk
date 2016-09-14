@@ -8446,7 +8446,11 @@ void MegaApiImpl::share_result(error e)
             return;
         }
 
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
         client->getpubliclink(node, false, request->getNumber());
+        client->reqtag = creqtag;
+
 		return;
     }
 
