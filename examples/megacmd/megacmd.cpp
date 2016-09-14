@@ -252,7 +252,7 @@ char * flags_completion(const char*text, int state)
     if (words.size())
     {
         set<string> setvalidparams;
-        setvalidparams.insert("d");//global flags. TODO: they are repeated twice
+        setvalidparams.insert("v");//global flags. TODO: they are repeated twice
         setvalidparams.insert("help");
 
         string thecommand=words[0];
@@ -935,7 +935,9 @@ void executecommand(char* ptr){
         return;
     }
 
-    if (words[0] == "?" || words[0] == "h" || words[0] == "help")
+    string thecommand = words[0];
+
+    if (thecommand == "?" || thecommand == "h" || thecommand == "help")
     {
         printAvailableCommands();
         return;
@@ -946,9 +948,11 @@ void executecommand(char* ptr){
 
     string validGlobalParameters[]={"v","help"};
     set<string> validParams(validGlobalParameters,validGlobalParameters + sizeof(validGlobalParameters)/sizeof(*validGlobalParameters));
-    if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams,true) ) return;
 
-    string thecommand = words[0];
+    if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams,true) )
+    {
+        OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+    }
 
     insertValidParamsPerCommand(&validParams, thecommand);
 
@@ -957,8 +961,11 @@ void executecommand(char* ptr){
         return;
     }
 
-    if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) ) return;
-
+    if (setOptionsAndFlags(&cloptions,&clflags,&words,validParams) )
+    {
+        OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+        return;
+    }
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR+getFlag(&clflags,"v"));
 
     if(getFlag(&clflags,"help")) {
