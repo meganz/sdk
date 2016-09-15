@@ -2344,6 +2344,7 @@ void MegaCmdExecuter::uploadNode(string localPath, MegaApi* api, MegaNode *node)
     delete megaCmdTransferListener;
 }
 
+
 void MegaCmdExecuter::exportNode(MegaNode *n,int expireTime)
 {
     MegaCmdListener *megaCmdListener = new MegaCmdListener(api,NULL);
@@ -4586,21 +4587,119 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
     }
     else if (words[0] == "import")
     {
-        if (words.size() > 1)
+        string remotePath = "";
+        MegaNode *dstFolder;
+        if (words.size() > 1) //link
         {
-            //TODO: modify using API
-            //                            if (client->openfilelink(words[1].c_str(), 1) == API_OK)
-            //                            {
-            //                                OUTSTREAM << "Opening link..." << endl;
-            //                            }
-            //                            else
-            //                            {
-            //                                OUTSTREAM << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
-            //                            }
+            if (isPublicLink(words[1]))
+            {
+                if (words.size()>2)
+                {
+                    remotePath=words[2];
+                    dstFolder = nodebypath(remotePath.c_str());
+                }
+                else
+                {
+                    dstFolder = api->getNodeByHandle(cwd);
+                    remotePath = "."; //just to inform (alt: getpathbynode)
+                }
+                if (dstFolder && !dstFolder->getType() == MegaNode::TYPE_FILE)
+                {
+                    if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
+                    {
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+
+                        api->importFileLink(words[1].c_str(),dstFolder,megaCmdListener);
+                        megaCmdListener->wait();
+                        if (checkNoErrors(megaCmdListener->getError(), "import node"))
+                        {
+                            MegaNode *imported = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+                            char *importedPath = api->getNodePath(imported);
+                            LOG_info << "Import file complete: " << importedPath;
+                            delete imported;
+                            delete []importedPath;
+                        }
+
+                        delete megaCmdListener;
+                    } else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
+                    {
+                        MegaApi* apiFolder = getFreeApiFolder();
+                        apiFolder->setAccountAuth(api->getAccountAuth());
+
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder,NULL);
+                        apiFolder->loginToFolder(words[1].c_str(),megaCmdListener);
+                        megaCmdListener->wait();
+                        if (checkNoErrors(megaCmdListener->getError(), "login to folder"))
+                        {
+                            MegaCmdListener *megaCmdListener2 = new MegaCmdListener(apiFolder,NULL);
+                            apiFolder->fetchNodes(megaCmdListener2);
+                            megaCmdListener2->wait();
+                            if (checkNoErrors(megaCmdListener2->getError(), "access folder link "+words[1]))
+                            {
+                                MegaNode *folderRootNode = apiFolder->getRootNode();
+                                if (folderRootNode)
+                                {
+                                    MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
+                                    if (authorizedNode !=NULL)
+                                    {
+                                        MegaCmdListener *megaCmdListener3 = new MegaCmdListener(apiFolder,NULL);
+                                        api->copyNode(authorizedNode,dstFolder,megaCmdListener3);
+                                        megaCmdListener3->wait();
+                                        if (checkNoErrors(megaCmdListener->getError(), "import folder node"))
+                                        {
+                                            MegaNode *importedFolderNode = api->getNodeByHandle(megaCmdListener3->getRequest()->getNodeHandle());
+                                            char *pathnewFolder = api->getNodePath(importedFolderNode);
+                                            if (pathnewFolder)
+                                            {
+                                                OUTSTREAM << "Imported folder complete: " << pathnewFolder << endl;
+                                                delete pathnewFolder;
+                                            }
+                                            delete importedFolderNode;
+                                        }
+                                        delete megaCmdListener3;
+                                        delete authorizedNode;
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "Node couldn't be authorized: " << words[1];
+
+                                    }
+                                    delete folderRootNode;
+                                }
+                                else
+                                {
+                                    LOG_err << "Couldn't get root folder for folder link";
+                                }
+                            }
+                            delete megaCmdListener2;
+                        }
+                        delete megaCmdListener;
+                        freeApiFolder(apiFolder);
+                        delete dstFolder;
+                    }
+                    else
+                    {
+                        setCurrentOutCode(4);
+                        OUTSTREAM << "Invalid link: " << words[1] << endl;
+                        OUTSTREAM << "      " << getUsageStr("import") << endl;
+                    }
+                }
+                else
+                {
+                    setCurrentOutCode(4);
+                    OUTSTREAM << "Invalid destiny: " << remotePath << endl;
+                }
+            }
+            else
+            {
+                setCurrentOutCode(3);
+                OUTSTREAM << "Invalid link: " << words[1] << endl;
+            }
         }
         else
         {
-            OUTSTREAM << "      import exportedfilelink#key" << endl;
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("import") << endl;
         }
 
         return;

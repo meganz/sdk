@@ -193,7 +193,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
-string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
+string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
 "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "whoami",
 "reload", "logout", "version","quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
