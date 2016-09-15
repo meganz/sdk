@@ -182,7 +182,6 @@ vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelo
 string alocalpatterncommands [] = {"lcd"};
 vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
-
 string aemailpatterncommands [] = {"invite", "signup"};
 vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
 
@@ -386,37 +385,42 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
     int currentparameter = words.size()-1;
     if (stringcontained(thecommand.c_str(),localremotepatterncommands))
     {
-        if (currentparameter==1)
+        if (currentparameter == 1)
             return local_completion;
-        if (currentparameter==2)
+        if (currentparameter == 2)
             return remotepaths_completion;
     }
     else if (stringcontained(thecommand.c_str(),remotepatterncommands))
     {
-        if (currentparameter==1)
+        if (currentparameter == 1)
             return remotepaths_completion;
     }
     else if (stringcontained(thecommand.c_str(),localpatterncommands))
     {
-        if (currentparameter==1)
+        if (currentparameter == 1)
             return local_completion;
     }
     else if (stringcontained(thecommand.c_str(),remoteremotepatterncommands))
     {
-        if (currentparameter==1 || currentparameter==2)
+        if (currentparameter == 1 || currentparameter == 2)
             return remotepaths_completion;
     }
     else if (stringcontained(thecommand.c_str(),remotelocalpatterncommands))
     {
-        if (currentparameter==1)
+        if (currentparameter == 1)
             return remotepaths_completion;
-        if (currentparameter==2)
+        if (currentparameter == 2)
             return local_completion;
     }
     else if (stringcontained(thecommand.c_str(),emailpatterncommands))
     {
-        if (currentparameter==1)
+        if (currentparameter == 1)
             return contacts_completion;
+    }
+    else if (thecommand  ==  "import")
+    {
+        if (currentparameter == 2)
+            return remotepaths_completion;
     }
 
     return empty_completion;
@@ -494,7 +498,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"pwd") ) return "pwd";
     if(!strcmp(command,"lcd") ) return "lcd [localpath]";
     if(!strcmp(command,"lpwd") ) return "lpwd";
-    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
+    if(!strcmp(command,"import") ) return "import exportedfilelink#key [remotepath]";
 //    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
     if(!strcmp(command,"put") ) return "put localfile [localfile2 localfile3 ...] [dstremotepath]";
     if(!strcmp(command,"putq") ) return "putq [cancelslot]";
@@ -676,7 +680,12 @@ string getHelpStr(const char *command)
     {
         os << "Logs out, invalidating the session and the local caches" << endl;
     }
-//    if(!strcmp(command,"import") ) return "import exportedfilelink#key";
+    else if(!strcmp(command,"import") )
+    {
+        os << "Imports the contents of a remote link into user's cloud" << endl;
+        os << endl;
+        os << "If no remote path is provided, the current local folder will be used" << endl;
+    }
     else if(!strcmp(command,"put") ) {
         os << "Uploads files/folders to a remote folder" << endl;
     }
