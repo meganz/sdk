@@ -14,7 +14,7 @@ using namespace mega;
  * @param api
  * @return
  */
-int * getNumFolderFiles(MegaNode *,MegaApi *);
+int * getNumFolderFiles(MegaNode *, MegaApi *);
 
 string getUserInSharedNode(MegaNode *n, MegaApi *api);
 
@@ -56,12 +56,12 @@ std::string &ltrim(std::string &s, const char &c);
 // trim at the end
 std::string &rtrim(std::string &s, const char &c);
 
-bool patternMatches(const char *what,const char *pattern);
+bool patternMatches(const char *what, const char *pattern);
 
-int getFlag(map<string,int> *flags, const char * optname);
+int getFlag(map<string, int> *flags, const char * optname);
 
-string getOption(map<string,string> *cloptions, const char * optname, string defaultValue="");
+string getOption(map<string, string> *cloptions, const char * optname, string defaultValue = "");
 
-int getintOption(map<string,string> *cloptions, const char * optname, int defaultValue=0);
+int getintOption(map<string, string> *cloptions, const char * optname, int defaultValue = 0);
 
 #endif // MEGACMDUTILS_H

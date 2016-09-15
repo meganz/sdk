@@ -12,9 +12,9 @@ bool is_file_exist(const char *fileName)
 }
 
 string ConfigurationManager::configFolder;
-map<string,sync_struct *> ConfigurationManager::configuredSyncs;
+map<string, sync_struct *> ConfigurationManager::configuredSyncs;
 string ConfigurationManager::session;
-map<string,sync_struct *> ConfigurationManager::loadedSyncs;
+map<string, sync_struct *> ConfigurationManager::loadedSyncs;
 
 
 std::string ConfigurationManager::getConfigFolder()
@@ -25,15 +25,15 @@ std::string ConfigurationManager::getConfigFolder()
 void ConfigurationManager::loadConfigDir(){
     const char *homedir = NULL;
     homedir = getenv("HOME");
-    if (!homedir) {
-
+    if (!homedir)
+    {
         struct passwd pd;
-        struct passwd* pwdptr=&pd;
+        struct passwd* pwdptr = &pd;
         struct passwd* tempPwdPtr;
         char pwdbuffer[200];
-        int  pwdlinelen = sizeof(pwdbuffer);
+        int pwdlinelen = sizeof( pwdbuffer );
 
-        if ((getpwuid_r(22,pwdptr,pwdbuffer,pwdlinelen,&tempPwdPtr))!=0)
+        if (( getpwuid_r(22, pwdptr, pwdbuffer, pwdlinelen, &tempPwdPtr)) != 0)
         {
             LOG_fatal << "Couldnt get HOME folder";
             return;
@@ -52,7 +52,7 @@ void ConfigurationManager::loadConfigDir(){
 
     int oldPermissions = fsAccess->getdefaultfolderpermissions();
     fsAccess->setdefaultfolderpermissions(0700);
-    if ( !is_file_exist (configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder,false))
+    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, false))
     {
         LOG_err << "Config folder not created";
         return;
@@ -64,14 +64,18 @@ void ConfigurationManager::loadConfigDir(){
 
 void ConfigurationManager::saveSession(const char*session){
     stringstream sessionfile;
-    if (!configFolder.size()) loadConfigDir();
-    if (configFolder.size()){
+    if (!configFolder.size())
+    {
+        loadConfigDir();
+    }
+    if (configFolder.size())
+    {
         sessionfile << configFolder << "/" << "session";
         LOG_debug << "Session file: " << sessionfile.str();
 
         ofstream fo(sessionfile.str().c_str(), ios::out);
 
-        if(fo.is_open())
+        if (fo.is_open())
         {
             fo << session;
             fo.close();
@@ -83,30 +87,34 @@ void ConfigurationManager::saveSession(const char*session){
     }
 }
 
-void ConfigurationManager::saveSyncs(map<string,sync_struct *> syncsmap)
+void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
 {
     stringstream syncsfile;
-    if (!configFolder.size()) loadConfigDir();
-    if (configFolder.size()){
+    if (!configFolder.size())
+    {
+        loadConfigDir();
+    }
+    if (configFolder.size())
+    {
         syncsfile << configFolder << "/" << "syncs";
         LOG_debug << "Syncs file: " << syncsfile.str();
 
         ofstream fo(syncsfile.str().c_str(), ios::out | ios::binary);
 
-        if(fo.is_open())
+        if (fo.is_open())
         {
-            map<string,sync_struct *>::iterator itr;
-            int i =0;
-            for(itr = syncsmap.begin(); itr != syncsmap.end(); ++itr,i++)
+            map<string, sync_struct *>::iterator itr;
+            int i = 0;
+            for (itr = syncsmap.begin(); itr != syncsmap.end(); ++itr, i++)
             {
-                sync_struct *thesync = ((sync_struct *)(*itr).second);
+                sync_struct *thesync = ((sync_struct*)( *itr ).second );
 
-                fo.write((char *)&thesync->fingerprint, sizeof(long long));
-                fo.write((char *)&thesync->handle, sizeof(MegaHandle));
+                fo.write((char*)&thesync->fingerprint, sizeof( long long ));
+                fo.write((char*)&thesync->handle, sizeof( MegaHandle ));
                 const char * localPath = thesync->localpath.c_str();
                 size_t lengthLocalPath = thesync->localpath.size();
-                fo.write((char *)&lengthLocalPath, sizeof(size_t));
-                fo.write((char *)localPath, sizeof(char)*lengthLocalPath);
+                fo.write((char*)&lengthLocalPath, sizeof( size_t ));
+                fo.write((char*)localPath, sizeof( char ) * lengthLocalPath);
             }
 
             fo.close();
@@ -120,8 +128,12 @@ void ConfigurationManager::saveSyncs(map<string,sync_struct *> syncsmap)
 
 void ConfigurationManager::loadConfiguration(){
     stringstream sessionfile;
-    if (!configFolder.size()) loadConfigDir();
-    if (configFolder.size()){
+    if (!configFolder.size())
+    {
+        loadConfigDir();
+    }
+    if (configFolder.size())
+    {
         sessionfile << configFolder << "/" << "session";
         LOG_debug << "Session file: " << sessionfile.str();
 
@@ -129,46 +141,50 @@ void ConfigurationManager::loadConfiguration(){
         if (fi.is_open())
         {
             string line;
-            getline (fi,line);
+            getline(fi, line);
             {
                 session = line;
-                LOG_debug << "Session read from configuration: " << line.substr(0,5) << "...";
+                LOG_debug << "Session read from configuration: " << line.substr(0, 5) << "...";
                 //login?
             }
             fi.close();
         }
 
         stringstream syncsfile;
-        if (!configFolder.size()) loadConfigDir();
-        if (configFolder.size()){
+        if (!configFolder.size())
+        {
+            loadConfigDir();
+        }
+        if (configFolder.size())
+        {
             syncsfile << configFolder << "/" << "syncs";
             LOG_debug << "Syncs file: " << syncsfile.str();
 
             ifstream fi(syncsfile.str().c_str(), ios::in | ios::binary);
 
-            if(fi.is_open())
+            if (fi.is_open())
             {
-
                 if (fi.fail())
                 {
                     LOG_err << "fail with sync file";
                 }
 
-                while (!(fi.peek() == EOF))
+                while (!( fi.peek() == EOF ))
                 {
                     sync_struct *thesync = new sync_struct;
                     //Load syncs
-                    fi.read((char *)&thesync->fingerprint, sizeof(long long));
-                    fi.read((char *)&thesync->handle, sizeof(MegaHandle));
+                    fi.read((char*)&thesync->fingerprint, sizeof( long long ));
+                    fi.read((char*)&thesync->handle, sizeof( MegaHandle ));
                     size_t lengthLocalPath;
-                    fi.read((char *)&lengthLocalPath, sizeof(size_t));
-                    char localPath[lengthLocalPath+1];
-                    fi.read((char *)localPath, sizeof(char)*lengthLocalPath);
-                    localPath[lengthLocalPath]='\0';
-                    thesync->localpath=string(localPath);
+                    fi.read((char*)&lengthLocalPath, sizeof( size_t ));
+                    char localPath[lengthLocalPath + 1];
+                    fi.read((char*)localPath, sizeof( char ) * lengthLocalPath);
+                    localPath[lengthLocalPath] = '\0';
+                    thesync->localpath = string(localPath);
 
                     configuredSyncs[localPath] = thesync;
                 }
+
                 if (fi.bad())
                 {
                     LOG_err << "fail with sync file  at the end";

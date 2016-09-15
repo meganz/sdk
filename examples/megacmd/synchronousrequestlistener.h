@@ -18,28 +18,28 @@ using namespace mega;
  */
 class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else
 {
-    private:
-        MegaSemaphore* semaphore;
-    protected:
-        MegaRequestListener *listener = NULL;
-        MegaApi *megaApi = NULL;
-        MegaRequest *megaRequest = NULL;
-        MegaError *megaError = NULL;
+private:
+    MegaSemaphore* semaphore;
+protected:
+    MegaRequestListener *listener = NULL;
+    MegaApi *megaApi = NULL;
+    MegaRequest *megaRequest = NULL;
+    MegaError *megaError = NULL;
 
-    public:
-        SynchronousRequestListener();
-        virtual ~SynchronousRequestListener();
-        virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error) = 0;
+public:
+    SynchronousRequestListener();
+    virtual ~SynchronousRequestListener();
+    virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error) = 0;
 
-        void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
 
-        void wait();
+    void wait();
 
-        int trywait(int milliseconds);
+    int trywait(int milliseconds);
 
-        MegaError *getError() const;
-        MegaRequest *getRequest() const;
-        MegaApi *getApi() const;
+    MegaError *getError() const;
+    MegaRequest *getRequest() const;
+    MegaApi *getApi() const;
 };
 
 
@@ -49,28 +49,28 @@ class SynchronousRequestListener : public MegaRequestListener //TODO: move to so
  */
 class SynchronousTransferListener : public MegaTransferListener //TODO: move to somewhere else
 {
-    private:
-        MegaSemaphore* semaphore;
-    protected:
-        MegaTransferListener *listener = NULL;
-        MegaApi *megaApi = NULL;
-        MegaTransfer *megaTransfer = NULL;
-        MegaError *megaError = NULL;
+private:
+    MegaSemaphore* semaphore;
+protected:
+    MegaTransferListener *listener = NULL;
+    MegaApi *megaApi = NULL;
+    MegaTransfer *megaTransfer = NULL;
+    MegaError *megaError = NULL;
 
-    public:
-        SynchronousTransferListener();
-        virtual ~SynchronousTransferListener();
-        virtual void doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) = 0;
+public:
+    SynchronousTransferListener();
+    virtual ~SynchronousTransferListener();
+    virtual void doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) = 0;
 
-        void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
 
-        void wait();
+    void wait();
 
-        int trywait(int milliseconds);
+    int trywait(int milliseconds);
 
-        MegaError *getError() const;
-        MegaTransfer *getTransfer() const;
-        MegaApi *getApi() const;
+    MegaError *getError() const;
+    MegaTransfer *getTransfer() const;
+    MegaApi *getApi() const;
 };
 
 #endif // SYNCHRONOUSREQUESTLISTENER_H

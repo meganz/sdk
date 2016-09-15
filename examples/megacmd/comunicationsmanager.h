@@ -4,7 +4,8 @@
 #include "megaapi_impl.h"
 using namespace mega;
 
-struct petition_info_t {
+struct petition_info_t
+{
     char * line = NULL;
     int outSocket;
 };
@@ -38,7 +39,7 @@ public:
 
     int initialize();
 
-    bool receivedReadlineInput (int readline_fd);
+    bool receivedReadlineInput(int readline_fd);
 
     bool receivedPetition();
 
@@ -49,7 +50,7 @@ public:
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(petition_info_t *inf,std::ostringstream *s,int);
+    void returnAndClosePetition(petition_info_t *inf, std::ostringstream *s, int);
 
 
     /**

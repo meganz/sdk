@@ -12,11 +12,12 @@ int getCurrentThread();
 ostream &getCurrentOut();
 void setCurrentThreadOutStream(ostream *);
 int getCurrentOutCode();
-void setCurrentOutCode(int );
+void setCurrentOutCode(int);
 int getCurrentThreadLogLevel();
 void setCurrentThreadLogLevel(int);
 
-class MegaCMDLogger: public MegaLogger{
+class MegaCMDLogger : public MegaLogger
+{
 private:
     int apiLoggerLevel;
     int cmdLoggerLevel;
@@ -25,17 +26,17 @@ public:
     MegaCMDLogger(ostream * outstr)
     {
         this->output = outstr;
-        this->apiLoggerLevel=MegaApi::LOG_LEVEL_ERROR;
+        this->apiLoggerLevel = MegaApi::LOG_LEVEL_ERROR;
     }
 
     void log(const char *time, int loglevel, const char *source, const char *message);
 
     void setApiLoggerLevel(int apiLoggerLevel){
-        this->apiLoggerLevel=apiLoggerLevel;
+        this->apiLoggerLevel = apiLoggerLevel;
     }
 
     void setCmdLoggerLevel(int cmdLoggerLevel){
-        this->cmdLoggerLevel=cmdLoggerLevel;
+        this->cmdLoggerLevel = cmdLoggerLevel;
     }
 
     int getMaxLogLevel();
@@ -47,8 +48,6 @@ public:
     int getCmdLoggerLevel(){
         return this->cmdLoggerLevel;
     }
-
-
 };
 
 #endif // MEGACMDLOGGER_H

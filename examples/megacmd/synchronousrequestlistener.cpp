@@ -7,19 +7,31 @@ SynchronousRequestListener::SynchronousRequestListener()
 SynchronousRequestListener::~SynchronousRequestListener()
 {
     delete semaphore;
-    if (megaRequest) delete megaRequest;
-    if (megaError) delete megaError;
+    if (megaRequest)
+    {
+        delete megaRequest;
+    }
+    if (megaError)
+    {
+        delete megaError;
+    }
 }
 
 void SynchronousRequestListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
 {
     this->megaApi = api;
-    if (megaRequest) delete megaRequest; //in case of reused listener
+    if (megaRequest)
+    {
+        delete megaRequest;              //in case of reused listener
+    }
     this->megaRequest = request->copy();
-    if (megaError) delete megaError; //in case of reused listener
+    if (megaError)
+    {
+        delete megaError;            //in case of reused listener
+    }
     this->megaError = error->copy();
 
-    doOnRequestFinish(api,request,error);
+    doOnRequestFinish(api, request, error);
     semaphore->release();
 }
 
@@ -49,7 +61,6 @@ MegaError *SynchronousRequestListener::getError() const
 }
 
 
-
 SynchronousTransferListener::SynchronousTransferListener()
 {
     semaphore = new MegaSemaphore();
@@ -57,19 +68,31 @@ SynchronousTransferListener::SynchronousTransferListener()
 SynchronousTransferListener::~SynchronousTransferListener()
 {
     delete semaphore;
-    if (megaTransfer) delete megaTransfer;
-    if (megaError) delete megaError;
+    if (megaTransfer)
+    {
+        delete megaTransfer;
+    }
+    if (megaError)
+    {
+        delete megaError;
+    }
 }
 
 void SynchronousTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
     this->megaApi = api;
-    if (megaTransfer) delete megaTransfer; //in case of reused listener
+    if (megaTransfer)
+    {
+        delete megaTransfer;               //in case of reused listener
+    }
     this->megaTransfer = transfer->copy();
-    if (megaError) delete megaError; //in case of reused listener
+    if (megaError)
+    {
+        delete megaError;            //in case of reused listener
+    }
     this->megaError = error->copy();
 
-    doOnTransferFinish(api,transfer,error);
+    doOnTransferFinish(api, transfer, error);
     semaphore->release();
 }
 

@@ -33,7 +33,7 @@ public:
     static bool includeIfIsShared(MegaApi* api, MegaNode * n, void *arg);
     static bool includeIfIsPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
     static bool includeIfIsSharedOrPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
-    bool processTree(MegaNode *n, bool (MegaApi *, MegaNode *, void *),void *(arg));
+    bool processTree(MegaNode * n, bool(MegaApi *, MegaNode *, void *), void *( arg ));
     MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL);
     void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching);
     MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL);
@@ -50,24 +50,24 @@ public:
 
     //acting
     void loginWithPassword(char *password);
-    void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl,int timeout=-1);
-    bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl,int timeout=-1);
-    void actUponLogin(SynchronousRequestListener *srl,int timeout=-1);
-    void actUponLogout(SynchronousRequestListener *srl,int timeout=0);
-    int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0);
+    void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl, int timeout = -1);
+    bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl, int timeout = -1);
+    void actUponLogin(SynchronousRequestListener *srl, int timeout = -1);
+    void actUponLogout(SynchronousRequestListener *srl, int timeout = 0);
+    int actUponCreateFolder(SynchronousRequestListener *srl, int timeout = 0);
     void deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive);
     void downloadNode(string localPath, MegaApi* api, MegaNode *node);
     void uploadNode(string localPath, MegaApi* api, MegaNode *node);
-    void exportNode(MegaNode *n,int expireTime);
+    void exportNode(MegaNode *n, int expireTime);
     void disableExport(MegaNode *n);
-    void shareNode(MegaNode *n,string with,int level=MegaShare::ACCESS_READ);
+    void shareNode(MegaNode *n, string with, int level = MegaShare::ACCESS_READ);
     void disableShare(MegaNode *n, string with);
-    vector<string> listpaths(string askedPath="");
+    vector<string> listpaths(string askedPath = "");
     vector<string> getlistusers();
 
-    void executecommand(vector<string> words, map<string,int> &clflags, map<string,string> &cloptions);
+    void executecommand(vector<string> words, map<string, int> &clflags, map<string, string> &cloptions);
 
-    bool checkNoErrors(MegaError *error, string message="");
+    bool checkNoErrors(MegaError *error, string message = "");
 
     //doomedtodie
     void syncstat(Sync* sync);

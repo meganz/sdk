@@ -2,8 +2,10 @@
 
 void destroy_thread_info_t(petition_info_t *t)
 {
-    if (t && t->line !=NULL)
+    if (t && ( t->line != NULL ))
+    {
         free(t->line);
+    }
 }
 
 int ComunicationsManager::get_next_outSocket_id()
@@ -23,42 +25,40 @@ int ComunicationsManager::create_new_socket(int *sockId){
     }
 
     char socket_path[60];
-    *sockId=get_next_outSocket_id();
-    bzero(socket_path,sizeof(socket_path)*sizeof(*socket_path));
+    *sockId = get_next_outSocket_id();
+    bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
     sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), *sockId);
 
     struct sockaddr_un addr;
-    socklen_t saddrlen = sizeof(addr);
+    socklen_t saddrlen = sizeof( addr );
 
-    memset(&addr, 0, sizeof(addr));
+    memset(&addr, 0, sizeof( addr ));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path)-1);
+    strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
 
     unlink(socket_path);
 
-    if ( bind(thesock, (struct sockaddr*)&addr, saddrlen) )
+    if (bind(thesock, (struct sockaddr*)&addr, saddrlen))
     {
         if (errno == EADDRINUSE)
         {
             LOG_warn << "ERROR on binding socket: Already in use.";
-
         }
         else
         {
             LOG_fatal << "ERROR on binding socket: " << errno;
-            thesock=0; //TODO: potentian issue: if no stdin/stdout, 0 is valid Id
+            thesock = 0; //TODO: potentian issue: if no stdin/stdout, 0 is valid Id
         }
     }
     else
     {
         if (thesock)
         {
-            int returned = listen(thesock,150); //TODO: check errors?
+            int returned = listen(thesock, 150); //TODO: check errors?
             if (returned)
             {
                 LOG_fatal << "ERROR on listen socket: " << errno;
             }
-
         }
         return thesock;
     }
@@ -68,8 +68,8 @@ int ComunicationsManager::create_new_socket(int *sockId){
 
 
 ComunicationsManager::ComunicationsManager(){
-    count=0;
-    mtx=new MegaMutex();
+    count = 0;
+    mtx = new MegaMutex();
     initialize();
 }
 
@@ -86,9 +86,9 @@ int ComunicationsManager::initialize(){
     fsAccess->rmdirlocal(&socketsFolder);
     LOG_debug << "CREATING sockets folder: " << socketsFolder << "!!!";
 
-    if ( !fsAccess->mkdirlocal(&socketsFolder,false))
+    if (!fsAccess->mkdirlocal(&socketsFolder, false))
     {
-        LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": "<< errno;
+        LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": " << errno;
     }
     fsAccess->setdefaultfolderpermissions(oldPermissions);
     delete fsAccess;
@@ -113,19 +113,19 @@ int ComunicationsManager::initialize(){
 
 
     struct sockaddr_un addr;
-    socklen_t saddrlen = sizeof(addr);
-    memset(&addr, 0, sizeof(addr));
+    socklen_t saddrlen = sizeof( addr );
+    memset(&addr, 0, sizeof( addr ));
     addr.sun_family = AF_UNIX;
 
     char socketPath[60];
-    bzero(socketPath,sizeof(socketPath)*sizeof(*socketPath));
+    bzero(socketPath, sizeof( socketPath ) * sizeof( *socketPath ));
     sprintf(socketPath, "/tmp/megaCMD_%d/srv", getuid());
 
-    strncpy(addr.sun_path, socketPath, sizeof(addr.sun_path)-1);
+    strncpy(addr.sun_path, socketPath, sizeof( addr.sun_path ) - 1);
 
     unlink(socketPath);
 
-    if ( bind(sockfd, (struct sockaddr*)&addr, saddrlen) )
+    if (bind(sockfd, (struct sockaddr*)&addr, saddrlen))
     {
         if (errno == EADDRINUSE)
         {
@@ -153,27 +153,26 @@ int ComunicationsManager::initialize(){
 //                    LOG_fatal << "ERROR on binding socket: " << errno;
 //                    sockfd=NULL;
 //                }
-
         }
         else
         {
             LOG_fatal << "ERROR on binding socket: " << socketPath << ": " << errno;
-            sockfd=-1;
+            sockfd = -1;
         }
     }
     else
     {
-       int returned = listen(sockfd,150); //TODO: check errors?
-       if (returned)
-       {
-           LOG_fatal << "ERROR on listen socket initializing communications manager: " << socketPath << ": " << errno;
-           return errno;
-       }
+        int returned = listen(sockfd, 150); //TODO: check errors?
+        if (returned)
+        {
+            LOG_fatal << "ERROR on listen socket initializing communications manager: " << socketPath << ": " << errno;
+            return errno;
+        }
     }
     return 0;
 }
 
-bool ComunicationsManager::receivedReadlineInput (int readline_fd){
+bool ComunicationsManager::receivedReadlineInput(int readline_fd){
     return FD_ISSET(readline_fd, &fds);
 }
 
@@ -185,13 +184,15 @@ bool ComunicationsManager::receivedPetition()
 int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
 {
     FD_ZERO(&fds);
-    FD_SET(readline_fd, &fds);
+        FD_SET(readline_fd, &fds);
     if (sockfd)
-        FD_SET(sockfd, &fds);
-    int rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
+    {
+        FD_SET(sockfd,      &fds);
+    }
+    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
     if (rc < 0)
     {
-        if (errno  != EINTR) //syscall
+        if (errno != EINTR)  //syscall
         {
             LOG_fatal << "Error at select: " << errno;
             return errno;
@@ -205,11 +206,13 @@ int ComunicationsManager::waitForPetition()
 {
     FD_ZERO(&fds);
     if (sockfd)
+    {
         FD_SET(sockfd, &fds);
-    int rc = select(FD_SETSIZE,&fds,NULL,NULL,NULL);
+    }
+    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
     if (rc < 0)
     {
-        if (errno  != EINTR) //syscall
+        if (errno != EINTR)  //syscall
         {
             LOG_fatal << "Error at select: " << errno;
             return errno;
@@ -222,15 +225,15 @@ int ComunicationsManager::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostringstream *s, int outCode){
-
+void ComunicationsManager::returnAndClosePetition(petition_info_t *inf, std::ostringstream *s, int outCode){
     sockaddr_in cliAddr;
-    socklen_t cliLength = sizeof(cliAddr);
-    int connectedsocket = accept(inf->outSocket,(struct sockaddr *) &cliAddr,&cliLength); //TODO: check errors
+    socklen_t cliLength = sizeof( cliAddr );
+    int connectedsocket = accept(inf->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //TODO: check errors
 
     //TODO use mutex, and free after accept
 
-    if (connectedsocket == -1) {
+    if (connectedsocket == -1)
+    {
         LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno;
         destroy_thread_info_t(inf);
         delete inf;
@@ -238,12 +241,12 @@ void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostr
     }
     string sout = s->str();
 
-    int n = send(connectedsocket,(void *)&outCode,sizeof(outCode),MSG_NOSIGNAL);
+    int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
     if (n < 0)
     {
         LOG_err << "ERROR writing output Code to socket: " << errno;
     }
-    n = send(connectedsocket,sout.data(),sout.size(),MSG_NOSIGNAL);
+    n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
     if (n < 0)
     {
         LOG_err << "ERROR writing to socket: " << errno;
@@ -262,23 +265,24 @@ void ComunicationsManager::returnAndClosePetition(petition_info_t *inf,std::ostr
 petition_info_t * ComunicationsManager::getPetition(){
     petition_info_t *inf = new petition_info_t();
 
-    clilen = sizeof(cli_addr);
+    clilen = sizeof( cli_addr );
 
-    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+    newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &clilen);
 
     if (newsockfd < 0)
     {
         LOG_fatal << "ERROR on accept";
-        sleep (1);
-        inf->line=strdup("ERROR");
+        sleep(1);
+        inf->line = strdup("ERROR");
         return inf;
     }
 
-    bzero(buffer,1024);
-    int n = read(newsockfd,buffer,1023);
-    if (n < 0) {
+    bzero(buffer, 1024);
+    int n = read(newsockfd, buffer, 1023);
+    if (n < 0)
+    {
         LOG_fatal << "ERROR reading from socket";
-        inf->line=strdup("ERROR");
+        inf->line = strdup("ERROR");
         return inf;
     }
 
@@ -287,24 +291,24 @@ petition_info_t * ComunicationsManager::getPetition(){
     if (!inf->outSocket || !socket_id)
     {
         LOG_fatal << "ERROR creating output socket";
-        inf->line=strdup("ERROR");
+        inf->line = strdup("ERROR");
         return inf;
     }
 
     //TODO: investigate possible failure in case client disconects!
-    n = write(newsockfd,&socket_id,sizeof(socket_id));
-    if (n < 0){
+    n = write(newsockfd, &socket_id, sizeof( socket_id ));
+    if (n < 0)
+    {
         LOG_fatal << "ERROR writing to socket: errno = " << errno;
-        inf->line=strdup("ERROR");
+        inf->line = strdup("ERROR");
         return inf;
     }
-    close (newsockfd);
+    close(newsockfd);
 
 
-    inf->line=strdup(buffer);
+    inf->line = strdup(buffer);
 
     return inf;
-
 }
 
 ComunicationsManager::~ComunicationsManager()

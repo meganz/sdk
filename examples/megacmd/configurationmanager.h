@@ -5,7 +5,8 @@
 #include <fstream>
 #include <map>
 
-class ConfigurationManager{
+class ConfigurationManager
+{
 private:
     static std::string configFolder;
 
@@ -13,8 +14,8 @@ private:
 
 
 public:
-    static std::map<std::string,sync_struct *> configuredSyncs;
-    static std::map<std::string,sync_struct *> loadedSyncs;
+    static std::map<std::string, sync_struct *> configuredSyncs;
+    static std::map<std::string, sync_struct *> loadedSyncs;
     static std::string session;
 
     static bool isConfigurationLoaded()
@@ -24,7 +25,7 @@ public:
 
     static void loadConfiguration();
 
-    static void saveSyncs(std::map<std::string,sync_struct *> syncsmap);
+    static void saveSyncs(std::map<std::string, sync_struct *> syncsmap);
 
     static void saveSession(const char*session);
     static std::string getConfigFolder();
