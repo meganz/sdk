@@ -2295,25 +2295,26 @@ int MegaCmdExecuter::actUponCreateFolder(SynchronousRequestListener *srl,int tim
     return 2;
 }
 
-int MegaCmdExecuter::actUponDeleteNode(SynchronousRequestListener *srl,int timeout)
+void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive)
 {
-    if (!timeout)
-        srl->wait();
+    char *nodePath = api->getNodePath(nodeToDelete);
+    if (nodeToDelete->getType() == MegaNode::TYPE_FOLDER && !recursive)
+    {
+        setCurrentOutCode(5);
+        OUTSTREAM << "Unable to delete folder: " << nodePath << ". Use -r to delete a folder recursively" << endl;
+    }
     else
     {
-        int trywaitout=srl->trywait(timeout);
-        if (trywaitout){
-           LOG_err << "delete took too long, it may have failed. No further actions performed";
-           return 1;
-        }
+        LOG_verbose << "Deleting: " << nodePath;
+        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+        api->remove(nodeToDelete, megaCmdListener);
+        megaCmdListener->wait();
+        string msj= "delete node ";
+        msj+=nodePath;
+        checkNoErrors(megaCmdListener->getError(),msj);
+        delete megaCmdListener;
     }
-    if (checkNoErrors(srl->getError(), "delete node"))
-    {
-
-        LOG_verbose << "actUponDeleteNode delete ok";
-        return 0;
-    }
-    return 2;
+    delete []nodePath;
 }
 
 void MegaCmdExecuter::downloadNode(string localPath, MegaApi* api, MegaNode *node)
@@ -2635,10 +2636,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                         MegaNode * nodeToDelete = *it;
                         if (nodeToDelete)
                         {
-                            LOG_verbose << "Deleting recursively: " << words[i];
-                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                            api->remove(nodeToDelete, megaCmdListener);
-                            actUponDeleteNode(megaCmdListener);
+                            deleteNode(nodeToDelete, api, getFlag(&clflags,"r"));
                             delete nodeToDelete;
                         }
                     }
@@ -2647,16 +2645,11 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                 }
                 else
                 {
-
                     MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                     if (nodeToDelete)
                     {
-                        LOG_verbose << "Deleting recursively: " << words[i];
-                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                        api->remove(nodeToDelete, megaCmdListener);
-                        actUponDeleteNode(megaCmdListener);
+                        deleteNode(nodeToDelete, api, getFlag(&clflags,"r"));
                         delete nodeToDelete;
-                        delete megaCmdListener;
                     }
                 }
             }

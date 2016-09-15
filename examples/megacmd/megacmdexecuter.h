@@ -55,7 +55,7 @@ public:
     void actUponLogin(SynchronousRequestListener *srl,int timeout=-1);
     void actUponLogout(SynchronousRequestListener *srl,int timeout=0);
     int actUponCreateFolder(SynchronousRequestListener *srl,int timeout=0);
-    int actUponDeleteNode(SynchronousRequestListener *srl,int timeout=0);
+    void deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive);
     void downloadNode(string localPath, MegaApi* api, MegaNode *node);
     void uploadNode(string localPath, MegaApi* api, MegaNode *node);
     void exportNode(MegaNode *n,int expireTime);

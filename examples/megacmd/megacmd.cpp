@@ -509,7 +509,7 @@ const char * getUsageStr(const char *command)
     if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
     if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
     if(!strcmp(command,"mkdir") ) return "mkdir remotepath";
-    if(!strcmp(command,"rm") ) return "rm remotepath";
+    if(!strcmp(command,"rm") ) return "rm [-r] remotepath";
     if(!strcmp(command,"mv") ) return "mv srcremotepath dstremotepath";
     if(!strcmp(command,"cp") ) return "cp srcremotepath dstremotepath|dstemail:";
     if(!strcmp(command,"sync") ) return "sync [localpath dstremotepath| [-ds] cancelslot]";
@@ -712,7 +712,10 @@ string getHelpStr(const char *command)
     }
     else if(!strcmp(command,"rm") )
     {
-        os << "Recursively deletes a remote file/folder and all its descendents" << endl;
+        os << "Deletes a remote file/folder" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -r" << "\t" << "Delete recursively (for folders)" << endl;
     }
     else if(!strcmp(command,"mv") )
     {
@@ -901,6 +904,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
         validParams->insert("R");
         validParams->insert("r");
         validParams->insert("l");
+    }
+    else if ("rm" == thecommand)
+    {
+        validParams->insert("r");
     }
     else if ("whoami" == thecommand)
     {
