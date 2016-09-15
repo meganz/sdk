@@ -105,8 +105,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             downloadProgressView.hidden = true
             cancelButton.hidden = true
             
-            var i : Int
-            for i = 0 ; i < megaapi.transfers.size.integerValue ; i++ {
+            for i in 0  ..< megaapi.transfers.size.integerValue {
                 let transfer : MEGATransfer = megaapi.transfers.transferAtIndex(i)
                 if transfer.nodeHandle == node.handle {
                     downloadProgressView.hidden = false

@@ -191,6 +191,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 # Check if building for Win32, determine Win32 API libs
 WIN32=no
 DARWIN=no
+ANDROID=no
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
@@ -207,6 +208,9 @@ case $host in
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
     DARWIN=yes
     ;;
+  *-android*)
+    ANDROID=yes
+    ;;    
   *)
     LIBS_EXTRA=""
     ;;
@@ -214,6 +218,8 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
+AM_CONDITIONAL([ANDROID], [test "${ANDROID}" = "yes"])
+
 AC_SUBST(LIBS_EXTRA)
 
 if test -n "$IOSC_TARGET"; then

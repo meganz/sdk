@@ -1290,9 +1290,8 @@ public:
      * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
      * - MegaTextChatPeerList::PRIV_RM = -1
      * - MegaTextChatPeerList::PRIV_RO = 0
-     * - MegaTextChatPeerList::PRIV_RW = 1
-     * - MegaTextChatPeerList::PRIV_FULL = 2
-     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     * - MegaTextChatPeerList::PRIV_STANDARD = 2
+     * - MegaTextChatPeerList::PRIV_MODERATOR = 3
      */
     virtual void addPeer(MegaHandle h, int priv);
 
@@ -1317,9 +1316,8 @@ public:
      * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
      * - MegaTextChatPeerList::PRIV_RM = -1
      * - MegaTextChatPeerList::PRIV_RO = 0
-     * - MegaTextChatPeerList::PRIV_RW = 1
-     * - MegaTextChatPeerList::PRIV_FULL = 2
-     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     * - MegaTextChatPeerList::PRIV_STANDARD = 2
+     * - MegaTextChatPeerList::PRIV_MODERATOR = 3
      */
     virtual int getPeerPrivilege(int i) const;
 
@@ -1396,6 +1394,16 @@ public:
      * @return The handle of the user who originated the chat notification.
      */
     virtual MegaHandle getOriginatingUser() const;
+
+    /**
+     * @brief getTitle Returns the title of the chat, if any.
+     *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The title of the chat as a byte array encoded in Base64URL.
+     */
+    virtual const char *getTitle() const;
 
 };
 
@@ -1771,7 +1779,7 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE
         };
 
         virtual ~MegaRequest();
@@ -5810,7 +5818,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REPLY_CONTACT_REQUEST
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getHandle - Returns the handle of the contact request
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact request
          * - MegaRequest::getNumber - Returns the action
          *
          * @param listener MegaRequestListener to track this request
@@ -5947,6 +5955,31 @@ class MegaApi
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
 
         /**
+         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
+
+        /**
+         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
+
+        /**
          * @brief Upload a file or a folder with a custom modification time
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
@@ -6004,7 +6037,7 @@ class MegaApi
          * related to the transfer.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
+        void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -8053,14 +8086,17 @@ class MegaApi
 
 #ifdef ENABLE_CHAT
         /**
-         * @brief Creates a chat for one or participants, allowing you to specify their
+         * @brief Creates a chat for one or more participants, allowing you to specify their
          * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
          *
          * There are two types of chat: permanent an group. A permanent chat is between two people, and
-         * participants can not leave it.
+         * participants can not leave it. It's also called 1on1 or 1:1.
          *
-         * The creator of the chat will have operator level privilege and should not be included in the
+         * The creator of the chat will have moderator level privilege and should not be included in the
          * list of peers.
+         *
+         * On 1:1 chats, the other participant has also moderator level privilege, regardless the
+         * privilege level specified.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
@@ -8088,12 +8124,21 @@ class MegaApi
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat.
          *
+         * In case the chat has a title already set, the title must be encrypted for the new
+         * peer and passed to this function. Note that only participants with privilege level
+         * MegaTextChatPeerList::PRIV_MODERATOR are allowed to set the title of a chat.
+         *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         * - MegaRequest::getText - Returns the title of the chat.
          *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
+         * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
+
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
          * @param privilege Privilege level for the new peers. Valid values are:
@@ -8103,8 +8148,10 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_STANDARD = 2
          * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
+         * @param title Byte array representing the title that wants to be set, already encrypted and
+         * converted to Base64url encoding (optional).
          */
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove yourself or another user from a chat. To remove a user other than
@@ -8187,8 +8234,8 @@ class MegaApi
          * @param uh MegaHandle that identifies the user
          * @param privilege Privilege level for the existing peer. Valid values are:
          * - MegaTextChatPeerList::PRIV_RO = 0
-         * - MegaTextChatPeerList::PRIV_FULL = 2
-         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
@@ -8208,6 +8255,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Allows to set the title of a chat
+         *
+         * Only participants with privilege level MegaTextChatPeerList::PRIV_MODERATOR are allowed to
+         * set the title of a chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_SET_TITLE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the title of the chat.
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
+         * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param title Byte array representing the title that wants to be set, already encrypted and
+         * converted to Base64url encoding.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
 private:

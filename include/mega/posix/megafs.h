@@ -66,6 +66,10 @@ public:
     string lastname;
 #endif
 
+#ifdef USE_IOS
+    static char *appbasepath;
+#endif
+
     bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;

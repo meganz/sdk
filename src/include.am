@@ -98,3 +98,7 @@ src_libmega_la_SOURCES += src/thread/posixthread.cpp
 
 endif
 
+
+if ANDROID
+src_libmega_la_SOURCES += src/mega_glob.c
+endif

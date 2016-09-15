@@ -930,16 +930,28 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
+            client->tctable->begin();
             vector<uint32_t> &ids = it->second;
-            for (unsigned int i = 0; i< ids.size(); i++)
+            for (unsigned int i = 0; i < ids.size(); i++)
             {
                 if (ids[i])
                 {
                     client->tctable->del(ids[i]);
                 }
             }
+            client->tctable->commit();
         }
         client->pendingtcids.erase(it);
+    }
+    pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
+    if (pit != client->pendingfiles.end())
+    {
+        vector<string> &pfs = pit->second;
+        for (unsigned int i = 0; i < pfs.size(); i++)
+        {
+            client->fsaccess->unlinklocal(&pfs[i]);
+        }
+        client->pendingfiles.erase(pit);
     }
 
     if (client->json.isnumeric())
@@ -4418,7 +4430,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
 {
     this->client = client;
 
@@ -4428,6 +4440,11 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     arg("u", uid);
     arg("p", priv);
     arg("v", 1);
+
+    if (title != NULL)
+    {
+        arg("ct", title);
+    }
 
     tag = client->reqtag;
 }
@@ -4593,7 +4610,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 {
     this->client = client;
 
-    cmd("mcurl");
+    cmd("mct");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
@@ -4612,6 +4629,32 @@ void CommandChatTruncate::procresult()
     {
         client->json.storeobject();
         client->app->chattruncate_result(API_EINTERNAL);
+    }
+}
+
+CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
+{
+    this->client = client;
+
+    cmd("mcst");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("ct", title);
+
+    tag = client->reqtag;
+}
+
+void CommandChatSetTitle::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatsettitle_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatsettitle_result(API_EINTERNAL);
     }
 }
 
