@@ -692,7 +692,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "passwd"))
     {
-        return "passwdaa";
+        return "passwd [oldpassword newpassword]";
     }
     if (!strcmp(command, "retry"))
     {

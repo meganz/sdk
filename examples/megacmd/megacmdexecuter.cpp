@@ -4455,7 +4455,19 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     {
         if (api->isLoggedIn())
         {
-            setprompt(OLDPASSWORD);
+            if (words.size() == 1)
+            {
+                setprompt(OLDPASSWORD);
+            }
+            else if (words.size() >2)
+            {
+                changePassword(words[1].c_str(),words[2].c_str());
+            }
+            else
+            {
+                setCurrentOutCode(2);
+                OUTSTREAM << "      " << getUsageStr("passwd") << endl;
+            }
         }
         else
         {
@@ -4523,6 +4535,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                 || ( email.find(".") == string::npos )
                 || ( email.find("@") > email.find(".")))
             {
+                setCurrentOutCode(6);
                 OUTSTREAM << "No valid email provided" << endl;
                 OUTSTREAM << "      " << getUsageStr("invite") << endl;
             }
