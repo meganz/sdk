@@ -849,6 +849,8 @@ public:
     // returns the list of user-privilege (this object keeps the ownership)
     const userpriv_vector * getList() const;
 
+    void setPeerPrivilege(handle uh, privilege_t priv);
+
 private:
     userpriv_vector list;
 };
