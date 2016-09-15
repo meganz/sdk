@@ -63,7 +63,7 @@ public:
     void shareNode(MegaNode *n,string with,int level=MegaShare::ACCESS_READ);
     void disableShare(MegaNode *n, string with);
     vector<string> listpaths(string askedPath="");
-
+    vector<string> getlistusers();
 
     void executecommand(vector<string> words, map<string,int> &clflags, map<string,string> &cloptions);
 

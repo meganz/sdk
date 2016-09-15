@@ -119,7 +119,7 @@ void sigint_handler(int signum)
 
     // reset position and print prompt
     pw_buf_pos = 0;
-    OUTSTREAM << prompts[prompt] << flush;
+    OUTSTREAM << (*dynamicprompt?dynamicprompt:prompts[prompt]) << flush;
 }
 #endif
 
@@ -182,6 +182,11 @@ vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelo
 string alocalpatterncommands [] = {"lcd"};
 vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
+
+string aemailpatterncommands [] = {"invite", "signup"};
+vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
+
+
 //string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
 //"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
 //"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
@@ -241,7 +246,9 @@ char* local_completion(const char* text, int state)
 
 char* empty_completion(const char* text, int state)
 {
-    if (state==0) return strdup("");
+    // we offer 2 different options so that it doesn't complete (no space is inserted)
+    if (state==0) return strdup(" ");
+    if (state==1) return strdup(text);
     return NULL;
 }
 
@@ -305,7 +312,7 @@ char * flags_value_completion(const char*text, int state)
 
         if (thecommand == "share")
         {
-            if (currentFlag == "--level=")
+            if (currentFlag.find("--level=") == 0 )
             {
                 char buf[3];
                 sprintf(buf,"%d",MegaShare::ACCESS_UNKNOWN);validValues.push_back(buf);
@@ -314,15 +321,13 @@ char * flags_value_completion(const char*text, int state)
                 sprintf(buf,"%d",MegaShare::ACCESS_FULL);validValues.push_back(buf);
                 sprintf(buf,"%d",MegaShare::ACCESS_OWNER);validValues.push_back(buf);
             }
-            if (currentFlag == "--with=")
+            if (currentFlag.find("--with=") == 0 )
             {
-                char buf[3];
-               //TODO: get current contacts
+                validValues = cmdexecuter->getlistusers();
             }
         }
     }
 
-    if (validValues.empty()) validValues.push_back("");
 
     char *toret = generic_completion(text,state,validValues);
     return toret;
@@ -335,6 +340,12 @@ char* remotepaths_completion(const char* text, int state)
     wildtext+="*";
     vector<string> validpaths = cmdexecuter->listpaths(wildtext);
     return generic_completion(text,state,validpaths);
+}
+
+char* contacts_completion(const char* text, int state)
+{
+    vector<string> validcontacts = cmdexecuter->getlistusers();
+    return generic_completion(text,state,validcontacts);
 }
 
 void discardOptionsAndFlags(vector<string> *ws)
@@ -363,7 +374,8 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
         string lastword = words[words.size()-1];
         if (lastword.find_first_of("-") == 0)
         {
-            if (lastword.find_last_of("=") == lastword.size()-1)
+            if (lastword.find_last_of("=") != string::npos)
+//            if (lastword.find_last_of("=") == lastword.size()-1)
                 return flags_value_completion;
             else
                 return flags_completion;
@@ -400,6 +412,11 @@ rl_compentry_func_t *getCompletionFunction (vector<string> words)
             return remotepaths_completion;
         if (currentparameter==2)
             return local_completion;
+    }
+    else if (stringcontained(thecommand.c_str(),emailpatterncommands))
+    {
+        if (currentparameter==1)
+            return contacts_completion;
     }
 
     return empty_completion;

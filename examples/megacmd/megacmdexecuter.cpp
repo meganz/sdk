@@ -2442,6 +2442,23 @@ void MegaCmdExecuter::disableShare(MegaNode *n, string with)
    shareNode(n,with,MegaShare::ACCESS_UNKNOWN);
 }
 
+
+vector<string> MegaCmdExecuter::getlistusers()
+{
+    vector<string> users;
+
+    MegaUserList* usersList=api->getContacts();
+    if (usersList)
+    {
+        for (int i=0;i<usersList->size(); i++)
+        {
+            users.push_back(usersList->get(i)->getEmail());
+        }
+        delete usersList;
+    }
+    return users;
+}
+
 vector<string> MegaCmdExecuter::listpaths(string askedPath)
 {
     MegaNode *n;
