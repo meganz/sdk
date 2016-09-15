@@ -189,7 +189,7 @@ vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
-"put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "whoami",
+"put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "whoami",
 "reload", "logout", "version","quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
