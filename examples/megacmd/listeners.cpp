@@ -2,6 +2,11 @@
 #include "configurationmanager.h"
 #include "megacmdutils.h"
 
+#define USE_VARARGS
+#define PREFER_STDARG
+#include <readline/readline.h>
+
+
 void MegaCmdGlobalListener::onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*){}
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
