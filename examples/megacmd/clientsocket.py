@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import socket, sys, struct, os
 
 debug = False

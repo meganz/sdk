@@ -50,6 +50,7 @@ public:
 
     //acting
     void loginWithPassword(char *password);
+    void changePassword(const char *oldpassword, const char *newpassword);
     void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl, int timeout = -1);
     bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl, int timeout = -1);
     void actUponLogin(SynchronousRequestListener *srl, int timeout = -1);

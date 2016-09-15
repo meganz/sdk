@@ -92,6 +92,8 @@ static string signupcode;
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
+string oldpasswd;
+string newpasswd;
 
 bool doExit = false;
 bool consoleFailed = false;
@@ -197,7 +199,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"history" };
 string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "whoami",
-                             "reload", "logout", "version", "quit", "history" };
+                             "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 bool stringcontained(const char * s, vector<string> list){
@@ -690,7 +692,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "passwd"))
     {
-        return "passwd";
+        return "passwdaa";
     }
     if (!strcmp(command, "retry"))
     {
@@ -1273,7 +1275,7 @@ void executecommand(char* ptr){
 
     if (!validCommand(thecommand))   //unknown command
     {
-        OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+        OUTSTREAM << "      " << getUsageStr("unknwon") << endl;
         return;
     }
 
@@ -1341,46 +1343,50 @@ static void process_line(char* l)
         case OLDPASSWORD:
             //TODO: modify using API
 //            client->pw_key(l, pwkeybuf);
-
-            if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
-            {
+//            if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
+//            {
+                oldpasswd = l;
                 OUTSTREAM << endl;
                 setprompt(NEWPASSWORD);
-            }
-            else
-            {
-                OUTSTREAM << endl << "Bad password, please try again" << endl;
-                setprompt(COMMAND);
-            }
+//            }
+//            else
+//            {
+//                OUTSTREAM << endl << "Bad password, please try again" << endl;
+//                setprompt(COMMAND);
+//            }
             return;
 
         case NEWPASSWORD:
             //TODO: modify using API
 //            client->pw_key(l, newpwkey);
-
+            newpasswd = l;
             OUTSTREAM << endl;
-                setprompt(PASSWORDCONFIRM);
+            setprompt(PASSWORDCONFIRM);
             return;
 
         case PASSWORDCONFIRM:
             //TODO: modify using API
 //            client->pw_key(l, pwkeybuf);
 
-            if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+//        if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+            if (l != newpasswd)
             {
-                OUTSTREAM << endl << "Mismatch, please try again" << endl;
+                OUTSTREAM << endl << "New passwords differ, please try again" << endl;
             }
             else
             {
+                OUTSTREAM << endl;
+
+               cmdexecuter->changePassword(oldpasswd.c_str(),newpasswd.c_str());
 //                error e;
 
-                if (signupemail.size())
-                {
+//                if (signupemail.size())
+//                {
                     //TODO: modify using API
 //                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
-                }
-                else
-                {
+//                }
+//                else
+//                {
                     //TODO: modify using API
 //                    if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
 //                    {
@@ -1391,11 +1397,12 @@ static void process_line(char* l)
 //                    {
 //                        OUTSTREAM << "You must be logged in to change your password." << endl;
 //                    }
-                }
+//                }
+//            }
             }
 
                 setprompt(COMMAND);
-            signupemail.clear();
+//            signupemail.clear();
             return;
 
         case COMMAND:

@@ -2064,6 +2064,22 @@ void MegaCmdExecuter::loginWithPassword(char *password)
 }
 
 
+void MegaCmdExecuter::changePassword(const char *oldpassword, const char *newpassword)
+{
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+    api->changePassword(oldpassword, newpassword, megaCmdListener);
+    megaCmdListener->wait();
+    if (!checkNoErrors(megaCmdListener->getError(),"change password"))
+    {
+        OUTSTREAM << "Please, ensure you enter the old password correctly" << endl;
+    }
+    else
+    {
+        OUTSTREAM << "Password changed succesfully" << endl;
+    }
+    delete megaCmdListener;
+}
+
 //appfile_list appxferq[2];
 
 int MegaCmdExecuter::loadfile(string* name, string* data)
@@ -4437,15 +4453,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
 #endif
     if (words[0] == "passwd")
     {
-        //TODO: modify using API
-//                        if (client->loggedin() != NOTLOGGEDIN)
-//                        {
-//                            setprompt(OLDPASSWORD);
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "Not logged in." << endl;
-//                        }
+        if (api->isLoggedIn())
+        {
+            setprompt(OLDPASSWORD);
+        }
+        else
+        {
+            OUTSTREAM << "Not logged in." << endl;
+        }
 
         return;
     }
