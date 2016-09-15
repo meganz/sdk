@@ -417,7 +417,6 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
         getNodesMatching(parentNode, pathParts, nodesMatching);
     }
 
-
     MegaNodeList* children= api->getChildren(parentNode);
     if (children)
     {
@@ -671,7 +670,8 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
 
                     bptr = ptr + 1;
 
-                    c.push(s);
+                    if (s.size())
+                        c.push(s);
 
                     s.erase();
                 }
@@ -1715,7 +1715,7 @@ void MegaCmdExecuter::dumpNode(MegaNode* n, int extended_info, int depth, const 
 
 void MegaCmdExecuter::dumptree(MegaNode* n, int recurse, int extended_info, int depth, string pathRelativeTo)
 {
-    if (depth)
+    if (depth || n->getType() == MegaNode::TYPE_FILE)
     {
         if (pathRelativeTo != "NULL")
         {
@@ -1751,7 +1751,7 @@ void MegaCmdExecuter::dumptree(MegaNode* n, int recurse, int extended_info, int 
         else
             dumpNode(n, extended_info,depth);
 
-        if (!recurse)
+        if (!recurse && depth)
         {
             return;
         }
@@ -2554,7 +2554,15 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                         MegaNode * n = *it;
                         if (n)
                         {
-                            dumptree(n, recursive, extended_info, 1,rNpath);
+                            if (!n->getType() == MegaNode::TYPE_FILE)
+                            {
+                                OUTSTREAM << getDisplayPath(rNpath,n) << ": " << endl;
+                            }
+                            dumptree(n, recursive, extended_info, 0,rNpath);
+                            if (!n->getType() == MegaNode::TYPE_FILE && (it+1) !=nodesToList->end() )
+                            {
+                                OUTSTREAM << endl;
+                            }
                             delete n;
                         }
                     }
@@ -2568,7 +2576,7 @@ void MegaCmdExecuter::executecommand(vector<string> words,map<string,int> &clfla
                 n = nodebypath(words[1].c_str());
                 if (n)
                 {
-                    dumptree(n, recursive, extended_info, 1,rNpath);
+                    dumptree(n, recursive, extended_info, 0,rNpath);
                     delete n;
                 }
             }
