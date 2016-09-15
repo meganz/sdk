@@ -74,6 +74,7 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle){
 MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD){
     this->api = api;
     this->loggerCMD = loggerCMD;
+    cwd = UNDEF;
     fsAccessCMD = new MegaFileSystemAccess();
     mtxSyncMap.init(false);
 }
@@ -652,7 +653,6 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
     const char* bptr = ptr;
     int remote = 0;
     MegaNode* n;
-    MegaNode* nn;
 
     // split path by / or :
     do
@@ -2069,7 +2069,7 @@ void MegaCmdExecuter::changePassword(const char *oldpassword, const char *newpas
     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
     api->changePassword(oldpassword, newpassword, megaCmdListener);
     megaCmdListener->wait();
-    if (!checkNoErrors(megaCmdListener->getError(),"change password"))
+    if (!checkNoErrors(megaCmdListener->getError(), "change password"))
     {
         OUTSTREAM << "Please, ensure you enter the old password correctly" << endl;
     }
@@ -3792,7 +3792,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
         {
             words.push_back(string(""));                  //give at least an empty so that cwd is used
         }
-        for (int i = 1; i < words.size(); i++)
+        for (int i = 1; i < (int) words.size(); i++)
         {
             if (hasWildCards(words[i]))
             {
@@ -4459,13 +4459,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             {
                 setprompt(OLDPASSWORD);
             }
-            else if (words.size() >2)
+            else if (words.size() > 2)
             {
-                changePassword(words[1].c_str(),words[2].c_str());
+                changePassword(words[1].c_str(), words[2].c_str());
             }
             else
             {
-                setCurrentOutCode(2);
+                    setCurrentOutCode(2);
                 OUTSTREAM << "      " << getUsageStr("passwd") << endl;
             }
         }
@@ -4535,7 +4535,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                 || ( email.find(".") == string::npos )
                 || ( email.find("@") > email.find(".")))
             {
-                setCurrentOutCode(6);
+                    setCurrentOutCode(6);
                 OUTSTREAM << "No valid email provided" << endl;
                 OUTSTREAM << "      " << getUsageStr("invite") << endl;
             }
@@ -4681,7 +4681,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     }
     else if (words[0] == "export")
     {
-        MegaNode * n;
         time_t expireTime = 0;
         string sexpireTime = getOption(&cloptions, "expire", "");
         if ("" != sexpireTime)
@@ -4699,7 +4698,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
         {
             words.push_back(string(""));                  //give at least an empty so that cwd is used
         }
-        for (int i = 1; i < words.size(); i++)
+        for (int i = 1; i < (int) words.size(); i++)
         {
             if (hasWildCards(words[i]))
             {

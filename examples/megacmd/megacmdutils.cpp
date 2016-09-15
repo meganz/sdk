@@ -238,7 +238,7 @@ bool isFolder(string path) //TODO: move to MegaFileSystemAccess
 
 int getLinkType(string link)
 {
-    int posHash = link.find_first_of("#");
+    size_t posHash = link.find_first_of("#");
     if (( posHash == string::npos ) || !( posHash + 1 < link.length()))
     {
         return MegaNode::TYPE_UNKNOWN;

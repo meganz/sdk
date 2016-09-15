@@ -292,6 +292,7 @@ MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener
 {
     this->megaApi = megaApi;
     this->listener = listener;
+    percentFetchnodes = 0.0f;
 }
 
 

@@ -9,7 +9,7 @@
 class MegaCmdListener : public SynchronousRequestListener
 {
 private:
-    float percentFetchnodes = 0.0f;
+    float percentFetchnodes;
 public:
     MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();

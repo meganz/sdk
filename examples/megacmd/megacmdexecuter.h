@@ -13,7 +13,7 @@ class MegaCmdExecuter
 {
 private:
     MegaApi *api;
-    handle cwd = UNDEF;
+    handle cwd;
     char *session;
     MegaFileSystemAccess *fsAccessCMD;
     MegaCMDLogger *loggerCMD;

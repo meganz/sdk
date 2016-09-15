@@ -89,9 +89,6 @@ static string signupemail, signupname;
 static string signupcode;
 
 // password change-related state information
-static byte pwkey[SymmCipher::KEYLENGTH];
-static byte pwkeybuf[SymmCipher::KEYLENGTH];
-static byte newpwkey[SymmCipher::KEYLENGTH];
 string oldpasswd;
 string newpasswd;
 
@@ -203,7 +200,7 @@ string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pw
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 bool stringcontained(const char * s, vector<string> list){
-    for (int i = 0; i < list.size(); i++)
+    for (int i = 0; i < (int) list.size(); i++)
     {
         if (list[i] == s)
         {
@@ -224,7 +221,7 @@ char * dupstr(char* s) {
 
 char* generic_completion(const char* text, int state, vector<string> validOptions)
 {
-    static int list_index, len;
+    static size_t list_index, len;
     string name;
 
     if (!state)
@@ -1302,73 +1299,29 @@ static void process_line(char* l)
     {
         case LOGINPASSWORD:
         {
-            //TODO: modify using API
-//            client->pw_key(l, pwkey);
-
-//            if (signupcode.size())
-//            {
-//                // verify correctness of supplied signup password
-//                SymmCipher pwcipher(pwkey);
-//                pwcipher.ecb_decrypt(signuppwchallenge);
-
-//                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
-//                {
-//                    OUTSTREAM << endl << "Incorrect password, please try again." << endl;
-//                }
-//                else
-//                {
-//                    // decrypt and set master key, then proceed with the confirmation
-//                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-//                    //TODO: modify using API
-////                    client->key.setkey(signupencryptedmasterkey);
-
-////                    client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
-////                                              MegaClient::stringhash64(&signupemail, &pwcipher));
-//                }
-
-//                signupcode.clear();
-//            }
-//            else
-//            {
-            //TODO: modify using API
-//                client->login(login.c_str(), pwkey);
             cmdexecuter->loginWithPassword(l);
-
-//            }
-
-                setprompt(COMMAND);
-            return;
+            setprompt(COMMAND);
+            break;
         }
 
         case OLDPASSWORD:
-            //TODO: modify using API
-//            client->pw_key(l, pwkeybuf);
-//            if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
-//            {
-                oldpasswd = l;
-                OUTSTREAM << endl;
-                setprompt(NEWPASSWORD);
-//            }
-//            else
-//            {
-//                OUTSTREAM << endl << "Bad password, please try again" << endl;
-//                setprompt(COMMAND);
-//            }
-            return;
+        {
+            oldpasswd = l;
+            OUTSTREAM << endl;
+            setprompt(NEWPASSWORD);
+            break;
+        }
 
         case NEWPASSWORD:
-            //TODO: modify using API
-//            client->pw_key(l, newpwkey);
+        {
             newpasswd = l;
             OUTSTREAM << endl;
             setprompt(PASSWORDCONFIRM);
-            return;
+        }
+            break;
 
         case PASSWORDCONFIRM:
-            //TODO: modify using API
-//            client->pw_key(l, pwkeybuf);
-
-//        if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+        {
             if (l != newpasswd)
             {
                 OUTSTREAM << endl << "New passwords differ, please try again" << endl;
@@ -1377,44 +1330,23 @@ static void process_line(char* l)
             {
                 OUTSTREAM << endl;
 
-               cmdexecuter->changePassword(oldpasswd.c_str(),newpasswd.c_str());
-//                error e;
-
-//                if (signupemail.size())
-//                {
-                    //TODO: modify using API
-//                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
-//                }
-//                else
-//                {
-                    //TODO: modify using API
-//                    if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
-//                    {
-//                        memcpy(pwkey, newpwkey, sizeof pwkey);
-//                        OUTSTREAM << endl << "Changing password..." << endl;
-//                    }
-//                    else
-//                    {
-//                        OUTSTREAM << "You must be logged in to change your password." << endl;
-//                    }
-//                }
-//            }
+                cmdexecuter->changePassword(oldpasswd.c_str(), newpasswd.c_str());
             }
 
-                setprompt(COMMAND);
-//            signupemail.clear();
-            return;
+            setprompt(COMMAND);
+            break;
+        }
 
         case COMMAND:
-
+        {
             if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
             {
-//                store_line(NULL);
+                //                store_line(NULL);
                 exit(0);
             }
             executecommand(l);
-
             break;
+        }
     }
 }
 
