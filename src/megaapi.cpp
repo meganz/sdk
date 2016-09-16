@@ -3725,6 +3725,11 @@ MegaTextChat::~MegaTextChat()
 
 }
 
+MegaTextChat* MegaTextChat::copy() const
+{
+    return NULL;
+}
+
 MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;
@@ -3781,11 +3786,6 @@ MegaTextChatList *MegaTextChatList::copy() const
 }
 
 const MegaTextChat *MegaTextChatList::get(unsigned int) const
-{
-    return NULL;
-}
-
-MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }

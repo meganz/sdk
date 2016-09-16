@@ -1337,6 +1337,7 @@ class MegaTextChat
 public:
 
     virtual ~MegaTextChat();
+    virtual MegaTextChat *copy() const;
 
     /**
      * @brief getHandle Returns the MegaHandle of the chat.
@@ -1428,7 +1429,8 @@ public:
      * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
      *
      * The MegaTextChatList retains the ownership of the returned MegaTextChat. It will be only valid until
-     * the MegaTextChatList is deleted.
+     * the MegaTextChatList is deleted. If you want to retain a MegaTextChat returned by this function,
+     * use MegaTextChat::copy.
      *
      * If the index is >= the size of the list, this function returns NULL.
      *
@@ -1436,7 +1438,6 @@ public:
      * @return MegaTextChat at the position i in the list
      */
     virtual const MegaTextChat *get(unsigned int i)  const;
-    virtual MegaTextChat *get(unsigned int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -8147,6 +8148,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          * @param title Byte array representing the title that wants to be set, already encrypted and
          * converted to Base64url encoding (optional).
+         * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
 
