@@ -194,7 +194,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
-string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
+string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
@@ -384,6 +384,10 @@ char* sessions_completion(const char* text, int state)
     static vector<string> validSessions;
     if (state == 0)
         validSessions = cmdexecuter->getsessions();
+
+    if (validSessions.size()==0)
+            return empty_completion(text,state);
+
     return generic_completion(text, state, validSessions);
 }
 

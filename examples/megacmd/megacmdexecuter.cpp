@@ -2643,11 +2643,10 @@ vector<string> MegaCmdExecuter::getsessions()
 {
     vector<string> sessions;
     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-    api->getExtendedAccountDetails(true, true, true, megaCmdListener); //TODO: continue this.
+    api->getExtendedAccountDetails(true, true, true, megaCmdListener);
     int trywaitout = megaCmdListener->trywait(3000);
     if (trywaitout)
     {
-//        LOG_err << "GetExtendedAccountDetails took too long, it may have failed. No further actions performed";
         return sessions;
     }
 
@@ -2672,7 +2671,9 @@ vector<string> MegaCmdExecuter::getsessions()
             delete details;
         }
     }
+    delete megaCmdListener;
     return sessions;
+
 }
 
 
@@ -4643,6 +4644,32 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     }
     else if (words[0] == "signup")
     {
+        if (words.size() > 1)
+        {
+            string email = words[1];
+            string name = getOption(&cloptions, "name", email); //TODO; add parameter --name
+            if (words.size() > 2)
+            {
+                string passwd = words[2];
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                api->createAccount(email.c_str(),passwd.c_str(),name.c_str(),megaCmdListener);
+                megaCmdListener->wait();
+                if (checkNoErrors(megaCmdListener->getError(), "create account <"+email+">"))
+                {
+                    OUTSTREAM << "Account <" << email << "> created succesfully. You will receive a confirmation link. Use \"confirm\" with the provided link to confirm that account" << endl;
+                }
+                delete megaCmdListener;
+            }
+            else
+            {
+                //TODO: play with prompt
+            }
+        }
+        else
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("signup") << endl;
+        }
         if (words.size() == 2)
         {
             const char* ptr = words[1].c_str();
@@ -4708,7 +4735,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             if (getFlag(&clflags, "l"))
             {
                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                api->getExtendedAccountDetails(true, true, true, megaCmdListener); //TODO: continue this.
+                api->getExtendedAccountDetails(true, true, true, megaCmdListener);
                 actUponGetExtendedAccountDetails(megaCmdListener);
                 delete megaCmdListener;
             }
@@ -4928,7 +4955,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
         }
         else
         {
-                        setCurrentOutCode(2);
+            setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("import") << endl;
         }
 
@@ -4998,8 +5025,56 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
 //                    }
 #endif
 
-//    else if (words[0] == "confirm")
-//    {
+    else if (words[0] == "confirm")
+    {
+        if (words.size() > 2)
+        {
+            string link = words[1];
+            string email = words[2];
+            // check email corresponds with link:
+            OUTSTREAM << "Logging off..." << endl;
+            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+            api->querySignupLink(link.c_str(),megaCmdListener);
+            megaCmdListener->wait();
+            if (checkNoErrors(megaCmdListener->getError(),"check email corresponds to link"))
+            {
+                if (email == megaCmdListener->getRequest()->getEmail())
+                {
+                    string passwd;
+                    if ( words.size() > 3 )
+                    {
+                        passwd = words[3];
+                        MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
+                        api->confirmAccount(link.c_str(),passwd.c_str(),megaCmdListener2);
+                        megaCmdListener2->wait();
+                        if (checkNoErrors(megaCmdListener2->getError(),"confirm account"))
+                        {
+                            OUTSTREAM << "Account " << email << " confirmed succesfully. You can login with it now" << endl;
+                        }
+                        delete megaCmdListener2;
+                    }
+                    else
+                    {
+                        //TODO: play with password promt
+                    }
+                }
+                else
+                {
+                    setCurrentOutCode(6);
+                    OUTSTREAM << email << " doesn't correspond to the confirmation link: " << link << endl;
+                }
+            }
+
+            delete megaCmdListener;
+
+
+
+        }
+        else
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("confirm") << endl;
+        }
 //        if (signupemail.size() && signupcode.size())
 //        {
 //            OUTSTREAM << "Please type " << signupemail << "'s password to confirm the signup." << endl;
@@ -5010,8 +5085,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
 //            OUTSTREAM << "No signup confirmation pending." << endl;
 //        }
 
-//        return;
-//    }
+        return;
+    }
     else if (words[0] == "session")
     {
         char * dumpSession = api->dumpSession();
@@ -5197,7 +5272,7 @@ bool MegaCmdExecuter::checkNoErrors(MegaError *error, string message)
 {
     if (!error)
     {
-        LOG_fatal << "No error at request: " << message;
+        LOG_fatal << "No MegaError at request: " << message;
         return false;
     }
     if (error->getErrorCode() == MegaError::API_OK)
