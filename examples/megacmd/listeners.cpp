@@ -328,15 +328,78 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
 }
 
 
-void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *Transfer)
+void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *transfer)
 {
-    if (!Transfer)
+    if (!transfer)
     {
         LOG_err << " onTransferUpdate for undefined Transfer ";
         return;
     }
 
-    LOG_verbose << "onTransferUpdate Transfer->getType(): " << Transfer->getType();
+
+
+#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+    int rows = 1, cols = 80;
+
+    if (RL_ISSTATE(RL_STATE_INITIALIZED))
+    {
+        rl_resize_terminal();
+        rl_get_screen_size(&rows, &cols);
+    }
+    char outputString[cols + 1];
+    for (int i = 0; i < cols; i++)
+    {
+        outputString[i] = '.';
+    }
+
+    outputString[cols] = '\0';
+    char * ptr = outputString;
+    sprintf(ptr, "%s", "TRANSFERING ||");
+    ptr += strlen("TRANSFERING ||");
+    *ptr = '.'; //replace \0 char
+
+
+    float oldpercent = percentFetchnodes;
+    percentFetchnodes = transfer->getTransferredBytes() * 1.0 / transfer->getTotalBytes() * 100.0;
+    if (( percentFetchnodes == oldpercent ) && ( oldpercent != 0 ))
+    {
+        return;
+    }
+    if (percentFetchnodes < 0)
+    {
+        percentFetchnodes = 0;
+    }
+
+    char aux[40];
+    if (transfer->getTotalBytes() < 0)
+    {
+        return;                         // after a 100% this happens
+    }
+    if (transfer->getTransferredBytes() < 0.001 * transfer->getTotalBytes())
+    {
+        return;                                                            // after a 100% this happens
+    }
+    sprintf(aux,                               "||(%lld/%lld MB: %.2f %%) ", transfer->getTransferredBytes() / 1024 / 1024, transfer->getTotalBytes() / 1024 / 1024, percentFetchnodes);
+    sprintf(outputString + cols - strlen(aux), "%s",                         aux);
+    for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentFetchnodes / 100.0; i++)
+    {
+        *ptr++ = '#';
+    }
+
+    {
+        if (RL_ISSTATE(RL_STATE_INITIALIZED))
+        {
+            rl_message("%s", outputString);
+        }
+        else
+        {
+            cout << outputString << endl; //too verbose
+        }
+    }
+#endif
+
+
+    LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType();
 }
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)

@@ -2452,7 +2452,7 @@ void MegaCmdExecuter::downloadNode(string localPath, MegaApi* api, MegaNode *nod
 void MegaCmdExecuter::uploadNode(string localPath, MegaApi* api, MegaNode *node)
 {
     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
-    LOG_debug << "Starting download: " << node->getName() << " to : " << localPath;
+    LOG_debug << "Starting upload: " << localPath << " to : " << node->getName();
     api->startUpload(localPath.c_str(), node, megaCmdTransferListener);
     megaCmdTransferListener->wait();
     if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
