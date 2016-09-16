@@ -4322,6 +4322,16 @@ class MegaApi
         static MegaHandle base64ToHandle(const char* base64Handle);
 
         /**
+         * @brief Converts a Base64-encoded user handle to a MegaHandle
+         *
+         * You can revert this operation using MegaApi::userHandleToBase64
+         *
+         * @param base64Handle Base64-encoded node handle
+         * @return Node handle
+         */
+        static MegaHandle base64ToUserHandle(const char* base64Handle);
+
+        /**
          * @brief Converts the handle of a node to a Base64-encoded string
          *
          * You take the ownership of the returned value
@@ -4336,7 +4346,7 @@ class MegaApi
          * @brief Converts a MegaHandle to a Base64-encoded string
          *
          * You take the ownership of the returned value
-         * You can revert this operation using MegaApi::base64ToHandle
+         * You can revert this operation using MegaApi::base64ToUserHandle
          *
          * @param User handle to be converted
          * @return Base64-encoded user handle

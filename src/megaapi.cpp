@@ -1193,6 +1193,11 @@ uint64_t MegaApi::base64ToHandle(const char* base64Handle)
     return MegaApiImpl::base64ToHandle(base64Handle);
 }
 
+uint64_t MegaApi::base64ToUserHandle(const char* base64Handle)
+{
+    return MegaApiImpl::base64ToUserHandle(base64Handle);
+}
+
 char *MegaApi::handleToBase64(MegaHandle handle)
 {
     return MegaApiImpl::handleToBase64(handle);
