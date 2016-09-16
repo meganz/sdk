@@ -2238,28 +2238,34 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
                     strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
 
 
-                    MegaHandle id = session->getHandle();
-                    char sid[12];
-                    Base64::btoa((byte*)&( id ), sizeof( id ), sid);
-
+//                    MegaHandle id = session->getHandle();
+//                    char sid[120];
+//                    Base64::btoa((byte*)&( id ), sizeof( id ), sid);
+                    char *sid = api->userHandleToBase64(session->getHandle());
 
                     if (session->isCurrent())
                     {
                         sprintf(sdetails, "\t* Current Session\n");
                     }
+                    else
+                    {
+                        sprintf(sdetails, "");
+                    }
                     char * userAgent = session->getUserAgent();
                     char * country = session->getCountry();
                     char * ip = session->getIP();
 
-                        sprintf(sdetails, "\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        sid,
-                        timebuf,
-                        timebuf2,
-                        ip,
-                        country,
-                        userAgent
-                        );
+                    sprintf(sdetails, "%s\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
+                    sdetails,
+                    sid,
+                    timebuf,
+                    timebuf2,
+                    ip,
+                    country,
+                    userAgent
+                    );
                     OUTSTREAM << sdetails;
+                    delete []sid;
                     delete []userAgent;
                     delete []country;
                     delete []ip;
@@ -2560,24 +2566,6 @@ void MegaCmdExecuter::disableShare(MegaNode *n, string with)
     shareNode(n, with, MegaShare::ACCESS_UNKNOWN);
 }
 
-
-vector<string> MegaCmdExecuter::getlistusers()
-{
-    vector<string> users;
-
-    MegaUserList* usersList = api->getContacts();
-    if (usersList)
-    {
-        for (int i = 0; i < usersList->size(); i++)
-        {
-            users.push_back(usersList->get(i)->getEmail());
-        }
-
-        delete usersList;
-    }
-    return users;
-}
-
 vector<string> MegaCmdExecuter::listpaths(string askedPath)
 {
     MegaNode *n;
@@ -2633,6 +2621,60 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath)
 
     return paths;
 }
+
+vector<string> MegaCmdExecuter::getlistusers()
+{
+    vector<string> users;
+
+    MegaUserList* usersList = api->getContacts();
+    if (usersList)
+    {
+        for (int i = 0; i < usersList->size(); i++)
+        {
+            users.push_back(usersList->get(i)->getEmail());
+        }
+
+        delete usersList;
+    }
+    return users;
+}
+
+vector<string> MegaCmdExecuter::getsessions()
+{
+    vector<string> sessions;
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+    api->getExtendedAccountDetails(true, true, true, megaCmdListener); //TODO: continue this.
+    int trywaitout = megaCmdListener->trywait(3000);
+    if (trywaitout)
+    {
+//        LOG_err << "GetExtendedAccountDetails took too long, it may have failed. No further actions performed";
+        return sessions;
+    }
+
+    if (checkNoErrors(megaCmdListener->getError(), "get sessions"))
+    {
+        MegaAccountDetails *details = megaCmdListener->getRequest()->getMegaAccountDetails();
+        if (details)
+        {
+            int numSessions = details->getNumSessions();
+            for (int i = 0; i < numSessions; i++)
+            {
+                MegaAccountSession * session = details->getSession(i);
+                if (session)
+                {
+                    if (session->isAlive())
+                    {
+                        sessions.push_back(api->userHandleToBase64(session->getHandle()));
+                    }
+                    delete session;
+                }
+            }
+            delete details;
+        }
+    }
+    return sessions;
+}
+
 
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clflags, map<string, string> &cloptions)
 {
@@ -5061,7 +5103,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
 
                 MegaHandle id = cr->getHandle();
                 char sid[12];
-                Base64::btoa((byte*)&( id ), sizeof( id ), sid);
+                Base64::btoa((byte*)&( id ), sizeof( id ), sid); //TODO: use api->userHandleToBase64...
 
                 OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
                           << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
@@ -5102,32 +5144,37 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     }
     else if (words[0] == "killsession")
     {
-        if (words.size() == 2)
+        string thesession;
+        MegaHandle thehandle = UNDEF;
+        if (getFlag(&clflags,"a"))
         {
-            if (words[1] == "all")
-            {
-                // Kill all sessions (except current)
-                //TODO: modify using API
-                //                                client->killallsessions();
-            }
-            else
-            {
-                handle sessionid;
-                if (Base64::atob(words[1].c_str(), (byte*)&sessionid, sizeof sessionid) == sizeof sessionid)
-                {
-                    //TODO: modify using API
-                    //                                    client->killsession(sessionid);
-                }
-                else
-                {
-                    OUTSTREAM << "invalid session id provided" << endl;
-                }
-            }
+            // Kill all sessions (except current)
+            //TODO: modify using API
+            //                                client->killallsessions();
+            thesession="all";
+            thehandle = mega::INVALID_HANDLE;
+        }
+        else if (words.size()>1)
+        {
+            thesession = words[1];
+            thehandle = api->base64ToUserHandle(thesession.c_str());
         }
         else
         {
-            OUTSTREAM << "      killsession [all|sessionid] " << endl;
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("put") << endl;
+            return;
         }
+
+        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+        api->killSession(thehandle,megaCmdListener);
+        megaCmdListener->wait();
+        if (checkNoErrors(megaCmdListener->getError(), "kill session "+thesession+". Maybe the session was not valid."))
+        {
+            OUTSTREAM << "Session "<< thesession << " killed successfully" << endl;
+        }
+
+        delete megaCmdListener;
         return;
     }
     else if (words[0] == "locallogout")

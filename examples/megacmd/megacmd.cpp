@@ -195,7 +195,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "whoami",
+                             "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -269,34 +269,36 @@ char* empty_completion(const char* text, int state)
 
 char * flags_completion(const char*text, int state)
 {
-    vector<string> validparams;
-
-    char *saved_line = rl_copy_text(0, rl_end);
-    vector<string> words = getlistOfWords(saved_line);
-    if (words.size())
+    static vector<string> validparams;
+    if (state == 0)
     {
-        set<string> setvalidparams;
-        setvalidparams.insert("v"); //global flags. TODO: they are repeated twice
-        setvalidparams.insert("help");
-
-        string thecommand = words[0];
-        insertValidParamsPerCommand(&setvalidparams, thecommand);
-        set<string>::iterator it;
-        for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
+        char *saved_line = rl_copy_text(0, rl_end);
+        vector<string> words = getlistOfWords(saved_line);
+        if (words.size())
         {
-            string param = *it;
-            string toinsert;
+            set<string> setvalidparams;
+            setvalidparams.insert("v"); //global flags. TODO: they are repeated twice
+            setvalidparams.insert("help");
 
-            if (param.size() > 1)
+            string thecommand = words[0];
+            insertValidParamsPerCommand(&setvalidparams, thecommand);
+            set<string>::iterator it;
+            for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
             {
-                toinsert = "--" + param;
-            }
-            else
-            {
-                toinsert = "-" + param;
-            }
+                string param = *it;
+                string toinsert;
 
-            validparams.push_back(toinsert);
+                if (param.size() > 1)
+                {
+                    toinsert = "--" + param;
+                }
+                else
+                {
+                    toinsert = "-" + param;
+                }
+
+                validparams.push_back(toinsert);
+            }
         }
     }
     char *toret = generic_completion(text, state, validparams);
@@ -305,50 +307,53 @@ char * flags_completion(const char*text, int state)
 
 char * flags_value_completion(const char*text, int state)
 {
-    vector<string> validValues;
+    static vector<string> validValues;
 
-    char *saved_line = rl_copy_text(0, rl_end);
-    vector<string> words = getlistOfWords(saved_line);
-    if (words.size() > 1)
+    if (state == 0 )
     {
-        string thecommand = words[0];
-        string currentFlag = words[words.size() - 1];
 
-        map<string, string> cloptions;
-        map<string, int> clflags;
-
-        set<string> validParams;
-
-        insertValidParamsPerCommand(&validParams, thecommand);
-
-        if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
+        char *saved_line = rl_copy_text(0, rl_end);
+        vector<string> words = getlistOfWords(saved_line);
+        if (words.size() > 1)
         {
-            // return invalid??
-        }
+            string thecommand = words[0];
+            string currentFlag = words[words.size() - 1];
 
-        if (thecommand == "share")
-        {
-            if (currentFlag.find("--level=") == 0)
+            map<string, string> cloptions;
+            map<string, int> clflags;
+
+            set<string> validParams;
+
+            insertValidParamsPerCommand(&validParams, thecommand);
+
+            if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
             {
-                char buf[3];
-                sprintf(buf, "%d", MegaShare::ACCESS_UNKNOWN);
-                validValues.push_back(buf);
-                sprintf(buf, "%d", MegaShare::ACCESS_READ);
-                validValues.push_back(buf);
-                sprintf(buf, "%d", MegaShare::ACCESS_READWRITE);
-                validValues.push_back(buf);
-                sprintf(buf, "%d", MegaShare::ACCESS_FULL);
-                validValues.push_back(buf);
-                sprintf(buf, "%d", MegaShare::ACCESS_OWNER);
-                validValues.push_back(buf);
+                // return invalid??
             }
-            if (currentFlag.find("--with=") == 0)
+
+            if (thecommand == "share")
             {
-                validValues = cmdexecuter->getlistusers();
+                if (currentFlag.find("--level=") == 0)
+                {
+                    char buf[3];
+                    sprintf(buf, "%d", MegaShare::ACCESS_UNKNOWN);
+                    validValues.push_back(buf);
+                    sprintf(buf, "%d", MegaShare::ACCESS_READ);
+                    validValues.push_back(buf);
+                    sprintf(buf, "%d", MegaShare::ACCESS_READWRITE);
+                    validValues.push_back(buf);
+                    sprintf(buf, "%d", MegaShare::ACCESS_FULL);
+                    validValues.push_back(buf);
+                    sprintf(buf, "%d", MegaShare::ACCESS_OWNER);
+                    validValues.push_back(buf);
+                }
+                if (currentFlag.find("--with=") == 0)
+                {
+                    validValues = cmdexecuter->getlistusers();
+                }
             }
         }
     }
-
 
     char *toret = generic_completion(text, state, validValues);
     return toret;
@@ -356,16 +361,30 @@ char * flags_value_completion(const char*text, int state)
 
 char* remotepaths_completion(const char* text, int state)
 {
-    string wildtext(text);
-    wildtext += "*";
-    vector<string> validpaths = cmdexecuter->listpaths(wildtext);
+    static vector<string> validpaths;
+    if (state == 0)
+    {
+        string wildtext(text);
+        wildtext += "*";
+        validpaths = cmdexecuter->listpaths(wildtext);
+    }
     return generic_completion(text, state, validpaths);
 }
 
 char* contacts_completion(const char* text, int state)
 {
-    vector<string> validcontacts = cmdexecuter->getlistusers();
+    static vector<string> validcontacts;
+    if (state == 0)
+        validcontacts = cmdexecuter->getlistusers();
     return generic_completion(text, state, validcontacts);
+}
+
+char* sessions_completion(const char* text, int state)
+{
+    static vector<string> validSessions;
+    if (state == 0)
+        validSessions = cmdexecuter->getsessions();
+    return generic_completion(text, state, validSessions);
 }
 
 void discardOptionsAndFlags(vector<string> *ws)
@@ -466,7 +485,13 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
             return remotepaths_completion;
         }
     }
-
+    else if (thecommand == "killsession")
+    {
+        if (currentparameter == 1)
+        {
+            return sessions_completion;
+        }
+    }
     return empty_completion;
 }
 
@@ -681,7 +706,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "killsession"))
     {
-        return "killsession [all|sessionid]";
+        return "killsession [-a|sessionid]";
     }
     if (!strcmp(command, "whoami"))
     {
@@ -1012,7 +1037,15 @@ string getHelpStr(const char *command)
 //    if(!strcmp(command,"getua") ) return "getua attrname [email]";
 //    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
 //    if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
-//    if(!strcmp(command,"killsession") ) return "killsession [all|sessionid]";
+    else if(!strcmp(command,"killsession") )
+    {
+        os << "Kills a session of current user." << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -a" << "\t" << "kills all sessions except the current one" << endl;
+        os << endl;
+        os << "To see all session use \"whoami -l\"" << endl;
+    }
     else if (!strcmp(command, "whoami"))
     {
         os << "Print info of the user" << endl;
@@ -1176,6 +1209,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     else if ("users" == thecommand)
     {
         validParams->insert("s");
+    }
+    else if ("killsession" == thecommand)
+    {
+        validParams->insert("a");
     }
     else if ("invite" == thecommand)
     {
