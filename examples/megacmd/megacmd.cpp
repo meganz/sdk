@@ -1005,7 +1005,7 @@ string getHelpStr(const char *command)
         os << "              " << "\t" << "0: " << "Read access" << endl;
         os << "              " << "\t" << "1: " << "Read and write" << endl;
         os << "              " << "\t" << "2: " << "Full access" << endl;
-        os << "              " << "\t" << "3: " << "Owner access" << endl; //TODO: check this. also add value validation
+        os << "              " << "\t" << "3: " << "Owner access" << endl;
         os << endl;
         os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
         os << " it will display all the shares existing in the tree of that path" << endl;

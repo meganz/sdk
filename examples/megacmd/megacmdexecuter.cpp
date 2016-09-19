@@ -2356,9 +2356,9 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     else if (checkNoErrors(srl->getError(), "Login")) //login success:
     {
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
-
         session = srl->getApi()->dumpSession();
         ConfigurationManager::saveSession(session);
+        LOG_info << "Fetching nodes ... ";
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(api, srl, timeout); //TODO: should more accurately be max(0,timeout-timespent)
     }
@@ -3822,14 +3822,22 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     }
     else if (words[0] == "share")
     {
+
         string with = getOption(&cloptions, "with", "");
         if (( getFlag(&clflags, "a") || getFlag(&clflags, "d")) && ( "" == with ))
         {
-                        setCurrentOutCode(2);
+            setCurrentOutCode(2);
             OUTSTREAM << " Required --with destiny" << endl << getUsageStr("share") << endl;
             return;
         }
-        int level = getintOption(&cloptions, "level", MegaShare::ACCESS_READ);
+        int level_NOT_present_value = -214;
+        int level = getintOption(&cloptions, "level", level_NOT_present_value);
+        if (level != level_NOT_present_value && (level < -1 || level > 3) )
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "Invalid level of access" << endl;
+            return;
+        }
         bool listPending = getFlag(&clflags, "p");
 
         if (words.size() <= 1)
@@ -3856,6 +3864,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                             if (getFlag(&clflags, "a"))
                             {
                                 LOG_debug << " sharing ... " << n->getName() << " with " << with;
+                                if (level == level_NOT_present_value) level = MegaShare::ACCESS_READ;
                                 shareNode(n, with, level);
                             }
                             else if (getFlag(&clflags, "d"))
@@ -3866,7 +3875,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                             }
                             else
                             {
-                                if (listPending)
+                                if (level != level_NOT_present_value || with != "")
+                                {
+                                    setCurrentOutCode(2);
+                                    OUTSTREAM << "Unexpected option received. To create/modify a share use -a" << endl;
+                                }
+                                else if (listPending)
                                 {
                                     dumpListOfPendingShares(n, words[i]);
                                 }
@@ -3896,6 +3910,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                     if (getFlag(&clflags, "a"))
                     {
                         LOG_debug << " sharing ... " << n->getName() << " with " << with;
+                        if (level == level_NOT_present_value) level = MegaShare::ACCESS_READ;
                         shareNode(n, with, level);
                     }
                     else if (getFlag(&clflags, "d"))
@@ -3905,7 +3920,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
                     }
                     else
                     {
-                        if (listPending)
+                        if (level != level_NOT_present_value || with != "")
+                        {
+                            setCurrentOutCode(2);
+                            OUTSTREAM << "Unexpected option received. To create/modify a share use -a" << endl;
+                        }
+                        else if (listPending)
                         {
                             dumpListOfPendingShares(n, words[i]);
                         }
@@ -5239,8 +5259,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
         if (getFlag(&clflags,"a"))
         {
             // Kill all sessions (except current)
-            //TODO: modify using API
-            //                                client->killallsessions();
             thesession="all";
             thehandle = mega::INVALID_HANDLE;
         }
