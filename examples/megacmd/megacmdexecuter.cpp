@@ -3828,7 +3828,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             OUTSTREAM << " Required --with destiny" << endl << getUsageStr("share") << endl;
             return;
         }
-        int level = getintOption(&cloptions, "access-level", MegaShare::ACCESS_READ);
+        int level = getintOption(&cloptions, "level", MegaShare::ACCESS_READ);
         bool listPending = getFlag(&clflags, "p");
 
         if (words.size() <= 1)

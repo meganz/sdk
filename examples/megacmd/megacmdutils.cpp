@@ -396,7 +396,7 @@ std::string &ltrim(std::string &s, const char &c) {
 std::string &rtrim(std::string &s, const char &c) {
     size_t pos = s.find_last_of(c);
     size_t last = pos == string::npos ? s.length() : pos;
-    if (last < s.length() - 1)
+    if (last +1 < s.length() )
     {
         if (s.at(last + 1) != c)
         {

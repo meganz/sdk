@@ -152,9 +152,6 @@ static void store_line(char* l)
     if (!l)
     {
         doExit = true;
-//        OUTSTREAM << "(CTRL+D) Exiting, press RETURN to close ...." << endl;
-//        OUTSTREAM << endl;
-//        changeprompt("(CTRL+D) Exiting, press RETURN to close ....");
         rl_set_prompt("(CTRL+D) Exiting ...\n");
         return;
     }
@@ -272,7 +269,8 @@ char * flags_completion(const char*text, int state)
     static vector<string> validparams;
     if (state == 0)
     {
-        char *saved_line = rl_copy_text(0, rl_end);
+        validparams.clear();
+        char *saved_line = rl_copy_text(0, rl_point);
         vector<string> words = getlistOfWords(saved_line);
         if (words.size())
         {
@@ -311,8 +309,9 @@ char * flags_value_completion(const char*text, int state)
 
     if (state == 0 )
     {
+        validValues.clear();
 
-        char *saved_line = rl_copy_text(0, rl_end);
+        char *saved_line = rl_copy_text(0, rl_point);
         vector<string> words = getlistOfWords(saved_line);
         if (words.size() > 1)
         {
@@ -420,7 +419,6 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         {
             if (lastword.find_last_of("=") != string::npos)
             {
-//            if (lastword.find_last_of("=") == lastword.size()-1)
                 return flags_value_completion;
             }
             else
@@ -515,7 +513,7 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
-        char *saved_line = rl_copy_text(0, rl_end);
+        char *saved_line = rl_copy_text(0, rl_point);
         vector<string> words = getlistOfWords(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
         {
@@ -531,7 +529,6 @@ static char** getCompletionMatches(const char * text, int start, int end)
 
 void printHistory()
 {
-//    //TODO: this might need to be protected betweeen mutex
     int length = history_length;
     int offset = 1;
     int rest = length;
