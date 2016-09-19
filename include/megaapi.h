@@ -7584,6 +7584,16 @@ class MegaApi
         const char *getUserAgent();
 
         /**
+         * @brief Get the base path set during initialization
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaApi object is deleted.
+         *
+         * @return Base path
+         */
+        const char *getBasePath();
+
+        /**
          * @brief Change the API URL
          *
          * This function allows to change the API URL.
