@@ -48,6 +48,8 @@ using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
 
+MegaSemaphore semaphoreClients; //to limit max parallel petitions
+
 MegaApi *api;
 
 //api objects for folderlinks
@@ -1211,6 +1213,7 @@ void * doProcessLine(void *pointer)
 
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
+    semaphoreClients.release();
     return NULL;
 }
 
@@ -1316,8 +1319,8 @@ void megacmd()
                     }
                     else if (cm->receivedPetition())
                     {
+                        semaphoreClients.wait();
                         LOG_verbose << "Client connected ";
-                        //TODO: limit max number of simultaneous connection (otherwise will fail due to too many files opened)
 
                         petition_info_t *inf = cm->getPetition();
 
@@ -1331,6 +1334,7 @@ void megacmd()
 
                         LOG_debug << "starting processing: " << inf->line;
                         petitionThread->start(doProcessLine, (void*)inf);
+
                     }
                 }
                 else
@@ -1396,6 +1400,9 @@ int main()
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
         semaphoreapiFolders.release();
     }
+
+    for (int i=0;i<100;i++)
+        semaphoreClients.release();
 
     mutexapiFolders.init(false);
 
