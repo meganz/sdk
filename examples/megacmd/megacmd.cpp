@@ -46,9 +46,9 @@
 
 using namespace mega;
 
-MegaApi *api;
-
 MegaCmdExecuter *cmdexecuter;
+
+MegaApi *api;
 
 //api objects for folderlinks
 std::queue<MegaApi *> apiFolders;
@@ -58,9 +58,6 @@ MegaMutex mutexapiFolders;
 
 MegaCMDLogger *loggerCMD;
 
-//Syncs
-//map<string,sync_struct *> syncsmap;
-
 std::vector<MegaThread *> petitionThreads;
 
 //Comunications Manager
@@ -69,24 +66,40 @@ ComunicationsManager * cm;
 // global listener
 MegaCmdGlobalListener* megaCmdGlobalListener;
 
-//static handle cwd = UNDEF;
-//static char *session;
-
 bool loginInAtStartup = false;
 
-vector<string> getlistOfWords(char *ptr);
-void insertValidParamsPerCommand(set<string> *validParams, string thecommand); //TODO: place somewhere else
-bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vector<string> *ws, set<string> vvalidOptions, bool global = false); //TODO: place somewhere else
+string validGlobalParameters[] = {"v", "help"};
 
-static void store_line(char*);
-static void process_line(char *);
-static char* line;
+string alocalremotepatterncommands [] = {"put", "sync"};
+vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-// new account signup e-mail address and name
-static string signupemail, signupname;
+string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share"};
+vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
-//// signup code being confirmed
-static string signupcode;
+string aremoteremotepatterncommands[] = {"mv", "cp"};
+vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
+
+string aremotelocalpatterncommands[] = {"get"};
+vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelocalpatterncommands + sizeof aremotelocalpatterncommands / sizeof aremotelocalpatterncommands[0]);
+
+string alocalpatterncommands [] = {"lcd"};
+vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
+
+string aemailpatterncommands [] = {"invite", "signup"};
+vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
+
+
+//string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
+//"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
+//"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
+//"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
+//"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
+//"history" };
+string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
+                             "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
+                             "passwd", "reload", "logout", "version", "quit", "history" };
+vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
+
 
 // password change-related state information
 string oldpasswd;
@@ -96,6 +109,8 @@ bool doExit = false;
 bool consoleFailed = false;
 
 static char dynamicprompt[128];
+
+static char* line;
 
 static prompttype prompt = COMMAND;
 
@@ -166,54 +181,72 @@ static void store_line(char* l)
     line = l;
 }
 
-string alocalremotepatterncommands [] = {"put", "sync"};
-vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
-
-string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share"};
-vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
-
-string aremoteremotepatterncommands[] = {"mv", "cp"};
-vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
-
-string aremotelocalpatterncommands[] = {"get"};
-vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelocalpatterncommands + sizeof aremotelocalpatterncommands / sizeof aremotelocalpatterncommands[0]);
-
-string alocalpatterncommands [] = {"lcd"};
-vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
-
-string aemailpatterncommands [] = {"invite", "signup"};
-vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
-
-
-//string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
-//"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
-//"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
-//"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
-//"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
-//"history" };
-string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
-                             "passwd", "reload", "logout", "version", "quit", "history" };
-vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
-
-bool stringcontained(const char * s, vector<string> list){
-    for (int i = 0; i < (int) list.size(); i++)
+void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
+    if ("ls" == thecommand)
     {
-        if (list[i] == s)
-        {
-            return true;
-        }
+        validParams->insert("R");
+        validParams->insert("r");
+        validParams->insert("l");
     }
-
-    return false;
-}
-
-char * dupstr(char* s) {
-    char *r;
-
-    r = (char*)malloc(sizeof( char ) * ( strlen(s) + 1 ));
-    strcpy(r, s);
-    return( r );
+    else if ("rm" == thecommand)
+    {
+        validParams->insert("r");
+    }
+    else if ("whoami" == thecommand)
+    {
+        validParams->insert("l");
+    }
+    else if ("log" == thecommand)
+    {
+        validParams->insert("c");
+        validParams->insert("s");
+    }
+    else if ("sync" == thecommand)
+    {
+        validParams->insert("d");
+        validParams->insert("s");
+    }
+    else if ("export" == thecommand)
+    {
+        validParams->insert("a");
+        validParams->insert("d");
+        validParams->insert("expire");
+    }
+    else if ("share" == thecommand)
+    {
+        validParams->insert("a");
+        validParams->insert("d");
+        validParams->insert("p");
+        validParams->insert("with");
+        validParams->insert("level");
+        validParams->insert("personal-representation");
+    }
+    else if ("mkdir" == thecommand)
+    {
+        validParams->insert("p");
+    }
+    else if ("users" == thecommand)
+    {
+        validParams->insert("s");
+    }
+    else if ("killsession" == thecommand)
+    {
+        validParams->insert("a");
+    }
+    else if ("invite" == thecommand)
+    {
+        validParams->insert("d");
+        validParams->insert("r");
+        validParams->insert("message");
+    }
+    else if ("signup" == thecommand)
+    {
+        validParams->insert("name");
+    }
+    else if ("logout" == thecommand)
+    {
+        validParams->insert("delete-session");
+    }
 }
 
 char* generic_completion(const char* text, int state, vector<string> validOptions)
@@ -264,6 +297,14 @@ char* empty_completion(const char* text, int state)
     return NULL;
 }
 
+void addGlobalFlags(set<string> *setvalidparams)
+{
+    for (size_t i=0;i<sizeof(validGlobalParameters)/sizeof(*validGlobalParameters); i++)
+    {
+        setvalidparams->insert(validGlobalParameters[i]);
+    }
+}
+
 char * flags_completion(const char*text, int state)
 {
     static vector<string> validparams;
@@ -275,8 +316,7 @@ char * flags_completion(const char*text, int state)
         if (words.size())
         {
             set<string> setvalidparams;
-            setvalidparams.insert("v"); //global flags. TODO: they are repeated twice
-            setvalidparams.insert("help");
+            addGlobalFlags(&setvalidparams);
 
             string thecommand = words[0];
             insertValidParamsPerCommand(&setvalidparams, thecommand);
@@ -578,11 +618,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "signup"))
     {
-        return "signup [email name|confirmationlink]";
+        return "signup email [password] [--name=\"Your Name\"]";
     }
     if (!strcmp(command, "confirm"))
     {
-        return "confirm";
+        return "confirm link email";
     }
     if (!strcmp(command, "session"))
     {
@@ -620,7 +660,6 @@ const char * getUsageStr(const char *command)
     {
         return "import exportedfilelink#key [remotepath]";
     }
-//    if(!strcmp(command,"put") ) return "put localpattern [dstremotepath|dstemail:]";
     if (!strcmp(command, "put"))
     {
         return "put localfile [localfile2 localfile3 ...] [dstremotepath]";
@@ -633,8 +672,6 @@ const char * getUsageStr(const char *command)
     {
         return "get exportedlink#key|remotepath [localpath]";
     }
-    //if(!strcmp(command,"get") ) return "get remotepath [offset [length]]"; //TODO: implement this?
-    //if(!strcmp(command,"get") ) return "get exportedfilelink#key [offset [length]]";
     if (!strcmp(command, "getq"))
     {
         return "getq [cancelslot]";
@@ -667,12 +704,10 @@ const char * getUsageStr(const char *command)
     {
         return "sync [localpath dstremotepath| [-ds] cancelslot]";
     }
-//    if(!strcmp(command,"export") ) return "export remotepath [expireTime|del]";
     if (!strcmp(command, "export"))
     {
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
     }
-//    if(!strcmp(command,"share") ) return "share [remotepath [dstemail [r|rw|full] [origemail]]]";
     if (!strcmp(command, "share"))
     {
         return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath]";
@@ -731,11 +766,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "logout"))
     {
-        return "logout";
-    }
-    if (!strcmp(command, "locallogout"))
-    {
-        return "locallogout";
+        return "logout [--delete-session]";
     }
     if (!strcmp(command, "symlink"))
     {
@@ -790,67 +821,16 @@ const char * getUsageStr(const char *command)
 
 bool validCommand(string thecommand){
     return stringcontained((char*)thecommand.c_str(), validCommands);
-//    return getUsageStr(thecommand.c_str()) != "command not found";
 }
 
 void printAvailableCommands()
 {
-    OUTSTREAM << "      " << getUsageStr("login") << endl;
-    OUTSTREAM << "      " << getUsageStr("begin") << endl;
-    OUTSTREAM << "      " << getUsageStr("signup") << endl;
-    OUTSTREAM << "      " << getUsageStr("confirm") << endl;
-    OUTSTREAM << "      " << getUsageStr("session") << endl;
-    OUTSTREAM << "      " << getUsageStr("mount") << endl;
-    OUTSTREAM << "      " << getUsageStr("ls") << endl;
-    OUTSTREAM << "      " << getUsageStr("cd") << endl;
-    OUTSTREAM << "      " << getUsageStr("log") << endl;
-    OUTSTREAM << "      " << getUsageStr("pwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("lcd") << endl;
-    OUTSTREAM << "      " << getUsageStr("lpwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("import") << endl;
-    OUTSTREAM << "      " << getUsageStr("put") << endl;
-    OUTSTREAM << "      " << getUsageStr("putq") << endl;
-    OUTSTREAM << "      " << getUsageStr("get") << endl;
-    OUTSTREAM << "      " << getUsageStr("getq") << endl;
-    OUTSTREAM << "      " << getUsageStr("pause") << endl;
-    OUTSTREAM << "      " << getUsageStr("getfa") << endl;
-    OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
-    OUTSTREAM << "      " << getUsageStr("rm") << endl;
-    OUTSTREAM << "      " << getUsageStr("mv") << endl;
-    OUTSTREAM << "      " << getUsageStr("cp") << endl;
-    #ifdef ENABLE_SYNC
-    OUTSTREAM << "      " << getUsageStr("sync") << endl;
-    #endif
-    OUTSTREAM << "      " << getUsageStr("export") << endl;
-    OUTSTREAM << "      " << getUsageStr("share") << endl;
-    OUTSTREAM << "      " << getUsageStr("invite") << endl;
-    OUTSTREAM << "      " << getUsageStr("ipc") << endl;
-    OUTSTREAM << "      " << getUsageStr("showpcr") << endl;
-    OUTSTREAM << "      " << getUsageStr("users") << endl;
-    OUTSTREAM << "      " << getUsageStr("getua") << endl;
-    OUTSTREAM << "      " << getUsageStr("putua") << endl;
-    OUTSTREAM << "      " << getUsageStr("putbps") << endl;
-    OUTSTREAM << "      " << getUsageStr("killsession") << endl;
-    OUTSTREAM << "      " << getUsageStr("whoami") << endl;
-    OUTSTREAM << "      " << getUsageStr("passwd") << endl;
-    OUTSTREAM << "      " << getUsageStr("retry") << endl;
-    OUTSTREAM << "      " << getUsageStr("recon") << endl;
-    OUTSTREAM << "      " << getUsageStr("reload") << endl;
-    OUTSTREAM << "      " << getUsageStr("logout") << endl;
-    OUTSTREAM << "      " << getUsageStr("locallogout") << endl;
-    OUTSTREAM << "      " << getUsageStr("symlink") << endl;
-    OUTSTREAM << "      " << getUsageStr("version") << endl;
-    OUTSTREAM << "      " << getUsageStr("debug") << endl;
-    #ifdef ENABLE_CHAT
-    OUTSTREAM << "      " << getUsageStr("chatf") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatc") << endl;
-    OUTSTREAM << "      " << getUsageStr("chati") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatr") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatu") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatga") << endl;
-    OUTSTREAM << "      " << getUsageStr("chatra") << endl;
-    #endif
-    OUTSTREAM << "      " << getUsageStr("quit") << endl;
+    vector<string> validCommandsOrdered = validCommands;
+    sort(validCommandsOrdered.begin(),validCommandsOrdered.end());
+    for (size_t i=0;i<validCommandsOrdered.size();i++)
+    {
+        OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str()) << endl;
+    }
 }
 
 string getHelpStr(const char *command)
@@ -863,9 +843,19 @@ string getHelpStr(const char *command)
         os << "Logs in. Either with email and password, with session ID, or into an exportedfolder";
         os << " If login into an exported folder indicate url#key" << endl;
     }
-//    if(!strcmp(command,"begin") ) return "begin [ephemeralhandle#ephemeralpw]";
-//    if(!strcmp(command,"signup") ) return "signup [email name|confirmationlink]";
-//    if(!strcmp(command,"confirm") ) return "confirm";
+    else if(!strcmp(command,"signup") )
+    {
+        os << "Register as user with a given email" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " --name=\"Your Name\"" << "\t" << "Name to register. e.g. \"John Smith\"" << endl;
+        os << endl;
+        os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
+    }
+    else if(!strcmp(command,"confirm") ){
+        os << "Confirm an account using the link provided after the \"singup\" process. It requires the email and the password used to obtain the link." << endl;
+        os << endl;
+    }
     else if (!strcmp(command, "session"))
     {
         os << "Prints (secret) session ID" << endl;
@@ -919,7 +909,10 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "logout"))
     {
-        os << "Logs out, invalidating the session and the local caches" << endl;
+        os << "Logs out" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " --delete-session" << "\t" << "Deletes the current session, cleaning all cached info." << endl;
     }
     else if (!strcmp(command, "import"))
     {
@@ -1064,7 +1057,6 @@ string getHelpStr(const char *command)
     {
         os << "Forces a reload of the remote files of the user" << endl;
     }
-//    if(!strcmp(command,"locallogout") ) return "locallogout";
 //    if(!strcmp(command,"symlink") ) return "symlink";
     else if (!strcmp(command, "version"))
     {
@@ -1090,207 +1082,6 @@ string getHelpStr(const char *command)
     return os.str();
 }
 
-
-bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vector<string> *ws, set<string> vvalidOptions, bool global)
-{
-    bool discarded = false;
-
-    for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
-    {
-        /* std::cout << *it; ... */
-        string w = ( string ) * it;
-        if (w.length() && ( w.at(0) == '-' )) //begins with "-"
-        {
-            if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
-            {
-                for (uint i = 1; i < w.length(); i++)
-                {
-                    string optname = w.substr(i, 1);
-                    if (vvalidOptions.find(optname) != vvalidOptions.end())
-                    {
-                        ( *flags )[optname] = ( flags->count(optname) ? ( *flags )[optname] : 0 ) + 1;
-                    }
-                    else
-                    {
-                        LOG_err << "Invalid argument: " << optname;
-                        discarded = true;
-                    }
-                }
-            }
-            else if (w.find_first_of("=") == std::string::npos) //flag
-            {
-                string optname = ltrim(w, '-');
-                if (vvalidOptions.find(optname) != vvalidOptions.end())
-                {
-                    ( *flags )[optname] = ( flags->count(optname) ? ( *flags )[optname] : 0 ) + 1;
-                }
-                else
-                {
-                    LOG_err << "Invalid argument: " << optname;
-                    discarded = true;
-                }
-            }
-            else //option=value
-            {
-                string cleared = ltrim(w, '-');
-                size_t p = cleared.find_first_of("=");
-                string optname = cleared.substr(0, p);
-                if (vvalidOptions.find(optname) != vvalidOptions.end())
-                {
-                    string value = cleared.substr(p + 1);
-
-                    value = rtrim(ltrim(value, '"'), '"');
-                    ( *opts )[optname] = value;
-                }
-                else
-                {
-                    LOG_err << "Invalid argument: " << optname;
-                    discarded = true;
-                }
-            }
-            it = ws->erase(it);
-        }
-        else //not an option/flag
-        {
-            if (global)
-            {
-                return discarded; //leave the others
-            }
-            ++it;
-        }
-    }
-
-    return discarded;
-}
-
-void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
-    if ("ls" == thecommand)
-    {
-        validParams->insert("R");
-        validParams->insert("r");
-        validParams->insert("l");
-    }
-    else if ("rm" == thecommand)
-    {
-        validParams->insert("r");
-    }
-    else if ("whoami" == thecommand)
-    {
-        validParams->insert("l");
-    }
-    else if ("log" == thecommand)
-    {
-        validParams->insert("c");
-        validParams->insert("s");
-    }
-    else if ("sync" == thecommand)
-    {
-        validParams->insert("d");
-        validParams->insert("s");
-    }
-    else if ("export" == thecommand)
-    {
-        validParams->insert("a");
-        validParams->insert("d");
-        validParams->insert("expire");
-    }
-    else if ("share" == thecommand)
-    {
-        validParams->insert("a");
-        validParams->insert("d");
-        validParams->insert("p");
-        validParams->insert("with");
-        validParams->insert("level");
-        validParams->insert("personal-representation");
-    }
-    else if ("mkdir" == thecommand)
-    {
-        validParams->insert("p");
-    }
-    else if ("users" == thecommand)
-    {
-        validParams->insert("s");
-    }
-    else if ("killsession" == thecommand)
-    {
-        validParams->insert("a");
-    }
-    else if ("invite" == thecommand)
-    {
-        validParams->insert("d");
-        validParams->insert("r");
-        validParams->insert("message");
-    }
-}
-
-
-vector<string> getlistOfWords(char *ptr)
-{
-    vector<string> words;
-
-    char* wptr;
-
-    // split line into words with quoting and escaping
-    for (;; )
-    {
-        // skip leading blank space
-        while (*ptr > 0 && *ptr <= ' ')
-        {
-            ptr++;
-        }
-
-        if (!*ptr)
-        {
-            break;
-        }
-
-        // quoted arg / regular arg
-        if (*ptr == '"')
-        {
-            ptr++;
-            wptr = ptr;
-            words.push_back(string());
-
-            for (;; )
-            {
-                if (( *ptr == '"' ) || ( *ptr == '\\' ) || !*ptr)
-                {
-                    words[words.size() - 1].append(wptr, ptr - wptr);
-
-                    if (!*ptr || ( *ptr++ == '"' ))
-                    {
-                        break;
-                    }
-
-                    wptr = ptr - 1;
-                }
-                else
-                {
-                    ptr++;
-                }
-            }
-        }
-        else
-        {
-            wptr = ptr;
-
-            while ((unsigned char)*ptr > ' ')
-            {
-                if (*ptr == '"')
-                {
-                    while (*++ptr != '"' && *ptr != '\0')
-                    { }
-                }
-                ptr++;
-            }
-
-            words.push_back(string(wptr, ptr - wptr));
-        }
-    }
-
-    return words;
-}
-
 void executecommand(char* ptr){
     vector<string> words = getlistOfWords(ptr);
     if (!words.size())
@@ -1309,8 +1100,8 @@ void executecommand(char* ptr){
     map<string, string> cloptions;
     map<string, int> clflags;
 
-    string validGlobalParameters[] = {"v", "help"};
-    set<string> validParams(validGlobalParameters, validGlobalParameters + sizeof( validGlobalParameters ) / sizeof( *validGlobalParameters ));
+    set<string> validParams;
+    addGlobalFlags(&validParams);
 
     if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
     {

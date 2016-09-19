@@ -2364,7 +2364,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
 }
 
-void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, int timeout)
+void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, bool deletedSession, int timeout)
 {
     if (!timeout)
     {
@@ -2385,7 +2385,8 @@ void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, int timeout
         cwd = UNDEF;
         delete []session;
         session = NULL;
-        ConfigurationManager::saveSession("");
+        if (deletedSession)
+            ConfigurationManager::saveSession("");
     }
     updateprompt(api, cwd);
 }
@@ -4644,10 +4645,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     }
     else if (words[0] == "signup")
     {
-        if (words.size() > 1)
+        if (api->isLoggedIn())
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "Please loggout first " << endl;
+        }
+        else if (words.size() > 1)
         {
             string email = words[1];
-            string name = getOption(&cloptions, "name", email); //TODO; add parameter --name
+            string name = getOption(&cloptions, "name", email);
             if (words.size() > 2)
             {
                 string passwd = words[2];
@@ -4670,59 +4676,59 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("signup") << endl;
         }
-        if (words.size() == 2)
-        {
-            const char* ptr = words[1].c_str();
-            const char* tptr;
+//        if (words.size() == 2)
+//        {
+//            const char* ptr = words[1].c_str();
+//            const char* tptr;
 
-            if (( tptr = strstr(ptr, "#confirm")))
-            {
-                ptr = tptr + 8;
-            }
+//            if (( tptr = strstr(ptr, "#confirm")))
+//            {
+//                ptr = tptr + 8;
+//            }
 
-            unsigned len = ( words[1].size() - ( ptr - words[1].c_str())) * 3 / 4 + 4;
+//            unsigned len = ( words[1].size() - ( ptr - words[1].c_str())) * 3 / 4 + 4;
 
-            byte* c = new byte[len];
-            len = Base64::atob(ptr, c, len);
-            // we first just query the supplied signup link,
-            // then collect and verify the password,
-            // then confirm the account
-            //TODO: modify using API
-            //                            client->querysignuplink(c, len);
-            delete[] c;
-        }
-        else if (words.size() == 3)
-        {
-            //TODO: modify using API
-//                            switch (client->loggedin())
-//                            {
-//                                case FULLACCOUNT:
-//                                    OUTSTREAM << "Already logged in." << endl;
-//                                    break;
+//            byte* c = new byte[len];
+//            len = Base64::atob(ptr, c, len);
+//            // we first just query the supplied signup link,
+//            // then collect and verify the password,
+//            // then confirm the account
+//            //TODO: modify using API
+//            //                            client->querysignuplink(c, len);
+//            delete[] c;
+//        }
+//        else if (words.size() == 3)
+//        {
+//            //TODO: modify using API
+////                            switch (client->loggedin())
+////                            {
+////                                case FULLACCOUNT:
+////                                    OUTSTREAM << "Already logged in." << endl;
+////                                    break;
 
-//                                case CONFIRMEDACCOUNT:
-//                                    OUTSTREAM << "Current account already confirmed." << endl;
-//                                    break;
+////                                case CONFIRMEDACCOUNT:
+////                                    OUTSTREAM << "Current account already confirmed." << endl;
+////                                    break;
 
-//                                case EPHEMERALACCOUNT:
-//                                    if (words[1].find('@') + 1 && words[1].find('.') + 1)
-//                                    {
-//                                        signupemail = words[1];
-//                                        signupname = words[2];
+////                                case EPHEMERALACCOUNT:
+////                                    if (words[1].find('@') + 1 && words[1].find('.') + 1)
+////                                    {
+////                                        signupemail = words[1];
+////                                        signupname = words[2];
 
-//                                        OUTSTREAM << endl;
-//                                        setprompt(NEWPASSWORD);
-//                                    }
-//                                    else
-//                                    {
-//                                        OUTSTREAM << "Please enter a valid e-mail address." << endl;
-//                                    }
-//                                    break;
+////                                        OUTSTREAM << endl;
+////                                        setprompt(NEWPASSWORD);
+////                                    }
+////                                    else
+////                                    {
+////                                        OUTSTREAM << "Please enter a valid e-mail address." << endl;
+////                                    }
+////                                    break;
 
-//                                case NOTLOGGEDIN:
-//                                    OUTSTREAM << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
-//                            }
-        }
+////                                case NOTLOGGEDIN:
+////                                    OUTSTREAM << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
+////                            }
+//        }
 
         return;
     }
@@ -4974,9 +4980,22 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
     {
         OUTSTREAM << "Logging off..." << endl;
         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-        api->logout(megaCmdListener);
-        actUponLogout(megaCmdListener);
+        bool deleteSession = getFlag(&clflags,"delete-session");
+        if (deleteSession)
+        {
+            api->logout(megaCmdListener);
+        }
+        else //local logout
+        {
+            api->localLogout(megaCmdListener);
+        }
+        actUponLogout(megaCmdListener,deleteSession);
+        if (!deleteSession)
+        {
+            OUTSTREAM << "Session close but not deleted. Warning: it will be restored the next time you execute the application. Execute \"logout --delete-session\" to delete the session permanently." << endl;
+        }
         delete megaCmdListener;
+
         return;
     }
 #ifdef ENABLE_CHAT
@@ -5032,7 +5051,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             string link = words[1];
             string email = words[2];
             // check email corresponds with link:
-            OUTSTREAM << "Logging off..." << endl;
             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
             api->querySignupLink(link.c_str(),megaCmdListener);
             megaCmdListener->wait();
@@ -5066,9 +5084,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> &clf
             }
 
             delete megaCmdListener;
-
-
-
         }
         else
         {

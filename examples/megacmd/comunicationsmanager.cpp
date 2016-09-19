@@ -47,14 +47,14 @@ int ComunicationsManager::create_new_socket(int *sockId){
         else
         {
             LOG_fatal << "ERROR on binding socket: " << errno;
-            thesock = 0; //TODO: potentian issue: if no stdin/stdout, 0 is valid Id
+            thesock = 0;
         }
     }
     else
     {
         if (thesock)
         {
-            int returned = listen(thesock, 150); //TODO: check errors?
+            int returned = listen(thesock, 150);
             if (returned)
             {
                 LOG_fatal << "ERROR on listen socket: " << errno;
@@ -103,15 +103,6 @@ int ComunicationsManager::initialize(){
         LOG_fatal << "ERROR opening socket";
     }
 
-    //        portno=12347;         //TODO: read port from somewhere
-    //        bzero((char *) &serv_addr, sizeof(serv_addr));
-    //        serv_addr.sin_family = AF_INET;
-    //        serv_addr.sin_addr.s_addr = INADDR_ANY;
-    //        serv_addr.sin_port = htons(poFrtno);
-    //        if (bind(sockfd, (struct sockaddr *) &serv_addr,
-    //                 sizeof(serv_addr)) < 0)
-
-
     struct sockaddr_un addr;
     socklen_t saddrlen = sizeof( addr );
     memset(&addr, 0, sizeof( addr ));
@@ -129,30 +120,7 @@ int ComunicationsManager::initialize(){
     {
         if (errno == EADDRINUSE)
         {
-            LOG_warn << "ERROR on binding socket: Already in use.";
-//                exit(1);
-//                close(sockfd);
-
-//                sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-//                struct sockaddr saddr = {AF_UNIX, socketPath};
-
-////                bzero((char *) &saddr, sizeof(saddr));
-////                saddr.sa_family = AF_UNIX;
-////                saddr.sa_data = socketPath;
-
-//                socklen_t saddrlen = sizeof(struct sockaddr) + 6;
-
-//                int yes=1;
-//                if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
-//                    LOG_fatal << "ERROR on setsockopt socket: " << errno;
-//                    exit(1);
-//                }
-
-//                if ( bind(sockfd, &saddr, saddrlen) )
-//                {
-//                    LOG_fatal << "ERROR on binding socket: " << errno;
-//                    sockfd=NULL;
-//                }
+            LOG_warn << "ERROR on binding socket: " << socketPath << ": Already in use.";
         }
         else
         {
@@ -162,7 +130,7 @@ int ComunicationsManager::initialize(){
     }
     else
     {
-        int returned = listen(sockfd, 150); //TODO: check errors?
+        int returned = listen(sockfd, 150);
         if (returned)
         {
             LOG_fatal << "ERROR on listen socket initializing communications manager: " << socketPath << ": " << errno;
@@ -228,10 +196,7 @@ int ComunicationsManager::waitForPetition()
 void ComunicationsManager::returnAndClosePetition(petition_info_t *inf, std::ostringstream *s, int outCode){
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
-    int connectedsocket = accept(inf->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //TODO: check errors
-
-    //TODO use mutex, and free after accept
-
+    int connectedsocket = accept(inf->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
     if (connectedsocket == -1)
     {
         LOG_fatal << "Unable to accept on outsocket " << inf->outSocket << " error: " << errno;
@@ -295,7 +260,6 @@ petition_info_t * ComunicationsManager::getPetition(){
         return inf;
     }
 
-    //TODO: investigate possible failure in case client disconects!
     n = write(newsockfd, &socket_id, sizeof( socket_id ));
     if (n < 0)
     {

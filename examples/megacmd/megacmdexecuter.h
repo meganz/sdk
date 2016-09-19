@@ -54,7 +54,7 @@ public:
     void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl, int timeout = -1);
     bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl, int timeout = -1);
     void actUponLogin(SynchronousRequestListener *srl, int timeout = -1);
-    void actUponLogout(SynchronousRequestListener *srl, int timeout = 0);
+    void actUponLogout(SynchronousRequestListener *srl, bool deletedSession, int timeout = 0);
     int actUponCreateFolder(SynchronousRequestListener *srl, int timeout = 0);
     void deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive);
     void downloadNode(string localPath, MegaApi* api, MegaNode *node);

@@ -10,7 +10,7 @@ struct petition_info_t
     int outSocket;
 };
 
-class ComunicationsManager //TODO: do interface somewhere and move this
+class ComunicationsManager
 {
 private:
     fd_set fds;

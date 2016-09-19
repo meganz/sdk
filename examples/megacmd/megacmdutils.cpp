@@ -408,6 +408,93 @@ std::string &rtrim(std::string &s, const char &c) {
     return s;
 }
 
+vector<string> getlistOfWords(char *ptr)
+{
+    vector<string> words;
+
+    char* wptr;
+
+    // split line into words with quoting and escaping
+    for (;; )
+    {
+        // skip leading blank space
+        while (*ptr > 0 && *ptr <= ' ')
+        {
+            ptr++;
+        }
+
+        if (!*ptr)
+        {
+            break;
+        }
+
+        // quoted arg / regular arg
+        if (*ptr == '"')
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '"' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '"' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
+        else
+        {
+            wptr = ptr;
+
+            while ((unsigned char)*ptr > ' ')
+            {
+                if (*ptr == '"')
+                {
+                    while (*++ptr != '"' && *ptr != '\0')
+                    { }
+                }
+                ptr++;
+            }
+
+            words.push_back(string(wptr, ptr - wptr));
+        }
+    }
+
+    return words;
+}
+
+bool stringcontained(const char * s, vector<string> list){
+    for (int i = 0; i < (int) list.size(); i++)
+    {
+        if (list[i] == s)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+char * dupstr(char* s) {
+    char *r;
+
+    r = (char*)malloc(sizeof( char ) * ( strlen(s) + 1 ));
+    strcpy(r, s);
+    return( r );
+}
+
 bool patternMatches(const char *what, const char *pattern)
 {
     //return std::regex_match (pattern, std::regex(what) ); //c++11
@@ -472,4 +559,76 @@ int getintOption(map<string, string> *cloptions, const char * optname, int defau
     {
         return defaultValue;
     }
+}
+
+bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vector<string> *ws, set<string> vvalidOptions, bool global)
+{
+    bool discarded = false;
+
+    for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
+    {
+        /* std::cout << *it; ... */
+        string w = ( string ) * it;
+        if (w.length() && ( w.at(0) == '-' )) //begins with "-"
+        {
+            if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
+            {
+                for (uint i = 1; i < w.length(); i++)
+                {
+                    string optname = w.substr(i, 1);
+                    if (vvalidOptions.find(optname) != vvalidOptions.end())
+                    {
+                        ( *flags )[optname] = ( flags->count(optname) ? ( *flags )[optname] : 0 ) + 1;
+                    }
+                    else
+                    {
+                        LOG_err << "Invalid argument: " << optname;
+                        discarded = true;
+                    }
+                }
+            }
+            else if (w.find_first_of("=") == std::string::npos) //flag
+            {
+                string optname = ltrim(w, '-');
+                if (vvalidOptions.find(optname) != vvalidOptions.end())
+                {
+                    ( *flags )[optname] = ( flags->count(optname) ? ( *flags )[optname] : 0 ) + 1;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: " << optname;
+                    discarded = true;
+                }
+            }
+            else //option=value
+            {
+                string cleared = ltrim(w, '-');
+                size_t p = cleared.find_first_of("=");
+                string optname = cleared.substr(0, p);
+                if (vvalidOptions.find(optname) != vvalidOptions.end())
+                {
+                    string value = cleared.substr(p + 1);
+
+                    value = rtrim(ltrim(value, '"'), '"');
+                    ( *opts )[optname] = value;
+                }
+                else
+                {
+                    LOG_err << "Invalid argument: " << optname;
+                    discarded = true;
+                }
+            }
+            it = ws->erase(it);
+        }
+        else //not an option/flag
+        {
+            if (global)
+            {
+                return discarded; //leave the others
+            }
+            ++it;
+        }
+    }
+
+    return discarded;
 }
