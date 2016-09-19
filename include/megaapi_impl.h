@@ -1459,6 +1459,7 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         const char *getUserAgent();
+        const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         void retrySSLerrors(bool enable);
@@ -1575,6 +1576,7 @@ protected:
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
+        string basePath;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
