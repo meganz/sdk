@@ -37,6 +37,8 @@ const char * getErrorCodeStr(MegaError *e);
 
 bool isFolder(string path);
 
+bool canWrite(string path);
+
 int getLinkType(string link);
 
 bool isPublicLink(string link);

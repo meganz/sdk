@@ -40,13 +40,13 @@ public:
     vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL);
     void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
     void dumptree(MegaNode* n, int recurse, int extended_info, int depth = 0, string pathRelativeTo = "NULL");
-    void nodepath(handle h, string* path);
     string getDisplayPath(string givenPath, MegaNode* n);
     void dumpListOfExported(MegaNode* n, string givenPath);
     void listnodeshares(MegaNode* n, string name);
     void dumpListOfShared(MegaNode* n, string givenPath);
     void dumpListOfAllShared(MegaNode* n, string givenPath);
     void dumpListOfPendingShares(MegaNode* n, string givenPath);
+    string getCurrentPath();
 
     //acting
     void loginWithPassword(char *password);
@@ -58,7 +58,7 @@ public:
     int actUponCreateFolder(SynchronousRequestListener *srl, int timeout = 0);
     void deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive);
     void downloadNode(string localPath, MegaApi* api, MegaNode *node);
-    void uploadNode(string localPath, MegaApi* api, MegaNode *node);
+    void uploadNode(string localPath, MegaApi* api, MegaNode *node, string newname);
     void exportNode(MegaNode *n, int expireTime);
     void disableExport(MegaNode *n);
     void shareNode(MegaNode *n, string with, int level = MegaShare::ACCESS_READ);
@@ -67,7 +67,7 @@ public:
     vector<string> getlistusers();
     vector<string> getsessions();
 
-    void executecommand(vector<string> words, map<string, int> &clflags, map<string, string> &cloptions);
+    void executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions);
 
     bool checkNoErrors(MegaError *error, string message = "");
 

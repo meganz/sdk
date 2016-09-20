@@ -16,7 +16,7 @@ using namespace mega;
  *
  * @see MegaRequestListener
  */
-class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else
+class SynchronousRequestListener : public MegaRequestListener //TODO: move to somewhere else within the sdk
 {
 private:
     MegaSemaphore* semaphore;
@@ -47,7 +47,7 @@ public:
  * TODO
  * @see MegaTransferListener
  */
-class SynchronousTransferListener : public MegaTransferListener //TODO: move to somewhere else
+class SynchronousTransferListener : public MegaTransferListener //TODO: move to somewhere else within the sdk
 {
 private:
     MegaSemaphore* semaphore;

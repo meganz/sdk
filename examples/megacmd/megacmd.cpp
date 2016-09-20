@@ -1080,11 +1080,11 @@ string getHelpStr(const char *command)
         os << "The session will be resumed when the service is restarted" << endl;
     }
 
-
     return os.str();
 }
 
-void executecommand(char* ptr){
+void executecommand(char* ptr)
+{
     vector<string> words = getlistOfWords(ptr);
     if (!words.size())
     {
@@ -1131,7 +1131,7 @@ void executecommand(char* ptr){
         OUTSTREAM << h << endl;
         return;
     }
-    cmdexecuter->executecommand(words, clflags, cloptions);
+    cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
 

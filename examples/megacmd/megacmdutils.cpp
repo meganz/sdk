@@ -236,6 +236,13 @@ bool isFolder(string path) //TODO: move to MegaFileSystemAccess
     return S_ISDIR(path_stat.st_mode);
 }
 
+bool canWrite(string path)
+{
+    if (access(path.c_str(), W_OK) == 0)
+        return true;
+    return false;
+}
+
 int getLinkType(string link)
 {
     size_t posHash = link.find_first_of("#");
