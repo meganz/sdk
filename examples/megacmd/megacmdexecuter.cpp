@@ -3035,32 +3035,53 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "du")
     {
-        //TODO: modify using API
-        TreeProcDU du;
+        long long totalSize=0;
+        if (words.size()==1)
+            words.push_back(".");
 
-        if (words.size() > 1)
+        for (int i=1;i < words.size(); i++)
         {
-            if (!( n = nodebypath(words[1].c_str())))
+            if (hasWildCards(words[i]))
             {
-                OUTSTREAM << words[1] << ": No such file or directory" << endl;
+                vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str());
+                if (nodesToList)
+                {
+                    for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
+                    {
+                        MegaNode * n = *it;
+                        if (n)
+                        {
+                            totalSize += api->getSize(n);
+                            delete n;
+                        }
+                    }
 
-                return;
+                    nodesToList->clear();
+                    delete nodesToList;
+                }
             }
+            else
+            {
+                if (!( n = nodebypath(words[i].c_str())))
+                {
+                    setCurrentOutCode(3);
+                    OUTSTREAM << words[i] << ": No such file or directory" << endl;
+                    return;
+                }
+                totalSize += api->getSize(n);
+                delete n;
+            }
+        }
+        if (totalSize > 1048576)
+        {
+            OUTSTREAM << "Total storage used: " << totalSize/1048576 << " MB" << endl;
         }
         else
         {
-
-            //                            n = client->nodebyhandle(cwd);
+            OUTSTREAM << "Total storage used: " << totalSize/1024 << " KB" << endl;
         }
-
-        if (n)
-        {
-            //                            client->proctree(n, &du);
-
-            OUTSTREAM << "Total storage used: " << ( du.numbytes / 1048576 ) << " MB" << endl;
-            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
-            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
-        }
+        //            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
+        //            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
 
         return;
     }
@@ -3340,11 +3361,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 destinationFolder = words[words.size() - 1];
                 n = nodebypath(destinationFolder.c_str(), &targetuser, &newname);
-                if (newname != "")
-                {
-//                    //TODO: create new node?
-//                    n = NULL;
-                }
             }
             else
             {

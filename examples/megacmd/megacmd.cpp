@@ -75,7 +75,7 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotepatterncommands [] = {"put", "sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share"};
+string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share", "du"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string aremoteremotepatterncommands[] = {"mv", "cp"};
@@ -98,7 +98,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "mkdir", "rm", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
+                             "put", "get", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
