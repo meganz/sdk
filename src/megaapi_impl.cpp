@@ -4307,6 +4307,7 @@ void MegaApiImpl::loop()
 
         if (r & Waiter::NEEDEXEC)
         {
+            WAIT_CLASS::bumpds();
             sendPendingTransfers();
             sendPendingRequests();
             if(threadExit)
