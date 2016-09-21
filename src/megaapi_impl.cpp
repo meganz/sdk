@@ -3710,6 +3710,11 @@ char* MegaApiImpl::getBase64PwKey(const char *password)
 	return buf;
 }
 
+int MegaApiImpl::getSDKtime()
+{
+    return Waiter::ds;
+}
+
 char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
 {
 	if(!base64pwkey || !inBuf) return NULL;
