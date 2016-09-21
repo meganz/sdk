@@ -4054,39 +4054,58 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             for (int i = 0; i < usersList->size(); i++)
             {
                 MegaUser *user = usersList->get(i);
-                OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
-                if (user->getTimestamp())
-                {
-                    OUTSTREAM << " since " << getReadableTime(user->getTimestamp());
-                }
-                OUTSTREAM << endl;
-                if (getFlag(clflags, "s"))
-                {
-                    MegaShareList *shares = api->getOutShares();
-                    if (shares)
-                    {
-                        bool first_share = true;
-                        for (int j = 0; j < shares->size(); j++)
-                        {
-                            if (!strcmp(shares->get(j)->getUser(), user->getEmail()))
-                            {
-                                MegaNode * n = api->getNodeByHandle(shares->get(j)->getNodeHandle());
-                                if (n)
-                                {
-                                    if (first_share)
-                                    {
-                                        OUTSTREAM << "\tSharing:" << endl;
-                                        first_share = false;
-                                    }
 
-                                    OUTSTREAM << "\t";
-                                    dumpNode(n, 2, 0, getDisplayPath("/", n).c_str());
-                                    delete n;
+                if (getFlag(clflags, "d") && words.size()>1 && words[1] == user->getEmail())
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->removeContact(user,megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), "delete contact"))
+                    {
+                        OUTSTREAM << "Contact "<< words[1] << " removed succesfully" << endl;
+                    }
+                    delete megaCmdListener;
+                }
+                else
+                {
+                    if (!(user->getVisibility() != MegaUser::VISIBILITY_VISIBLE && !getFlag(clflags,"h")))
+                    {
+                        OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
+                        if (user->getTimestamp())
+                        {
+                            OUTSTREAM << " since " << getReadableTime(user->getTimestamp());
+                        }
+                        OUTSTREAM << endl;
+
+                        if (getFlag(clflags, "s"))
+                        {
+                            MegaShareList *shares = api->getOutShares();
+                            if (shares)
+                            {
+                                bool first_share = true;
+                                for (int j = 0; j < shares->size(); j++)
+                                {
+                                    if (!strcmp(shares->get(j)->getUser(), user->getEmail()))
+                                    {
+                                        MegaNode * n = api->getNodeByHandle(shares->get(j)->getNodeHandle());
+                                        if (n)
+                                        {
+                                            if (first_share)
+                                            {
+                                                OUTSTREAM << "\tSharing:" << endl;
+                                                first_share = false;
+                                            }
+
+                                            OUTSTREAM << "\t";
+                                            dumpNode(n, 2, 0, getDisplayPath("/", n).c_str());
+                                            delete n;
+                                        }
+                                    }
                                 }
+
+                                delete shares;
                             }
                         }
-
-                        delete shares;
                     }
                 }
             }

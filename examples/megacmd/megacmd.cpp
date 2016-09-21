@@ -90,7 +90,7 @@ vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelo
 string alocalpatterncommands [] = {"lcd"};
 vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
-string aemailpatterncommands [] = {"invite", "signup", "ipc"};
+string aemailpatterncommands [] = {"invite", "signup", "ipc", "users"};
 vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
 
 
@@ -233,6 +233,8 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     else if ("users" == thecommand)
     {
         validParams->insert("s");
+        validParams->insert("h");
+        validParams->insert("d");
     }
     else if ("killsession" == thecommand)
     {
@@ -784,7 +786,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "users"))
     {
-        return "users [-s]";
+        return "users [-s] [-h] [-d contact@email]";
     }
     if (!strcmp(command, "getua"))
     {
@@ -1088,6 +1090,7 @@ string getHelpStr(const char *command)
         os << " -r" << "\t" << "Sends the invitation again" << endl;
         os << " --message=\"MESSAGE\"" << "\t" << "Sends inviting message" << endl;
         os << endl;
+        os << "Use \"showpcr\" to browse invitations" << endl;
         os << "Use \"ipc\" to manage invitations received" << endl;
     }
     if(!strcmp(command,"ipc") )
@@ -1099,16 +1102,23 @@ string getHelpStr(const char *command)
         os << " -d" << "\t" << "Rejects invitation" << endl;
         os << " -i" << "\t" << "Ignores invitation [WARNING: do not use unless you know what you are doing]" << endl;
         os << endl;
+        os << "Use \"invite\" to send invitations" << endl;
         os << "Use \"showpcr\" to browse invitations" << endl;
     }
-
-//    if(!strcmp(command,"showpcr") ) return "showpcr";
+    if(!strcmp(command,"showpcr") )
+    {
+        os << "Shows incoming and outcoming contact requests." << endl;
+        os << endl;
+        os << "Use \"ipc\" to manage invitations received" << endl;
+    }
     else if (!strcmp(command, "users"))
     {
         os << "List contacts" << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -s" << "\t" << "Show shared folders" << endl;
+        os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
+        os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
     }
 //    if(!strcmp(command,"getua") ) return "getua attrname [email]";
 //    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
