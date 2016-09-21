@@ -213,8 +213,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
-        buf[0] = 0;
-        node->attrs.nameid2string(it->first, buf);
+        int attrlen = node->attrs.nameid2string(it->first, buf);
+        buf[attrlen] = '\0';
         if (buf[0] == '_')
         {
            if (!customAttrs)
@@ -599,7 +599,8 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
     for (attr_map::iterator it = customAttrs->begin(); it != customAttrs->end(); it++)
     {
         buf = new char[10];
-        AttrMap::nameid2string(it->first, buf);
+        int attrlen = AttrMap::nameid2string(it->first, buf);
+        buf[attrlen] = '\0';
         names.push_back(buf);
     }
     return new MegaStringListPrivate(names.data(), names.size());
