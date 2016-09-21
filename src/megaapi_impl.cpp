@@ -213,7 +213,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
-        buf[0] = 0;
         node->attrs.nameid2string(it->first, buf);
         if (buf[0] == '_')
         {
