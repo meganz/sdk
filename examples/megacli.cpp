@@ -69,7 +69,7 @@ Console* console;
 int responseprogress = -1;
 
 static const char* accesslevels[] =
-{ "read-only", "read/write", "full access" };
+{ "read-only", "read/write", "full access", "owner access" };
 
 const char* errorstring(error e)
 {
