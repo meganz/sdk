@@ -39,7 +39,7 @@ unsigned AttrMap::storagesize(int perrecord) const
 int AttrMap::nameid2string(nameid id, char* buf)
 {
     char* ptr = buf;
-
+    *ptr=0;
     for (int i = 64; (i -= 8) >= 0;)
     {
         if ((*ptr = ((id >> i) & 0xff)))
