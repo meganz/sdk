@@ -485,7 +485,7 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
     }
     else if (stringcontained(thecommand.c_str(), remotepatterncommands))
     {
-        if (currentparameter == 1)
+        if (currentparameter >= 1)
         {
             return remotepaths_completion;
         }
@@ -645,6 +645,10 @@ const char * getUsageStr(const char *command)
     if (!strcmp(command, "log"))
     {
         return "log [-sc] level";
+    }
+    if (!strcmp(command, "du"))
+    {
+        return "du [remotepath remotepath2 remotepath3 ... ]";
     }
     if (!strcmp(command, "pwd"))
     {
@@ -888,6 +892,10 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -c" << "\t" << "CMD log level (higher level messages). Messages captured by the command line." << endl;
         os << " -s" << "\t" << "SDK log level (lower level messages). Messages captured by the engine and libs" << endl;
+    }
+    else if (!strcmp(command, "du"))
+    {
+        os << "Prints size used by files/folders" << endl;
     }
     else if (!strcmp(command, "pwd"))
     {

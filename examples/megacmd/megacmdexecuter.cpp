@@ -3036,6 +3036,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     else if (words[0] == "du")
     {
         long long totalSize=0;
+        long long currentSize=0;
+        string dpath;
         if (words.size()==1)
             words.push_back(".");
 
@@ -3051,7 +3053,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         MegaNode * n = *it;
                         if (n)
                         {
-                            totalSize += api->getSize(n);
+                            currentSize = api->getSize(n);
+                            totalSize += currentSize;
+                            dpath = getDisplayPath(words[i],n);
+                            OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  (currentSize > 1048576?currentSize/1048576:(currentSize>1024?currentSize/1024:currentSize)) << (currentSize > 1048576?" MB":(currentSize>1024?" KB":"  B")) << endl;
                             delete n;
                         }
                     }
@@ -3068,18 +3073,19 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     OUTSTREAM << words[i] << ": No such file or directory" << endl;
                     return;
                 }
-                totalSize += api->getSize(n);
+
+                currentSize = api->getSize(n);
+                totalSize += currentSize;
+                dpath = getDisplayPath(words[i],n);
+                if (dpath.size())
+                    OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  (currentSize > 1048576?currentSize/1048576:(currentSize>1024?currentSize/1024:currentSize)) << (currentSize > 1048576?" MB":(currentSize>1024?" KB":"  B")) << endl;
                 delete n;
             }
         }
-        if (totalSize > 1048576)
-        {
-            OUTSTREAM << "Total storage used: " << totalSize/1048576 << " MB" << endl;
-        }
-        else
-        {
-            OUTSTREAM << "Total storage used: " << totalSize/1024 << " KB" << endl;
-        }
+        if (dpath.size())
+            OUTSTREAM << "---------------------------------------------" << endl;
+
+        OUTSTREAM << "Total storage used: " << setw(22) << (totalSize > 1048576?totalSize/1048576:(totalSize>1024?totalSize/1024:totalSize)) << (totalSize > 1048576?" MB":(totalSize>1024?" KB":"  B")) << endl;
         //            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
         //            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
 
