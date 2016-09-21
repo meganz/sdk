@@ -87,10 +87,9 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     if (!stat(localname.c_str(), &statbuf))
     {
-        if (S_ISDIR(statbuf.st_mode))
-        {
-            return false;
-        }
+        type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+        fsid = (handle)statbuf.st_ino;
+        fsidvalid = true;
 
         *size = statbuf.st_size;
         *mtime = statbuf.st_mtime;

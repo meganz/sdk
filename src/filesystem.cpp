@@ -185,7 +185,7 @@ bool FileAccess::openf()
     m_time_t curr_mtime;
     m_off_t curr_size;
 
-    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
+    if (!sysstat(&curr_mtime, &curr_size) || type != FILENODE || curr_mtime != mtime || curr_size != size)
     {
         return false;
     }
