@@ -65,6 +65,7 @@ public:
     void disableShare(MegaNode *n, string with);
     vector<string> listpaths(string askedPath = "");
     vector<string> getlistusers();
+    vector<string> getNodeAttrs(string nodePath);
     vector<string> getsessions();
 
     void executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions);

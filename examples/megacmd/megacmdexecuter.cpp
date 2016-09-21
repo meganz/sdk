@@ -2593,6 +2593,28 @@ vector<string> MegaCmdExecuter::getlistusers()
     return users;
 }
 
+vector<string> MegaCmdExecuter::getNodeAttrs(string nodePath)
+{
+    vector<string> attrs;
+
+    MegaNode *n = nodebypath(nodePath.c_str());
+    if (n)
+    {
+        //List node custom attributes
+        MegaStringList *attrlist = n->getCustomAttrNames();
+        if (attrlist)
+        {
+            for (int a=0;a<attrlist->size();a++)
+            {
+                attrs.push_back(attrlist->get(a));
+            }
+            delete attrlist;
+        }
+        delete n;
+    }
+    return attrs;
+}
+
 vector<string> MegaCmdExecuter::getsessions()
 {
     vector<string> sessions;
@@ -4091,62 +4113,84 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         return;
     }
-    //                    else if (words[0] == "getfa")
-    //                    {
-    //                        if (words.size() > 1)
-    //                        {
-    //                            MegaNode* n;
-    //                            int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
+    else if (words[0] == "attr")
+    {
+        if (words.size() > 1)
+        {
+            int cancel = getFlag(clflags,"d");
+            bool settingattr = getFlag(clflags,"s");
 
-    //                            if (words.size() < 3)
-    //                            {
-    //                                //TODO: modify using API
-    ////                                n = client->nodebyhandle(cwd);
-    //                            }
-    //                            else if (!(n = nodebypath(words[2].c_str())))
-    //                            {
-    //                                OUTSTREAM << words[2] << ": Path not found" << endl;
-    //                            }
+            string nodePath = words.size()>1?words[1]:"";
+            string attribute = words.size()>2?words[2]:"";
+            string attrValue = words.size()>3?words[3]:"";
+            n = nodebypath(nodePath.c_str());
 
-    //                            if (n)
-    //                            {
-    //                                int c = 0;
-    //                                fatype type;
+            if (n)
+            {
+                if (settingattr || cancel)
+                {
+                    if (attribute.size())
+                    {
+                        const char *cattrValue = cancel?NULL:attrValue.c_str();
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                        api->setCustomNodeAttribute(n, attribute.c_str(), cattrValue, megaCmdListener);
+                        megaCmdListener->wait();
+                        if (checkNoErrors(megaCmdListener->getError(), "set node attribute: "+attribute))
+                        {
+                            OUTSTREAM << "Node attribute " << attribute << (cancel?" removed":" updated") << " correctly" << endl;
+                            delete n;
+                            n = api->getNodeByHandle(megaCmdListener->getRequest()->getNodeHandle());
+                        }
+                        delete megaCmdListener;
+                    }
+                    else
+                    {
+                        setCurrentOutCode(2);
+                        OUTSTREAM << "Attribute not specified" << endl;
+                        OUTSTREAM << "      " << getUsageStr("attr") << endl;
+                        return;
+                    }
+                }
 
-    //                                type = atoi(words[1].c_str());
+                //List node custom attributes
+                MegaStringList *attrlist = n->getCustomAttrNames();
+                if (attrlist)
+                {
+                    if (!attribute.size())
+                    {
+                        OUTSTREAM << "The node has " << attrlist->size() << " attributes" << endl;
+                    }
+                    for (int a=0;a<attrlist->size();a++)
+                    {
+                        string iattr = attrlist->get(a);
+                        if (!attribute.size() || attribute == iattr)
+                        {
+                            const char* iattrval = n->getCustomAttr(iattr.c_str());
+                            OUTSTREAM << "\t" << iattr << " = " << (iattrval?iattrval:"NULL") << endl;
+                        }
+                    }
+                    delete attrlist;
+                }
 
-    //                                if (n->type == FILENODE)
-    //                                {
-    //                                    if (n->hasfileattribute(type))
-    //                                    {
-    //                                        //TODO: modify using API
-    ////                                        client->getfa(n, type, cancel);
-    //                                        c++;
-    //                                    }
-    //                                }
-    //                                else
-    //                                {
-    //                                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
-    //                                    {
-    //                                        if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
-    //                                        {
-    //                                            //TODO: modify using API
-    ////                                            client->getfa(*it, type, cancel);
-    //                                            c++;
-    //                                        }
-    //                                    }
-    //                                }
+                delete n;
+            }
+            else
+            {
+                setCurrentOutCode(3);
+                OUTSTREAM << "Couldn't find node: " << nodePath << endl;
+                return;
+            }
+        }
+        else
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("attr") << endl;
+            return;
+        }
 
-    //                                OUTSTREAM << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
-    //                            }
-    //                        }
-    //                        else
-    //                        {
-    //                            OUTSTREAM << "      getfa type [path] [cancel]" << endl;
-    //                        }
 
-    //                        return;
-    //                    }
+        return;
+    }
     else if (words[0] == "getua")
     {
         User* u = NULL;

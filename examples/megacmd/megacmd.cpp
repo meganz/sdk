@@ -75,8 +75,11 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotepatterncommands [] = {"put", "sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-string aremotepatterncommands[] = {"ls", "cd", "mkdir", "rm", "export", "share", "du"};
+string aremotepatterncommands[] = {"export", "share"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
+
+string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
+vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amultipleremotepatterncommands + sizeof amultipleremotepatterncommands / sizeof amultipleremotepatterncommands[0]);
 
 string aremoteremotepatterncommands[] = {"mv", "cp"};
 vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
@@ -98,7 +101,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
+                             "put", "get", "attr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -248,6 +251,11 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     else if ("logout" == thecommand)
     {
         validParams->insert("delete-session");
+    }
+    else if ("attr" == thecommand)
+    {
+        validParams->insert("d");
+        validParams->insert("s");
     }
 }
 
@@ -432,6 +440,26 @@ char* sessions_completion(const char* text, int state)
     return generic_completion(text, state, validSessions);
 }
 
+char* nodeattrs_completion(const char* text, int state)
+{
+    static vector<string> validAttrs;
+    if (state == 0)
+    {
+        validAttrs.clear();
+        char *saved_line = rl_copy_text(0, rl_point);
+        vector<string> words = getlistOfWords(saved_line);
+        if (words.size()>1)
+        {
+            validAttrs = cmdexecuter->getNodeAttrs(words[1]);
+        }
+    }
+
+    if (validAttrs.size()==0)
+            return empty_completion(text,state);
+
+    return generic_completion(text, state, validAttrs);
+}
+
 void discardOptionsAndFlags(vector<string> *ws)
 {
     for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
@@ -485,6 +513,13 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
     }
     else if (stringcontained(thecommand.c_str(), remotepatterncommands))
     {
+        if (currentparameter == 1)
+        {
+            return remotepaths_completion;
+        }
+    }
+    else if (stringcontained(thecommand.c_str(), multipleremotepatterncommands))
+    {
         if (currentparameter >= 1)
         {
             return remotepaths_completion;
@@ -534,6 +569,17 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         if (currentparameter == 1)
         {
             return sessions_completion;
+        }
+    }
+    else if (thecommand == "attr")
+    {
+        if (currentparameter == 1)
+        {
+            return remotepaths_completion;
+        }
+        if (currentparameter == 2)
+        {
+            return nodeattrs_completion;
         }
     }
     return empty_completion;
@@ -686,9 +732,9 @@ const char * getUsageStr(const char *command)
     {
         return "pause [get|put] [hard] [status]";
     }
-    if (!strcmp(command, "getfa"))
+    if (!strcmp(command, "attr"))
     {
-        return "getfa type [path] [cancel]";
+        return "attr remotepath [-s attribute value|-d attribute]";
     }
     if (!strcmp(command, "mkdir"))
     {
@@ -947,7 +993,14 @@ string getHelpStr(const char *command)
     }
 //    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
 //    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
-//    if(!strcmp(command,"getfa") ) return "getfa type [path] [cancel]";
+    if(!strcmp(command,"attr") )
+    {
+        os << "Lists/updates node attributes" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -s" << "\tattribute value \t" << "sets an attribute to a value" << endl;
+        os << " -d" << "\tattribute       \t" << "removes the attribute" << endl;
+    }
     else if (!strcmp(command, "mkdir"))
     {
         os << "Creates a directory or a directories hierarchy" << endl;
