@@ -68,8 +68,26 @@ Console* console;
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
-static const char* accesslevels[] =
-{ "read-only", "read/write", "full access", "owner access" };
+static const char* getAccessLevelStr(int access)
+{
+    switch(access)
+    {
+    case ACCESS_UNKNOWN:
+        return "unkown";
+    case RDONLY:
+        return "read-only";
+    case RDWR:
+        return "read/write";
+    case FULL:
+        return "full access";
+    case OWNER:
+        return "owner access";
+    case OWNERPRELOGIN:
+        return "owner (prelogin) access";
+    default:
+        return "UNDEFINED";
+    }
+}
 
 const char* errorstring(error e)
 {
@@ -1429,7 +1447,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared with " << it->second->user->email << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }
                     }
 
@@ -1455,14 +1473,14 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }                        
                     }
                 }
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << accesslevels[n->inshare->access] << " share";
+                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
@@ -2852,7 +2870,7 @@ static void process_line(char* l)
                                                 if ((n = client->nodebyhandle(*sit)))
                                                 {
                                                     cout << "\t" << n->displayname() << " ("
-                                                         << accesslevels[n->inshare->access] << ")" << endl;
+                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
                                                 }
                                             }
                                         }
