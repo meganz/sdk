@@ -2382,25 +2382,19 @@ void MegaCmdExecuter::uploadNode(string localPath, MegaApi* api, MegaNode *node,
 {
     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
     LOG_debug << "Starting upload: " << localPath << " to : " << node->getName();
-    api->startUpload(localPath.c_str(), node, megaCmdTransferListener);
+    if (newname.size())
+    {
+        api->startUpload(localPath.c_str(), node, newname.c_str(), megaCmdTransferListener);
+    }
+    else
+    {
+        api->startUpload(localPath.c_str(), node, megaCmdTransferListener);
+    }
     megaCmdTransferListener->wait();
     if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
     {
         char * destinyPath = api->getNodePath(node);
-        if (newname != "")
-        {
-            MegaNode *n = api->getNodeByHandle(megaCmdTransferListener->getTransfer()->getNodeHandle());
-            if (n)
-            {
-                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                api->renameNode(n,newname.c_str(),megaCmdListener);
-                megaCmdListener->wait();
-                checkNoErrors(megaCmdTransferListener->getError(), "Rename uploaded node ");
-                delete megaCmdListener;
-                delete n;
-            }
-        }
-        LOG_info << "Upload complete: " << megaCmdTransferListener->getTransfer()->getFileName() << " to " << destinyPath << newname;
+        LOG_info << "Upload complete: " << localPath << " to " << destinyPath << newname;
         delete []destinyPath;
     }
     delete megaCmdTransferListener;
@@ -3381,14 +3375,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             string targetuser;
             string newname = "";
             string localname;
-            string destinationFolder = "";
+            string destination = "";
 
             MegaNode *n = NULL;
 
             if (words.size() > 2)
             {
-                destinationFolder = words[words.size() - 1];
-                n = nodebypath(destinationFolder.c_str(), &targetuser, &newname);
+                destination = words[words.size() - 1];
+                n = nodebypath(destination.c_str(), &targetuser, &newname);
             }
             else
             {
@@ -3419,7 +3413,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                OUTSTREAM << "Couln't find destination folder: " << destinationFolder << endl;
+                OUTSTREAM << "Couln't find destination folder: " << destination << endl;
             }
         }
         else
