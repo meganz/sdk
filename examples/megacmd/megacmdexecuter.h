@@ -40,6 +40,7 @@ public:
     vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL);
     void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
     void dumptree(MegaNode* n, int recurse, int extended_info, int depth = 0, string pathRelativeTo = "NULL");
+    MegaContactRequest * getPcrByContact(string contactEmail);
     string getDisplayPath(string givenPath, MegaNode* n);
     void dumpListOfExported(MegaNode* n, string givenPath);
     void listnodeshares(MegaNode* n, string name);

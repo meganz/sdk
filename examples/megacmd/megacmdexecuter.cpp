@@ -1824,6 +1824,24 @@ void MegaCmdExecuter::dumptree(MegaNode* n, int recurse, int extended_info, int 
     }
 }
 
+MegaContactRequest * MegaCmdExecuter::getPcrByContact(string contactEmail)
+{
+    MegaContactRequestList *icrl = api->getIncomingContactRequests();
+    if (icrl)
+    {
+        for (int i = 0; i < icrl->size(); i++)
+        {
+            if (icrl->get(i)->getSourceEmail() == contactEmail)
+            {
+                return icrl->get(i);
+                delete icrl;
+            }
+        }
+        delete icrl;
+    }
+    return NULL;
+}
+
 string MegaCmdExecuter::getDisplayPath(string givenPath, MegaNode* n)
 {
     char * pathToNode = api->getNodePath(n);
@@ -2643,7 +2661,6 @@ vector<string> MegaCmdExecuter::getsessions()
     }
     delete megaCmdListener;
     return sessions;
-
 }
 
 
@@ -2787,7 +2804,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                     if (nodeToDelete)
                     {
-                            deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
+                        deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
                         delete nodeToDelete;
                     }
                 }
@@ -3494,6 +3511,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
+            setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("lcd") << endl;
         }
 
@@ -3506,40 +3524,97 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         OUTSTREAM << cCurrentPath << endl;
         return;
     }
-//                    else if (words[0] == "ipc")
-//                    {
-//                        // incoming pending contact action
-//                        handle phandle;
-//                        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
-//                        {
-//                            ipcactions_t action;
-//                            if (words[2] == "a")
-//                            {
-//                                action = IPCA_ACCEPT;
-//                            }
-//                            else if (words[2] == "d")
-//                            {
-//                                action = IPCA_DENY;
-//                            }
-//                            else if (words[2] == "i")
-//                            {
-//                                action = IPCA_IGNORE;
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "      ipc handle a|d|i" << endl;
-//                                return;
-//                            }
+    else if (words[0] == "ipc")
+    {
+        if (words.size()>1)
+        {
+            int action;
+            string saction;
 
-//                            //TODO: modify using API
-////                            client->updatepcr(phandle, action);
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      ipc handle a|d|i" << endl;
-//                        }
-//                        return;
-//                    }
+            if (getFlag(clflags,"a"))
+            {
+                action = MegaContactRequest::REPLY_ACTION_ACCEPT;
+                saction = "Accept";
+            }
+            else if (getFlag(clflags,"d"))
+            {
+                action = MegaContactRequest::REPLY_ACTION_DENY;
+                saction = "Reject";
+            }
+            else if (getFlag(clflags,"i"))
+            {
+                action = MegaContactRequest::REPLY_ACTION_IGNORE;
+                saction = "Ignore";
+            }
+            else
+            {
+                setCurrentOutCode(2);
+                OUTSTREAM << "      " << getUsageStr("ipc") << endl;
+            }
+
+
+            MegaContactRequest * cr;
+            string shandle = words[1];
+            handle thehandle = api->base64ToUserHandle(shandle.c_str());
+
+            if (shandle.find('@') != string::npos)
+            {
+                cr=getPcrByContact(shandle);
+            }
+            else
+            {
+                cr=api->getContactRequestByHandle(thehandle);
+            }
+            if (cr)
+            {
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+                api->replyContactRequest(cr,action,megaCmdListener);
+                megaCmdListener->wait();
+                if (checkNoErrors(megaCmdListener->getError(),"reply ipc"))
+                {
+                    OUTSTREAM << saction << "ed invitation by " << cr->getSourceEmail() << endl;
+                }
+                delete megaCmdListener;
+                delete cr;
+            }
+            else
+            {
+                setCurrentOutCode(2);
+                OUTSTREAM << "Could not find invitation " << shandle << endl;
+            }
+        }
+//        // incoming pending contact action
+//        handle phandle;
+//        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
+//        {
+//            ipcactions_t action;
+//            if (words[2] == "a")
+//            {
+//                action = IPCA_ACCEPT;
+//            }
+//            else if (words[2] == "d")
+//            {
+//                action = IPCA_DENY;
+//            }
+//            else if (words[2] == "i")
+//            {
+//                action = IPCA_IGNORE;
+//            }
+//            else
+//            {
+//                OUTSTREAM << "      ipc handle a|d|i" << endl;
+//                return;
+//            }
+
+//            //TODO: modify using API
+//            //                            client->updatepcr(phandle, action);
+//        }
+//        else
+//        {
+//            OUTSTREAM << "      ipc handle a|d|i" << endl;
+//        }
+        return;
+    }
 //                    else if (words[0] == "putq")
 //                    {
 //                        //TODO: modify using API
@@ -3968,7 +4043,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
             }
         }
-
 
         return;
     }
@@ -5251,9 +5325,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     else if (words[0] == "showpcr")
     {
         MegaContactRequestList *ocrl = api->getOutgoingContactRequests();
-        if (ocrl && ocrl->size())
+        if (ocrl)
         {
-            OUTSTREAM << "Outgoing PCRs:" << endl;
+            if (ocrl->size())
+                OUTSTREAM << "Outgoing PCRs:" << endl;
             for (int i = 0; i < ocrl->size(); i++)
             {
                 MegaContactRequest * cr = ocrl->get(i);
@@ -5273,9 +5348,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             delete ocrl;
         }
         MegaContactRequestList *icrl = api->getIncomingContactRequests();
-        if (icrl && icrl->size())
+        if (icrl)
         {
-            OUTSTREAM << "Incoming PCRs:" << endl;
+            if (icrl->size())
+                OUTSTREAM << "Incoming PCRs:" << endl;
 
             for (int i = 0; i < icrl->size(); i++)
             {

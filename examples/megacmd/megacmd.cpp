@@ -90,7 +90,7 @@ vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelo
 string alocalpatterncommands [] = {"lcd"};
 vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands + sizeof alocalpatterncommands / sizeof alocalpatterncommands[0]);
 
-string aemailpatterncommands [] = {"invite", "signup"};
+string aemailpatterncommands [] = {"invite", "signup", "ipc"};
 vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
 
 
@@ -101,7 +101,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "attr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "showpcr", "users", "killsession", "whoami",
+                             "put", "get", "attr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -256,6 +256,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     {
         validParams->insert("d");
         validParams->insert("s");
+    }
+    else if ("ipc" == thecommand)
+    {
+        validParams->insert("a");
+        validParams->insert("d");
+        validParams->insert("i");
     }
 }
 
@@ -770,7 +776,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "ipc"))
     {
-        return "ipc handle a|d|i";
+        return "ipc email|handle -a|-d|-i";
     }
     if (!strcmp(command, "showpcr"))
     {
@@ -1081,8 +1087,21 @@ string getHelpStr(const char *command)
         os << " -d" << "\t" << "Deletes contact" << endl;
         os << " -r" << "\t" << "Sends the invitation again" << endl;
         os << " --message=\"MESSAGE\"" << "\t" << "Sends inviting message" << endl;
+        os << endl;
+        os << "Use \"ipc\" to manage invitations received" << endl;
     }
-//    if(!strcmp(command,"ipc") ) return "ipc handle a|d|i";
+    if(!strcmp(command,"ipc") )
+    {
+        os << "Manages contact invitations." << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -a" << "\t" << "Accepts invitation" << endl;
+        os << " -d" << "\t" << "Rejects invitation" << endl;
+        os << " -i" << "\t" << "Ignores invitation [WARNING: do not use unless you know what you are doing]" << endl;
+        os << endl;
+        os << "Use \"showpcr\" to browse invitations" << endl;
+    }
+
 //    if(!strcmp(command,"showpcr") ) return "showpcr";
     else if (!strcmp(command, "users"))
     {
