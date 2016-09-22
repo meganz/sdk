@@ -4278,6 +4278,75 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         return;
     }
+    else if (words[0] == "userattr")
+    {
+        bool settingattr = getFlag(clflags,"s");
+
+        int attribute = getAttrNum(words.size()>1?words[1].c_str():"-1");
+        string attrValue = words.size()>2?words[2]:"";
+        string user = getOption(cloptions,"user","");
+
+        if (settingattr)
+        {
+            if (attribute != -1)
+            {
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                api->setUserAttribute(attribute,attrValue.c_str(), megaCmdListener);
+                megaCmdListener->wait();
+                if (checkNoErrors(megaCmdListener->getError(), string("set user attribute ")+getAttrStr(attribute)))
+                {
+                    OUTSTREAM << "User attribute " << getAttrStr(attribute) << " updated" << " correctly" << endl;
+                }
+                else
+                {
+                    delete megaCmdListener;
+                    return;
+                }
+                delete megaCmdListener;
+            }
+            else
+            {
+                setCurrentOutCode(2);
+                OUTSTREAM << "Attribute not specified" << endl;
+                OUTSTREAM << "      " << getUsageStr("userattr") << endl;
+                return;
+            }
+        }
+
+        for (int a=(attribute==-1?0:attribute);a<(attribute==-1?10:attribute+1);a++)
+        {
+            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+            if (user.size())
+            {
+//                MegaUser *u = api->getContact(user.c_str());
+                api->getUserAttribute(user.c_str(),a, megaCmdListener);
+//                delete u;
+            }
+            else
+            {
+                api->getUserAttribute(a, megaCmdListener);
+            }
+            megaCmdListener->wait();
+            if (checkNoErrors(megaCmdListener->getError(), string("get user attribute ")+getAttrStr(a)))
+            {
+                int iattr = megaCmdListener->getRequest()->getParamType();
+                const char *value = megaCmdListener->getRequest()->getText();
+                string svalue;
+                try
+                {
+                    svalue=string(value);
+                }
+                catch(exception e)
+                {
+                    svalue="NOT PRINTABLE";
+                }
+                OUTSTREAM << "\t" << getAttrStr(iattr) << " = " << svalue << endl;
+            }
+
+            delete megaCmdListener;
+        }
+        return;
+    }
     else if (words[0] == "thumbnail")
     {
         if (words.size() > 1)
@@ -4728,7 +4797,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 //                        }
 //                    }
 #endif
-    if (words[0] == "passwd")
+    else if (words[0] == "passwd")
     {
         if (api->isLoggedIn())
         {

@@ -101,7 +101,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "attr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users", "killsession", "whoami",
+                             "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -257,6 +257,11 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     else if ("attr" == thecommand)
     {
         validParams->insert("d");
+        validParams->insert("s");
+    }
+    else if ("userattr" == thecommand)
+    {
+        validParams->insert("user");
         validParams->insert("s");
     }
     else if ("ipc" == thecommand)
@@ -416,6 +421,10 @@ char * flags_value_completion(const char*text, int state)
                 {
                     validValues = cmdexecuter->getlistusers();
                 }
+            }
+            if (thecommand == "userattr" && currentFlag.find("--user=") == 0)
+            {
+                validValues = cmdexecuter->getlistusers();
             }
         }
     }
@@ -752,6 +761,10 @@ const char * getUsageStr(const char *command)
     {
         return "attr remotepath [-s attribute value|-d attribute]";
     }
+    if (!strcmp(command, "userattr"))
+    {
+        return "userattr [-s attribute value|attribute] [--user=user@email]";
+    }
     if (!strcmp(command, "mkdir"))
     {
         return "mkdir remotepath";
@@ -1024,6 +1037,14 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -s" << "\tattribute value \t" << "sets an attribute to a value" << endl;
         os << " -d" << "\tattribute       \t" << "removes the attribute" << endl;
+    }
+    if(!strcmp(command,"userattr") )
+    {
+        os << "Lists/updates user attributes" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -s" << "\tattribute value \t" << "sets an attribute to a value" << endl;
+        os << " --user=user@email" << "\t" << "select the user to query/change" << endl;
     }
     else if (!strcmp(command, "mkdir"))
     {

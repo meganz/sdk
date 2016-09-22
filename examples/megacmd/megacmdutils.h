@@ -22,6 +22,10 @@ string getUserInSharedNode(MegaNode *n, MegaApi *api);
 
 
 /* code translation*/
+const char* getAttrStr(int attr);
+
+int getAttrNum(const char* attr);
+
 const char* getAccessLevelStr(int level);
 
 const char* getSyncStateStr(int state);
