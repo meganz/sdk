@@ -99,10 +99,46 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return false;
     }
 
-    if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+    HANDLE hFile;
+
+#ifdef WINDOWS_PHONE
+    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
+    ex.dwSize = sizeof(ex);
+    if (type == FOLDERNODE)
     {
-        retry = false;
-        return false;
+        ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
+    }
+    hFile = CreateFile2((LPCWSTR)localname.data(),
+                        0,
+                        FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        OPEN_EXISTING,
+                        &ex);
+#else
+    hFile = CreateFileW((LPCWSTR)localname.data(),
+                        0,
+                        FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        NULL,
+                        OPEN_EXISTING,
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
+                        NULL);
+#endif
+
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+#ifdef WINDOWS_PHONE
+        FILE_ID_INFO bhfi = { 0 };
+        if ((fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+        {
+            fsid = *(handle*)&bhfi.FileId;
+        }
+#else
+        BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
+        if ((fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+        {
+            fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
+        }
+#endif
     }
 
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
@@ -176,7 +212,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
 #else
-    BY_HANDLE_FILE_INFORMATION bhfi;
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
 #endif
 
     bool skipcasecheck = false;
