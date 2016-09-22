@@ -8217,16 +8217,15 @@ bool MegaApiImpl::sync_syncable(Node *node)
 
 bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
 {
-    static FileAccess* f = fsAccess->newfileaccess();
-    if (f->fopen(localpath) && f->type == FILENODE && !is_syncable(f->size))
-    {
-        return false;
-    }
-
     sdkMutex.unlock();
     bool result =  is_syncable(name);
     sdkMutex.lock();
     return result;
+}
+
+bool MegaApiImpl::sync_syncable(m_off_t size)
+{
+    return is_syncable(size);
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
