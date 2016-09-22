@@ -84,7 +84,7 @@ vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amu
 string aremoteremotepatterncommands[] = {"mv", "cp"};
 vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
 
-string aremotelocalpatterncommands[] = {"get"};
+string aremotelocalpatterncommands[] = {"get", "thumbnail", "preview"};
 vector<string> remotelocalpatterncommands(aremotelocalpatterncommands, aremotelocalpatterncommands + sizeof aremotelocalpatterncommands / sizeof aremotelocalpatterncommands[0]);
 
 string alocalpatterncommands [] = {"lcd"};
@@ -102,7 +102,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users", "killsession", "whoami",
-                             "passwd", "reload", "logout", "version", "quit", "history" };
+                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -264,6 +264,14 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
         validParams->insert("a");
         validParams->insert("d");
         validParams->insert("i");
+    }
+    else if ("thumbnail" == thecommand)
+    {
+        validParams->insert("s");
+    }
+    else if ("preview" == thecommand)
+    {
+        validParams->insert("s");
     }
 }
 
@@ -876,6 +884,14 @@ const char * getUsageStr(const char *command)
     {
         return "history";
     }
+    if (!strcmp(command, "thumbnail"))
+    {
+        return "thumbnail [-s] remotepath localpath";
+    }
+    if (!strcmp(command, "preview"))
+    {
+        return "preview [-s] remotepath localpath";
+    }
     return "command not found";
 }
 
@@ -1153,6 +1169,20 @@ string getHelpStr(const char *command)
     else if (!strcmp(command, "version"))
     {
         os << "Prints MEGA SDK version" << endl;
+    }
+    else if (!strcmp(command, "thumbnail"))
+    {
+        os << "To download/upload the thumbnail of a file. If no -s is inidicated, it will download the thumbnail" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -s" << "\t" << "Sets the thumbnail to the specified file" << endl;
+    }
+    else if (!strcmp(command, "preview"))
+    {
+        os << "To download/upload the preview of a file. If no -s is inidicated, it will download the preview" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -s" << "\t" << "Sets the preview to the specified file" << endl;
     }
 //    if(!strcmp(command,"debug") ) return "debug";
 //    if(!strcmp(command,"chatf") ) return "chatf ";

@@ -4278,6 +4278,78 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         return;
     }
+    else if (words[0] == "thumbnail")
+    {
+        if (words.size() > 1)
+        {
+            string nodepath=words[1];
+            string localpath=words.size()>2?words[2]:"./";
+            n = nodebypath(nodepath.c_str());
+            if (n)
+            {
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                bool setting = getFlag(clflags,"s");
+                if (setting)
+                {
+                    api->setThumbnail(n,localpath.c_str(),megaCmdListener);
+                }
+                else
+                {
+                    api->getThumbnail(n,localpath.c_str(),megaCmdListener);
+                }
+                megaCmdListener->wait();
+                if (checkNoErrors(megaCmdListener->getError(), (setting?"set thumbnail ":"get thumbnail ")+nodepath + " to "+localpath))
+                {
+                    OUTSTREAM << "Thumbnail for " << nodepath << (setting?" loaded from ":" saved in ") << megaCmdListener->getRequest()->getFile() << endl;
+                }
+                delete megaCmdListener;
+                delete n;
+            }
+        }
+        else
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("attr") << endl;
+            return;
+        }
+        return;
+    }
+    else if (words[0] == "preview")
+    {
+        if (words.size() > 1)
+        {
+            string nodepath=words[1];
+            string localpath=words.size()>2?words[2]:"./";
+            n = nodebypath(nodepath.c_str());
+            if (n)
+            {
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                bool setting = getFlag(clflags,"s");
+                if (setting)
+                {
+                    api->setPreview(n,localpath.c_str(),megaCmdListener);
+                }
+                else
+                {
+                    api->getPreview(n,localpath.c_str(),megaCmdListener);
+                }
+                megaCmdListener->wait();
+                if (checkNoErrors(megaCmdListener->getError(), (setting?"set preview ":"get preview ")+nodepath + " to "+localpath))
+                {
+                    OUTSTREAM << "Preview for " << nodepath << (setting?" loaded from ":" saved in ") << megaCmdListener->getRequest()->getFile() << endl;
+                }
+                delete megaCmdListener;
+                delete n;
+            }
+        }
+        else
+        {
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("attr") << endl;
+            return;
+        }
+        return;
+    }
     else if (words[0] == "getua")
     {
         User* u = NULL;
