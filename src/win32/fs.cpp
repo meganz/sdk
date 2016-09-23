@@ -99,46 +99,10 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return false;
     }
 
-    type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
-    HANDLE hFile;
-
-#ifdef WINDOWS_PHONE
-    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
-    ex.dwSize = sizeof(ex);
-    if (type == FOLDERNODE)
+    if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
-        ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
-    }
-    hFile = CreateFile2((LPCWSTR)localname.data(),
-                        0,
-                        FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-                        OPEN_EXISTING,
-                        &ex);
-#else
-    hFile = CreateFileW((LPCWSTR)localname.data(),
-                        0,
-                        FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-                        NULL,
-                        OPEN_EXISTING,
-                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
-                        NULL);
-#endif
-
-    if (hFile != INVALID_HANDLE_VALUE)
-    {
-#ifdef WINDOWS_PHONE
-        FILE_ID_INFO bhfi = { 0 };
-        if ((fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
-        {
-            fsid = *(handle*)&bhfi.FileId;
-        }
-#else
-        BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
-        if ((fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
-        {
-            fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
-        }
-#endif
+        retry = false;
+        return false;
     }
 
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
@@ -319,16 +283,16 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         &ex);
 #else
     hFile = CreateFileW((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
                         NULL);
 #endif
@@ -349,12 +313,12 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
 #ifdef WINDOWS_PHONE
-    if (read && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+    if ((fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
     {
         fsid = *(handle*)&bhfi.FileId;
     }
 #else
-    if (read && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+    if ((fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
@@ -386,14 +350,11 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         return true;
     }
 
-    if (read)
+    size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
+    if (!size)
     {
-        size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
-        if(!size)
-        {
-            LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
-                      << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);
-        }
+        LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
+                  << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);
     }
 
     return true;

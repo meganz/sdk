@@ -57,7 +57,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool rec
     string locallegacydbpath;
     FileAccess *fa = fsaccess->newfileaccess();
     fsaccess->path2local(&legacydbpath, &locallegacydbpath);
-    bool legacydbavailable = fa->fopen(&locallegacydbpath) && fa->type == FILENODE;
+    bool legacydbavailable = fa->fopen(&locallegacydbpath);
     delete fa;
 
     if (legacydbavailable)

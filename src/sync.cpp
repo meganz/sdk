@@ -576,7 +576,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fa->fopen(localname ? localpath : &tmppath))
+        if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
             if (fa->type == FILENODE && !client->app->sync_syncable(fa->size))
             {

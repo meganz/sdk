@@ -2242,7 +2242,7 @@ bool MegaClient::dispatch(direction_t d)
 
             // try to open file (PUT transfers: open in nonblocking mode)
             if ((d == PUT)
-              ? ts->fa->fopen(&nextit->second->localfilename) && ts->fa->type == FILENODE
+              ? ts->fa->fopen(&nextit->second->localfilename)
               : ts->fa->fopen(&nextit->second->localfilename, false, true))
             {
                 handle h = UNDEF;
@@ -9909,7 +9909,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 Transfer *transfer = it->second;
                 FileAccess* fa = fsaccess->newfileaccess();
                 if (fa->fopen(&transfer->localfilename)
-                        && fa->type == FILENODE
                         && ((d == GET) ||
                             (d == PUT && (time(NULL) - transfer->lastaccesstime) < 86400
                                       && !transfer->genfingerprint(fa))))
