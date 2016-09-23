@@ -6,7 +6,7 @@
 using namespace std;
 
 // different outstreams for every thread. to gather all the output data
-map<int, ostream *> outstreams; //TODO: put this somewhere inside MegaCmdOutput class
+map<int, ostream *> outstreams;
 map<int, int> threadLogLevel;
 map<int, int> threadoutCode;
 
@@ -73,7 +73,7 @@ void setCurrentOutCode(int outCode){
 
 void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
-    if (strstr(source, "megacmd") != NULL) //TODO: warning: what if new files are added
+    if (strstr(source, "megacmd") != NULL) // all sources within the megacmd folder
     {
         if (loglevel <= cmdLoggerLevel)
         {
@@ -85,7 +85,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         {
             currentThreadLogLevel = cmdLoggerLevel;
         }
-        if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output )) //TODO: ERRSTREAM? (2 sockets?)
+        if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output ))
         {
             OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
         }

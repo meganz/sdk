@@ -2666,7 +2666,6 @@ vector<string> MegaCmdExecuter::getsessions()
 
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
-    //TODO: review all returns and exit codes
     MegaNode* n;
 
     if (words[0] == "ls")
@@ -2736,7 +2735,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 delete n;
             }
         }
-
         return;
     }
     else if (words[0] == "cd")
@@ -2768,6 +2766,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (!rootNode)
             {
                 LOG_err << "nodes not fetched";
+                setCurrentOutCode(3);
                 delete rootNode;
                 return;
             }
@@ -2844,6 +2843,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         {
                             if (tn->getType() == MegaNode::TYPE_FILE)
                             {
+                                setCurrentOutCode(3);
                                 OUTSTREAM << words[2] << ": Not a directory" << endl;
                                 delete tn;
                                 delete n;
@@ -2916,6 +2916,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                                 else
                                 {
+                                    setCurrentOutCode(4);
                                     LOG_fatal << "Destiny node is orphan!!!";
                                 }
                             }
@@ -2933,18 +2934,21 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else //target not found (not even its folder), cant move
                 {
+                    setCurrentOutCode(3);
                     OUTSTREAM << words[2] << ": No such directory" << endl;
                 }
                 delete n;
             }
             else
             {
+                setCurrentOutCode(3);
                 OUTSTREAM << words[1] << ": No such file or directory" << endl;
             }
         }
         else
         {
-            OUTSTREAM << "      mv srcremotepath dstremotepath" << endl;
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("mv") << endl;
         }
 
         return;
@@ -2975,7 +2979,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->copyNode(n, tn, newname.c_str(), megaCmdListener); //only works for files
                                 megaCmdListener->wait();
-                                        checkNoErrors(megaCmdListener->getError(), "copy node");
+                                checkNoErrors(megaCmdListener->getError(), "copy node");
                                 delete megaCmdListener;
                             }
                             else //copy & rename
@@ -3031,11 +3035,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     }
                                     else
                                     {
+                                        setCurrentOutCode(4);
                                         LOG_fatal << "Destiny node is orphan!!!";
                                     }
                                 }
                                 else
                                 {
+                                    setCurrentOutCode(3);
                                     OUTSTREAM << "Cannot overwrite file with folder" << endl;
                                     return;
                                 }
@@ -3045,7 +3051,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                 api->copyNode(n, tn, megaCmdListener);
                                 megaCmdListener->wait();
-                                        checkNoErrors(megaCmdListener->getError(), "copy node");
+                                checkNoErrors(megaCmdListener->getError(), "copy node");
                                 delete megaCmdListener;
                             }
                         }
@@ -3056,12 +3062,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                setCurrentOutCode(3);
                 OUTSTREAM << words[1] << ": No such file or directory" << endl;
             }
         }
         else
         {
-            OUTSTREAM << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+            setCurrentOutCode(3);
+            OUTSTREAM << "      " << getUsageStr("cp") << endl;
         }
 
         return;
@@ -3289,6 +3297,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
+                            setCurrentOutCode(3);
                             OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
                             return;
                         }
@@ -3418,23 +3427,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
+                            setCurrentOutCode(3);
                             OUTSTREAM << "Could not find local path" << endl;
                         }
                     }
                 }
                 else
                 {
+                    setCurrentOutCode(3);
                     OUTSTREAM << "Destination is not valid (expected folder or alike)" << endl;
                 }
                 delete n;
             }
             else
             {
+                setCurrentOutCode(3);
                 OUTSTREAM << "Couln't find destination folder: " << destination << endl;
             }
         }
         else
         {
+            setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("put") << endl;
         }
 
@@ -3506,6 +3519,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                setCurrentOutCode(3);
                 LOG_err << "Not a valid folder" << words[1];
             }
         }
@@ -3583,50 +3597,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 OUTSTREAM << "Could not find invitation " << shandle << endl;
             }
         }
-//        // incoming pending contact action
-//        handle phandle;
-//        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
-//        {
-//            ipcactions_t action;
-//            if (words[2] == "a")
-//            {
-//                action = IPCA_ACCEPT;
-//            }
-//            else if (words[2] == "d")
-//            {
-//                action = IPCA_DENY;
-//            }
-//            else if (words[2] == "i")
-//            {
-//                action = IPCA_IGNORE;
-//            }
-//            else
-//            {
-//                OUTSTREAM << "      ipc handle a|d|i" << endl;
-//                return;
-//            }
-
-//            //TODO: modify using API
-//            //                            client->updatepcr(phandle, action);
-//        }
-//        else
-//        {
-//            OUTSTREAM << "      ipc handle a|d|i" << endl;
-//        }
         return;
     }
-//                    else if (words[0] == "putq")
-//                    {
-//                        //TODO: modify using API
-////                        xferq(PUT, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-//                        return;
-//                    }
-//                    else if (words[0] == "getq")
-//                    {
-//                        //TODO: modify using API
-////                        xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-//                        return;
-//                    }
 #ifdef ENABLE_SYNC
     else if (words[0] == "sync")
     {
@@ -3648,7 +3620,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     api->syncFolder(localpath.c_str(), n, megaCmdListener);
                     megaCmdListener->wait();
                     //TODO:  api->addSyncListener();
-
                     if (checkNoErrors(megaCmdListener->getError(), "sync folder"))
                     {
                         sync_struct *thesync = new sync_struct;
@@ -3665,12 +3636,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
+                    setCurrentOutCode(3);
                     LOG_err << words[2] << ": Syncing requires full access to path, current acces: " << api->getAccess(n);
                 }
                 delete n;
             }
             else
             {
+                setCurrentOutCode(3);
                 LOG_err << "Couldn't find remote folder: " << words[2];
             }
         }
@@ -3733,7 +3706,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             if (thesync->active)  //if not active, removeSync will fail.)
                             {
                                 api->removeSync(n, megaCmdListener);
-                                megaCmdListener->wait(); //TODO: actupon...
+                                megaCmdListener->wait();
                                 if (checkNoErrors(megaCmdListener->getError(), "remove sync"))
                                 {
                                     ConfigurationManager::loadedSyncs.erase(itr++);
@@ -3766,6 +3739,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
+                    setCurrentOutCode(3);
                     LOG_err << "Node not found for sync " << key << " into handle: " << thesync->handle;
                 }
                 if (!erased)
@@ -3804,6 +3778,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
+                    setCurrentOutCode(3);
                     LOG_err << "Node not found for sync " << ( *itr ).first << " into handle: " << thesync->handle;
                 }
             }
@@ -3830,7 +3805,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     // full account login
                     if (words.size() > 2)
                     {
-                        //TODO: validate & delete
                         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                         api->login(words[1].c_str(), words[2].c_str(), megaCmdListener);
                         actUponLogin(megaCmdListener);
@@ -3849,7 +3823,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                         api->loginToFolder(words[1].c_str(), megaCmdListener);
-                            actUponLogin(megaCmdListener);
+                        actUponLogin(megaCmdListener);
                         delete megaCmdListener;
                         return;
                     }
@@ -3867,7 +3841,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             return;
                         }
                     }
-
+                    setCurrentOutCode(3);
                     OUTSTREAM << "Invalid argument. Please specify a valid e-mail address, "
                               << "a folder link containing the folder key "
                               << "or a valid session." << endl;
@@ -3885,38 +3859,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         return;
     }
-    else if (words[0] == "begin")
-    {
-        if (words.size() == 1)
-        {
-            OUTSTREAM << "Creating ephemeral session..." << endl;
-            //TODO: modify using API
-            //                            client->createephemeral();
-        }
-        else if (words.size() == 2)
-        {
-            handle uh;
-            byte pw[SymmCipher::KEYLENGTH];
-
-            if (( Base64::atob(words[1].c_str(), (byte*)&uh, sizeof uh) == sizeof uh ) && ( Base64::atob(
-                        words[1].c_str() + 12, pw, sizeof pw) == sizeof pw ))
-            {
-                //TODO: modify using API
-                //                                client->resumeephemeral(uh, pw);
-            }
-            else
-            {
-                OUTSTREAM << "Malformed ephemeral session identifier." << endl;
-            }
-        }
-        else
-        {
-            OUTSTREAM << "      begin [ephemeralhandle#ephemeralpw]" << endl;
-        }
-
-        return;
-    }
-    else if (words[0] == "mount")
+     else if (words[0] == "mount")
     {
         listtrees();
         return;
@@ -4034,7 +3977,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         {
                             dumpListOfShared(n, words[i]);
                         }
-                    }                    delete n;
+                    }
+                    delete n;
                 }
                 else
                 {
@@ -4172,6 +4116,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (lastleave && existing_node)
                         {
+                            setCurrentOutCode(3);
                             LOG_err << "Folder already exists: " << words[1];
                         }
                     }
@@ -4191,11 +4136,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                setCurrentOutCode(2);
                 OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
             }
         }
         else
         {
+            setCurrentOutCode(3);
             LOG_err << "Couldn't get node for cwd handle: " << cwd;
         }
         return;
@@ -4280,6 +4227,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "userattr")
     {
+        //TODO: implement --load=file option
         bool settingattr = getFlag(clflags,"s");
 
         int attribute = getAttrNum(words.size()>1?words[1].c_str():"-1");
@@ -4419,384 +4367,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         return;
     }
-    else if (words[0] == "getua")
-    {
-        User* u = NULL;
-
-        if (words.size() == 3)
-        {
-            // get other user's attribute
-            //TODO: modify using API
-            //                            if (!(u = client->finduser(words[2].c_str())))
-            //                            {
-            //                                OUTSTREAM << words[2] << ": Unknown user." << endl;
-            //                                return;
-            //                            }
-        }
-        else if (words.size() != 2)
-        {
-            OUTSTREAM << "      getua attrname [email]" << endl;
-            return;
-        }
-
-        if (!u)
-        {
-            // get logged in user's attribute
-            //TODO: modify using API
-            //                            if (!(u = client->finduser(client->me)))
-            //                            {
-            //                                OUTSTREAM << "Must be logged in to query own attributes." << endl;
-            //                                return;
-            //                            }
-        }
-
-        //TODO: modify using API
-        //                        client->getua(u, words[1].c_str());
-
-        return;
-    }
-    else if (words[0] == "putua")
-    {
-        if (words.size() == 2)
-        {
-            // delete attribute
-            //TODO: modify using API
-            //                            client->putua(words[1].c_str());
-
-            return;
-        }
-        else if (words.size() == 3)
-        {
-            if (words[2] == "del")
-            {
-                //TODO: modify using API
-                //                                client->putua(words[1].c_str());
-
-                return;
-            }
-        }
-        else if (words.size() == 4)
-        {
-            if (words[2] == "set")
-            {
-                //TODO: modify using API
-                //                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
-
-                return;
-            }
-            else if (words[2] == "load")
-            {
-                string data, localpath;
-
-                //TODO: modify using API
-                //                                client->fsaccess->path2local(&words[3], &localpath);
-
-                if (loadfile(&localpath, &data))
-                {
-                    //TODO: modify using API
-                    //                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
-                }
-                else
-                {
-                    OUTSTREAM << "Cannot read " << words[3] << endl;
-                }
-
-                return;
-            }
-        }
-
-        OUTSTREAM << "      putua attrname [del|set string|load file]" << endl;
-
-        return;
-    }
-    else if (words[0] == "pause")
-    {
-        bool getarg = false, putarg = false, hardarg = false, statusarg = false;
-
-        for (int i = words.size(); --i; )
-        {
-            if (words[i] == "get")
-            {
-                getarg = true;
-            }
-            if (words[i] == "put")
-            {
-                putarg = true;
-            }
-            if (words[i] == "hard")
-            {
-                hardarg = true;
-            }
-            if (words[i] == "status")
-            {
-                statusarg = true;
-            }
-        }
-
-        if (statusarg)
-        {
-            if (!hardarg && !getarg && !putarg)
-            {
-//TODO: modify using API
-//                                if (!client->xferpaused[GET] && !client->xferpaused[PUT])
-//                                {
-//                                    OUTSTREAM << "Transfers not paused at the moment.";
-//                                }
-//                                else
-//                                {
-//                                    if (client->xferpaused[GET])
-//                                    {
-//                                        OUTSTREAM << "GETs currently paused." << endl;
-//                                    }
-//                                    if (client->xferpaused[PUT])
-//                                    {
-//                                        OUTSTREAM << "PUTs currently paused." << endl;
-//                                    }
-//                                }
-            }
-            else
-            {
-                OUTSTREAM << "      pause [get|put] [hard] [status]" << endl;
-            }
-
-            return;
-        }
-
-        if (!getarg && !putarg)
-        {
-            getarg = true;
-            putarg = true;
-        }
-
-        if (getarg)
-        {
-//TODO: modify using API
-//                            client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
-//                            if (client->xferpaused[GET])
-//                            {
-//                                OUTSTREAM << "GET transfers paused. Resume using the same command." << endl;
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "GET transfers unpaused." << endl;
-//                            }
-        }
-
-        if (putarg)
-        {
-//TODO: modify using API
-//                            client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
-//                            if (client->xferpaused[PUT])
-//                            {
-//                                OUTSTREAM << "PUT transfers paused. Resume using the same command." << endl;
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "PUT transfers unpaused." << endl;
-//                            }
-        }
-
-        return;
-    }
     else if (words[0] == "debug")
     {
-        //TODO: modify using API
-        //                        OUTSTREAM << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+        vector<string> newcom;
+        newcom.push_back("log");
+        newcom.push_back("5");
 
-        return;
+        return executecommand(newcom,clflags,cloptions);
     }
-    else if (words[0] == "retry")
-    {
-//TODO: modify using API
-//                        if (client->abortbackoff())
-//                        {
-//                            OUTSTREAM << "Retrying..." << endl;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "No failed request pending." << endl;
-//                        }
-
-        return;
-    }
-    else if (words[0] == "recon")
-    {
-        OUTSTREAM << "Closing all open network connections..." << endl;
-
-        //TODO: modify using API
-        //                        client->disconnect();
-
-        return;
-    }
-#ifdef ENABLE_CHAT
-    else if (words[0] == "chatf")
-    {
-        //TODO: modify using API
-        //                        client->fetchChats();
-        return;
-    }
-//                    else if (words[0] == "chatc")
-//                    {
-//                        unsigned wordscount = words.size();
-//                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
-//                        {
-//                            int group = atoi(words[1].c_str());
-//                            userpriv_vector *userpriv = new userpriv_vector;
-
-//                            unsigned numUsers = 0;
-//                            while ((numUsers+1)*2 + 2 <= wordscount)
-//                            {
-//                                string email = words[numUsers*2 + 2];
-//                                User *u = client->finduser(email.c_str(), 0);
-//                                if (!u)
-//                                {
-//                                    OUTSTREAM << "User not found: " << email << endl;
-//                                    delete userpriv;
-//                                    return;
-//                                }
-
-//                                string privstr = words[numUsers*2 + 2 + 1];
-//                                privilege_t priv;
-//                                if (privstr ==  "ro")
-//                                {
-//                                    priv = PRIV_RO;
-//                                }
-//                                else if (privstr == "rw")
-//                                {
-//                                    priv = PRIV_RW;
-//                                }
-//                                else if (privstr == "full")
-//                                {
-//                                    priv = PRIV_FULL;
-//                                }
-//                                else if (privstr == "op")
-//                                {
-//                                    priv = PRIV_OPERATOR;
-//                                }
-//                                else
-//                                {
-//                                    OUTSTREAM << "Unknown privilege for " << email << endl;
-//                                    delete userpriv;
-//                                    return;
-//                                }
-
-//                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
-//                                numUsers++;
-//                            }
-
-//                            client->createChat(group, userpriv);
-//                            delete userpriv;
-//                            return;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      chatc group [email ro|rw|full|op]*" << endl;
-//                            return;
-//                        }
-//                    }
-//                    else if (words[0] == "chati")
-//                    {
-//                        if (words.size() == 4)
-//                        {
-//                            handle chatid;
-//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
-
-//                            string email = words[2];
-//                            User *u = client->finduser(email.c_str(), 0);
-//                            if (!u)
-//                            {
-//                                OUTSTREAM << "User not found: " << email << endl;
-//                                return;
-//                            }
-
-//                            string privstr = words[3];
-//                            privilege_t priv;
-//                            if (privstr ==  "ro")
-//                            {
-//                                priv = PRIV_RO;
-//                            }
-//                            else if (privstr == "rw")
-//                            {
-//                                priv = PRIV_RW;
-//                            }
-//                            else if (privstr == "full")
-//                            {
-//                                priv = PRIV_FULL;
-//                            }
-//                            else if (privstr == "op")
-//                            {
-//                                priv = PRIV_OPERATOR;
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "Unknown privilege for " << email << endl;
-//                                return;
-//                            }
-
-//                            client->inviteToChat(chatid, u->uid.c_str(), priv);
-//                            return;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      chati chatid email ro|rw|full|op" << endl;
-//                            return;
-
-//                        }
-//                    }
-//                    else if (words[0] == "chatr")
-//                    {
-//                        if (words.size() > 1)
-//                        {
-//                            handle chatid;
-//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
-
-//                            if (words.size() == 2)
-//                            {
-//                                client->removeFromChat(chatid);
-//                            }
-//                            else if (words.size() == 3)
-//                            {
-//                                string email = words[2];
-//                                User *u = client->finduser(email.c_str(), 0);
-//                                if (!u)
-//                                {
-//                                    OUTSTREAM << "User not found: " << email << endl;
-//                                    return;
-//                                }
-
-//                                client->removeFromChat(chatid, u->uid.c_str());
-//                                return;
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "      chatr chatid [email]" << endl;
-//                                return;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      chatr chatid [email]" << endl;
-//                            return;
-//                        }
-
-//                    }
-//                    else if (words[0] == "chatu")
-//                    {
-//                        if (words.size() == 2)
-//                        {
-//                            handle chatid;
-//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
-
-//                            client->getUrlChat(chatid);
-//                            return;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "      chatu chatid" << endl;
-//                            return;
-//                        }
-//                    }
-#endif
     else if (words[0] == "passwd")
     {
         if (api->isLoggedIn())
@@ -4811,12 +4389,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                    setCurrentOutCode(2);
+                setCurrentOutCode(2);
                 OUTSTREAM << "      " << getUsageStr("passwd") << endl;
             }
         }
         else
         {
+            setCurrentOutCode(3);
             OUTSTREAM << "Not logged in." << endl;
         }
 
@@ -4824,50 +4403,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "putbps")
     {
+        int uploadLimit;
+
         if (words.size() > 1)
         {
             if (words[1] == "auto")
             {
-                //TODO: modify using API
-                //                                client->putmbpscap = -1;
+                uploadLimit = -1;
             }
             else if (words[1] == "none")
             {
-                //TODO: modify using API
-                //                                client->putmbpscap = 0;
+                uploadLimit = -1;
             }
             else
             {
-                int t = atoi(words[1].c_str());
-
-                if (t > 0)
-                {
-                    //TODO: modify using API
-                    //                                    client->putmbpscap = t;
-                }
-                else
-                {
-                    OUTSTREAM << "      putbps [limit|auto|none]" << endl;
-                    return;
-                }
+                uploadLimit = atoi(words[1].c_str());
             }
+
+            LOG_debug << "Setting Upload limit to " << uploadLimit << " byte(s)/second";
+            api->setUploadLimit(uploadLimit);
         }
-
-        OUTSTREAM << "Upload speed limit set to ";
-
-        //TODO: modify using API
-//                        if (client->putmbpscap < 0)
-//                        {
-//                            OUTSTREAM << "AUTO (approx. 90% of your available bandwidth)" << endl;
-//                        }
-//                        else if (!client->putmbpscap)
-//                        {
-//                            OUTSTREAM << "NONE" << endl;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << client->putmbpscap << " byte(s)/second" << endl;
-//                        }
+        //TODO: after https://github.com/meganz/sdk/pull/316 redo this part and include outputting the value
 
         return;
     }
@@ -4876,12 +4432,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (words.size() > 1)
         {
             string email = words[1];
-            //TODO: add email validation
             if (( email.find("@") == string::npos )
                 || ( email.find(".") == string::npos )
                 || ( email.find("@") > email.find(".")))
             {
-                    setCurrentOutCode(6);
+                setCurrentOutCode(6);
                 OUTSTREAM << "No valid email provided" << endl;
                 OUTSTREAM << "      " << getUsageStr("invite") << endl;
             }
@@ -4908,40 +4463,25 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 else if (megaCmdListener->getError()->getErrorCode() == MegaError::API_EACCESS)
                 {
                     setCurrentOutCode(megaCmdListener->getError()->getErrorCode());
-                    OUTSTREAM << "Reminder not yet available: " << " available after 15 days" << endl;
-                    //TODO:  output time when remiender will be available << getReadableTime(getTimeStampAfter(GETCRTIMESTAMP),"15d")) ))
+                    OUTSTREAM << "Reminder not yet available: " << " available after 15 days";
+                    MegaContactRequestList *ocrl = api->getOutgoingContactRequests();
+                    if (ocrl)
+                    {
+                        for (int i = 0; i < ocrl->size(); i++)
+                        {
+                            if (ocrl->get(i)->getTargetEmail() && megaCmdListener->getRequest()->getEmail() && !strcmp(ocrl->get(i)->getTargetEmail(), megaCmdListener->getRequest()->getEmail()))
+                            {
+                                 OUTSTREAM << " (" << getReadableTime(getTimeStampAfter(ocrl->get(i)->getModificationTime(),"15d")) << ")";
+                            }
+                        }
+                       delete ocrl;
+                    }
+
+                    OUTSTREAM << endl;
                 }
                 delete megaCmdListener;
             }
         }
-
-        //TODO: modify using API
-//                        if (client->finduser(client->me)->email.compare(words[1]))
-//                        {
-//                            int del = words.size() == 3 && words[2] == "del";
-//                            int rmd = words.size() == 3 && words[2] == "rmd";
-//                            if (words.size() == 2 || words.size() == 3)
-//                            {
-//                                if (del || rmd)
-//                                {
-//                                    client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
-//                                }
-//                                else
-//                                {
-//                                    // Original email is not required, but can be used if this account has multiple email addresses associated,
-//                                    // to have the invite come from a specific email
-//                                    client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
-//                                }
-//                            }
-//                            else
-//                            {
-//                                OUTSTREAM << "      invite dstemail [origemail|del|rmd]" << endl;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "Cannot send invitation to your own user" << endl;
-//                        }
 
         return;
     }
@@ -4978,59 +4518,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("signup") << endl;
         }
-//        if (words.size() == 2)
-//        {
-//            const char* ptr = words[1].c_str();
-//            const char* tptr;
-
-//            if (( tptr = strstr(ptr, "#confirm")))
-//            {
-//                ptr = tptr + 8;
-//            }
-
-//            unsigned len = ( words[1].size() - ( ptr - words[1].c_str())) * 3 / 4 + 4;
-
-//            byte* c = new byte[len];
-//            len = Base64::atob(ptr, c, len);
-//            // we first just query the supplied signup link,
-//            // then collect and verify the password,
-//            // then confirm the account
-//            //TODO: modify using API
-//            //                            client->querysignuplink(c, len);
-//            delete[] c;
-//        }
-//        else if (words.size() == 3)
-//        {
-//            //TODO: modify using API
-////                            switch (client->loggedin())
-////                            {
-////                                case FULLACCOUNT:
-////                                    OUTSTREAM << "Already logged in." << endl;
-////                                    break;
-
-////                                case CONFIRMEDACCOUNT:
-////                                    OUTSTREAM << "Current account already confirmed." << endl;
-////                                    break;
-
-////                                case EPHEMERALACCOUNT:
-////                                    if (words[1].find('@') + 1 && words[1].find('.') + 1)
-////                                    {
-////                                        signupemail = words[1];
-////                                        signupname = words[2];
-
-////                                        OUTSTREAM << endl;
-////                                        setprompt(NEWPASSWORD);
-////                                    }
-////                                    else
-////                                    {
-////                                        OUTSTREAM << "Please enter a valid e-mail address." << endl;
-////                                    }
-////                                    break;
-
-////                                case NOTLOGGEDIN:
-////                                    OUTSTREAM << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
-////                            }
-//        }
 
         return;
     }
@@ -5051,6 +4538,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
+            setCurrentOutCode(3);
             OUTSTREAM << "Not logged in." << endl;
         }
 
@@ -5066,14 +4554,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         if (expireTime < 0)
         {
-                        setCurrentOutCode(2);
+            setCurrentOutCode(2);
             OUTSTREAM << "Invalid time " << sexpireTime << endl;
             return;
         }
 
         if (words.size() <= 1)
         {
-            words.push_back(string(""));                  //give at least an empty so that cwd is used
+            words.push_back(string("")); //give at least an empty so that cwd is used
         }
         for (int i = 1; i < (int) words.size(); i++)
         {
@@ -5227,12 +4715,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     }
                                     else
                                     {
+                                        setCurrentOutCode(3);
                                         LOG_debug << "Node couldn't be authorized: " << words[1];
                                     }
                                     delete folderRootNode;
                                 }
                                 else
                                 {
+                                    setCurrentOutCode(3);
                                     LOG_err << "Couldn't get root folder for folder link";
                                 }
                             }
@@ -5300,52 +4790,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         return;
     }
-#ifdef ENABLE_CHAT
-//                    else if (words[0] == "chatga")
-//                    {
-//                        if (words.size() == 4)
-//                        {
-//                            handle chatid;
-//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
-
-//                            handle nodehandle;
-//                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
-
-//                            const char *uid = words[3].c_str();
-
-//                            client->grantAccessInChat(chatid, nodehandle, uid);
-//                            return;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "       chatga chatid nodehandle uid" << endl;
-//                            return;
-//                        }
-
-//                    }
-//                    else if (words[0] == "chatra")
-//                    {
-//                        if (words.size() == 4)
-//                        {
-//                            handle chatid;
-//                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
-
-//                            handle nodehandle;
-//                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
-
-//                            const char *uid = words[3].c_str();
-
-//                            client->removeAccessInChat(chatid, nodehandle, uid);
-//                            return;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "       chatra chatid nodehandle uid" << endl;
-//                            return;
-//                        }
-//                    }
-#endif
-
     else if (words[0] == "confirm")
     {
         if (words.size() > 2)
@@ -5392,15 +4836,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             setCurrentOutCode(2);
             OUTSTREAM << "      " << getUsageStr("confirm") << endl;
         }
-//        if (signupemail.size() && signupcode.size())
-//        {
-//            OUTSTREAM << "Please type " << signupemail << "'s password to confirm the signup." << endl;
-//            setprompt(LOGINPASSWORD);
-//        }
-//        else
-//        {
-//            OUTSTREAM << "No signup confirmation pending." << endl;
-//        }
 
         return;
     }
@@ -5414,6 +4849,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
+            setCurrentOutCode(3);
             OUTSTREAM << "Not logged in." << endl;
         }
         return;
@@ -5421,20 +4857,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     else if (words[0] == "history")
     {
         printHistory();
-        return;
-    }
-    else if (words[0] == "symlink")
-    {
-        //TODO: modify using API
-//                        if (client->followsymlinks ^= true)
-//                        {
-//                            OUTSTREAM << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
-//                        }
-//                        else
-//                        {
-//                            OUTSTREAM << "No longer following symlinks." << endl;
-//                        }
-
         return;
     }
     else if (words[0] == "version")
@@ -5478,8 +4900,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 #ifdef ENABLE_SYNC
         OUTSTREAM << "* sync subsystem" << endl;
 #endif
-
-        cwd = UNDEF;
         return;
     }
     else if (words[0] == "showpcr")
@@ -5494,14 +4914,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 MegaContactRequest * cr = ocrl->get(i);
                 OUTSTREAM << " " << setw(22) << cr->getTargetEmail();
 
-                MegaHandle id = cr->getHandle();
-                char sid[12];
-                Base64::btoa((byte*)&( id ), sizeof( id ), sid); //TODO: use api->userHandleToBase64...
+                char * sid = api->userHandleToBase64(cr->getHandle());
 
                 OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
                           << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
                 //                                OUTSTREAM << ": " << cr->getSourceMessage();
 
+                delete[] sid;
                 OUTSTREAM << endl;
             }
 
@@ -5573,9 +4992,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         OUTSTREAM << "Logging off locally..." << endl;
         cwd = UNDEF;
-        //TODO: modify using API
-        //                        client->locallogout();
-
         return;
     }
     else
@@ -5597,7 +5013,7 @@ bool MegaCmdExecuter::checkNoErrors(MegaError *error, string message)
         return true;
     }
 
-        setCurrentOutCode(error->getErrorCode());
+    setCurrentOutCode(error->getErrorCode());
     OUTSTREAM << "Failed to " << message << ": " << error->getErrorString() << endl;
     return false;
 }

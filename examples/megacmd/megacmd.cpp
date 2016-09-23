@@ -100,8 +100,9 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
 //"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
 //"history" };
-string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users", "killsession", "whoami",
+string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
+                             "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users",
+                             "putbps", "killsession", "whoami",
                              "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -1159,7 +1160,10 @@ string getHelpStr(const char *command)
     }
 //    if(!strcmp(command,"getua") ) return "getua attrname [email]";
 //    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
-//    if(!strcmp(command,"putbps") ) return "putbps [limit|auto|none]";
+    else if(!strcmp(command,"putbps") )
+    {
+        os << "Sets upload limit" << endl;
+    }
     else if(!strcmp(command,"killsession") )
     {
         os << "Kills a session of current user." << endl;
