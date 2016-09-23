@@ -80,6 +80,7 @@ MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD){
 }
 MegaCmdExecuter::~MegaCmdExecuter(){
     delete fsAccessCMD;
+    delete []session;
 }
 
 // list available top-level nodes and contacts/incoming shares
@@ -3235,7 +3236,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
 
                     MegaApi* apiFolder = getFreeApiFolder();
-                    apiFolder->setAccountAuth(api->getAccountAuth());
+                    char *accountAuth = api->getAccountAuth();
+                    apiFolder->setAccountAuth(accountAuth);
+                    delete []accountAuth;
 
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder, NULL);
                     apiFolder->loginToFolder(words[1].c_str(), megaCmdListener);
@@ -4678,7 +4681,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     else if (getLinkType(words[1]) == MegaNode::TYPE_FOLDER)
                     {
                         MegaApi* apiFolder = getFreeApiFolder();
-                        apiFolder->setAccountAuth(api->getAccountAuth());
+                        char *accountAuth = api->getAccountAuth();
+                        apiFolder->setAccountAuth(accountAuth);
+                        delete []accountAuth;
 
                         MegaCmdListener *megaCmdListener = new MegaCmdListener(apiFolder, NULL);
                         apiFolder->loginToFolder(words[1].c_str(), megaCmdListener);
@@ -4706,7 +4711,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                             if (pathnewFolder)
                                             {
                                                 OUTSTREAM << "Imported folder complete: " << pathnewFolder << endl;
-                                                delete pathnewFolder;
+                                                delete []pathnewFolder;
                                             }
                                             delete importedFolderNode;
                                         }

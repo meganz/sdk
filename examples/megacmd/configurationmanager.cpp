@@ -171,7 +171,7 @@ void ConfigurationManager::loadConfiguration(){
 
                 while (!( fi.peek() == EOF ))
                 {
-                    sync_struct *thesync = new sync_struct;
+                    sync_struct *thesync = new sync_struct; //TODO: this is never deleted
                     //Load syncs
                     fi.read((char*)&thesync->fingerprint, sizeof( long long ));
                     fi.read((char*)&thesync->handle, sizeof( MegaHandle ));

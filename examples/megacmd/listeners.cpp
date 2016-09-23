@@ -413,6 +413,7 @@ MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferL
 {
     this->megaApi = megaApi;
     this->listener = listener;
+    percentFetchnodes = 0.0f;
 }
 
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size){
