@@ -2661,7 +2661,7 @@ MegaStringMapPrivate::MegaStringMapPrivate(const string_map *map, bool toBase64)
 
             it->second.assign(buf);
 
-            delete buf;
+            delete []buf;
         }
     }
 }
