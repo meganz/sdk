@@ -313,12 +313,12 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
 #ifdef WINDOWS_PHONE
-    if ((fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+    if (!write && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
     {
         fsid = *(handle*)&bhfi.FileId;
     }
 #else
-    if ((fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+    if (!write && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
