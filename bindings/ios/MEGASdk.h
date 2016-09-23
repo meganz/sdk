@@ -166,6 +166,16 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 @property (readonly, nonatomic) MEGATransferList *transfers;
 
 /**
+ * @brief Download active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *downloadTransfers;
+
+/**
+ * @brief Upload active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
  * @deprecated Property related to statistics will be reviewed in future updates to

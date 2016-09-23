@@ -2183,6 +2183,11 @@ const char *MegaApi::getUserAgent()
     return pImpl->getUserAgent();
 }
 
+const char *MegaApi::getBasePath()
+{
+    return pImpl->getBasePath();
+}
+
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 {
     pImpl->changeApiUrl(apiURL, disablepkp);
@@ -3188,9 +3193,9 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, uh, privilege, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, title, listener);
 }
 
 void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
@@ -3221,6 +3226,11 @@ void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privil
 void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
 {
     pImpl->truncateChat(chatid, messageid, listener);
+}
+
+void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestListener *listener)
+{
+    pImpl->setChatTitle(chatid, title, listener);
 }
 
 #endif
@@ -3852,6 +3862,11 @@ bool MegaTextChat::isGroup() const
 MegaHandle MegaTextChat::getOriginatingUser() const
 {
     return INVALID_HANDLE;
+}
+
+const char * MegaTextChat::getTitle() const
+{
+    return NULL;
 }
 
 MegaTextChatList::~MegaTextChatList()
