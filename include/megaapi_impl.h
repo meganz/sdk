@@ -1802,7 +1802,6 @@ protected:
         virtual void syncupdate_treestate(LocalNode*);
         virtual bool sync_syncable(Node*);
         virtual bool sync_syncable(const char*name, string*, string*);
-        virtual bool sync_syncable(m_off_t size);
         virtual void syncupdate_local_lockretry(bool);
 #endif
 

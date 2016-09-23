@@ -578,13 +578,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         // (just compare the fsids, sizes and mtimes to detect changes)
         if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
-            if (fa->type == FILENODE && !client->app->sync_syncable(fa->size))
-            {
-                LOG_debug << "Excluded path by size: " << path;
-                delete fa;
-                return NULL;
-            }
-
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
 
@@ -633,13 +626,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
     {
-        if (fa->type == FILENODE && !client->app->sync_syncable(fa->size))
-        {
-            LOG_debug << "Excluded path by size: " << path;
-            delete fa;
-            return NULL;
-        }
-
         if (!isroot)
         {
             if (l)
