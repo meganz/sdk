@@ -1302,6 +1302,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     publicNode = NULL;
     lastBytes = NULL;
     appData = NULL;
+    startTime = 0;
 
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
