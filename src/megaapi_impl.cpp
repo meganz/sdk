@@ -2251,6 +2251,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete accountDetails;
     delete megaPricing;
     delete [] text;
+    delete stringMap;
 
 #ifdef ENABLE_CHAT
     delete chatPeerList;
