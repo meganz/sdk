@@ -934,10 +934,19 @@ AC_SUBST(platform_include)
 # Examples
 AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE(examples,
-    AS_HELP_STRING([--enable-examples], [build example applications]),
+    AS_HELP_STRING([--enable-examples], [build example applications [default=yes]]),
     [], [enable_examples=yes])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
+
+# MegaCMD
+AC_MSG_CHECKING([if building megacmd application])
+AC_ARG_ENABLE(megacmd,
+    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=no]]),
+    [], [enable_megacmd=no])
+AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
+AC_MSG_RESULT([$enable_megacmd])
+
 
 # FreeImage
 freeimage=false
@@ -1469,6 +1478,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   sync subsystem    $enable_sync
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
+  megacmd app:      $enable_megacmd
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
