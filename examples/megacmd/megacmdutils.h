@@ -6,7 +6,6 @@
 
 using namespace mega;
 
-
 /* MegaNode info extracting*/
 /**
  * @brief getNumFolderFiles
