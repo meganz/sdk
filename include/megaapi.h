@@ -6636,6 +6636,16 @@ class MegaApi
          * @return Total number of local nodes in the account
          */
         long long getNumLocalNodes();
+
+        /**
+         * @brief Get the path if the file/folder that is blocking the sync engine
+         *
+         * If the sync engine is not blocked, this function returns NULL
+         * You take the ownership of the returned value
+         *
+         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
+         */
+        char *getBlockedPath();
 #endif
 
         /**

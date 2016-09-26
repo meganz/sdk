@@ -940,6 +940,18 @@ bool MegaApiImpl::isIndexing()
     sdkMutex.unlock();
     return indexing;
 }
+
+char *MegaApiImpl::getBlockedPath()
+{
+    char *path = NULL;
+    sdkMutex.lock();
+    if (client->blockedfile.size())
+    {
+        path = MegaApi::strdup(client->blockedfile.c_str());
+    }
+    sdkMutex.unlock();
+    return path;
+}
 #endif
 
 bool MegaNodePrivate::hasThumbnail()

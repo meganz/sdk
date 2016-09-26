@@ -1855,6 +1855,11 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
+char *MegaApi::getBlockedPath()
+{
+    return pImpl->getBlockedPath();
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();

@@ -1368,6 +1368,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
+        char *getBlockedPath();
 #endif
         void update();
         bool isWaiting();
