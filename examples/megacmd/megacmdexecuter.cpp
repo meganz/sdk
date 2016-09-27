@@ -4978,7 +4978,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         else
         {
             setCurrentOutCode(2);
-            OUTSTREAM << "      " << getUsageStr("put") << endl;
+            OUTSTREAM << "      " << getUsageStr("killsession") << endl;
             return;
         }
 
