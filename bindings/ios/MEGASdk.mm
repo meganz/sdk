@@ -858,6 +858,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL);
 }
 
+- (void)killSession:(uint64_t)sessionHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->killSession(sessionHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)killSession:(uint64_t)sessionHandle {
+    self.megaApi->killSession(sessionHandle);
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {

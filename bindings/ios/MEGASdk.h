@@ -2456,6 +2456,39 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (void)getUserDataWithUser:(NSString *)user;
 
+/**
+ * @brief Close a MEGA session
+ *
+ * All clients using this session will be automatically logged out.
+ *
+ * You can get session information using [MEGASdk getExtendedAccountDetailsWithSessions:purchases:transactions:].
+ * Then use [MEGAAccountDetails numSessions] and [MEGAAccountDetails session]
+ * to get session info.
+ * [MEGAAccountDetails handle] provides the handle that this function needs.
+ *
+ * If you use -1, all sessions except the current one will be closed
+ *
+ * @param sessionHandle Handle of the session. Use -1 to cancel all sessions except the current one
+ * @param delegate Delegate to track this request
+ */
+- (void)killSession:(uint64_t)sessionHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Close a MEGA session
+ *
+ * All clients using this session will be automatically logged out.
+ *
+ * You can get session information using [MEGASdk getExtendedAccountDetailsWithSessions:purchases:transactions:].
+ * Then use [MEGAAccountDetails numSessions] and [MEGAAccountDetails session]
+ * to get session info.
+ * [MEGAAccountDetails handle] provides the handle that this function needs.
+ *
+ * If you use -1, all sessions except the current one will be closed
+ *
+ * @param sessionHandle Handle of the session. Use -1 to cancel all sessions except the current one
+ */
+- (void)killSession:(uint64_t)sessionHandle;
+
 #pragma mark - Transfers
 
 /**
