@@ -4611,7 +4611,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
          * Valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getLink - Returns the cancel link
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
