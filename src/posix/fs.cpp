@@ -288,6 +288,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
+    umask(000);
 
     localseparator = "/";
 
