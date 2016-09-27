@@ -980,6 +980,37 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)cancelAccount;
 
 /**
+ * @brief Get information about a cancel link created by [MEGASdk cancelAccount].
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the cancel link
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Cancel link (#cancel)
+ * @param delegate Delegate to track this request
+ */
+- (void)queryCancelLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Get information about a cancel link created by [MEGASdk cancelAccount].
+*
+* The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+* Valid data in the MEGARequest object received on all callbacks:
+* - [MEGARequest link] - Returns the cancel link
+*
+* Valid data in the MegaRequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest email] - Return the email associated with the link
+*
+* @param link Cancel link (#cancel)
+*/
+- (void)queryCancelLink:(NSString *)link;
+
+/**
  * @brief Effectively parks the user's account without creating a new fresh account.
  *
  * The contents of the account will then be purged after 60 days. Once the account is
