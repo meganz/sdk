@@ -16,7 +16,7 @@ public:
 
     //Request callbacks
     virtual void onRequestStart(MegaApi* api, MegaRequest *request);
-    virtual void doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+    virtual void doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* error);
     virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
     virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
 
@@ -58,6 +58,20 @@ public:
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
     void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
+};
+
+class MegaCmdMegaListener : public MegaListener
+{
+
+public:
+    MegaCmdMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
+    virtual ~MegaCmdMegaListener();
+
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+
+protected:
+    MegaApi *megaApi;
+    MegaListener *listener;
 };
 
 

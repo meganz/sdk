@@ -68,6 +68,8 @@ ComunicationsManager * cm;
 // global listener
 MegaCmdGlobalListener* megaCmdGlobalListener;
 
+MegaCmdMegaListener* megaCmdMegaListener;
+
 bool loginInAtStartup = false;
 
 string validGlobalParameters[] = {"v", "help"};
@@ -1406,6 +1408,7 @@ void finalize()
 
     delete loggerCMD;
     delete megaCmdGlobalListener;
+    delete megaCmdMegaListener;
     delete cmdexecuter;
 
     OUTSTREAM << "resources have been cleaned ..." << endl;
@@ -1562,7 +1565,9 @@ int main()
     cmdexecuter = new MegaCmdExecuter(api, loggerCMD);
 
     megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD);
+    megaCmdMegaListener = new MegaCmdMegaListener(api,NULL);
     api->addGlobalListener(megaCmdGlobalListener);
+    api->addListener(megaCmdMegaListener);
 
     // set up the console
     struct termios term;

@@ -140,6 +140,33 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     }
 }
 
+////////////////////////////////////////
+///      MegaCmdMegaListener methods     ///
+////////////////////////////////////////
+
+void MegaCmdMegaListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    if (e && e->getErrorCode() == MegaError::API_ESID)
+    {
+        LOG_err << "Session is no longer valid (it might have been invalidated from elsewhere) ";
+        changeprompt(prompts[COMMAND]);
+    }
+}
+
+MegaCmdMegaListener::MegaCmdMegaListener(MegaApi *megaApi, MegaListener *parent)
+{
+    this->megaApi = megaApi;
+    this->listener = parent;
+}
+
+MegaCmdMegaListener::~MegaCmdMegaListener()
+{
+    this->listener = NULL;
+    if (megaApi)
+    {
+        megaApi->removeListener(this);
+    }
+}
 
 ////////////////////////////////////////
 ///      MegaCmdListener methods     ///
