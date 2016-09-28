@@ -58,7 +58,7 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 static string changeemail, changecode;
 
 // chained folder link creation
-static handle h = UNDEF;
+static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
@@ -68,8 +68,26 @@ Console* console;
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
-static const char* accesslevels[] =
-{ "read-only", "read/write", "full access" };
+static const char* getAccessLevelStr(int access)
+{
+    switch(access)
+    {
+    case ACCESS_UNKNOWN:
+        return "unkown";
+    case RDONLY:
+        return "read-only";
+    case RDWR:
+        return "read/write";
+    case FULL:
+        return "full access";
+    case OWNER:
+        return "owner access";
+    case OWNERPRELOGIN:
+        return "owner (prelogin) access";
+    default:
+        return "UNDEFINED";
+    }
+}
 
 const char* errorstring(error e)
 {
@@ -585,6 +603,41 @@ void DemoApp::chatremoveaccess_result(error e)
     }
 }
 
+void DemoApp::chatupdatepermissions_result(error e)
+{
+    if (e)
+    {
+        cout << "Permissions update failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Permissions updated successfully" << endl;
+    }
+}
+
+void DemoApp::chattruncate_result(error e)
+{
+    if (e)
+    {
+        cout << "Truncate message/s failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Message/s truncated successfully" << endl;
+    }
+}
+void DemoApp::chatsettitle_result(error e)
+{
+    if (e)
+    {
+        cout << "Set title failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Title updated successfully" << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_vector *chats)
 {
     if (chats)
@@ -596,6 +649,11 @@ void DemoApp::chats_updated(textchat_vector *chats)
         else
         {
             cout << chats->size() << " chats updated or created" << endl;
+        }
+
+        for (int i = 0; i < chats->size(); i++)
+        {
+            printChatInformation(chats->at(i));
         }
     }
 }
@@ -637,6 +695,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << " no peers (only you as participant)" << endl;
+    }
+    if (!chat->title.empty())
+    {
+        char *tstr = new char[chat->title.size() * 4 / 3 + 4];
+        Base64::btoa((const byte *)chat->title.data(), chat->title.size(), tstr);
+
+        cout << "\tTitle: " << tstr << endl;
+        delete [] tstr;
     }
 }
 
@@ -780,22 +846,30 @@ void DemoApp::share_result(error e)
     }
     else
     {
-        if (h != UNDEF && !del)
+        if (hlink != UNDEF)
         {
-            Node *n = client->nodebyhandle(h);
-            if (!n)
+            if (!del)
             {
-                char buf[sizeof h * 4 / 3 + 3];
-                Base64::btoa((byte *)&h, sizeof h, buf);
+                Node *n = client->nodebyhandle(hlink);
+                if (!n)
+                {
+                    char buf[sizeof hlink * 4 / 3 + 3];
+                    Base64::btoa((byte *)&hlink, sizeof hlink, buf);
 
-                cout << "Node was not found. (" << buf << ")" << endl;
+                    cout << "Node was not found. (" << buf << ")" << endl;
 
-                h = UNDEF;
-                del = ets = 0;
-                return;
+                    hlink = UNDEF;
+                    del = ets = 0;
+                    return;
+                }
+
+                client->getpubliclink(n, del, ets);
             }
-
-            client->getpubliclink(n, del, ets);
+            else
+            {
+                hlink = UNDEF;
+                del = ets = 0;
+            }
         }
     }
 }
@@ -1041,7 +1115,7 @@ static void listtrees()
                 if ((n = client->nodebyhandle(*sit)) && n->inshare)
                 {
                     cout << "INSHARE on " << u->email << ":" << n->displayname() << " ("
-                         << accesslevels[n->inshare->access] << ")" << endl;
+                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
                 }
             }
         }
@@ -1313,7 +1387,7 @@ static void listnodeshares(Node* n)
 
             if (it->first)
             {
-                cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
+                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
                      << endl;
             }
             else
@@ -1381,7 +1455,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared with " << it->second->user->email << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }
                     }
 
@@ -1407,14 +1481,14 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }                        
                     }
                 }
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << accesslevels[n->inshare->access] << " share";
+                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
@@ -1939,13 +2013,13 @@ static void process_line(char* l)
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chatf " << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
+                cout << "      chatst chatid title64" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -2804,7 +2878,7 @@ static void process_line(char* l)
                                                 if ((n = client->nodebyhandle(*sit)))
                                                 {
                                                     cout << "\t" << n->displayname() << " ("
-                                                         << accesslevels[n->inshare->access] << ")" << endl;
+                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
                                                 }
                                             }
                                         }
@@ -3678,7 +3752,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            h = UNDEF;
+                            hlink = UNDEF;
                             del = ets = 0;
 
                             Node* n;
@@ -3706,7 +3780,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    h = n->nodehandle;
+                                    hlink = n->nodehandle;
                                     ets = etstmp;
                                     del = deltmp;
                                 }
@@ -3810,6 +3884,29 @@ static void process_line(char* l)
                         else
                         {
                             cout << "       chatra chatid nodehandle uid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatst")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            if (words.size() == 2)  // empty title / remove title
+                            {
+                                client->setChatTitle(chatid, "");
+                            }
+                            else if (words.size() == 3)
+                            {
+                                client->setChatTitle(chatid, words[2].c_str());
+                            }
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatst chatid title64" << endl;
                             return;
                         }
                     }
@@ -4380,7 +4477,7 @@ void DemoApp::exportnode_result(error e)
     }
 
     del = ets = 0;
-    h = UNDEF;
+    hlink = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -4413,7 +4510,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
             cout << "No key available for exported folder" << endl;
 
             del = ets = 0;
-            h = UNDEF;
+            hlink = UNDEF;
             return;
         }
 
@@ -4425,7 +4522,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
     }
 
     del = ets = 0;
-    h = UNDEF;
+    hlink = UNDEF;
 }
 
 // the requested link could not be opened
