@@ -120,7 +120,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->children = node->getChildren();
-    if (this->children) this->children = this->children->copy()
+    if (this->children) this->children = this->children->copy();
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
