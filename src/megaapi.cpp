@@ -1311,6 +1311,11 @@ void MegaApi::cancelAccount(MegaRequestListener *listener)
     pImpl->cancelAccount(listener);
 }
 
+void MegaApi::queryCancelLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
 void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
 {
     pImpl->confirmCancelAccount(link, pwd, listener);

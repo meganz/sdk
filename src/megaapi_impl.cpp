@@ -12308,6 +12308,10 @@ void MegaApiImpl::sendPendingRequests()
             {
                 code += strlen("#verify");
             }
+            else if (link && (code = strstr(link, "#cancel")))
+            {
+                code += strlen("#cancel");
+            }
             else
             {
                 e = API_EARGS;

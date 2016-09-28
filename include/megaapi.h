@@ -4607,6 +4607,22 @@ class MegaApi
         void cancelAccount(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get information about a cancel link created by MegaApi::cancelAccount.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the cancel link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Cancel link (#cancel)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryCancelLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Effectively parks the user's account without creating a new fresh account.
          *
          * The contents of the account will then be purged after 60 days. Once the account is
