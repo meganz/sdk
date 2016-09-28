@@ -16061,6 +16061,11 @@ MegaTextChatPrivate::~MegaTextChatPrivate()
     delete peers;
 }
 
+MegaTextChat *MegaTextChatPrivate::copy() const
+{
+    return new MegaTextChatPrivate(this);
+}
+
 MegaHandle MegaTextChatPrivate::getHandle() const
 {
     return id;
@@ -16127,18 +16132,6 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 }
 
 const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
-{
-    if (i >= size())
-    {
-        return NULL;
-    }
-    else
-    {
-        return list.at(i);
-    }
-}
-
-MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
 {
     if (i >= size())
     {
