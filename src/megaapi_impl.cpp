@@ -6643,6 +6643,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
             MegaNodePrivate *privNode = (MegaNodePrivate *)children->get(i);
             authorizeMegaNodePrivate(privNode);
         }
+    }  
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
