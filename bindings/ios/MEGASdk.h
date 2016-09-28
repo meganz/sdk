@@ -166,6 +166,16 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 @property (readonly, nonatomic) MEGATransferList *transfers;
 
 /**
+ * @brief Download active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *downloadTransfers;
+
+/**
+ * @brief Upload active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
  * @deprecated Property related to statistics will be reviewed in future updates to
@@ -207,6 +217,18 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * If the MEGASdk object isn't logged in, this property is nil.
  */
 @property (readonly, nonatomic) MEGAUser *myUser;
+
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief The fingerprint of the signing key of the currently open account
+ *
+ * If the MEGASdk object isn't logged in or there's no signing key available,
+ * this function returns nil
+ */
+@property (readonly, nonatomic) NSString *myFingerprint;
+
+#endif
 
 #pragma mark - Init
 
@@ -2452,6 +2474,53 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename;
 
 /**
+ * @brief Upload a file with a custom name.
+ * @param localPath Local path of the file.
+ * @param parent Parent node for the file in the MEGA account.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file with a custom name.
+ * @param localPath Local path of the file.
+ * @param parent Parent node for the file in the MEGA account.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData;
+
+/**
+ * @brief Upload a file or a folder, saving custom app data during the transfer
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * @param delegate MEGATransferDelegate to track this transfer
+ */
+
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+/**
+ * @brief Upload a file or a folder, saving custom app data during the transfer
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ */
+
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+
+/**
  * @brief Download a file from MEGA.
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
@@ -3532,8 +3601,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (NSInteger)httpServerGetRestrictedMode;
 
-#endif
-
 /**
  * @brief Enable/disable the support for subtitles
  *
@@ -3686,6 +3753,8 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return Maximum size of the packets sent to clients (in bytes)
  */
 - (NSInteger)httpServerGetMaxOutputSize;
+
+#endif
 
 #pragma mark - Debug log messages
 

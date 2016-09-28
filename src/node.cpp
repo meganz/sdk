@@ -1269,7 +1269,7 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
-    if (sync->dirnotify)
+    if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
         for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
@@ -1300,7 +1300,7 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        if (sync->dirnotify)
+        if (sync->dirnotify.get())
         {
             sync->dirnotify->delnotify(this);
         }
