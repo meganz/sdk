@@ -4812,6 +4812,8 @@ class MegaApi
          * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
          * using MegaApi::setLogLevel.
          *
+         * You can remove the existing logger by passing NULL to this function.
+         *
          * @param megaLogger MegaLogger implementation
          */
         static void setLoggerObject(MegaLogger *megaLogger);
@@ -6974,10 +6976,10 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param email Email address to check
+         * @param user Email or Base64 handle of the user
          * @return MegaUser that has the email address, otherwise NULL
          */
-        MegaUser* getContact(const char* email);
+        MegaUser* getContact(const char *user);
 
         /**
          * @brief Get a list with all inbound sharings from one MegaUser

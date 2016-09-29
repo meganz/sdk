@@ -1398,7 +1398,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
-        MegaUser* getContact(const char* email);
+        MegaUser* getContact(const char* uid);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
