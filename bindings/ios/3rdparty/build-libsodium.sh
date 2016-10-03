@@ -6,7 +6,7 @@ set -e
 
 if [ ! -e "libsodium-${LIBSODIUM_VERSION}.tar.gz" ]
 then
-curl -LO "https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}/libsodium-${LIBSODIUM_VERSION}.tar.gz"
+wget "https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}/libsodium-${LIBSODIUM_VERSION}.tar.gz"
 fi
 
 rm -rf libsodium-${LIBSODIUM_VERSION}

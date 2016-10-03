@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e openssl-${VERSION}.tar.gz ]; 
 then
-    curl -O http://www.openssl.org/source/openssl-${VERSION}.tar.gz
+    wget http://www.openssl.org/source/openssl-${VERSION}.tar.gz
 fi
 
 mkdir -p "${CURRENTPATH}/src"

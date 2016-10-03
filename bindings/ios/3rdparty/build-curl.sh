@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]
 then
-curl -O "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
+wget "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}
