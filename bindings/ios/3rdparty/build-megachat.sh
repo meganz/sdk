@@ -123,7 +123,6 @@ cp -f libkarere.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libkar
 cp -f rtcModule/base/libservices.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libservices.a
 cp -f rtcModule/base/strophe/libstrophe.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libstrophe.a
 cp -f rtcModule/librtcmodule.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/librtcmodule.a
-cp -f rtcModule/webrtc/libwebrtc_my.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libwebrtc_my.a
 
 popd
 
@@ -135,7 +134,6 @@ lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libkarere.
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libservices.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libservices.a -output ${CURRENTPATH}/lib/libservices.a
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libstrophe.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libstrophe.a -output ${CURRENTPATH}/lib/libws.a
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/librtcmodule.a -output ${CURRENTPATH}/lib/librtcmodule.a
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libwebrtc_my.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libwebrtc_my.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libwebrtc_my.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libwebrtc_my.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libwebrtc_my.a -output ${CURRENTPATH}/lib/libwebrtc_my.a
 
 mkdir -p include || true
 cp -f karere-native/src/megachatapi.h include/
