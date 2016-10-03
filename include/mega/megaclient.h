@@ -309,7 +309,7 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, const char *uid = NULL);
@@ -331,6 +331,9 @@ public:
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
+
+    // set title of the chat
+    void setChatTitle(handle chatid, const char *title = NULL);
 #endif
 
     // toggle global debug flag

@@ -857,7 +857,7 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaHandle getHandle() const;
@@ -868,6 +868,7 @@ public:
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
+    virtual const char *getTitle() const;
 
 private:
     handle id;
@@ -877,6 +878,7 @@ private:
     MegaTextChatPeerList *peers;
     bool group;
     handle ou;
+    string title;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1516,13 +1518,14 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
+        void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1770,6 +1773,7 @@ protected:
         virtual void chatremoveaccess_result(error);
         virtual void chatupdatepermissions_result(error);
         virtual void chattruncate_result(error);
+        virtual void chatsettitle_result(error);
 
         virtual void chats_updated(textchat_vector *);
 #endif
