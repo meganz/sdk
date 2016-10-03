@@ -860,6 +860,8 @@ public:
     MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
     virtual ~MegaTextChatPrivate();
+    virtual MegaTextChat *copy() const;
+
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
@@ -890,7 +892,6 @@ public:
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(unsigned int i) const;
-    virtual MegaTextChat *get(unsigned int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -1397,7 +1398,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
-        MegaUser* getContact(const char* email);
+        MegaUser* getContact(const char* uid);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
@@ -1459,6 +1460,7 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         const char *getUserAgent();
+        const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         void retrySSLerrors(bool enable);
@@ -1575,6 +1577,7 @@ protected:
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
+        string basePath;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
