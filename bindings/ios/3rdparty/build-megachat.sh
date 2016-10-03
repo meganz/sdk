@@ -36,8 +36,7 @@ set -e
 
 if [ ! -d "karere-native" ]
 then
-git clone --recursive https://code.developers.mega.co.nz/messenger/karere-native
-git branch feature/mega-chat-api
+git clone --recursive -b feature/mega-chat-api https://code.developers.mega.co.nz/messenger/karere-native
 fi
 
 if [ ! -d "include/webrtc" ]
@@ -86,7 +85,7 @@ mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
 export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=7.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0 -D_DARWIN_C_SOURCE"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
@@ -118,7 +117,7 @@ fi
 CMAKE_XCOMPILE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$IOSC_CMAKE_TOOLCHAIN -DCMAKE_INSTALL_PREFIX=$IOSC_BUILDROOT"
 CONFIGURE_XCOMPILE_ARGS="--prefix=$IOSC_BUILDROOT --host=$IOSC_HOST_TRIPLET"
 
-make
+make -j8
 
 cp -f libkarere.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libkarere.a
 cp -f rtcModule/base/libservices.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/libservices.a

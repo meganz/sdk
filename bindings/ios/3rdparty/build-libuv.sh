@@ -73,7 +73,7 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared
 fi
 
-make
+make -j8
 cp -f .libs/libuv.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 #make clean
 

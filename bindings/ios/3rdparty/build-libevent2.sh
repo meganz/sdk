@@ -36,7 +36,7 @@ set -e
 
 if [ ! -d "karere-native" ]
 then
-git clone --recursive https://code.developers.mega.co.nz/messenger/karere-native
+git clone --recursive -b feature/mega-chat-api https://code.developers.mega.co.nz/messenger/karere-native
 fi
 
 for ARCH in ${ARCHS}
@@ -72,7 +72,7 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --disable-libevent-regress --disable-tests --disable-samples
 fi
 
-make
+make -j8
 cp -f .libs/libevent.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 cp -f .libs/libevent_core.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 cp -f .libs/libevent_extra.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/

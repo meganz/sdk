@@ -36,7 +36,7 @@ set -e
 
 if [ ! -d "karere-native" ]
 then
-git clone --recursive https://code.developers.mega.co.nz/messenger/karere-native
+git clone --recursive -b feature/mega-chat-api https://code.developers.mega.co.nz/messenger/karere-native
 fi
 
 for ARCH in ${ARCHS}
@@ -103,7 +103,7 @@ fi
 CMAKE_XCOMPILE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$IOSC_CMAKE_TOOLCHAIN -DCMAKE_INSTALL_PREFIX=$IOSC_BUILDROOT"
 CONFIGURE_XCOMPILE_ARGS="--prefix=$IOSC_BUILDROOT --host=$IOSC_HOST_TRIPLET"
 
-make
+make -j8
 
 cp -f lib/libws.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 

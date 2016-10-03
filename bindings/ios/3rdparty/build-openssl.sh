@@ -88,9 +88,9 @@ do
 
 	if [ "$1" == "verbose" ];
 	then
-		make
+		make -j8
 	else
-		make >> "${LOG}" 2>&1
+		make -j8 >> "${LOG}" 2>&1
 	fi
 	
 	if [ $? != 0 ];
