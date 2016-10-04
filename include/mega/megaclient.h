@@ -383,6 +383,7 @@ public:
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -390,6 +391,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -816,6 +820,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
+
+    string workinglockResponse;
+    bool doAskForWorkingLock = false;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);

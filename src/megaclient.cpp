@@ -717,6 +717,7 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
     btbadhost.reset();
+    btworkinglock.reset();
 
     jsonsc.pos = NULL;
     insca = false;
@@ -815,6 +816,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     reqtag = 0;
 
     badhostcs = NULL;
+    workinglockcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
     cachedscsn = UNDEF;
@@ -842,6 +844,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
+    delete workinglockcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -863,9 +866,34 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
+    if (EVER(httpio->lastdata) && pendingcs && !fetchingnodes && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
     {
-        disconnect();
+        if (!workinglockcs && !doAskForWorkingLock && workinglockResponse.empty() && btworkinglock.armed())
+        {
+            LOG_err << "Timeout passed. Triggering petition for working lock ...  ";
+            doAskForWorkingLock = true;
+        }
+
+        if (workinglockResponse == "0") //not locked
+        {
+            LOG_fatal << "Disconnecting due to timeout (server idle)";
+            disconnect();
+            //TODO: send report
+        }
+        else if (workinglockResponse == "1")
+        {
+            LOG_warn << "Timeout not causing disconnect. The server reports writting lock (server is doing something for us. It's ok to wait') ";
+            //TODO: send report
+        }
+        else if (!workinglockResponse.empty())
+        {
+            LOG_err << "Unexpected working lock response: " << workinglockResponse;
+        }
+    }
+
+    if (!workinglockResponse.empty())
+    {
+        workinglockResponse.clear();
     }
 
     // successful network operation with a failed transfer chunk: increment error count
@@ -1363,6 +1391,27 @@ void MegaClient::exec()
                 badhosts = badhostcs->outbuf;
                 delete badhostcs;
                 badhostcs = NULL;
+            }
+        }
+
+        if (workinglockcs)
+        {
+            if (workinglockcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful requested working lock. Result=" << workinglockcs->in;
+                btworkinglock.reset();
+                btworkinglock.backoff(600); //leave the api be for a while
+                workinglockResponse = workinglockcs->in;
+                delete workinglockcs;
+                workinglockcs = NULL;
+            }
+            else if(workinglockcs->status == REQ_FAILURE)
+            {
+                LOG_warn << "Failed requested working lock. Retrying...";
+                btworkinglock.backoff(600); //leave the api be for a while
+                doAskForWorkingLock = true;
+                delete workinglockcs;
+                workinglockcs = NULL;
             }
         }
 
@@ -1879,6 +1928,20 @@ void MegaClient::exec()
             badhostcs->post(this);
             badhosts.clear();
         }
+
+        if (!workinglockcs && doAskForWorkingLock && btworkinglock.armed())
+        {
+            LOG_debug << "Sending workinglock petition: " << workinglockResponse;
+            workinglockcs = new HttpReq();
+            workinglockcs->posturl = APIURL;
+            workinglockcs->posturl.append("cs?");
+            workinglockcs->posturl.append(auth);
+            workinglockcs->posturl.append("&wlt=1");
+            workinglockcs->type = REQ_JSON;
+            workinglockcs->post(this);
+            workinglockResponse.clear();
+            doAskForWorkingLock = false;
+        }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
 
@@ -1947,8 +2010,13 @@ int MegaClient::preparewait()
         // retry failed badhost requests
         if (!badhostcs)
         {
-            btbadhost.update(&nds);
+            btbadhost.update(&nds); //TODO: this can produce segfault if ocurred after reset()
         }
+
+//        if (!workinglockcs)
+//        {
+//            btworkinglock.update(&nds);
+//        }
 
         // retry failed file attribute puts
         if (curfa == newfa.end())
@@ -2100,6 +2168,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btbadhost.arm())
+    {
+        r = true;
+    }
+
+    if (btworkinglock.arm())
     {
         r = true;
     }
