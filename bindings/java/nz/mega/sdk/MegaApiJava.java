@@ -114,7 +114,13 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO = MegaApi.TRANSFER_METHOD_AUTO;
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
-    
+
+
+    MegaApi getMegaApi()
+    {
+        return megaApi;
+    }
+
     /**
      * Constructor suitable for most applications.
      * 

@@ -309,7 +309,7 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, const char *uid = NULL);
@@ -331,6 +331,9 @@ public:
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
+
+    // set title of the chat
+    void setChatTitle(handle chatid, const char *title = NULL);
 #endif
 
     // toggle global debug flag
@@ -380,6 +383,7 @@ public:
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -387,6 +391,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -813,6 +820,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
+
+    string workinglockResponse;
+    bool doAskForWorkingLock = false;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
