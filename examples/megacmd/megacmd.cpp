@@ -1,8 +1,8 @@
 /**
- * @file examples/megacmd.cpp
- * @brief Sample application, interactive GNU Readline CLI
+ * @file examples/megacmd/megacmd.cpp
+ * @brief MegaCMD: Interactive CLI and service application
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
