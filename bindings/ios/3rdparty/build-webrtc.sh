@@ -64,7 +64,7 @@ mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/ia32/libWebRTC.a ${CURRENTPATH}/bin/x64/libWebRTC.a ${CURRENTPATH}/bin/arm/libWebRTC.a ${CURRENTPATH}/bin/arm64/libWebRTC.a -output ${CURRENTPATH}/lib/libWebRTC.a
 
 mkdir -p include || true
-ln -s ../karere-native/webrtc-build/ios/src/ include/webrtc
+ln -sf ../karere-native/webrtc-build/ios/src/webrtc include/webrtc
 rm -rf bin
 echo "Done."
 
