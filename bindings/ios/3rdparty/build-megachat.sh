@@ -39,19 +39,7 @@ then
 git clone --recursive -b feature/mega-chat-api https://code.developers.mega.co.nz/messenger/karere-native
 fi
 
-if [ ! -d "include/webrtc" ]
-then
-    WEBRTC_REVISION=9ac4df1ba66d39c3621cfb2e8ed08ae39658b793
-    mkdir -p webrtc
-    pushd webrtc
-    git init
-    git remote add origin https://chromium.googlesource.com/external/webrtc.git
-    git fetch --depth=1 origin ${WEBRTC_REVISION}
-    git checkout ${WEBRTC_REVISION}
-    popd
-    ln -s ../webrtc/webrtc include/webrtc
-    ln -s ../../mega include/mega
-fi
+ln -sf ../../mega include/mega
 
 for ARCH in ${ARCHS}
 do
@@ -132,7 +120,7 @@ done
 mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libkarere.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libkarere.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libkarere.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libkarere.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libkarere.a -output ${CURRENTPATH}/lib/libkarere.a
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libservices.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libservices.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libservices.a -output ${CURRENTPATH}/lib/libservices.a
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libstrophe.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libstrophe.a -output ${CURRENTPATH}/lib/libws.a
+lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libstrophe.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libstrophe.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libstrophe.a -output ${CURRENTPATH}/lib/libstrophe.a
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/librtcmodule.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/librtcmodule.a -output ${CURRENTPATH}/lib/librtcmodule.a
 
 mkdir -p include || true
