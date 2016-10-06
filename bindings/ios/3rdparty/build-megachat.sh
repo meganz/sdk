@@ -73,7 +73,7 @@ mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
 export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=7.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0 -D_DARWIN_C_SOURCE"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0 -D_DARWIN_C_SOURCE -g3"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
