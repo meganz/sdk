@@ -64,7 +64,14 @@ mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/ia32/libWebRTC.a ${CURRENTPATH}/bin/x64/libWebRTC.a ${CURRENTPATH}/bin/arm/libWebRTC.a ${CURRENTPATH}/bin/arm64/libWebRTC.a -output ${CURRENTPATH}/lib/libWebRTC.a
 
 mkdir -p include || true
-ln -sf ../karere-native/webrtc-build/ios/src/webrtc include/webrtc
+cp -R karere-native/webrtc-build/ios/src/webrtc include/
+find include/webrtc -iname "*.c*" -exec rm {} \;
+find include/webrtc -iname "*.gyp*" -exec rm {} \;
+find include/webrtc -iname "*.gn" -exec rm {} \;
+find include/webrtc -iname "*.py" -exec rm {} \;
+find include/webrtc -iname "*.mm" -exec rm {} \;
+
+rm -rf karere-native/webrtc-build/ios/src karere-native/webrtc-build/ios/depot_tools karere-native/webrtc-build/ios/.gclient
 rm -rf bin
 echo "Done."
 
