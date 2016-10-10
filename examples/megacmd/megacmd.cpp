@@ -1528,7 +1528,7 @@ public:
     }
 };
 
-int main()
+int main(int argc, char* argv[])
 {
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
@@ -1558,6 +1558,12 @@ int main()
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+
+    if (argc>1 && !(strcmp(argv[1],"--debug")) )
+    {
+        loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    }
 
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
