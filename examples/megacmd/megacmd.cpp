@@ -189,7 +189,8 @@ static void store_line(char* l)
     line = l;
 }
 
-void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
+void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL){
+    if (!validOptValues) validOptValues=validParams;
     if ("ls" == thecommand)
     {
         validParams->insert("R");
@@ -218,16 +219,16 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     {
         validParams->insert("a");
         validParams->insert("d");
-        validParams->insert("expire");
+        validOptValues->insert("expire");
     }
     else if ("share" == thecommand)
     {
         validParams->insert("a");
         validParams->insert("d");
         validParams->insert("p");
-        validParams->insert("with");
-        validParams->insert("level");
-        validParams->insert("personal-representation");
+        validOptValues->insert("with");
+        validOptValues->insert("level");
+        validOptValues->insert("personal-representation");
     }
     else if ("mkdir" == thecommand)
     {
@@ -247,7 +248,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     {
         validParams->insert("d");
         validParams->insert("r");
-        validParams->insert("message");
+        validOptValues->insert("message");
     }
     else if ("signup" == thecommand)
     {
@@ -264,7 +265,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand){
     }
     else if ("userattr" == thecommand)
     {
-        validParams->insert("user");
+        validOptValues->insert("user");
         validParams->insert("s");
     }
     else if ("ipc" == thecommand)
@@ -300,6 +301,11 @@ char* generic_completion(const char* text, int state, vector<string> validOption
 
         if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
         {
+            if (name.size() && name.at(name.size()-1) == '=')
+            {
+                rl_completion_suppress_append = 1;
+            }
+
             return dupstr((char*)name.c_str());
         }
     }
@@ -350,10 +356,11 @@ char * flags_completion(const char*text, int state)
         if (words.size())
         {
             set<string> setvalidparams;
+            set<string> setvalidOptValues;
             addGlobalFlags(&setvalidparams);
 
             string thecommand = words[0];
-            insertValidParamsPerCommand(&setvalidparams, thecommand);
+            insertValidParamsPerCommand(&setvalidparams, thecommand, &setvalidOptValues);
             set<string>::iterator it;
             for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
             {
@@ -367,6 +374,23 @@ char * flags_completion(const char*text, int state)
                 else
                 {
                     toinsert = "-" + param;
+                }
+
+                validparams.push_back(toinsert);
+            }
+
+            for (it = setvalidOptValues.begin(); it != setvalidOptValues.end(); it++)
+            {
+                string param = *it;
+                string toinsert;
+
+                if (param.size() > 1)
+                {
+                    toinsert = "--" + param+'=';
+                }
+                else
+                {
+                    toinsert = "-" + param+'=';
                 }
 
                 validparams.push_back(toinsert);
