@@ -732,3 +732,14 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
 
     return discarded;
 }
+
+string sizeToText(long long totalSize, bool equalizeUnitsLength)
+{
+
+    ostringstream os;
+    os.precision(3);
+    double reducedSize = (totalSize > 1048576*2?totalSize/1048576.0:(totalSize>1024*2?totalSize/1024.0:totalSize));
+    os << reducedSize;
+    os << (totalSize > 1048576*2?" MB":(totalSize>1024*2?" KB":(equalizeUnitsLength?"  B":" B")));
+    return os.str();
+}

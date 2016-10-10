@@ -3119,7 +3119,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             currentSize = api->getSize(n);
                             totalSize += currentSize;
                             dpath = getDisplayPath(words[i],n);
-                            OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  (currentSize > 1048576?currentSize/1048576:(currentSize>1024?currentSize/1024:currentSize)) << (currentSize > 1048576?" MB":(currentSize>1024?" KB":"  B")) << endl;
+                            OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  sizeToText(currentSize) << endl;
                             delete n;
                         }
                     }
@@ -3141,14 +3141,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 totalSize += currentSize;
                 dpath = getDisplayPath(words[i],n);
                 if (dpath.size())
-                    OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  (currentSize > 1048576?currentSize/1048576:(currentSize>1024?currentSize/1024:currentSize)) << (currentSize > 1048576?" MB":(currentSize>1024?" KB":"  B")) << endl;
+                    OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) << sizeToText(currentSize) << endl;
                 delete n;
             }
         }
         if (dpath.size())
             OUTSTREAM << "---------------------------------------------" << endl;
 
-        OUTSTREAM << "Total storage used: " << setw(22) << (totalSize > 1048576?totalSize/1048576:(totalSize>1024?totalSize/1024:totalSize)) << (totalSize > 1048576?" MB":(totalSize>1024?" KB":"  B")) << endl;
+        OUTSTREAM << "Total storage used: " << setw(22) << sizeToText(totalSize) << endl;
         //            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
         //            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
 
@@ -3754,8 +3754,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
                             int state = api->syncPathState(&sstate);
+
                             OUTSTREAM << " - " << ( thesync->active ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
-                            OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
+                            OUTSTREAM << ", " << sizeToText(api->getSize(n),false) << "yte(s) in ";
                             OUTSTREAM << nfiles << " file(s) and " << nfolders << " folder(s)" << endl;
                         }
                     }
@@ -3795,8 +3796,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     string sstate(( *itr ).first);
                     sstate = rtrim(sstate, '/');
                     int state = api->syncPathState(&sstate);
+
                     OUTSTREAM << " - " << (( thesync->active ) ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
-                    OUTSTREAM << ", " << api->getSize(n) << " byte(s) in ";
+                    OUTSTREAM << ", " << sizeToText(api->getSize(n),false) << "yte(s) in ";
                     OUTSTREAM << nfiles << " file(s) and " << nfolders << " folder(s)" << endl;
                     delete n;
                 }

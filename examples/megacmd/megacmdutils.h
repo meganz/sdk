@@ -114,4 +114,7 @@ int getintOption(map<string, string> *cloptions, const char * optname, int defau
 
 bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vector<string> *ws, set<string> vvalidOptions, bool global = false);
 
+/* Others */
+string sizeToText(long long totalSize, bool equalizeUnitsLength = true);
+
 #endif // MEGACMDUTILS_H
