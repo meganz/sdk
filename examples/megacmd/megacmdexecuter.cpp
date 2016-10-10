@@ -4087,12 +4087,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "mkdir")
     {
-        if (words.size() > 1)
+        for (int i=1;i<words.size();i++)
         {
             MegaNode *currentnode = api->getNodeByHandle(cwd);
             if (currentnode)
             {
-                string rest = words[1];
+                string rest = words[i];
                 while (rest.length())
                 {
                     bool lastleave = false;
@@ -4143,7 +4143,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         if (lastleave && existing_node)
                         {
                             setCurrentOutCode(3);
-                            LOG_err << "Folder already exists: " << words[1];
+                            LOG_err << "Folder already exists: " << words[i];
                         }
                     }
 
@@ -4165,11 +4165,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 setCurrentOutCode(2);
                 OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
             }
-        }
-        else
-        {
-            setCurrentOutCode(3);
-            LOG_err << "Couldn't get node for cwd handle: " << cwd;
         }
         return;
     }

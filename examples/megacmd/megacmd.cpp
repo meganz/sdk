@@ -77,7 +77,7 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotepatterncommands [] = {"put", "sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "share"};
+string aremotepatterncommands[] = {"export", "share", "cd"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
