@@ -54,6 +54,7 @@ public:
     static bool includeIfIsShared(MegaApi* api, MegaNode * n, void *arg);
     static bool includeIfIsPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
     static bool includeIfIsSharedOrPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
+    static bool includeIfMatchesPattern(MegaApi* api, MegaNode * n, void *arg);
     bool processTree(MegaNode * n, bool(MegaApi *, MegaNode *, void *), void *( arg ));
     MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL);
     void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching);

@@ -77,7 +77,7 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotepatterncommands [] = {"put", "sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "share", "cd"};
+string aremotepatterncommands[] = {"export", "share", "cd", "find"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
@@ -105,7 +105,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users",
                              "putbps", "killsession", "whoami",
-                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview" };
+                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview", "find" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -229,6 +229,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validOptValues->insert("with");
         validOptValues->insert("level");
         validOptValues->insert("personal-representation");
+    }
+    else if ("find")
+    {
+        validOptValues->insert("pattern");
     }
     else if ("mkdir" == thecommand)
     {
@@ -932,6 +936,10 @@ const char * getUsageStr(const char *command)
     {
         return "preview [-s] remotepath localpath";
     }
+    if (!strcmp(command, "find"))
+    {
+        return "find [remotepath] [--pattern=PATTERN]";
+    }
     return "command not found";
 }
 
@@ -1235,6 +1243,13 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -s" << "\t" << "Sets the preview to the specified file" << endl;
     }
+    else if (!strcmp(command, "find"))
+    {
+        os << "Find nodes matching a pattern" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " --pattern=PATTERN" << "\t" << "Pattern to match" << endl;
+    }
 //    if(!strcmp(command,"debug") ) return "debug";
 //    if(!strcmp(command,"chatf") ) return "chatf ";
 //    if(!strcmp(command,"chatc") ) return "chatc group [email ro|rw|full|op]*";
@@ -1435,7 +1450,7 @@ void finalize()
     delete megaCmdMegaListener;
     delete cmdexecuter;
 
-    OUTSTREAM << "resources have been cleaned ..." << endl;
+    LOG_debug << "resources have been cleaned ..." << endl;
 }
 
 // main loop

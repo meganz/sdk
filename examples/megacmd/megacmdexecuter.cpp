@@ -185,6 +185,22 @@ bool MegaCmdExecuter::includeIfIsSharedOrPendingOutShare(MegaApi *api, MegaNode 
     return false;
 }
 
+struct patternNodeVector{
+   string pattern;
+   vector<MegaNode*> *nodesMatching;
+};
+
+
+bool MegaCmdExecuter::includeIfMatchesPattern(MegaApi *api, MegaNode * n, void *arg)
+{
+    struct patternNodeVector *pnv = (struct patternNodeVector *) arg;
+    if (patternMatches(n->getName(),pnv->pattern.c_str()) )
+    {
+        pnv->nodesMatching->push_back(n->copy());
+        return true;
+    }
+    return false;
+}
 
 bool MegaCmdExecuter::processTree(MegaNode *n, bool processor(MegaApi *, MegaNode *, void *), void *( arg ))
 {
@@ -2758,6 +2774,59 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
         }
         return;
+    }
+    else if (words[0] == "find")
+    {
+        if (words.size()<2)
+        {
+            words.push_back(string(".")); //TODO: pensar si meter el pattron via --pattern= y no hacer esta pirula, sino coger nodo de cwd si no hay parametro
+        }
+
+        string rNpath = "";
+
+        if (words.size()>1)
+        {
+            if (words[1].find('/') != string::npos)
+            {
+                string cwpath = getCurrentPath();
+                if (words[1].find_first_of(cwpath) == 0)
+                {
+                    rNpath = "";
+                }
+                else
+                {
+                    rNpath = cwpath;
+                }
+            }
+            n = nodebypath(words[1].c_str());
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+        }
+
+        string pattern = getOption(cloptions,"pattern","*");
+
+        struct patternNodeVector pnv;
+        pnv.pattern=pattern;
+        vector<MegaNode *> listOfMatches;
+        pnv.nodesMatching = &listOfMatches;
+
+        processTree(n, includeIfMatchesPattern, (void*)&pnv);
+        for (std::vector< MegaNode * >::iterator it = listOfMatches.begin(); it != listOfMatches.end(); ++it)
+        {
+            MegaNode * n = *it;
+            if (n)
+            {
+                string pathToShow = getDisplayPath(rNpath, n);
+                dumpNode(n, 3, 1, pathToShow.c_str());
+                //notice: some nodes may be dumped twice
+
+                delete n;
+            }
+        }
+
+        listOfMatches.clear();
     }
     else if (words[0] == "cd")
     {
