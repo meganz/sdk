@@ -322,6 +322,44 @@ const char * getErrorCodeStr(MegaError *e)
     return "NullError";
 }
 
+const char * getLogLevelStr(int loglevel)
+{
+    switch (loglevel)
+    {
+    case MegaApi::LOG_LEVEL_FATAL:
+        return "FATAL";
+        break;
+    case MegaApi::LOG_LEVEL_ERROR:
+        return "ERROR";
+        break;
+    case MegaApi::LOG_LEVEL_WARNING:
+        return "WARNING";
+        break;
+    case MegaApi::LOG_LEVEL_INFO:
+        return "INFO";
+        break;
+    case MegaApi::LOG_LEVEL_DEBUG:
+        return "DEBUG";
+        break;
+    case MegaApi::LOG_LEVEL_MAX:
+        return "VERBOSE";
+        break;
+    default:
+        return "UNKNOWN";
+        break;
+    }
+}
+
+int getLogLevelNum(const char* level){
+    if (!strcmp(level,"FATAL")) return MegaApi:: LOG_LEVEL_FATAL;
+    if (!strcmp(level,"ERROR")) return MegaApi:: LOG_LEVEL_ERROR;
+    if (!strcmp(level,"WARNING")) return MegaApi:: LOG_LEVEL_WARNING;
+    if (!strcmp(level,"INFO")) return MegaApi:: LOG_LEVEL_INFO;
+    if (!strcmp(level,"DEBUG")) return MegaApi:: LOG_LEVEL_DEBUG;
+    if (!strcmp(level,"VERBOSE")) return MegaApi:: LOG_LEVEL_MAX;
+    return atoi(level);
+}
+
 bool isFolder(string path) //TODO: move to MegaFileSystemAccess
 {
     struct stat path_stat;

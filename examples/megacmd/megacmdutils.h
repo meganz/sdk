@@ -57,6 +57,10 @@ const char* errorstring(int e);
 
 const char * getErrorCodeStr(MegaError *e);
 
+const char * getLogLevelStr(int loglevel);
+
+int getLogLevelNum(const char* level);
+
 
 /* Files and folders */
 

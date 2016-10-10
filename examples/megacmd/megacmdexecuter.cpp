@@ -3483,39 +3483,39 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             if (!getFlag(clflags, "s") && !getFlag(clflags, "c"))
             {
-                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel() << endl;
-                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel() << endl;
+                OUTSTREAM << "CMD log level = " << getLogLevelStr(loggerCMD->getCmdLoggerLevel()) << endl;
+                OUTSTREAM << "SDK log level = " << getLogLevelStr(loggerCMD->getApiLoggerLevel()) << endl;
             }
             else if (getFlag(clflags, "s"))
             {
-                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel() << endl;
+                OUTSTREAM << "SDK log level = " << getLogLevelStr(loggerCMD->getApiLoggerLevel()) << endl;
             }
             else if (getFlag(clflags, "c"))
             {
-                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel() << endl;
+                OUTSTREAM << "CMD log level = " << getLogLevelStr(loggerCMD->getCmdLoggerLevel()) << endl;
             }
         }
         else
         {
-            int newLogLevel = atoi(words[1].c_str());
+            int newLogLevel = getLogLevelNum(words[1].c_str());
             newLogLevel = max(newLogLevel, (int)MegaApi::LOG_LEVEL_FATAL);
             newLogLevel = min(newLogLevel, (int)MegaApi::LOG_LEVEL_MAX);
             if (!getFlag(clflags, "s") && !getFlag(clflags, "c"))
             {
                 loggerCMD->setCmdLoggerLevel(newLogLevel);
                 loggerCMD->setApiLoggerLevel(newLogLevel);
-                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel() << endl;
-                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel() << endl;
+                OUTSTREAM << "CMD log level = " << getLogLevelStr(loggerCMD->getCmdLoggerLevel()) << endl;
+                OUTSTREAM << "SDK log level = " << getLogLevelStr(loggerCMD->getApiLoggerLevel()) << endl;
             }
             else if (getFlag(clflags, "s"))
             {
                 loggerCMD->setApiLoggerLevel(newLogLevel);
-                OUTSTREAM << "SDK log level = " << loggerCMD->getApiLoggerLevel() << endl;
+                OUTSTREAM << "SDK log level = " << getLogLevelStr(loggerCMD->getApiLoggerLevel()) << endl;
             }
             else if (getFlag(clflags, "c"))
             {
                 loggerCMD->setCmdLoggerLevel(newLogLevel);
-                OUTSTREAM << "CMD log level = " << loggerCMD->getCmdLoggerLevel() << endl;
+                OUTSTREAM << "CMD log level = " <<getLogLevelStr( loggerCMD->getCmdLoggerLevel()) << endl;
             }
         }
 
