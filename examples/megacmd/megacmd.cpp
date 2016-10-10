@@ -1450,7 +1450,7 @@ void finalize()
     delete megaCmdMegaListener;
     delete cmdexecuter;
 
-    LOG_debug << "resources have been cleaned ..." << endl;
+    LOG_debug << "resources have been cleaned ...";
 }
 
 // main loop
