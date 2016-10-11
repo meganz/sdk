@@ -12878,6 +12878,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            // if 1:1 chat, peer is enforced to be moderator too
+            if (!group && userpriv->at(1).second != PRIV_MODERATOR)
+            {
+                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
+            }
+
             client->createChat(group, userpriv);
             break;
         }
@@ -16018,6 +16024,21 @@ const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
     return &list;
 }
 
+void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)
+{
+    for (unsigned int i = 0; i < list.size(); i++)
+    {
+        if (list.at(i).first == uh)
+        {
+            list.at(i).second = priv;
+            return;
+        }
+    }
+
+    // handle not found. Create new item
+    addPeer(uh, priv);
+}
+
 MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate(userpriv_vector *userpriv)
 {
     handle uh;
@@ -16120,7 +16141,7 @@ const char *MegaTextChatPrivate::getTitle() const
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
-    for (unsigned int i = 0; i < size(); i++)
+    for (unsigned int i = 0; i < (unsigned int) size(); i++)
     {
         delete list.at(i);
     }
@@ -16133,7 +16154,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 
 const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 {
-    if (i >= size())
+    if (i >= (unsigned int) size())
     {
         return NULL;
     }
@@ -16157,7 +16178,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *
 {
     MegaTextChatPrivate *chat;
 
-    for (unsigned int i = 0; i < list->size(); i++)
+    for (unsigned int i = 0; i < (unsigned int) list->size(); i++)
     {
         chat = new MegaTextChatPrivate(list->get(i));
         this->list.push_back(chat);

@@ -8119,10 +8119,13 @@ class MegaApi
          * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
          *
          * There are two types of chat: permanent an group. A permanent chat is between two people, and
-         * participants can not leave it.
+         * participants can not leave it. It's also called 1on1 or 1:1.
          *
-         * The creator of the chat will have operator level privilege and should not be included in the
+         * The creator of the chat will have moderator level privilege and should not be included in the
          * list of peers.
+         *
+         * On 1:1 chats, the other participant has also moderator level privilege, regardless the
+         * privilege level specified.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:

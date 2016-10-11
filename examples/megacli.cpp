@@ -651,7 +651,7 @@ void DemoApp::chats_updated(textchat_vector *chats)
             cout << chats->size() << " chats updated or created" << endl;
         }
 
-        for (int i = 0; i < chats->size(); i++)
+        for (unsigned int i = 0; i < chats->size(); i++)
         {
             printChatInformation(chats->at(i));
         }
@@ -3398,6 +3398,12 @@ static void process_line(char* l)
                         if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
                         {
                             int group = atoi(words[1].c_str());
+                            if (!group && (wordscount - 2) != 2)
+                            {
+                                cout << "Only group chats can have more than one peer" << endl;
+                                return;
+                            }
+
                             userpriv_vector *userpriv = new userpriv_vector;
 
                             unsigned numUsers = 0;
@@ -3414,23 +3420,30 @@ static void process_line(char* l)
 
                                 string privstr = words[numUsers*2 + 2 + 1];
                                 privilege_t priv;
-                                if (privstr ==  "ro")
-                                {
-                                    priv = PRIV_RO;
-                                }
-                                else if (privstr == "sta")
-                                {
-                                    priv = PRIV_STANDARD;
-                                }
-                                else if (privstr == "mod")
+                                if (!group) // 1:1 chats enforce peer to be moderator
                                 {
                                     priv = PRIV_MODERATOR;
                                 }
                                 else
                                 {
-                                    cout << "Unknown privilege for " << email << endl;
-                                    delete userpriv;
-                                    return;
+                                    if (privstr ==  "ro")
+                                    {
+                                        priv = PRIV_RO;
+                                    }
+                                    else if (privstr == "sta")
+                                    {
+                                        priv = PRIV_STANDARD;
+                                    }
+                                    else if (privstr == "mod")
+                                    {
+                                        priv = PRIV_MODERATOR;
+                                    }
+                                    else
+                                    {
+                                        cout << "Unknown privilege for " << email << endl;
+                                        delete userpriv;
+                                        return;
+                                    }
                                 }
 
                                 userpriv->push_back(userpriv_pair(u->userhandle, priv));
