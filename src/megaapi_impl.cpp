@@ -213,8 +213,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
-        buf[0] = 0;
-        node->attrs.nameid2string(it->first, buf);
+        int attrlen = node->attrs.nameid2string(it->first, buf);
+        buf[attrlen] = '\0';
         if (buf[0] == '_')
         {
            if (!customAttrs)
@@ -599,7 +599,8 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
     for (attr_map::iterator it = customAttrs->begin(); it != customAttrs->end(); it++)
     {
         buf = new char[10];
-        AttrMap::nameid2string(it->first, buf);
+        int attrlen = AttrMap::nameid2string(it->first, buf);
+        buf[attrlen] = '\0';
         names.push_back(buf);
     }
     return new MegaStringListPrivate(names.data(), names.size());
@@ -3458,6 +3459,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 			sBasePath.append(utf8Separator);
 		}
 		dbAccess = new MegaDbAccess(&sBasePath);
+
+        this->basePath = basePath;
 	}
 	else dbAccess = NULL;
 
@@ -6196,10 +6199,10 @@ MegaUserList* MegaApiImpl::getContacts()
 }
 
 
-MegaUser* MegaApiImpl::getContact(const char* email)
+MegaUser* MegaApiImpl::getContact(const char *uid)
 {
     sdkMutex.lock();
-	MegaUser *user = MegaUserPrivate::fromUser(client->finduser(email, 0));
+    MegaUser *user = MegaUserPrivate::fromUser(client->finduser(uid, 0));
 
     if (user && user->getHandle() == client->me)
     {
@@ -6662,6 +6665,11 @@ const char *MegaApiImpl::getVersion()
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
+}
+
+const char *MegaApiImpl::getBasePath()
+{
+    return basePath.c_str();
 }
 
 void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
@@ -8211,7 +8219,7 @@ bool MegaApiImpl::sync_syncable(Node *node)
 bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if(f->fopen(localpath) && !is_syncable(f->size))
+    if (f->fopen(localpath) && !is_syncable(f->size))
     {
         return false;
     }
@@ -12300,6 +12308,10 @@ void MegaApiImpl::sendPendingRequests()
             {
                 code += strlen("#verify");
             }
+            else if (link && (code = strstr(link, "#cancel")))
+            {
+                code += strlen("#cancel");
+            }
             else
             {
                 e = API_EARGS;
@@ -16070,6 +16082,11 @@ MegaTextChatPrivate::~MegaTextChatPrivate()
     delete peers;
 }
 
+MegaTextChat *MegaTextChatPrivate::copy() const
+{
+    return new MegaTextChatPrivate(this);
+}
+
 MegaHandle MegaTextChatPrivate::getHandle() const
 {
     return id;
@@ -16136,18 +16153,6 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 }
 
 const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
-{
-    if (i >= (unsigned int) size())
-    {
-        return NULL;
-    }
-    else
-    {
-        return list.at(i);
-    }
-}
-
-MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
 {
     if (i >= (unsigned int) size())
     {

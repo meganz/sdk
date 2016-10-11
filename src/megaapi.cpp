@@ -1311,6 +1311,11 @@ void MegaApi::cancelAccount(MegaRequestListener *listener)
     pImpl->cancelAccount(listener);
 }
 
+void MegaApi::queryCancelLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
 void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
 {
     pImpl->confirmCancelAccount(link, pwd, listener);
@@ -1962,9 +1967,9 @@ MegaUserList* MegaApi::getContacts()
     return pImpl->getContacts();
 }
 
-MegaUser* MegaApi::getContact(const char* email)
+MegaUser* MegaApi::getContact(const char* user)
 {
-    return pImpl->getContact(email);
+    return pImpl->getContact(user);
 }
 
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
@@ -2087,6 +2092,11 @@ const char *MegaApi::getVersion()
 const char *MegaApi::getUserAgent()
 {
     return pImpl->getUserAgent();
+}
+
+const char *MegaApi::getBasePath()
+{
+    return pImpl->getBasePath();
 }
 
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
@@ -3725,6 +3735,11 @@ MegaTextChat::~MegaTextChat()
 
 }
 
+MegaTextChat* MegaTextChat::copy() const
+{
+    return NULL;
+}
+
 MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;
@@ -3781,11 +3796,6 @@ MegaTextChatList *MegaTextChatList::copy() const
 }
 
 const MegaTextChat *MegaTextChatList::get(unsigned int) const
-{
-    return NULL;
-}
-
-MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }
