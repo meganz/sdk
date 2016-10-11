@@ -14201,6 +14201,7 @@ bool MegaFolderProcTree::processMegaNode(MegaNode *n)
         nc++;
     }
 
+    return true;
 }
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
