@@ -18,6 +18,11 @@ DEFINES += USE_READLINE_STATIC
 
 LIBS += -lreadline
 
+CONFIG(USE_PCRE){
+LIBS += -lpcrecpp
+}
+
+
 win32 {
     SOURCES += ../../../src/wincurl/console.cpp
     SOURCES += ../../../src/wincurl/consolewaiter.cpp

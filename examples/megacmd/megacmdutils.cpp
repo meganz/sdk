@@ -22,6 +22,11 @@
 #include "megacmdutils.h"
 
 #include <sys/stat.h>
+#ifdef USE_PCRE
+#include <pcrecpp.h>
+#elif __cplusplus >= 201103L
+#include <regex>
+#endif
 
 
 int * getNumFolderFiles(MegaNode *n, MegaApi *api){
@@ -635,7 +640,28 @@ char * dupstr(char* s) {
 
 bool patternMatches(const char *what, const char *pattern)
 {
-    //return std::regex_match (pattern, std::regex(what) ); //c++11
+
+#ifdef USE_PCRE
+    pcrecpp::RE re(pattern);
+
+    if (!re.error().length() > 0) {
+        bool toret = re.FullMatch(what);
+        return toret;
+    }
+    else
+    {
+       LOG_warn << "Invalid PCRE regex: " << re.error();
+    }
+#elif __cplusplus >= 201103L
+    try
+    {
+        return std::regex_match (what, std::regex(pattern) );
+    }
+    catch (std::regex_error e)
+    {
+        LOG_warn << "Couldn't compile regex: " << pattern;
+    }
+#endif
 
     // If we reach at the end of both strings, we are done
     if (( *pattern == '\0' ) && ( *what == '\0' ))

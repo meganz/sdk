@@ -441,6 +441,82 @@ fi
 AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
 
 #
+# PCRE
+#
+
+#libpcre
+AC_MSG_CHECKING(for libpcrecpp)
+pcre=false
+AC_ARG_WITH(pcre,
+  AS_HELP_STRING(--with-pcre=PATH, base of libpcrecpp installation),
+  [
+   case $with_pcre in
+   no)
+    pcre=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([pcrecpp.h],, [
+        AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    pcre=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_pcre/lib64"; then
+        LDFLAGS="-L$with_pcre/lib64 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib64",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    else
+        LDFLAGS="-L$with_pcre/lib32 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib32",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
+
+    pcre=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-pcre not specified])]
+  )
+AC_SUBST(PCRE_CXXFLAGS)
+AC_SUBST(PCRE_CPPFLAGS)
+AC_SUBST(PCRE_LDFLAGS)
+AC_SUBST(PCRE_LIBS)
+
+if test "x$pcre" = "xtrue" ; then
+    AC_DEFINE(USE_PCRE, [1], [Define to use libpcre])
+fi
+AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
+
+
+#
 # Zlib
 #
 
@@ -1498,4 +1574,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
+  PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
 ])

@@ -470,7 +470,13 @@ char* remotepaths_completion(const char* text, int state)
     if (state == 0)
     {
         string wildtext(text);
+#ifdef USE_PCRE
+       wildtext += ".";
+#elif __cplusplus >= 201103L
+        wildtext += ".";
+#endif
         wildtext += "*";
+
         validpaths = cmdexecuter->listpaths(wildtext);
     }
     return generic_completion(text, state, validpaths);
@@ -1248,7 +1254,13 @@ string getHelpStr(const char *command)
         os << "Find nodes matching a pattern" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " --pattern=PATTERN" << "\t" << "Pattern to match" << endl;
+        os << " --pattern=PATTERN" << "\t" << "Pattern to match";
+#ifdef USE_PCRE
+        os << " (Perl Compatible Regular Expressions)";
+#elif __cplusplus >= 201103L
+        os << " (c++11 Regular Expressions)";
+#endif
+        os << endl;
     }
 //    if(!strcmp(command,"debug") ) return "debug";
 //    if(!strcmp(command,"chatf") ) return "chatf ";
