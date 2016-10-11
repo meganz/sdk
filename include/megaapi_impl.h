@@ -145,13 +145,13 @@ private:
 };
 
 class MegaTransferPrivate;
-class MegaFolderProcTree : public MegaTreeProcessor
+class MegaTreeProcCopy : public MegaTreeProcessor
 {
 public:
     NewNode* nn;
     unsigned nc;
 
-    MegaFolderProcTree(MegaClient *client);
+    MegaTreeProcCopy(MegaClient *client);
     virtual bool processMegaNode(MegaNode* node);
     void allocnodes(void);
 

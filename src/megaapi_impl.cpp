@@ -119,8 +119,6 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
-    this->children = node->getChildren();
-    if (this->children) this->children = this->children->copy();
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
@@ -145,6 +143,12 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
     this->sharekey = NULL;
+
+    this->children = node->getChildren();
+    if (this->children)
+    {
+        this->children = this->children->copy();
+    }
 
     if (node->isExported())
     {
@@ -6479,13 +6483,20 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
-	if(!n) return true;
-	if(!processor) return false;
+    if (!n)
+    {
+        return true;
+    }
+
+    if (!processor)
+    {
+        return false;
+    }
 
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(n->getHandle());
-	if(!node)
-	{
+    Node *node = client->nodebyhandle(n->getHandle());
+    if (!node)
+    {
         if (n->getType() != FILENODE)
         {
             MegaNodeList *nList = n->getChildren();
@@ -6498,35 +6509,35 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
         bool result = processor->processMegaNode(n);
         sdkMutex.unlock();
         return result;
-	}
+    }
 
-	if (node->type != FILENODE)
-	{
-		for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
-		{
-			MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
-			if(recursive)
-			{
-				if(!processMegaTree(megaNode,processor))
-				{
-					delete megaNode;
+    if (node->type != FILENODE)
+    {
+        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        {
+            MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
+            if(recursive)
+            {
+                if(!processMegaTree(megaNode,processor))
+                {
+                    delete megaNode;
                     sdkMutex.unlock();
-					return 0;
-				}
-			}
-			else
-			{
-				if(!processor->processMegaNode(megaNode))
-				{
-					delete megaNode;
+                    return 0;
+                }
+            }
+            else
+            {
+                if(!processor->processMegaNode(megaNode))
+                {
+                    delete megaNode;
                     sdkMutex.unlock();
-					return 0;
-				}
-			}
-			delete megaNode;
-		}
-	}
-	bool result = processor->processMegaNode(n);
+                    return 0;
+                }
+            }
+            delete megaNode;
+        }
+    }
+    bool result = processor->processMegaNode(n);
 
     sdkMutex.unlock();
     return result;
@@ -11372,27 +11383,30 @@ void MegaApiImpl::sendPendingRequests()
                 if (publicNode->getType() != FILENODE)
                 {
                     unsigned nc;
-                    MegaFolderProcTree *ptree = new MegaFolderProcTree(client);
-                    this->processMegaTree(publicNode, ptree);
-                    ptree->allocnodes();
-                    nc = ptree->nc;
+                    MegaTreeProcCopy tc(client);
+
+                    processMegaTree(publicNode, &tc);
+                    tc.allocnodes();
+                    nc = tc.nc;
+
                     // build new nodes array
-                    this->processMegaTree(publicNode, ptree);
+                    processMegaTree(publicNode, &tc);
                     if (!nc)
                     {
                         e = API_EARGS;
                         break;
                     }
 
+                    tc.nn->parenthandle = UNDEF;
+
                     if (target)
                     {
-                        client->putnodes(target->nodehandle, ptree->nn, nc);
+                        client->putnodes(target->nodehandle, tc.nn, nc);
                     }
                     else
                     {
-                        client->putnodes(email, ptree->nn, nc);
+                        client->putnodes(email, tc.nn, nc);
                     }
-                    delete ptree;
                 }
                 else
                 {
@@ -14124,21 +14138,21 @@ FileInputStream::~FileInputStream()
 
 }
 
-MegaFolderProcTree::MegaFolderProcTree(MegaClient *client)
+MegaTreeProcCopy::MegaTreeProcCopy(MegaClient *client)
 {
     nn = NULL;
     nc = 0;
     this->client = client;
 }
 
-void MegaFolderProcTree::allocnodes()
+void MegaTreeProcCopy::allocnodes()
 {
     if (nc)
     {
        nn = new NewNode[nc];
     }
 }
-bool MegaFolderProcTree::processMegaNode(MegaNode *n)
+bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 {
     if (nn)
     {
@@ -14455,7 +14469,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->listener = transfer->getListener();
     this->recursive = 0;
     this->pendingTransfers = 0;
-    this->tag = transfer->getTag();    
+    this->tag = transfer->getTag();
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -14546,7 +14560,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     localpath.append(client->fsaccess->localseparator);
     MegaNodeList *children = NULL;
-    bool childrenneedsdelete = false;
+    bool deleteChildren = false;
     if (node->isForeign())
     {
         children = node->getChildren();
@@ -14554,7 +14568,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     else
     {
         children = megaApi->getChildren(node);
-        childrenneedsdelete=true;
+        deleteChildren = true;
     }
 
     if (!children)
@@ -14630,7 +14644,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     recursive--;
     checkCompletion();
-    if (childrenneedsdelete){
+    if (deleteChildren)
+    {
         delete children;
     } 
 }
