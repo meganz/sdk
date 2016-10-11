@@ -146,7 +146,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
     if ((n = nodebyhandle(s->h)))
     {
-        if (!n->sharekey && s->have_key)
+        if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
         {
             // setting an outbound sharekey requires node authentication
             // unless coming from a trusted source (the local cache)
@@ -175,6 +175,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
             if (auth)
             {
+                if (n->sharekey)
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99424,"Replacing share key");
+                    reqtag = creqtag;
+                    delete n->sharekey;
+                }
                 n->sharekey = new SymmCipher(s->key);
                 skreceived = true;
             }
