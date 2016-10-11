@@ -27,8 +27,9 @@
 #define PREFER_STDARG
 #include <readline/readline.h>
 
-
-void MegaCmdGlobalListener::onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*){}
+#ifdef ENABLE_CHAT
+void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*){}
+#endif
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
@@ -188,6 +189,12 @@ MegaCmdMegaListener::~MegaCmdMegaListener()
         megaApi->removeListener(this);
     }
 }
+
+#ifdef ENABLE_CHAT
+void MegaCmdMegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{
+}
+#endif
 
 ////////////////////////////////////////
 ///      MegaCmdListener methods     ///

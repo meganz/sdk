@@ -26,6 +26,8 @@
 #include "synchronousrequestlistener.h"
 #include "megacmdlogger.h"
 
+#include "mega/config.h"
+
 
 class MegaCmdListener : public SynchronousRequestListener
 {
@@ -78,7 +80,9 @@ public:
     MegaCmdGlobalListener(MegaCMDLogger *logger);
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
-    void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
+#ifdef ENABLE_CHAT
+    void onChatsUpdate(MegaApi*, MegaTextChatList*);
+#endif
 };
 
 class MegaCmdMegaListener : public MegaListener
@@ -89,6 +93,11 @@ public:
     virtual ~MegaCmdMegaListener();
 
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+
+#ifdef ENABLE_CHAT
+    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
+#endif
+
 
 protected:
     MegaApi *megaApi;
