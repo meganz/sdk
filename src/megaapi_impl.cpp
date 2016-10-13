@@ -6500,21 +6500,24 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
         if (n->getType() != FILENODE)
         {
             MegaNodeList *nList = n->getChildren();
-            for (int i = 0; i < nList->size(); i++)
+            if (nList)
             {
-                MegaNode *child = nList->get(i);
-                if (recursive)
+                for (int i = 0; i < nList->size(); i++)
                 {
-                    processMegaTree(child, processor);
-                    sdkMutex.unlock();
-                    return 0;
-                }
-                else
-                {
-                    if (!processor->processMegaNode(child))
+                    MegaNode *child = nList->get(i);
+                    if (recursive)
                     {
+                        processMegaTree(child, processor);
                         sdkMutex.unlock();
                         return 0;
+                    }
+                    else
+                    {
+                        if (!processor->processMegaNode(child))
+                        {
+                            sdkMutex.unlock();
+                            return 0;
+                        }
                     }
                 }
             }
