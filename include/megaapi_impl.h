@@ -311,7 +311,6 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         double latitude;
         double longitude;
-
         MegaNodeList *children;
 
 #ifdef ENABLE_SYNC

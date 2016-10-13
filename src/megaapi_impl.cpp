@@ -6503,7 +6503,20 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
             for (int i = 0; i < nList->size(); i++)
             {
                 MegaNode *child = nList->get(i);
-                processMegaTree(child, processor);
+                if (recursive)
+                {
+                    processMegaTree(child, processor);
+                    sdkMutex.unlock();
+                    return 0;
+                }
+                else
+                {
+                    if (!processor->processMegaNode(child))
+                    {
+                        sdkMutex.unlock();
+                        return 0;
+                    }
+                }
             }
         }
         bool result = processor->processMegaNode(n);
@@ -6516,9 +6529,9 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
             MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
-            if(recursive)
+            if (recursive)
             {
-                if(!processMegaTree(megaNode,processor))
+                if (!processMegaTree(megaNode,processor))
                 {
                     delete megaNode;
                     sdkMutex.unlock();
@@ -6527,7 +6540,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
             }
             else
             {
-                if(!processor->processMegaNode(megaNode))
+                if (!processor->processMegaNode(megaNode))
                 {
                     delete megaNode;
                     sdkMutex.unlock();
@@ -6538,7 +6551,6 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
         }
     }
     bool result = processor->processMegaNode(n);
-
     sdkMutex.unlock();
     return result;
 }
