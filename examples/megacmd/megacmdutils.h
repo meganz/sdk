@@ -106,6 +106,10 @@ bool stringcontained(const char * s, vector<string> list);
 
 char * dupstr(char* s);
 
+bool isRegExp(string what);
+
+string unquote(string what);
+
 bool patternMatches(const char *what, const char *pattern);
 
 

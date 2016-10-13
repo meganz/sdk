@@ -638,6 +638,52 @@ char * dupstr(char* s) {
     return( r );
 }
 
+
+bool replace(std::string& str, const std::string& from, const std::string& to) {
+    size_t start_pos = str.find(from);
+    if(start_pos == std::string::npos)
+        return false;
+    str.replace(start_pos, from.length(), to);
+    return true;
+}
+
+void replaceAll(std::string& str, const std::string& from, const std::string& to) {
+    if(from.empty())
+        return;
+    size_t start_pos = 0;
+    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += from.length();
+    }
+}
+
+bool isRegExp(string what)
+{
+#ifdef USE_PCRE
+
+    string s = pcrecpp::RE::QuoteMeta(what);
+    string ns=s;
+    replaceAll(ns,"\\\\\\","\\");
+    bool isregex = strcmp(what.c_str(),ns.c_str());
+    return isregex;
+#elif __cplusplus >= 201103L
+    //TODO??
+#endif
+    return hasWildCards(what);
+}
+
+string unquote(string what)
+{
+#ifdef USE_PCRE
+
+    string s = pcrecpp::RE::QuoteMeta(what.c_str());
+    string ns=s;
+    replaceAll(ns,"\\\\\\","\\");
+    return ns;
+#endif
+    return what;
+}
+
 bool patternMatches(const char *what, const char *pattern)
 {
 
@@ -646,11 +692,12 @@ bool patternMatches(const char *what, const char *pattern)
 
     if (!re.error().length() > 0) {
         bool toret = re.FullMatch(what);
+
         return toret;
     }
     else
     {
-       LOG_warn << "Invalid PCRE regex: " << re.error();
+       LOG_verbose << "Invalid PCRE regex: " << re.error();
     }
 #elif __cplusplus >= 201103L
     try

@@ -2591,7 +2591,7 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath)
             }
         }
 
-        if (hasWildCards(askedPath))
+        if (isRegExp(askedPath))
         {
             vector<MegaNode *> *nodesToList = nodesbypath(askedPath.c_str());
             if (nodesToList)
@@ -2613,6 +2613,8 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath)
         }
         else
         {
+            askedPath=unquote(askedPath);
+
             n = nodebypath(askedPath.c_str());
             if (n)
             {
@@ -2727,7 +2729,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
             }
 
-            if (hasWildCards(words[1]))
+            if (isRegExp(words[1]))
             {
                 vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
                 if (nodesToList)
@@ -2756,6 +2758,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                words[1]=unquote(words[1]);
                 n = nodebypath(words[1].c_str());
                 if (n)
                 {
@@ -2873,7 +2876,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             for (uint i = 1; i < words.size(); i++)
             {
-                if (hasWildCards(words[i]))
+                if (isRegExp(words[i]))
                 {
                     vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
                     for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin(); it != nodesToDelete->end(); ++it)
@@ -2891,6 +2894,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
+                    words[i]=unquote(words[i]);
                     MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                     if (nodeToDelete)
                     {
@@ -3175,7 +3179,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         for (int i=1;i < words.size(); i++)
         {
-            if (hasWildCards(words[i]))
+            if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str());
                 if (nodesToList)
@@ -3199,6 +3203,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                words[i]=unquote(words[i]);
                 if (!( n = nodebypath(words[i].c_str())))
                 {
                     setCurrentOutCode(3);
@@ -3374,7 +3379,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else //remote file
             {
-                if (hasWildCards(words[1]))
+                if (isRegExp(words[1]))
                 {
                     if (words.size() > 2)
                     {
@@ -3415,6 +3420,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
+                    words[1]=unquote(words[1]);
                     MegaNode *n = nodebypath(words[1].c_str());
                     if (n)
                     {
@@ -3985,7 +3991,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         for (int i = 1; i < (int) words.size(); i++)
         {
-            if (hasWildCards(words[i]))
+            if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
                 if (nodes)
@@ -4043,6 +4049,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else // non-wildcard
             {
+                words[i]=unquote(words[i]);
                 MegaNode *n = nodebypath(words[i].c_str());
                 if (n)
                 {
@@ -4655,7 +4662,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         for (int i = 1; i < (int) words.size(); i++)
         {
-            if (hasWildCards(words[i]))
+            if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
                 if (nodes)
@@ -4699,6 +4706,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                words[i]=unquote(words[i]);
                 MegaNode *n = nodebypath(words[i].c_str());
                 if (n)
                 {
