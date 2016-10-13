@@ -6494,7 +6494,13 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     }
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    Node *node = NULL;
+
+    if (!n->isForeign() && !n->isPublic())
+    {
+        node = client->nodebyhandle(n->getHandle());
+    }
+
     if (!node)
     {
         if (n->getType() != FILENODE)
