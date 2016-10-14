@@ -4891,9 +4891,6 @@ class MegaApi
          * @param newParent Parent for the new node
          * @param newName Name for the new node
          *
-         * This parameter is only used if the original node is a file and it isn't a public node,
-         * otherwise, it's ignored.
-         *
          * @param listener MegaRequestListener to track this request
          */
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
