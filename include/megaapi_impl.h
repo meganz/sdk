@@ -204,6 +204,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    error e;
 
 public:
     virtual void onTransferStart(MegaApi *, MegaTransfer *t);

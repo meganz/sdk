@@ -14454,6 +14454,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
+    this->e = API_OK;
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -14531,7 +14532,16 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     FileAccess *da = client->fsaccess->newfileaccess();
     if (!da->fopen(&localpath, true, false))
     {
-        client->fsaccess->mkdirlocal(&localpath);
+        if (!client->fsaccess->mkdirlocal(&localpath))
+        {
+            delete da;
+            LOG_err << "Unable to create folder: " << *path;
+
+            recursive--;
+            e = API_EWRITE;
+            checkCompletion();
+            return;
+        }
     }
     else if (da->type != FILENODE)
     {
@@ -14543,8 +14553,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         LOG_err << "Local file detected where there should be a folder: " << *path;
 
         recursive--;
+        e = API_EEXIST;
         checkCompletion();
-
         return;
     }
     delete da;
@@ -14566,6 +14576,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     {
         LOG_err << "Child nodes not found: " << *path;
         recursive--;
+        e = API_ENOENT;
         checkCompletion();
         return;
     }
@@ -14647,7 +14658,7 @@ void MegaFolderDownloadController::checkCompletion()
     if (!recursive && !pendingTransfers)
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        megaApi->fireOnTransferFinish(transfer, MegaError(e));
         delete this;
     }
 }
@@ -14679,6 +14690,10 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
     }
 
     megaApi->fireOnTransferUpdate(transfer);
+    if (e->getErrorCode())
+    {
+        this->e = (error)e->getErrorCode();
+    }
     checkCompletion();
 }
 
