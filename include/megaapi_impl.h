@@ -264,6 +264,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         void setPublicAuth(const char *publicAuth);
         void setForeign(bool foreign);
         void setChildren(MegaNodeList *children);
+        void setName(const char *newName);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();

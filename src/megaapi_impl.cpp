@@ -1043,6 +1043,14 @@ void MegaNodePrivate::setChildren(MegaNodeList *children)
     this->children = children;
 }
 
+void MegaNodePrivate::setName(const char *newName)
+{
+    if (name)
+        delete [] name;
+
+    name = MegaApi::strdup(newName);
+}
+
 string *MegaNodePrivate::getPublicAuth()
 {
     return &publicAuth;
@@ -11397,11 +11405,21 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_COPY:
 		{
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            Node *node = NULL;
 			Node *target = client->nodebyhandle(request->getParentHandle());
 			const char* email = request->getEmail();
             MegaNode *publicNode = request->getPublicNode();
             const char *newName = request->getName();
+
+            if (!publicNode->isForeign() && !publicNode->isPublic())
+            {
+                node = client->nodebyhandle(request->getNodeHandle());
+                if (!node)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+            }
 
             if (!publicNode || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
 
@@ -11413,33 +11431,29 @@ void MegaApiImpl::sendPendingRequests()
                 processMegaTree(publicNode, &tc);
                 tc.allocnodes();
                 nc = tc.nc;
-
-                // build new nodes array
-                processMegaTree(publicNode, &tc);
                 if (!nc)
                 {
                     e = API_EARGS;
                     break;
                 }
 
-                tc.nn->parenthandle = UNDEF;
-
-                if (newName && tc.nn[0].nodekey.size())
+                if (newName)
                 {
-                    SymmCipher key;
-                    AttrMap attrs;
-                    string attrstring;
-
-                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
-                    attrs = node->attrs;
-
-                    string sname = newName;
-                    fsAccess->normalize(&sname);
-                    attrs.map['n'] = sname;
-
-                    attrs.getjson(&attrstring);
-                    client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+                    MegaNodePrivate *privateNode = dynamic_cast<MegaNodePrivate *>(publicNode);
+                    if (privateNode)
+                    {
+                        privateNode->setName(newName);
+                    }
+                    else
+                    {
+                        LOG_err << "Unknown node type";
+                    }
                 }
+
+                // build new nodes array
+                processMegaTree(publicNode, &tc);
+
+                tc.nn->parenthandle = UNDEF;
 
                 if (target)
                 {
@@ -14150,46 +14164,46 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         }
 
         t->attrstring = new string;
-
         if (n->isPublic())
         {
-            t->attrstring->assign(n->getAttrString()->data(), n->getAttrString()->size());
             t->source = NEW_PUBLIC;
         }
         else
         {
-            SymmCipher key;
-            AttrMap attrs;
+            t->source = NEW_NODE;
+        }
 
-            key.setkey((const byte*)t->nodekey.data(),n->getType());
-            string sname = n->getName();
-            client->fsaccess->normalize(&sname);
-            attrs.map['n'] = sname;
+        SymmCipher key;
+        AttrMap attrs;
 
-            const char *fingerprint = n->getFingerprint();
-            if (fingerprint && fingerprint[0])
+        key.setkey((const byte*)t->nodekey.data(),n->getType());
+        string sname = n->getName();
+        client->fsaccess->normalize(&sname);
+        attrs.map['n'] = sname;
+
+        const char *fingerprint = n->getFingerprint();
+        if (fingerprint && fingerprint[0])
+        {
+            m_off_t size = 0;
+            unsigned int fsize = strlen(fingerprint);
+            unsigned int ssize = fingerprint[0] - 'A';
+            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
             {
-                m_off_t size = 0;
-                unsigned int fsize = strlen(fingerprint);
-                unsigned int ssize = fingerprint[0] - 'A';
-                if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
+                int len =  sizeof(size) + 1;
+                byte *buf = new byte[len];
+                Base64::atob(fingerprint + 1, buf, len);
+                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+                delete [] buf;
+                if (l > 0)
                 {
-                    int len =  sizeof(size) + 1;
-                    byte *buf = new byte[len];
-                    Base64::atob(fingerprint + 1, buf, len);
-                    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-                    delete [] buf;
-                    if (l > 0)
-                    {
-                        attrs.map['c'] = fingerprint + ssize + 1;
-                    }
+                    attrs.map['c'] = fingerprint + ssize + 1;
                 }
             }
-
-            string attrstring;
-            attrs.getjson(&attrstring);
-            client->makeattr(&key,t->attrstring, attrstring.c_str());
         }
+
+        string attrstring;
+        attrs.getjson(&attrstring);
+        client->makeattr(&key,t->attrstring, attrstring.c_str());
 
         t->nodehandle = n->getHandle();
         t->type = (nodetype_t)n->getType();
