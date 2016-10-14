@@ -51,6 +51,7 @@ class CppMutex : public Mutex
 {
 public:
     CppMutex();
+    CppMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

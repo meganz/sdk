@@ -60,6 +60,13 @@ Win32Mutex::Win32Mutex()
     InitializeCriticalSection(&mutex);
 }
 
+Win32Mutex::Win32Mutex(bool recursive)
+{
+    InitializeCriticalSection(&mutex);
+
+    init(recursive);        // just for correctness
+}
+
 void Win32Mutex::init(bool recursive)
 {
 
