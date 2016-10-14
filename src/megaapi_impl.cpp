@@ -14128,7 +14128,7 @@ void MegaTreeProcCopy::allocnodes()
 {
     if (nc)
     {
-       nn = new NewNode[nc];
+        nn = new NewNode[nc];
     }
 }
 bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
@@ -14633,6 +14633,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
                     delete fa;
                     continue;
                 }
+                delete [] fpLocal;
+                delete [] fpRemote;
             }
             delete fa;
 
