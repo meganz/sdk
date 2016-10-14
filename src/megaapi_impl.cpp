@@ -14576,6 +14576,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         int l = localpath.size();
 
         string name = child->getName();
+        int64_t size = child->getSize();
         client->fsaccess->name2local(&name);
         localpath.append(name);
 
@@ -14588,13 +14589,13 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
             FileAccess *fa = NULL;
             fa = client->fsaccess->newfileaccess();
 
-            if (child && fa->fopen(&localpath, true, false) && fa->type == FILENODE)
+            if (fa->fopen(&localpath, true, false) && fa->type == FILENODE)
             {
                 const char *fpLocal = megaApi->getFingerprint(localpath.c_str());
                 const char *fpRemote = megaApi->getFingerprint(child);
 
                 if ((fpLocal && fpRemote && !strcmp(fpLocal,fpRemote))
-                        || (!fpRemote && child->getSize() == fa->size
+                        || (!fpRemote && size == fa->size
                             && child->getModificationTime() == fa->mtime))
                 {
                     delete [] fpLocal;
@@ -14609,12 +14610,12 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
                     t->setTag(nextTag);
                     t->setFolderTransferTag(tag);
-                    t->setTotalBytes(child->getSize());
+                    t->setTotalBytes(size);
                     megaApi->transferMap[nextTag] = t;
                     megaApi->fireOnTransferStart(t);
 
-                    t->setTransferredBytes(child->getSize());
-                    t->setDeltaSize(child->getSize());
+                    t->setTransferredBytes(size);
+                    t->setDeltaSize(size);
                     megaApi->fireOnTransferFinish(t, MegaError(API_OK));
                     localpath.resize(l);
                     delete fa;
