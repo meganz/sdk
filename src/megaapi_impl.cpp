@@ -6630,9 +6630,14 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
 
 MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
 {
-    if (!node || node->isPublic() || node->isForeign())
+    if (!node)
     {
         return NULL;
+    }
+
+    if (node->isPublic() || node->isForeign())
+    {
+        return node->copy();
     }
 
     MegaNodePrivate *result = NULL;
@@ -6661,7 +6666,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
         }
         else
         {
-            h = MegaApi::handleToBase64(client->getrootpublicfolder());
+            h = MegaApiImpl::handleToBase64(client->getrootpublicfolder());
             node->setPublicAuth(h);
         }
         delete [] h;

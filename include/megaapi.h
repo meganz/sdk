@@ -7507,8 +7507,6 @@ class MegaApi
         /**
          * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
          *
-         * This function only allows to authorize file nodes.
-         *
          * You can use MegaApi::startDownload with the resulting node with any instance
          * of MegaApi, even if it's logged into another account, a public folder, or not
          * logged in.
@@ -7528,7 +7526,7 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * @param node MegaNode to authorize
-         * @return Authorized node, or NULL if the node can't be authorized or is not a file
+         * @return Authorized node, or NULL if the node can't be authorized
          */
         MegaNode *authorizeNode(MegaNode *node);
 
