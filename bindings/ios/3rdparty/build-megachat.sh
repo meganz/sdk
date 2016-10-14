@@ -36,7 +36,7 @@ set -e
 
 if [ ! -d "karere-native" ]
 then
-git clone --recursive -b feature/mega-chat-api https://code.developers.mega.co.nz/messenger/karere-native
+git clone --recursive -b develop https://code.developers.mega.co.nz/messenger/karere-native
 fi
 
 ln -sf ../../mega include/mega
