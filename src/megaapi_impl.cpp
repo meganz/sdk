@@ -14464,6 +14464,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     const char *parentPath = transfer->getParentPath();
     const char *fileName = transfer->getFileName();
+    bool deleteNode = false;
 
     if (!node)
     {
@@ -14475,6 +14476,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
             delete this;
             return;
         }
+        deleteNode = true;
     }
 
     string name;
@@ -14513,6 +14515,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     transfer->setPath(path.c_str());
     downloadFolderNode(node, &path);
+
+    if (deleteNode)
+    {
+        delete node;
+    }
 }
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *path)
