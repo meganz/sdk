@@ -6513,9 +6513,11 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
                     MegaNode *child = nList->get(i);
                     if (recursive)
                     {
-                        processMegaTree(child, processor);
-                        sdkMutex.unlock();
-                        return 0;
+                        if (!processMegaTree(child, processor))
+                        {
+                            sdkMutex.unlock();
+                            return 0;
+                        }
                     }
                     else
                     {
@@ -6765,7 +6767,6 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 		}
 	}
 	bool result = processor->processNode(node);
-
     sdkMutex.unlock();
 	return result;
 }
