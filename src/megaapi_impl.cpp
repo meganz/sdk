@@ -10924,7 +10924,7 @@ void MegaApiImpl::sendPendingTransfers()
                 int64_t mtime = transfer->getTime();
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
 
-                if(!localPath || !parent || !fileName || !(*fileName))
+                if (!localPath || !parent || parent->type == FILENODE || !fileName || !(*fileName))
                 {
                     e = API_EARGS;
                     break;
@@ -11421,7 +11421,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            if (!publicNode || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
+            if (!publicNode || (!target && !email)
+                    || (newName && !(*newName))
+                    || (target && target->type == FILENODE))
+            {
+                e = API_EARGS;
+                break;
+            }
 
             if (!node)
             {
