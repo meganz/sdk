@@ -11424,10 +11424,10 @@ void MegaApiImpl::sendPendingRequests()
             Node *node = NULL;
 			Node *target = client->nodebyhandle(request->getParentHandle());
 			const char* email = request->getEmail();
-            MegaNode *publicNode = request->getPublicNode();
+            MegaNode *megaNode = request->getPublicNode();
             const char *newName = request->getName();
 
-            if (!publicNode->isForeign() && !publicNode->isPublic())
+            if (!megaNode->isForeign() && !megaNode->isPublic())
             {
                 node = client->nodebyhandle(request->getNodeHandle());
                 if (!node)
@@ -11437,7 +11437,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            if (!publicNode || (!target && !email)
+            if (!megaNode || (!target && !email)
                     || (newName && !(*newName))
                     || (target && target->type == FILENODE))
             {
@@ -11450,7 +11450,7 @@ void MegaApiImpl::sendPendingRequests()
                 unsigned nc;
                 MegaTreeProcCopy tc(client);
 
-                processMegaTree(publicNode, &tc);
+                processMegaTree(megaNode, &tc);
                 tc.allocnodes();
                 nc = tc.nc;
                 if (!nc)
@@ -11461,7 +11461,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (newName)
                 {
-                    MegaNodePrivate *privateNode = dynamic_cast<MegaNodePrivate *>(publicNode);
+                    MegaNodePrivate *privateNode = dynamic_cast<MegaNodePrivate *>(megaNode);
                     if (privateNode)
                     {
                         privateNode->setName(newName);
@@ -11473,7 +11473,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 // build new nodes array
-                processMegaTree(publicNode, &tc);
+                processMegaTree(megaNode, &tc);
 
                 tc.nn->parenthandle = UNDEF;
 
