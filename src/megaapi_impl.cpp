@@ -6410,10 +6410,10 @@ MegaUserList* MegaApiImpl::getContacts()
 }
 
 
-MegaUser* MegaApiImpl::getContact(const char* email)
+MegaUser* MegaApiImpl::getContact(const char *uid)
 {
     sdkMutex.lock();
-	MegaUser *user = MegaUserPrivate::fromUser(client->finduser(email, 0));
+    MegaUser *user = MegaUserPrivate::fromUser(client->finduser(uid, 0));
 
     if (user && user->getHandle() == client->me)
     {
@@ -8323,7 +8323,7 @@ bool MegaApiImpl::sync_syncable(Node *node)
 bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if(f->fopen(localpath) && !is_syncable(f->size))
+    if (f->fopen(localpath) && !is_syncable(f->size))
     {
         return false;
     }
@@ -12686,6 +12686,10 @@ void MegaApiImpl::sendPendingRequests()
             {
                 code += strlen("#verify");
             }
+            else if (link && (code = strstr(link, "#cancel")))
+            {
+                code += strlen("#cancel");
+            }
             else
             {
                 e = API_EARGS;
@@ -13379,6 +13383,12 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
                 break;
+            }
+
+            // if 1:1 chat, peer is enforced to be moderator too
+            if (!group && userpriv->at(1).second != PRIV_MODERATOR)
+            {
+                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
             client->createChat(group, userpriv);
@@ -16620,6 +16630,21 @@ const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
     return &list;
 }
 
+void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)
+{
+    for (unsigned int i = 0; i < list.size(); i++)
+    {
+        if (list.at(i).first == uh)
+        {
+            list.at(i).second = priv;
+            return;
+        }
+    }
+
+    // handle not found. Create new item
+    addPeer(uh, priv);
+}
+
 MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate(userpriv_vector *userpriv)
 {
     handle uh;
@@ -16661,6 +16686,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int sh
 MegaTextChatPrivate::~MegaTextChatPrivate()
 {
     delete peers;
+}
+
+MegaTextChat *MegaTextChatPrivate::copy() const
+{
+    return new MegaTextChatPrivate(this);
 }
 
 MegaHandle MegaTextChatPrivate::getHandle() const
@@ -16717,7 +16747,7 @@ const char *MegaTextChatPrivate::getTitle() const
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
-    for (unsigned int i = 0; i < size(); i++)
+    for (unsigned int i = 0; i < (unsigned int) size(); i++)
     {
         delete list.at(i);
     }
@@ -16730,19 +16760,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 
 const MegaTextChat *MegaTextChatListPrivate::get(unsigned int i) const
 {
-    if (i >= size())
-    {
-        return NULL;
-    }
-    else
-    {
-        return list.at(i);
-    }
-}
-
-MegaTextChat *MegaTextChatListPrivate::get(unsigned int i)
-{
-    if (i >= size())
+    if (i >= (unsigned int) size())
     {
         return NULL;
     }
@@ -16766,7 +16784,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *
 {
     MegaTextChatPrivate *chat;
 
-    for (unsigned int i = 0; i < list->size(); i++)
+    for (unsigned int i = 0; i < (unsigned int) list->size(); i++)
     {
         chat = new MegaTextChatPrivate(list->get(i));
         this->list.push_back(chat);

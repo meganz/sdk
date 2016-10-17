@@ -1350,6 +1350,7 @@ class MegaTextChat
 public:
 
     virtual ~MegaTextChat();
+    virtual MegaTextChat *copy() const;
 
     /**
      * @brief getHandle Returns the MegaHandle of the chat.
@@ -1441,7 +1442,8 @@ public:
      * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
      *
      * The MegaTextChatList retains the ownership of the returned MegaTextChat. It will be only valid until
-     * the MegaTextChatList is deleted.
+     * the MegaTextChatList is deleted. If you want to retain a MegaTextChat returned by this function,
+     * use MegaTextChat::copy.
      *
      * If the index is >= the size of the list, this function returns NULL.
      *
@@ -1449,7 +1451,6 @@ public:
      * @return MegaTextChat at the position i in the list
      */
     virtual const MegaTextChat *get(unsigned int i)  const;
-    virtual MegaTextChat *get(unsigned int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -4802,6 +4803,22 @@ class MegaApi
         void cancelAccount(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get information about a cancel link created by MegaApi::cancelAccount.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the cancel link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * @param link Cancel link (#cancel)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryCancelLink(const char *link, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Effectively parks the user's account without creating a new fresh account.
          *
          * The contents of the account will then be purged after 60 days. Once the account is
@@ -4989,6 +5006,8 @@ class MegaApi
          * Logs received by this objects depends on the active log level.
          * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
          * using MegaApi::setLogLevel.
+         *
+         * You can remove the existing logger by passing NULL to this function.
          *
          * @param megaLogger MegaLogger implementation
          */
@@ -7408,10 +7427,10 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param email Email address to check
+         * @param user Email or Base64 handle of the user
          * @return MegaUser that has the email address, otherwise NULL
          */
-        MegaUser* getContact(const char* email);
+        MegaUser* getContact(const char *user);
 
         /**
          * @brief Get a list with all inbound sharings from one MegaUser
@@ -8551,10 +8570,13 @@ class MegaApi
          * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
          *
          * There are two types of chat: permanent an group. A permanent chat is between two people, and
-         * participants can not leave it.
+         * participants can not leave it. It's also called 1on1 or 1:1.
          *
-         * The creator of the chat will have operator level privilege and should not be included in the
+         * The creator of the chat will have moderator level privilege and should not be included in the
          * list of peers.
+         *
+         * On 1:1 chats, the other participant has also moderator level privilege, regardless the
+         * privilege level specified.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
@@ -8608,6 +8630,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          * @param title Byte array representing the title that wants to be set, already encrypted and
          * converted to Base64url encoding (optional).
+         * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
 

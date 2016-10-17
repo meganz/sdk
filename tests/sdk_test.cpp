@@ -178,7 +178,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CHAT_CREATE:
         if (lastError[apiIndex] == API_OK)
         {
-            MegaTextChat *chat = request->getMegaTextChatList()->copy()->get(0);
+            MegaTextChat *chat = request->getMegaTextChatList()->get(0)->copy();
 
             chatid = chat->getHandle();
             if (chats.find(chatid) != chats.end())
@@ -400,11 +400,11 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
             if (this->chats.find(chatid) != this->chats.end())
             {
                 delete this->chats[chatid];
-                this->chats[chatid] = list->get(i);
+                this->chats[chatid] = list->get(i)->copy();
             }
             else
             {
-                this->chats[chatid] = list->get(i);
+                this->chats[chatid] = list->get(i)->copy();
             }
         }
     }
