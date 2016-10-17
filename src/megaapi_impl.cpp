@@ -6786,6 +6786,20 @@ void MegaApiImpl::setPublicKeyPinning(bool enable)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::pauseActionPackets()
+{
+    sdkMutex.lock();
+    client->scpaused = true;
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::resumeActionPackets()
+{
+    sdkMutex.lock();
+    client->scpaused = false;
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;

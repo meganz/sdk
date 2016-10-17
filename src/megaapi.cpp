@@ -2119,6 +2119,16 @@ void MegaApi::setPublicKeyPinning(bool enable)
     pImpl->setPublicKeyPinning(enable);
 }
 
+void MegaApi::pauseActionPackets()
+{
+    pImpl->pauseActionPackets();
+}
+
+void MegaApi::resumeActionPackets()
+{
+    pImpl->resumeActionPackets();
+}
+
 char *MegaApi::base64ToBase32(const char *base64)
 {
     if(!base64)

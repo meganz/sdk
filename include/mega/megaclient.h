@@ -550,6 +550,9 @@ public:
     void updatesc();
     void finalizesc(bool);
 
+    // flag to pause / resume the processing of action packets
+    bool scpaused;
+
     // MegaClient-Server response JSON
     JSON json;
 
