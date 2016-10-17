@@ -176,7 +176,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
 #else
-    BY_HANDLE_FILE_INFORMATION bhfi;
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
 #endif
 
     bool skipcasecheck = false;
@@ -283,16 +283,16 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         &ex);
 #else
     hFile = CreateFileW((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
                         NULL);
 #endif
@@ -313,12 +313,12 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
 #ifdef WINDOWS_PHONE
-    if (read && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+    if (!write && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
     {
         fsid = *(handle*)&bhfi.FileId;
     }
 #else
-    if (read && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+    if (!write && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
@@ -350,10 +350,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         return true;
     }
 
-    if (read)
+    if (!write)
     {
         size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
-        if(!size)
+        if (!size)
         {
             LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
                       << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);

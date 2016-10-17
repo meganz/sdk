@@ -399,6 +399,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+MegaNodeList *MegaNode::getChildren()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
@@ -1311,6 +1316,11 @@ void MegaApi::cancelAccount(MegaRequestListener *listener)
     pImpl->cancelAccount(listener);
 }
 
+void MegaApi::queryCancelLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
 void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
 {
     pImpl->confirmCancelAccount(link, pwd, listener);
@@ -1737,6 +1747,16 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
+{
+    pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
+}
+
+void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
+}
+
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, mtime, listener);
@@ -1749,7 +1769,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, 0, listener);
+    pImpl->startUpload(localPath, parent, fileName, mtime, 0, NULL, false, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -1757,7 +1777,7 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
     pImpl->startDownload(node, localFolder, listener);
 }
 
-void MegaApi::startDownload(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
+void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
     pImpl->startDownload(node, localPath, 0, 0, 0, appData, listener);
 }
@@ -1957,9 +1977,9 @@ MegaUserList* MegaApi::getContacts()
     return pImpl->getContacts();
 }
 
-MegaUser* MegaApi::getContact(const char* email)
+MegaUser* MegaApi::getContact(const char* user)
 {
-    return pImpl->getContact(email);
+    return pImpl->getContact(user);
 }
 
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
@@ -2082,6 +2102,11 @@ const char *MegaApi::getVersion()
 const char *MegaApi::getUserAgent()
 {
     return pImpl->getUserAgent();
+}
+
+const char *MegaApi::getBasePath()
+{
+    return pImpl->getBasePath();
 }
 
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
@@ -3089,9 +3114,9 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, uh, privilege, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, title, listener);
 }
 
 void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
@@ -3122,6 +3147,11 @@ void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privil
 void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
 {
     pImpl->truncateChat(chatid, messageid, listener);
+}
+
+void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestListener *listener)
+{
+    pImpl->setChatTitle(chatid, title, listener);
 }
 
 #endif
@@ -3715,6 +3745,11 @@ MegaTextChat::~MegaTextChat()
 
 }
 
+MegaTextChat* MegaTextChat::copy() const
+{
+    return NULL;
+}
+
 MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;
@@ -3755,6 +3790,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
     return INVALID_HANDLE;
 }
 
+const char * MegaTextChat::getTitle() const
+{
+    return NULL;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
@@ -3766,11 +3806,6 @@ MegaTextChatList *MegaTextChatList::copy() const
 }
 
 const MegaTextChat *MegaTextChatList::get(unsigned int) const
-{
-    return NULL;
-}
-
-MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }

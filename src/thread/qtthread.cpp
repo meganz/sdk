@@ -62,6 +62,14 @@ QtMutex::QtMutex()
     mutex = NULL;
 }
 
+QtMutex::QtMutex(bool recursive)
+{
+    mutex = NULL;
+
+    init(recursive);
+}
+
+
 void QtMutex::init(bool recursive)
 {
     if(recursive)

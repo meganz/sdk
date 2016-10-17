@@ -22,6 +22,7 @@
 using namespace mega;
 
 extern MegaClient* client;
+extern MegaClient* clientFolder;
 
 extern void megacli();
 
@@ -122,6 +123,9 @@ struct DemoApp : public MegaApp
     void chaturl_result(string *, error);
     void chatgrantaccess_result(error);
     void chatremoveaccess_result(error);
+    virtual void chatupdatepermissions_result(error);
+    virtual void chattruncate_result(error);
+    virtual void chatsettitle_result(error);
 
     void chats_updated(textchat_vector *);
 
@@ -224,4 +228,14 @@ struct DemoApp : public MegaApp
     void clearing();
 
     void notify_retry(dstime);
+};
+
+struct DemoAppFolder : public DemoApp
+{
+    void login_result(error);
+    void fetchnodes_result(error);
+
+    void nodes_updated(Node **, int);
+    void users_updated(User**, int) {}
+    void pcrs_updated(PendingContactRequest**, int) {}
 };

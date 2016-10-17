@@ -33,9 +33,9 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         
         users = megaapi.contacts()
         
-        for var i = 0 ; i < users.size.integerValue ; i++ {
+        for i in 0  ..< users.size.integerValue  {
             let user = users.userAtIndex(i)
-            if user.access == MEGAUserVisibility.Visible {
+            if user.visibility == MEGAUserVisibility.Visible {
                 filterUsers.append(user)
             }
         }
