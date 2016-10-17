@@ -10048,9 +10048,9 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 {
     if (num > 0)
     {
-        if (num > 6)
+        if (num > MAX_NUM_CONNECTIONS)
         {
-            num = 6;
+            num = MAX_NUM_CONNECTIONS;
         }
 
         connections[d] = num;

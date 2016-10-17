@@ -6242,19 +6242,19 @@ class MegaApi
         /**
          * @brief Set the maximum number of connections per transfer
          *
-         * The maximum number of allowed connections is 6. If a higher number of connections is
-         * passed to this function, it will fail with the error code API_ETOOMANY.
+         * The maximum number of allowed connections is MAX_NUM_CONNECTIONS. If a higher number
+         * of connections is passed to this function, it will fail with the error code API_ETOOMANY.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the first parameter
-         * - MegaRequest::getNumber - Returns the second parameter
+         * - MegaRequest::getParamType - Returns the value for \c direction parameter
+         * - MegaRequest::getNumber - Returns the number of \c connections
          *
          * @param direction Direction of transfers
          * Valid values for this parameter are:
          * - MegaTransfer::TYPE_DOWNLOAD = 0
          * - MegaTransfer::TYPE_UPLOAD = 1
-         * @param connections Maximum number of connection (it should between 1 and 6)
+         * @param connections Maximum number of connection (it should between 1 and MAX_NUM_CONNECTIONS)
          */
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
 
