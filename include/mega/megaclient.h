@@ -161,6 +161,9 @@ public:
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
+    // maximum number of connections per transfer
+    static const unsigned MAX_NUM_CONNECTIONS = 6;
+
     // set max connections per transfer
     void setmaxconnections(direction_t, int);
 

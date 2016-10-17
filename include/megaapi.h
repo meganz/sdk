@@ -6242,8 +6242,8 @@ class MegaApi
         /**
          * @brief Set the maximum number of connections per transfer
          *
-         * The maximum number of allowed connections is MAX_NUM_CONNECTIONS. If a higher number
-         * of connections is passed to this function, it will fail with the error code API_ETOOMANY.
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
          * Valid data in the MegaRequest object received on callbacks:
@@ -6254,21 +6254,21 @@ class MegaApi
          * Valid values for this parameter are:
          * - MegaTransfer::TYPE_DOWNLOAD = 0
          * - MegaTransfer::TYPE_UPLOAD = 1
-         * @param connections Maximum number of connection (it should between 1 and MAX_NUM_CONNECTIONS)
+         * @param connections Maximum number of connection (it should between 1 and 6)
          */
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Set the maximum number of connections per transfer for downloads and uploads
          *
-         * The maximum number of allowed connections is MAX_NUM_CONNECTIONS. If a higher number
-         * of connections is passed to this function, it will fail with the error code API_ETOOMANY.
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of connections
          *
-         * @param connections Maximum number of connection (it should between 1 and MAX_NUM_CONNECTIONS)
+         * @param connections Maximum number of connection (it should between 1 and 6)
          */
         void setMaxConnections(int connections, MegaRequestListener* listener = NULL);
 

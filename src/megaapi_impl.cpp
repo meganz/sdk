@@ -12576,7 +12576,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (connections > MAX_NUM_CONNECTIONS)
+            if (connections > MegaClient::MAX_NUM_CONNECTIONS)
             {
                 e = API_ETOOMANY;
                 break;
