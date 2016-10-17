@@ -11041,26 +11041,25 @@ void MegaApiImpl::sendPendingTransfers()
                     string securename;
                     string path;
 
-					if(parentPath)
-					{
-						path = parentPath;
-					}
-					else
-					{
-						string separator;
-						client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-						path = ".";
-						path.append(separator);
-					}
+                    if (parentPath)
+                    {
+                        path = parentPath;
+                    }
+                    else
+                    {
+                        string separator;
+                        client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+                        path = ".";
+                        path.append(separator);
+                    }
 
-					MegaFileGet *f;
-
-					if(node)
-					{
-						if(!fileName)
+                    MegaFileGet *f;
+                    if (node)
+                    {
+                        if (!fileName)
                         {
                             attr_map::iterator ait = node->attrs.map.find('n');
-                            if(ait == node->attrs.map.end())
+                            if (ait == node->attrs.map.end())
                             {
                                 name = "CRYPTO_ERROR";
                             }
@@ -11081,35 +11080,39 @@ void MegaApiImpl::sendPendingTransfers()
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
-						f = new MegaFileGet(client, node, path);
-					}
-					else
-					{
-						if(!transfer->getFileName())
+                        f = new MegaFileGet(client, node, path);
+                    }
+                    else
+                    {
+                        if (!transfer->getFileName())
+                        {
                             name = publicNode->getName();
+                        }
                         else
+                        {
                             name = transfer->getFileName();
+                        }
 
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
-						f = new MegaFileGet(client, publicNode, path);
-					}
+                        f = new MegaFileGet(client, publicNode, path);
+                    }
 
-					transfer->setPath(path.c_str());
+                    transfer->setPath(path.c_str());
                     f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
-                    if(transfer->getTag() == -1)
+                    if (transfer->getTag() == -1)
                     {
                         //Already existing transfer
                         if (ok)
                         {
                             //Set the transfer as regular
                             transfer_map::iterator it = client->transfers[GET].find(f);
-                            if(it != client->transfers[GET].end())
+                            if (it != client->transfers[GET].end())
                             {
                                 int previousTag = it->second->tag;
-                                if(transferMap.find(previousTag) != transferMap.end())
+                                if (transferMap.find(previousTag) != transferMap.end())
                                 {
                                     MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
                                     previousTransfer->setSyncTransfer(false);
@@ -11135,28 +11138,39 @@ void MegaApiImpl::sendPendingTransfers()
                 }
                 else
                 {
-                	m_off_t startPos = transfer->getStartPos();
-                	m_off_t endPos = transfer->getEndPos();
-                	if(startPos < 0 || endPos < 0 || startPos > endPos) { e = API_EARGS; break; }
-                	if(node)
+                    m_off_t startPos = transfer->getStartPos();
+                    m_off_t endPos = transfer->getEndPos();
+                    if (startPos < 0 || endPos < 0 || startPos > endPos)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    if (node)
                 	{
                         transfer->setFileName(node->displayname());
-                		if(startPos >= node->size || endPos >= node->size)
-                		{ e = API_EARGS; break; }
+                        if (startPos >= node->size || endPos >= node->size)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
 
-                		m_off_t totalBytes = endPos - startPos + 1;
-                	    transferMap[nextTag]=transfer;
-						transfer->setTotalBytes(totalBytes);
-						transfer->setTag(nextTag);
+                        m_off_t totalBytes = endPos - startPos + 1;
+                        transferMap[nextTag]=transfer;
+                        transfer->setTotalBytes(totalBytes);
+                        transfer->setTag(nextTag);
                         fireOnTransferStart(transfer);
-                	    client->pread(node, startPos, totalBytes, transfer);
-                	    waiter->notify();
-                	}
-                	else
-                	{
+                        client->pread(node, startPos, totalBytes, transfer);
+                        waiter->notify();
+                    }
+                    else
+                    {
                         transfer->setFileName(publicNode->getName());
-                        if(startPos >= publicNode->getSize() || endPos >= publicNode->getSize())
-                        { e = API_EARGS; break; }
+                        if (startPos >= publicNode->getSize() || endPos >= publicNode->getSize())
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
 
                         m_off_t totalBytes = endPos - startPos + 1;
                         transferMap[nextTag]=transfer;
@@ -11169,16 +11183,18 @@ void MegaApiImpl::sendPendingTransfers()
                             MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
                                       startPos, totalBytes, transfer);
                         waiter->notify();
-                	}
+                    }
                 }
 
-                currentTransfer=NULL;
-				break;
-			}
-		}
+                currentTransfer = NULL;
+                break;
+            }
+        }
 
-		if(e)
+        if (e)
+        {
             fireOnTransferFinish(transfer, MegaError(e));
+        }
 
         sdkMutex.unlock();
     }
