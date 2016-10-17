@@ -2576,6 +2576,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_CHANGE_EMAIL_LINK: return "GET_CHANGE_EMAIL_LINK";
         case TYPE_CONFIRM_CHANGE_EMAIL_LINK: return "CONFIRM_CHANGE_EMAIL_LINK";
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
+        case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
     }
     return "UNKNOWN";
 }
@@ -5032,6 +5033,15 @@ bool MegaApiImpl::areTransfersPaused(int direction)
 void MegaApiImpl::setUploadLimit(int bpslimit)
 {
     client->putmbpscap = bpslimit;
+}
+
+void MegaApiImpl::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MAX_CONNECTIONS, listener);
+    request->setParamType(direction);
+    request->setNumber(connections);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::setDownloadMethod(int method)
@@ -12548,6 +12558,42 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 client->pausexfers(PUT, pause);
+            }
+
+            fireOnRequestFinish(request, MegaError(API_OK));
+            break;
+        }
+        case MegaRequest::TYPE_SET_MAX_CONNECTIONS:
+        {
+            int direction = request->getParamType();
+            int connections = request->getNumber();
+
+            if (connections <= 0 || (direction != -1
+                    && direction != MegaTransfer::TYPE_DOWNLOAD
+                    && direction != MegaTransfer::TYPE_UPLOAD))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (connections > MegaClient::MAX_NUM_CONNECTIONS)
+            {
+                e = API_ETOOMANY;
+                break;
+            }
+
+            if (direction == -1)
+            {
+                client->setmaxconnections(GET, connections);
+                client->setmaxconnections(PUT, connections);
+            }
+            else if (direction == MegaTransfer::TYPE_DOWNLOAD)
+            {
+                client->setmaxconnections(GET, connections);
+            }
+            else
+            {
+                client->setmaxconnections(PUT, connections);
             }
 
             fireOnRequestFinish(request, MegaError(API_OK));

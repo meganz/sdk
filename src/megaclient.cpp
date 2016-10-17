@@ -10044,6 +10044,29 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     }
 }
 
+void MegaClient::setmaxconnections(direction_t d, int num)
+{
+    if (num > 0)
+    {
+        if (num > MegaClient::MAX_NUM_CONNECTIONS)
+        {
+            num = MegaClient::MAX_NUM_CONNECTIONS;
+        }
+
+        connections[d] = num;
+        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+        {
+            TransferSlot *slot = *it++;
+            if (slot->transfer->type == d)
+            {
+                slot->transfer->bt.arm();
+                slot->transfer->cachedtempurl = slot->tempurl;
+                delete slot;
+            }
+        }
+    }
+}
+
 Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
     fingerprint_set::iterator it;
