@@ -145,13 +145,13 @@ private:
 };
 
 class MegaTransferPrivate;
-class MegaFolderProcTree : public MegaTreeProcessor
+class MegaTreeProcCopy : public MegaTreeProcessor
 {
 public:
     NewNode* nn;
     unsigned nc;
 
-    MegaFolderProcTree(MegaClient *client);
+    MegaTreeProcCopy(MegaClient *client);
     virtual bool processMegaNode(MegaNode* node);
     void allocnodes(void);
 
@@ -204,6 +204,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    error e;
 
 public:
     virtual void onTransferStart(MegaApi *, MegaTransfer *t);
@@ -263,6 +264,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         void setPublicAuth(const char *publicAuth);
         void setForeign(bool foreign);
         void setChildren(MegaNodeList *children);
+        void setName(const char *newName);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
@@ -311,7 +313,6 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         double latitude;
         double longitude;
-
         MegaNodeList *children;
 
 #ifdef ENABLE_SYNC
