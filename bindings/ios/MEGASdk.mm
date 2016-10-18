@@ -58,7 +58,6 @@ using namespace mega;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 
 @property MegaApi *megaApi;
-- (MegaApi *)getCPtr;
 
 @end
 
