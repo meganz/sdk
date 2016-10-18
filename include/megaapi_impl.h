@@ -159,6 +159,18 @@ protected:
     MegaClient *client;
 };
 
+
+class MegaSizeProcessor : public MegaTreeProcessor
+{
+    protected:
+        long long totalBytes;
+
+    public:
+        MegaSizeProcessor();
+        virtual bool processMegaNode(MegaNode* node);
+        long long getTotalBytes();
+};
+
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
 {
 public:

@@ -6889,6 +6889,13 @@ long long MegaApiImpl::getSize(MegaNode *n)
        return n->getSize();
     }
 
+    if (n->isForeign())
+    {
+        MegaSizeProcessor megaSizeProcessor;
+        processMegaTree(n, &megaSizeProcessor);
+        return megaSizeProcessor.getTotalBytes();
+    }
+
     sdkMutex.lock();
     Node *node = client->nodebyhandle(n->getHandle());
     if(!node)
@@ -16519,4 +16526,23 @@ PublicLinkProcessor::~PublicLinkProcessor() {}
 vector<Node *> &PublicLinkProcessor::getNodes()
 {
     return nodes;
+}
+
+MegaSizeProcessor::MegaSizeProcessor()
+{
+    totalBytes = 0;
+}
+
+bool MegaSizeProcessor::processMegaNode(MegaNode *node)
+{
+    if (node->getType() == MegaNode::TYPE_FILE)
+    {
+        totalBytes += node->getSize();
+    }
+    return true;
+}
+
+long long MegaSizeProcessor::getTotalBytes()
+{
+    return totalBytes;
 }
