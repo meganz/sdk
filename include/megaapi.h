@@ -7693,6 +7693,30 @@ class MegaApi
          */
         void setPublicKeyPinning(bool enable);
 
+        /**
+         * @brief Pause the reception of action packets
+         *
+         * This function is intended to help apps to initialize themselves
+         * after the reception of nodes (MegaApi::fetchNodes) but before the reception
+         * of action packets.
+         *
+         * For that purpose, this function can be called synchronously in the callback
+         * onRequestFinish related to the fetchNodes request.
+         *
+         * After your initialization is finished, you can call MegaApi::resumeActionPackets
+         * to start receiving external updates.
+         *
+         * If you forget to call MegaApi::resumeActionPackets after the usage of this function
+         * the SDK won't work properly. Do not use this function for other purposes.
+         */
+        void pauseActionPackets();
+
+        /**
+         * @brief Resume the reception of action packets
+         * @see MegaApi::pauseActionPackets
+         */
+        void resumeActionPackets();
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
