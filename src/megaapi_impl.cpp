@@ -11350,6 +11350,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         else
         {
+            // this case happens when we queue requests already started
             nextTag = request->getTag();
         }
 
