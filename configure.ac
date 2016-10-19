@@ -31,18 +31,30 @@ AC_PREREQ([2.61])
 
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
-m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [6])
-m4_define([mega_micro_version], [0])
+#~ m4_define([mega_major_version], [m4_esyscmd([cat include/version.h | grep MAJOR | cut -d" " -f 3])])
+#~ m4_define([mega_minor_version], m4_esyscmd([cat include/version.h | grep MINOR | cut -d" " -f 3]))
+#~ m4_define([mega_micro_version], [m4_esyscmd(cat include/version.h | grep MICRO | cut -d" " -f 3)])
+m4_define([mega_major_version], [$(cat include/version.h | grep MAJOR | cut -d" " -f 3)])
+m4_define([mega_minor_version], [$(cat include/version.h | grep MINOR | cut -d" " -f 3)])
+m4_define([mega_micro_version], [$(cat include/version.h | grep MICRO | cut -d" " -f 3)])
+#~ m4_define([mega_major_version], [2])
+#~ m4_define([mega_minor_version], [3])
+#~ m4_define([mega_micro_version], [4])
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
+#~ m4_define([mega_lt_current], [$(echo $(( $( cat include/version.h | grep MINOR | cut -d" " -f 3 ) * 100 + $(cat include/version.h | grep MICRO | cut -d" " -f 3))))])
+m4_define([mega_lt_current], [$(echo -n $(( $( cat include/version.h | grep MINOR | cut -d" " -f 3 ) * 100 + $(cat include/version.h | grep MICRO | cut -d" " -f 3))))])
+#~ m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
+#~ AC_INIT([libmega], $(echo $(( $( cat include/version.h | grep MAJOR | cut -d" " -f 3 )"."$( cat include/version.h | grep MINOR | cut -d" " -f 3 )"."$(cat include/version.h | grep MICRO | cut -d" " -f 3)))), [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ cut -d ' ' -f3 < include/version.h | tr -st '\n' '.' | cut -d '.' -f1,2,3 --output-delimiter='.' | tr -d '\n']), [https://github.com/meganz/sdk])
+#~ AC_INIT([libmega], m4_esyscmd(echo -n 2.5.8), [https://github.com/meganz/sdk])
+#~ AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
+#~ AC_INIT([libmega], [-], [https://github.com/meganz/sdk])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -56,20 +68,20 @@ AC_CONFIG_MACRO_DIR([m4])
 m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
 AM_SILENT_RULES([yes])
 
-MEGA_MAJOR_VERSION=mega_major_version
-MEGA_MINOR_VERSION=mega_minor_version
-MEGA_MICRO_VERSION=mega_micro_version
+#MEGA_MAJOR_VERSION=mega_major_version
+#MEGA_MINOR_VERSION=mega_minor_version
+#MEGA_MICRO_VERSION=mega_micro_version
 
-AC_SUBST(MEGA_MAJOR_VERSION)
-AC_SUBST(MEGA_MINOR_VERSION)
-AC_SUBST(MEGA_MICRO_VERSION)
+#AC_SUBST(MEGA_MAJOR_VERSION)
+#AC_SUBST(MEGA_MINOR_VERSION)
+#AC_SUBST(MEGA_MICRO_VERSION)
 
-AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
-    [MEGA SDK major version.])
-AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
-    [MEGA SDK minor version.])
-AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
-    [MEGA SDK micro version.])
+#AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
+#    [MEGA SDK major version.])
+#AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
+#    [MEGA SDK minor version.])
+#AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
+#    [MEGA SDK micro version.])
 
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision
