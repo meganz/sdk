@@ -11341,12 +11341,20 @@ void MegaApiImpl::sendPendingRequests()
         }
 
 		sdkMutex.lock();
-		nextTag = client->nextreqtag();
-        request->setTag(nextTag);
-		requestMap[nextTag]=request;
-		e = API_OK;
 
-        fireOnRequestStart(request);
+        if (!request->getTag())
+        {
+            nextTag = client->nextreqtag();
+            request->setTag(nextTag);
+            requestMap[nextTag]=request;
+            fireOnRequestStart(request);
+        }
+        else
+        {
+            nextTag = request->getTag();
+        }
+
+        e = API_OK;
 		switch(request->getType())
 		{
 		case MegaRequest::TYPE_LOGIN:
@@ -12686,31 +12694,24 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CANCEL_TRANSFERS:
         {
             int direction = request->getParamType();
+            bool flag = request->getFlag();
+
             if((direction != MegaTransfer::TYPE_DOWNLOAD) && (direction != MegaTransfer::TYPE_UPLOAD))
                 { e = API_EARGS; break; }
 
-            for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; )
+            if (!flag)
             {
-                Transfer *transfer = it->second;
-                if(transferMap.find(transfer->tag) != transferMap.end())
+                for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
                 {
-                    MegaTransferPrivate* megaTransfer = transferMap.at(transfer->tag);
-                    megaTransfer->setSyncTransfer(true);
-                    megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
+                    cancelTransferByTag(it->second->tag);
                 }
-
-                it++;
-
-                file_list files = transfer->files;
-				file_list::iterator iterator = files.begin();
-				while (iterator != files.end())
-				{
-					File *file = *iterator;
-					iterator++;
-					if(!file->syncxfer) client->stopxfer(file);
-				}
+                request->setFlag(true);
+                requestQueue.push(request);
             }
-            fireOnRequestFinish(request, MegaError(API_OK));
+            else
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
             break;
         }
 #ifdef ENABLE_SYNC
