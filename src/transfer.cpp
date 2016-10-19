@@ -744,12 +744,25 @@ void Transfer::completefiles()
 {
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
+    vector<string> *pfs = NULL;
+
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
+        File *f = (*it);
+
         // prevent deletion of associated Transfer object in completed()
-        ids.push_back((*it)->dbid);
-        (*it)->transfer = NULL;
-        (*it)->completed(this, NULL);
+        ids.push_back(f->dbid);
+        if (f->temporaryfile)
+        {
+            if (!pfs)
+            {
+                pfs = &client->pendingfiles[tag];
+            }
+            pfs->push_back(f->localname);
+        }
+
+        f->transfer = NULL;
+        f->completed(this, NULL);
         files.erase(it++);
     }
     ids.push_back(dbid);

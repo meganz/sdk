@@ -91,6 +91,8 @@ struct MEGA_API WinDirNotify : public DirNotify
 
     HANDLE hDirectory;
 
+    bool enabled;
+    bool exit;
     int active;
     string notifybuf[2];
 

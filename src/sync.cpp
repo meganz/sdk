@@ -56,7 +56,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
         localdebris.insert(0, *crootpath);
@@ -66,7 +66,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
 
     // set specified fsfp or get from fs if none
@@ -724,9 +724,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         // (we tolerate overwritten folders, because we do a
                         // content scan anyway)
-                        if (fa->fsidvalid)
+                        if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
                             l->setfsid(fa->fsid);
+                            newnode = true;
                         }
                     }
                 }

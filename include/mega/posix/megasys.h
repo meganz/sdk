@@ -76,7 +76,7 @@
 #ifdef HAVE_GLOB_H
     #include <glob.h>
 #else
-    #include <third_party/glob/glob.h>
+    #include "mega/mega_glob.h"
 #endif
 
 #ifdef HAVE_DIRENT_H
