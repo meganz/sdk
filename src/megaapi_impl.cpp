@@ -11329,19 +11329,18 @@ void MegaApiImpl::removeRecursively(const char *path)
 
 void MegaApiImpl::sendPendingRequests()
 {
-	MegaRequestPrivate *request;
-	error e;
+    MegaRequestPrivate *request;
+    error e;
     int nextTag = 0;
 
-	while((request = requestQueue.pop()))
-	{
+    while((request = requestQueue.pop()))
+    {
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
 
-		sdkMutex.lock();
-
+        sdkMutex.lock();
         if (!request->getTag())
         {
             nextTag = client->nextreqtag();
@@ -11355,17 +11354,17 @@ void MegaApiImpl::sendPendingRequests()
         }
 
         e = API_OK;
-		switch(request->getType())
-		{
-		case MegaRequest::TYPE_LOGIN:
-		{
-			const char *login = request->getEmail();
-			const char *password = request->getPassword();
+        switch (request->getType())
+        {
+        case MegaRequest::TYPE_LOGIN:
+        {
+            const char *login = request->getEmail();
+            const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
-            if(!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
+            if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
                 e = API_EARGS;
                 break;
