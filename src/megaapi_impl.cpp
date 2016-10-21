@@ -143,12 +143,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
     this->sharekey = NULL;
-
-    this->children = node->getChildren();
-    if (this->children)
-    {
-        this->children = this->children->copy();
-    }
+    this->children = NULL;
 
     if (node->isExported())
     {
@@ -1705,15 +1700,27 @@ void MegaTransferPrivate::setUpdateTime(int64_t updateTime)
 {
 	this->updateTime = updateTime;
 }
-void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
+void MegaTransferPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
-    if(this->publicNode)
+    if (this->publicNode)
+    {
     	delete this->publicNode;
+    }
 
-    if(!publicNode)
+    if (!publicNode)
+    {
     	this->publicNode = NULL;
+    }
     else
-    	this->publicNode = publicNode->copy();
+    {
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        this->publicNode = nodePrivate;
+    }
 }
 
 void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
@@ -2493,15 +2500,27 @@ Proxy *MegaRequestPrivate::getProxy()
     return proxy;
 }
 
-void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
+void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
-    if(this->publicNode)
+    if (this->publicNode)
+    {
 		delete this->publicNode;
+    }
 
-    if(!publicNode)
+    if (!publicNode)
+    {
 		this->publicNode = NULL;
+    }
     else
-		this->publicNode = publicNode->copy();
+    {
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        this->publicNode = nodePrivate;
+    }
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -2773,7 +2792,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList)
+MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
 	if (!s)
@@ -2784,7 +2803,16 @@ MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList)
 
 	list = new MegaNode*[s];
 	for (int i = 0; i<s; i++)
-        list[i] = new MegaNodePrivate(nodeList->get(i));
+    {
+        MegaNode *node = nodeList->get(i);
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(node);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(node->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        list[i] = nodePrivate;
+    }
 }
 
 MegaNodeListPrivate::~MegaNodeListPrivate()
@@ -4297,7 +4325,7 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
@@ -4310,7 +4338,7 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode *target, const char *newName
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
@@ -4353,7 +4381,7 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestL
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     request->setEmail(email);
@@ -5334,7 +5362,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
         transfer->setNodeHandle(node->getHandle());
         if (node->isPublic() || node->isForeign())
         {
-            transfer->setPublicNode(node);
+            transfer->setPublicNode(node, true);
         }
     }
 
