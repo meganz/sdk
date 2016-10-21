@@ -7186,8 +7186,7 @@ void MegaClient::procmcf(JSON *j)
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                            && shard != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
