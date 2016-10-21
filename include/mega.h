@@ -27,7 +27,7 @@
 #endif
 
 // version
-#include "version.h"
+#include "mega/version.h"
 
 // project types
 #include "mega/types.h"
