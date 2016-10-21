@@ -2795,14 +2795,14 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
-	if (!s)
-	{
-		list = NULL;
-		return;
-	}
+    if (!s)
+    {
+        list = NULL;
+        return;
+    }
 
-	list = new MegaNode*[s];
-	for (int i = 0; i<s; i++)
+    list = new MegaNode*[s];
+    for (int i = 0; i<s; i++)
     {
         MegaNode *node = nodeList->get(i);
         MegaNodePrivate *nodePrivate = new MegaNodePrivate(node);
