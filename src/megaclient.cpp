@@ -683,6 +683,7 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
+    requestLock = false;
     totalNodes = 0;
 
 #ifdef ENABLE_SYNC
@@ -866,34 +867,18 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if (EVER(httpio->lastdata) && pendingcs && !fetchingnodes && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs)
     {
-        if (!workinglockcs && !doAskForWorkingLock && workinglockResponse.empty() && btworkinglock.armed())
-        {
-            LOG_err << "Timeout passed. Triggering petition for working lock ...  ";
-            doAskForWorkingLock = true;
-        }
-
-        if (workinglockResponse == "0") //not locked
-        {
-            LOG_fatal << "Disconnecting due to timeout (server idle)";
-            disconnect();
-            //TODO: send report
-        }
-        else if (workinglockResponse == "1")
-        {
-            LOG_warn << "Timeout not causing disconnect. The server reports writting lock (server is doing something for us. It's ok to wait') ";
-            //TODO: send report
-        }
-        else if (!workinglockResponse.empty())
-        {
-            LOG_err << "Unexpected working lock response: " << workinglockResponse;
-        }
+        LOG_debug << "Network timeout. Reconnecting";
+        disconnect();
     }
 
-    if (!workinglockResponse.empty())
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::REQUESTTIMEOUT
+            && pendingcs && !fetchingnodes && !workinglockcs)
     {
-        workinglockResponse.clear();
+        LOG_debug << "Request timeout. Triggering a lock request";
+        requestLock = true;
     }
 
     // successful network operation with a failed transfer chunk: increment error count
@@ -1398,18 +1383,31 @@ void MegaClient::exec()
         {
             if (workinglockcs->status == REQ_SUCCESS)
             {
-                LOG_debug << "Successful requested working lock. Result=" << workinglockcs->in;
+                LOG_debug << "Successful lock request";
                 btworkinglock.reset();
-                btworkinglock.backoff(600); //leave the api be for a while
-                workinglockResponse = workinglockcs->in;
+
+                if (workinglockcs->in == "1")
+                {
+                    LOG_warn << "Disconnecting due to timeout (server idle)";
+                    disconnect();
+                }
+                else if (workinglockcs->in == "0")
+                {
+                    LOG_debug << "Timeout not causing disconnect (server busy)";
+                }
+                else
+                {
+                    LOG_err << "Error in lock request: " << workinglockcs->in;
+                }
+
                 delete workinglockcs;
                 workinglockcs = NULL;
+                requestLock = false;
             }
             else if(workinglockcs->status == REQ_FAILURE)
             {
-                LOG_warn << "Failed requested working lock. Retrying...";
-                btworkinglock.backoff(600); //leave the api be for a while
-                doAskForWorkingLock = true;
+                LOG_warn << "Failed lock request. Retrying...";
+                btworkinglock.backoff();
                 delete workinglockcs;
                 workinglockcs = NULL;
             }
@@ -1929,9 +1927,9 @@ void MegaClient::exec()
             badhosts.clear();
         }
 
-        if (!workinglockcs && doAskForWorkingLock && btworkinglock.armed())
+        if (!workinglockcs && requestLock && btworkinglock.armed())
         {
-            LOG_debug << "Sending workinglock petition: " << workinglockResponse;
+            LOG_debug << "Sending lock request";
             workinglockcs = new HttpReq();
             workinglockcs->posturl = APIURL;
             workinglockcs->posturl.append("cs?");
@@ -1939,8 +1937,6 @@ void MegaClient::exec()
             workinglockcs->posturl.append("&wlt=1");
             workinglockcs->type = REQ_JSON;
             workinglockcs->post(this);
-            workinglockResponse.clear();
-            doAskForWorkingLock = false;
         }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
@@ -2010,13 +2006,13 @@ int MegaClient::preparewait()
         // retry failed badhost requests
         if (!badhostcs)
         {
-            btbadhost.update(&nds); //TODO: this can produce segfault if ocurred after reset()
+            btbadhost.update(&nds);
         }
 
-//        if (!workinglockcs)
-//        {
-//            btworkinglock.update(&nds);
-//        }
+        if (!workinglockcs)
+        {
+            btworkinglock.update(&nds);
+        }
 
         // retry failed file attribute puts
         if (curfa == newfa.end())

@@ -25,6 +25,12 @@
 
 namespace mega {
 
+// data receive timeout
+const int HttpIO::NETWORKTIMEOUT = 6000;
+
+// request timeout
+const int HttpIO::REQUESTTIMEOUT = 1200;
+
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
 {

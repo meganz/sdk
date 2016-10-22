@@ -821,8 +821,7 @@ public:
     void setchunkfailed(string*);
     string badhosts;
 
-    string workinglockResponse;
-    bool doAskForWorkingLock = false;
+    bool requestLock;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
