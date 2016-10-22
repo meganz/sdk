@@ -875,7 +875,7 @@ void MegaClient::exec()
     }
 
     if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::REQUESTTIMEOUT
-            && pendingcs && !fetchingnodes && !workinglockcs)
+            && pendingcs && !fetchingnodes && !requestLock)
     {
         LOG_debug << "Request timeout. Triggering a lock request";
         requestLock = true;
