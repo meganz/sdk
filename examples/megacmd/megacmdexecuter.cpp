@@ -3512,6 +3512,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             else
             {
                 n = api->getNodeByHandle(cwd);
+                words.push_back(".");
             }
             if (n)
             {
@@ -3527,7 +3528,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         else
                         {
                             setCurrentOutCode(3);
-                            OUTSTREAM << "Could not find local path" << endl;
+                            OUTSTREAM << "Could not find local path " << localname << endl;
                         }
                     }
                 }
