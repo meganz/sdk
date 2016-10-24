@@ -823,6 +823,8 @@ public:
 
     bool requestLock;
 
+    m_time_t requestLockTimestamp;
+
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
 

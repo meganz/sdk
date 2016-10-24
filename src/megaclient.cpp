@@ -684,6 +684,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     requestLock = false;
+    requestLockTimestamp = 0;
     totalNodes = 0;
 
 #ifdef ENABLE_SYNC
@@ -1403,13 +1404,16 @@ void MegaClient::exec()
                 delete workinglockcs;
                 workinglockcs = NULL;
                 requestLock = false;
+                requestLockTimestamp = 0;
             }
-            else if(workinglockcs->status == REQ_FAILURE)
+            else if (workinglockcs->status == REQ_FAILURE
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= requestLockTimestamp + HttpIO::REQUESTTIMEOUT))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
                 delete workinglockcs;
                 workinglockcs = NULL;
+                requestLockTimestamp = 0;
             }
         }
 
@@ -1937,6 +1941,7 @@ void MegaClient::exec()
             workinglockcs->posturl.append("&wlt=1");
             workinglockcs->type = REQ_JSON;
             workinglockcs->post(this);
+            requestLockTimestamp = Waiter::ds;
         }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
