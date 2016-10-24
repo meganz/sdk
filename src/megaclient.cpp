@@ -2584,6 +2584,15 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
+    if (workinglockcs)
+    {
+        btworkinglock.reset();
+        delete workinglockcs;
+        workinglockcs = NULL;
+        requestLock = false;
+        requestLockTimestamp = 0;
+    }
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
         (*it)->disconnect();
