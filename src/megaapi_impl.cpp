@@ -143,12 +143,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
     this->sharekey = NULL;
-
-    this->children = node->getChildren();
-    if (this->children)
-    {
-        this->children = this->children->copy();
-    }
+    this->children = NULL;
 
     if (node->isExported())
     {
@@ -1705,15 +1700,27 @@ void MegaTransferPrivate::setUpdateTime(int64_t updateTime)
 {
 	this->updateTime = updateTime;
 }
-void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
+void MegaTransferPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
-    if(this->publicNode)
+    if (this->publicNode)
+    {
     	delete this->publicNode;
+    }
 
-    if(!publicNode)
+    if (!publicNode)
+    {
     	this->publicNode = NULL;
+    }
     else
-    	this->publicNode = publicNode->copy();
+    {
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        this->publicNode = nodePrivate;
+    }
 }
 
 void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
@@ -2493,15 +2500,27 @@ Proxy *MegaRequestPrivate::getProxy()
     return proxy;
 }
 
-void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
+void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
-    if(this->publicNode)
+    if (this->publicNode)
+    {
 		delete this->publicNode;
+    }
 
-    if(!publicNode)
+    if (!publicNode)
+    {
 		this->publicNode = NULL;
+    }
     else
-		this->publicNode = publicNode->copy();
+    {
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(publicNode);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(publicNode->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        this->publicNode = nodePrivate;
+    }
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -2773,18 +2792,27 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList)
+MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
-	if (!s)
-	{
-		list = NULL;
-		return;
-	}
+    if (!s)
+    {
+        list = NULL;
+        return;
+    }
 
-	list = new MegaNode*[s];
-	for (int i = 0; i<s; i++)
-        list[i] = new MegaNodePrivate(nodeList->get(i));
+    list = new MegaNode*[s];
+    for (int i = 0; i<s; i++)
+    {
+        MegaNode *node = nodeList->get(i);
+        MegaNodePrivate *nodePrivate = new MegaNodePrivate(node);
+        MegaNodeListPrivate *children = dynamic_cast<MegaNodeListPrivate *>(node->getChildren());
+        if (children && copyChildren)
+        {
+            nodePrivate->setChildren(new MegaNodeListPrivate(children, true));
+        }
+        list[i] = nodePrivate;
+    }
 }
 
 MegaNodeListPrivate::~MegaNodeListPrivate()
@@ -4297,7 +4325,7 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
@@ -4310,7 +4338,7 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode *target, const char *newName
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
@@ -4353,7 +4381,7 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestL
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
     if (node)
     {
-        request->setPublicNode(node);
+        request->setPublicNode(node, true);
         request->setNodeHandle(node->getHandle());
     }
     request->setEmail(email);
@@ -5334,7 +5362,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
         transfer->setNodeHandle(node->getHandle());
         if (node->isPublic() || node->isForeign())
         {
-            transfer->setPublicNode(node);
+            transfer->setPublicNode(node, true);
         }
     }
 
@@ -11144,7 +11172,6 @@ void MegaApiImpl::sendPendingTransfers()
                 }
 
                 // File download
-                currentTransfer=transfer;
                 if (!transfer->isStreamingTransfer())
                 {
                     string name;
@@ -11190,7 +11217,6 @@ void MegaApiImpl::sendPendingTransfers()
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
-                        f = new MegaFileGet(client, node, path);
                     }
                     else
                     {
@@ -11206,6 +11232,78 @@ void MegaApiImpl::sendPendingTransfers()
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
+                    }
+
+                    string wLocalPath;
+                    FileFingerprint *prevFp = NULL;
+                    m_off_t size = 0;
+                    fsAccess->path2local(&path, &wLocalPath);
+                    FileAccess *fa = fsAccess->newfileaccess();
+                    if (fa->fopen(&wLocalPath, true, false))
+                    {
+                        if (node)
+                        {
+                            prevFp = node;
+                            size = node->size;
+                        }
+                        else
+                        {
+                            const char *fpstring = publicNode->getFingerprint();
+                            prevFp = getFileFingerprintInternal(fpstring);
+                            size = publicNode->getSize();
+                        }
+
+                        bool duplicate = false;
+                        if (prevFp && prevFp->isvalid)
+                        {
+                            FileFingerprint fp;
+                            fp.genfingerprint(fa);
+                            if (fp == *prevFp)
+                            {
+                                duplicate = true;
+                            }
+                        }
+                        else if (fa->size == size)
+                        {
+                            duplicate = true;
+                        }
+
+                        if (duplicate)
+                        {
+                            transferMap[nextTag] = transfer;
+                            transfer->setTag(nextTag);
+                            transfer->setTotalBytes(fa->size);
+                            transfer->setTransferredBytes(fa->size);
+                            transfer->setPath(path.c_str());
+                            fireOnTransferStart(transfer);
+                            if (node)
+                            {
+                                transfer->setNodeHandle(node->nodehandle);
+                            }
+                            else
+                            {
+                                transfer->setNodeHandle(publicNode->getHandle());
+                                delete prevFp;
+                            }
+                            transfer->setDeltaSize(fa->size);
+                            transfer->setSpeed(0);
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
+                            fireOnTransferFinish(transfer, MegaError(API_OK));
+                            delete fa;
+                            break;
+                        }
+                    }
+                    delete fa;
+
+                    currentTransfer = transfer;
+                    if (node)
+                    {
+                        f = new MegaFileGet(client, node, path);
+                    }
+                    else
+                    {
+                        delete prevFp;
                         f = new MegaFileGet(client, publicNode, path);
                     }
 
@@ -11248,6 +11346,7 @@ void MegaApiImpl::sendPendingTransfers()
                 }
                 else
                 {
+                    currentTransfer = transfer;
                     m_off_t startPos = transfer->getStartPos();
                     m_off_t endPos = transfer->getEndPos();
                     if (startPos < 0 || endPos < 0 || startPos > endPos)
@@ -14816,7 +14915,6 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         int l = localpath.size();
 
         string name = child->getName();
-        int64_t size = child->getSize();
         client->fsaccess->name2local(&name);
         localpath.append(name);
 
@@ -14826,46 +14924,6 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         if (child->getType() == MegaNode::TYPE_FILE)
         {
             pendingTransfers++;
-            FileAccess *fa = NULL;
-            fa = client->fsaccess->newfileaccess();
-
-            if (fa->fopen(&localpath, true, false) && fa->type == FILENODE)
-            {
-                const char *fpLocal = megaApi->getFingerprint(localpath.c_str());
-                const char *fpRemote = megaApi->getFingerprint(child);
-
-                if ((fpLocal && fpRemote && !strcmp(fpLocal,fpRemote))
-                        || (!fpRemote && size == fa->size
-                            && child->getModificationTime() == fa->mtime))
-                {
-                    delete [] fpLocal;
-                    delete [] fpRemote;
-
-                    LOG_debug << "Already downloaded file detected: " << utf8path;
-                    int nextTag = client->nextreqtag();
-                    MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, this);
-
-                    t->setPath(utf8path.data());
-                    t->setNodeHandle(child->getHandle());
-
-                    t->setTag(nextTag);
-                    t->setFolderTransferTag(tag);
-                    t->setTotalBytes(size);
-                    megaApi->transferMap[nextTag] = t;
-                    megaApi->fireOnTransferStart(t);
-
-                    t->setTransferredBytes(size);
-                    t->setDeltaSize(size);
-                    megaApi->fireOnTransferFinish(t, MegaError(API_OK));
-                    localpath.resize(l);
-                    delete fa;
-                    continue;
-                }
-                delete [] fpLocal;
-                delete [] fpRemote;
-            }
-            delete fa;
-
             megaApi->startDownload(child, utf8path.c_str(), 0, 0, tag, NULL, this);
         }
         else
