@@ -230,7 +230,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validOptValues->insert("level");
         validOptValues->insert("personal-representation");
     }
-    else if ("find")
+    else if ("find" == thecommand)
     {
         validOptValues->insert("pattern");
     }
