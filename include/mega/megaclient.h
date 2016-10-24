@@ -243,6 +243,9 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // abort lock request
+    void abortlockrequest();
+
     // abort session and free all state information
     void logout();
 

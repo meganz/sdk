@@ -8889,20 +8889,17 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
-    if(requestMap.size() == 1)
+    if (requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        if(request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
+        if (request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
-            if(request->getTransferredBytes() != currentProgress)
+            request->setTransferredBytes(currentProgress);
+            if (totalProgress != -1)
             {
-                request->setTransferredBytes(currentProgress);
-                if(totalProgress != -1)
-                {
-                    request->setTotalBytes(totalProgress);
-                }
-                fireOnRequestUpdate(request);
+                request->setTotalBytes(totalProgress);
             }
+            fireOnRequestUpdate(request);
         }
     }
 }

@@ -1101,11 +1101,17 @@ void MegaClient::exec()
                     case REQ_INFLIGHT:
                         if (pendingcs->contentlength > 0)
                         {
-                            app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                            if (pendingcs->bufpos > pendingcs->notifiedbufpos)
+                            {
+                                abortlockrequest();
+                                app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                                pendingcs->notifiedbufpos = pendingcs->bufpos;
+                            }
                         }
                         break;
 
                     case REQ_SUCCESS:
+                        abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
                         if (pendingcs->in != "-3" && pendingcs->in != "-4")
@@ -1160,6 +1166,7 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        abortlockrequest();
                         if (pendingcs->sslcheckfailed)
                         {
                             sslfakeissuer = pendingcs->sslfakeissuer;
@@ -2591,14 +2598,7 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
-    if (workinglockcs)
-    {
-        btworkinglock.reset();
-        delete workinglockcs;
-        workinglockcs = NULL;
-        requestLock = false;
-        requestLockTimestamp = 0;
-    }
+    abortlockrequest();
 
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
@@ -2627,6 +2627,18 @@ void MegaClient::disconnect()
 
     httpio->lastdata = NEVER;
     httpio->disconnect();
+}
+
+void MegaClient::abortlockrequest()
+{
+    if (workinglockcs)
+    {
+        btworkinglock.reset();
+        delete workinglockcs;
+        workinglockcs = NULL;
+        requestLock = false;
+        requestLockTimestamp = 0;
+    }
 }
 
 void MegaClient::logout()

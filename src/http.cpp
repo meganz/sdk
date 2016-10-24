@@ -289,6 +289,7 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 
     httpio = client->httpio;
     bufpos = 0;
+    notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
 
@@ -356,6 +357,7 @@ void HttpReq::init()
     inpurge = 0;
     sslcheckfailed = false;
     bufpos = 0;
+    notifiedbufpos = 0;
     contentlength = 0;
     timeleft = -1;
     lastdata = 0;

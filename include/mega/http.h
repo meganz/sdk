@@ -161,7 +161,7 @@ struct MEGA_API HttpReq
     string chunkedout;
 
     byte* buf;
-    m_off_t buflen, bufpos;
+    m_off_t buflen, bufpos, notifiedbufpos;
 
     // we assume that API responses are smaller than 4 GB
     m_off_t contentlength;
