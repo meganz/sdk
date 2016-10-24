@@ -2104,6 +2104,15 @@ int MegaClient::preparewait()
             {
                 nds = timeout;
             }
+
+            if (pendingcs && !fetchingnodes)
+            {
+                timeout = httpio->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout >= Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+            }
         }
     }
 
