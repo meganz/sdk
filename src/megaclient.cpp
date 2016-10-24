@@ -2016,12 +2016,12 @@ int MegaClient::preparewait()
         }
 
         // retry failed badhost requests
-        if (!badhostcs)
+        if (!badhostcs && badhosts.size())
         {
             btbadhost.update(&nds);
         }
 
-        if (!workinglockcs)
+        if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
         }
