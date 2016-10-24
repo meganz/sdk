@@ -684,7 +684,6 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     requestLock = false;
-    requestLockTimestamp = 0;
     totalNodes = 0;
 
 #ifdef ENABLE_SYNC
@@ -875,8 +874,8 @@ void MegaClient::exec()
         disconnect();
     }
 
-    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::REQUESTTIMEOUT
-            && pendingcs && !fetchingnodes && !requestLock)
+    if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
+            &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
         LOG_debug << "Request timeout. Triggering a lock request";
         requestLock = true;
@@ -1127,6 +1126,8 @@ void MegaClient::exec()
                                 // request succeeded, process result array
                                 json.begin(pendingcs->in.c_str());
                                 reqs.procresult(this);
+
+                                WAIT_CLASS::bumpds();
 
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -1409,6 +1410,8 @@ void MegaClient::exec()
                     reqtag = 0;
                     sendevent(99425, "Timeout (server busy)");
                     reqtag = creqtag;
+
+                    pendingcs->lastdata = Waiter::ds;
                 }
                 else
                 {
@@ -1418,16 +1421,14 @@ void MegaClient::exec()
                 delete workinglockcs;
                 workinglockcs = NULL;
                 requestLock = false;
-                requestLockTimestamp = 0;
             }
             else if (workinglockcs->status == REQ_FAILURE
-                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= requestLockTimestamp + HttpIO::REQUESTTIMEOUT))
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
                 delete workinglockcs;
                 workinglockcs = NULL;
-                requestLockTimestamp = 0;
             }
         }
 
@@ -1955,7 +1956,6 @@ void MegaClient::exec()
             workinglockcs->posturl.append("&wlt=1");
             workinglockcs->type = REQ_JSON;
             workinglockcs->post(this);
-            requestLockTimestamp = Waiter::ds;
         }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
@@ -2096,21 +2096,45 @@ int MegaClient::preparewait()
 #endif
 
         // detect stuck network
-        if (EVER(httpio->lastdata))
+        if (EVER(httpio->lastdata) && !pendingcs)
         {
             dstime timeout = httpio->lastdata + HttpIO::NETWORKTIMEOUT;
 
-            if (timeout >= Waiter::ds && timeout < nds)
+            if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
             }
-
-            if (pendingcs && !fetchingnodes)
+            else if (timeout <= Waiter::ds)
             {
-                timeout = httpio->lastdata + HttpIO::REQUESTTIMEOUT;
-                if (timeout >= Waiter::ds && timeout < nds)
+                nds = 0;
+            }
+        }
+
+        if (pendingcs && EVER(pendingcs->lastdata))
+        {
+            if (!requestLock && !fetchingnodes)
+            {
+                dstime timeout = pendingcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
                 {
                     nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (workinglockcs && EVER(workinglockcs->lastdata)
+                     && workinglockcs->status == REQ_INFLIGHT)
+            {
+                dstime timeout = workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
                 }
             }
         }
@@ -2640,14 +2664,10 @@ void MegaClient::disconnect()
 
 void MegaClient::abortlockrequest()
 {
-    if (workinglockcs)
-    {
-        btworkinglock.reset();
-        delete workinglockcs;
-        workinglockcs = NULL;
-        requestLock = false;
-        requestLockTimestamp = 0;
-    }
+    delete workinglockcs;
+    workinglockcs = NULL;
+    btworkinglock.reset();
+    requestLock = false;
 }
 
 void MegaClient::logout()

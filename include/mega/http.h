@@ -205,7 +205,7 @@ struct MEGA_API HttpReq
     // progress information
     virtual m_off_t transferred(MegaClient*);
 
-    // timestamp of last data received
+    // timestamp of last data sent or received
     dstime lastdata;
 
     // prevent raw data from being dumped in debug mode

@@ -292,6 +292,7 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
+    lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
 }
@@ -360,7 +361,7 @@ void HttpReq::init()
     notifiedbufpos = 0;
     contentlength = 0;
     timeleft = -1;
-    lastdata = 0;
+    lastdata = NEVER;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
