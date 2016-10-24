@@ -1389,12 +1389,19 @@ void MegaClient::exec()
 
                 if (workinglockcs->in == "1")
                 {
-                    LOG_warn << "Disconnecting due to timeout (server idle)";
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99424, "Timeout (server idle)");
+                    reqtag = creqtag;
+
                     disconnect();
                 }
                 else if (workinglockcs->in == "0")
                 {
-                    LOG_debug << "Timeout not causing disconnect (server busy)";
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99425, "Timeout (server busy)");
+                    reqtag = creqtag;
                 }
                 else
                 {
