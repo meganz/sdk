@@ -1530,6 +1530,7 @@ void megacmd()
                     {
                         cm->waitForPetitionOrReadlineInput(readline_fd);
                     }
+                    api->retryPendingConnections();
 
                     if (cm->receivedReadlineInput(readline_fd))
                     {

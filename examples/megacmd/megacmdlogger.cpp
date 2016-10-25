@@ -115,10 +115,14 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
     {
         if (loglevel <= apiLoggerLevel)
         {
+            if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) starting") ) return;
+            if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) finished")  ) return;
+
             *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
         }
 
         int currentThreadLogLevel = getCurrentThreadLogLevel();
+
         if (currentThreadLogLevel < 0)
         {
             currentThreadLogLevel = apiLoggerLevel;
