@@ -50,6 +50,7 @@ class LibUVMutex : public Mutex
 {
 public:
     LibUVMutex();
+    LibUVMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

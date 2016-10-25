@@ -1793,8 +1793,8 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE,
-		TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
         };
 
         virtual ~MegaRequest();
@@ -2149,6 +2149,7 @@ class MegaRequest
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
+         * - MegaApi::setMaxConnections - Returns the direction of transfers
          *
          * @return Type of parameter related to the request
          */
@@ -2198,6 +2199,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
+         * - MegaApi::setMaxConnections - Returns the number of connections
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -6645,6 +6647,39 @@ class MegaApi
         void setUploadLimit(int bpslimit);
 
         /**
+         * @brief Set the maximum number of connections per transfer
+         *
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value for \c direction parameter
+         * - MegaRequest::getNumber - Returns the number of \c connections
+         *
+         * @param direction Direction of transfers
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         * @param connections Maximum number of connection (it should between 1 and 6)
+         */
+        void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Set the maximum number of connections per transfer for downloads and uploads
+         *
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of connections
+         *
+         * @param connections Maximum number of connection (it should between 1 and 6)
+         */
+        void setMaxConnections(int connections, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Set the transfer method for downloads
          *
          * Valid methods are:
@@ -8095,6 +8130,30 @@ class MegaApi
          * @param enable true to keep public key pinning enabled, false to disable it
          */
         void setPublicKeyPinning(bool enable);
+
+        /**
+         * @brief Pause the reception of action packets
+         *
+         * This function is intended to help apps to initialize themselves
+         * after the reception of nodes (MegaApi::fetchNodes) but before the reception
+         * of action packets.
+         *
+         * For that purpose, this function can be called synchronously in the callback
+         * onRequestFinish related to the fetchNodes request.
+         *
+         * After your initialization is finished, you can call MegaApi::resumeActionPackets
+         * to start receiving external updates.
+         *
+         * If you forget to call MegaApi::resumeActionPackets after the usage of this function
+         * the SDK won't work properly. Do not use this function for other purposes.
+         */
+        void pauseActionPackets();
+
+        /**
+         * @brief Resume the reception of action packets
+         * @see MegaApi::pauseActionPackets
+         */
+        void resumeActionPackets();
 
 	#ifdef _WIN32
 		/**

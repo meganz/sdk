@@ -64,6 +64,14 @@ LibUVMutex::LibUVMutex()
     count = NULL;
 }
 
+LibUVMutex::LibUVMutex(bool recursive)
+{
+    mutex = NULL;
+    count = NULL;
+
+    init(recursive);
+}
+
 void LibUVMutex::init(bool recursive)
 {
     mutex = new uv_mutex_t;

@@ -159,6 +159,18 @@ protected:
     MegaClient *client;
 };
 
+
+class MegaSizeProcessor : public MegaTreeProcessor
+{
+    protected:
+        long long totalBytes;
+
+    public:
+        MegaSizeProcessor();
+        virtual bool processMegaNode(MegaNode* node);
+        long long getTotalBytes();
+};
+
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
 {
 public:
@@ -398,7 +410,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 		void setSpeed(long long speed);
 		void setDeltaSize(long long deltaSize);
         void setUpdateTime(int64_t updateTime);
-        void setPublicNode(MegaNode *publicNode);
+        void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStreamingTransfer(bool streamingTransfer);
@@ -629,7 +641,7 @@ class MegaRequestPrivate : public MegaRequest
 		void setAccess(int access);
 		void setNumRetry(int ds);
 		void setNextRetryDelay(int delay);
-        void setPublicNode(MegaNode* publicNode);
+        void setPublicNode(MegaNode* publicNode, bool copyChildren = false);
 		void setNumDetails(int numDetails);
 		void setFile(const char* file);
         void setParamType(int type);
@@ -994,13 +1006,13 @@ class MegaNodeListPrivate : public MegaNodeList
 	public:
         MegaNodeListPrivate();
         MegaNodeListPrivate(Node** newlist, int size);
+        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
 	
 	protected:
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -1393,6 +1405,7 @@ class MegaApiImpl : public MegaApp
         void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
+        void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
         int getDownloadMethod();
@@ -1522,6 +1535,8 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
+        void pauseActionPackets();
+        void resumeActionPackets();
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);

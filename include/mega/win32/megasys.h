@@ -87,19 +87,6 @@
   #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-// FIXME: move to auto-generated file
-#ifndef MEGA_MAJOR_VERSION
-  #define MEGA_MAJOR_VERSION 2
-#endif
-
-#ifndef MEGA_MINOR_VERSION
-  #define MEGA_MINOR_VERSION 6
-#endif
-
-#ifndef MEGA_MICRO_VERSION
-  #define MEGA_MICRO_VERSION 0
-#endif
-
 #include <conio.h>
 
 #endif
