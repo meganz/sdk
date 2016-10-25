@@ -161,6 +161,12 @@ public:
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
+    // maximum number of connections per transfer
+    static const unsigned MAX_NUM_CONNECTIONS = 6;
+
+    // set max connections per transfer
+    void setmaxconnections(direction_t, int);
+
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
@@ -556,6 +562,9 @@ public:
     void initsc();
     void updatesc();
     void finalizesc(bool);
+
+    // flag to pause / resume the processing of action packets
+    bool scpaused;
 
     // MegaClient-Server response JSON
     JSON json;

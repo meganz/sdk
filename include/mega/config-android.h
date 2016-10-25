@@ -111,15 +111,6 @@
    */
 #define LT_OBJDIR ".libs/"
 
-/* MEGA SDK major version. */
-#define MEGA_MAJOR_VERSION 2
-
-/* MEGA SDK micro version. */
-#define MEGA_MICRO_VERSION 0
-
-/* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 6
-
 /* Name of package */
 #define PACKAGE "libmega"
 

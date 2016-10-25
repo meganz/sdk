@@ -143,7 +143,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
     if ((n = nodebyhandle(s->h)))
     {
-        if (!n->sharekey && s->have_key)
+        if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
         {
             // setting an outbound sharekey requires node authentication
             // unless coming from a trusted source (the local cache)
@@ -172,6 +172,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
             if (auth)
             {
+                if (n->sharekey)
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99424,"Replacing share key");
+                    reqtag = creqtag;
+                    delete n->sharekey;
+                }
                 n->sharekey = new SymmCipher(s->key);
                 skreceived = true;
             }
@@ -217,7 +225,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 }
 
                 // Erase sharekey if no outgoing shares (incl pending) exist
-                if (!n->outshares && !n->pendingshares)
+                if (s->remove_key && !n->outshares && !n->pendingshares)
                 {
                     rewriteforeignkeys(n);
 
@@ -737,6 +745,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtupport = false;
     retryessl = false;
     workinglockcs = NULL;
+    scpaused = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1328,9 +1337,9 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
 #else
-        if (jsonsc.pos)
+        if (!scpaused && jsonsc.pos)
 #endif
         {
             // FIXME: reload in case of bad JSON
@@ -2740,6 +2749,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     overquotauntil = 0;
+    scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -3616,7 +3626,7 @@ void MegaClient::sc_newnodes()
 
 // share requests come in the following flavours:
 // - n/k (set share key) (always symmetric)
-// - n/o/u (share deletion)
+// - n/o/u[/okd] (share deletion)
 // - n/o/u/k/r/ts[/ok][/ha] (share addition) (k can be asymmetric)
 // returns 0 in case of a share addition or error, 1 otherwise
 bool MegaClient::sc_shares()
@@ -3628,6 +3638,7 @@ bool MegaClient::sc_shares()
     bool upgrade_pending_to_full = false;
     const char* k = NULL;
     const char* ok = NULL;
+    bool okremoved = false;
     byte ha[SymmCipher::BLOCKSIZE];
     byte sharekey[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
@@ -3661,6 +3672,10 @@ bool MegaClient::sc_shares()
 
             case MAKENAMEID2('o', 'k'):  // owner key
                 ok = jsonsc.getvalue();
+                break;
+
+            case MAKENAMEID3('o', 'k', 'd'):
+                okremoved = (jsonsc.getint() == 1); // owner key removed
                 break;
 
             case MAKENAMEID2('h', 'a'):  // outgoing share signature
@@ -3738,7 +3753,8 @@ bool MegaClient::sc_shares()
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         // share revocation or share without key
-                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, r, 0, NULL, NULL, p, false));
+                        newshares.push_back(new NewShare(h, outbound,
+                                                         outbound ? uh : oh, r, 0, NULL, NULL, p, false, okremoved));
                         return r == ACCESS_UNKNOWN;
                     }
                 }
@@ -7322,8 +7338,7 @@ void MegaClient::procmcf(JSON *j)
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                            && shard != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
@@ -10175,6 +10190,29 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
             else
             {
                 it++;
+            }
+        }
+    }
+}
+
+void MegaClient::setmaxconnections(direction_t d, int num)
+{
+    if (num > 0)
+    {
+        if (num > MegaClient::MAX_NUM_CONNECTIONS)
+        {
+            num = MegaClient::MAX_NUM_CONNECTIONS;
+        }
+
+        connections[d] = num;
+        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+        {
+            TransferSlot *slot = *it++;
+            if (slot->transfer->type == d)
+            {
+                slot->transfer->bt.arm();
+                slot->transfer->cachedtempurl = slot->tempurl;
+                delete slot;
             }
         }
     }

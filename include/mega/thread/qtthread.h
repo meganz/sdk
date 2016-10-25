@@ -51,6 +51,7 @@ class QtMutex : public Mutex
 {
 public:
     QtMutex();
+    QtMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

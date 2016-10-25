@@ -49,6 +49,7 @@ class Win32Mutex : public Mutex
 {
 public:
     Win32Mutex();
+    Win32Mutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
