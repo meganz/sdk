@@ -818,7 +818,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     reqtag = 0;
 
     badhostcs = NULL;
-    workinglockcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
     cachedscsn = UNDEF;
@@ -868,10 +867,19 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if ((EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
-            && !pendingcs) || (EVER(disconnecttimestamp) && disconnecttimestamp <= Waiter::ds))
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs)
     {
         LOG_debug << "Network timeout. Reconnecting";
+        disconnect();
+    }
+    else if (EVER(disconnecttimestamp) && disconnecttimestamp <= Waiter::ds)
+    {
+        int creqtag = reqtag;
+        reqtag = 0;
+        sendevent(99424, "Timeout (server idle)");
+        reqtag = creqtag;
+
         disconnect();
     }
 
@@ -1398,11 +1406,7 @@ void MegaClient::exec()
 
                 if (workinglockcs->in == "1")
                 {
-                    int creqtag = reqtag;
-                    reqtag = 0;
-                    sendevent(99424, "Timeout (server idle)");
-                    reqtag = creqtag;
-
+                    LOG_warn << "Timeout (server idle)";
                     disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
                 else if (workinglockcs->in == "0")
