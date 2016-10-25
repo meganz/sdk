@@ -81,15 +81,6 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
-     *
-     * A key pair will be added, if not present, yet.
-     *
-     * @return Error code (default: 1 on success).
-     */
-    int inited25519();
-
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
@@ -98,6 +89,9 @@ public:
 
     // session login: binary session, bytecount
     void login(const byte*, int);
+
+    // check password
+    error validatepwd(const byte *);
 
     // get user data
     void getuserdata();
@@ -135,6 +129,12 @@ public:
     // load all trees: nodes, shares, contacts
     void fetchnodes();
 
+#ifdef ENABLE_CHAT
+    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
+    void fetchkeys();    
+    void initializekeys();
+#endif
+
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
@@ -160,6 +160,12 @@ public:
     bool startxfer(direction_t, File*, bool skipdupes = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
+
+    // maximum number of connections per transfer
+    static const unsigned MAX_NUM_CONNECTIONS = 6;
+
+    // set max connections per transfer
+    void setmaxconnections(direction_t, int);
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
@@ -206,10 +212,21 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+
+    // attach/update multiple versioned user attributes at once
+    void putua(userattr_map *attrs, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL);
+    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+
+    // queue a user attribute retrieval (for non-contacts)
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+
+#ifdef DEBUG
+    // queue a user attribute removal
+    void delua(const char* an);
+#endif
 
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN);
@@ -223,6 +240,7 @@ public:
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t);
+    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -230,6 +248,9 @@ public:
 
     // close all open HTTP connections
     void disconnect();
+
+    // abort lock request
+    void abortlockrequest();
 
     // abort session and free all state information
     void logout();
@@ -296,11 +317,8 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, const userpriv_vector *userpriv);
 
-    // fetch the list of chats
-    void fetchChats();
-
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, const char *uid = NULL);
@@ -316,6 +334,15 @@ public:
 
     // revoke access to a chat peer to one specific node
     void removeAccessInChat(handle chatid, handle h, const char *uid);
+
+    // update permissions of a peer in a chat
+    void updateChatPermissions(handle chatid, const char *uid, int priv);
+
+    // truncate chat from message id
+    void truncateChat(handle chatid, handle messageid);
+
+    // set title of the chat
+    void setChatTitle(handle chatid, const char *title = NULL);
 #endif
 
     // toggle global debug flag
@@ -362,9 +389,6 @@ public:
     // root URL for API requests
     static string APIURL;
 
-    // root URL for load balancing requests
-    static const char* const BALANCERURL;
-
     // account auth for public folders
     string accountauth;
 
@@ -374,6 +398,7 @@ public:
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -381,7 +406,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
-    HttpReq* loadbalancingcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -410,7 +437,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 12;
+    static const unsigned MAXTRANSFERS = 24;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);
@@ -542,6 +569,9 @@ public:
     void updatesc();
     void finalizesc(bool);
 
+    // flag to pause / resume the processing of action packets
+    bool scpaused;
+
     // MegaClient-Server response JSON
     JSON json;
 
@@ -607,6 +637,10 @@ public:
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
 
+    // path of temporary files
+    // waiting for the completion of a putnodes
+    pendingfiles_map pendingfiles;
+
     // transfer tslots
     transferslot_list tslots;
 
@@ -631,6 +665,9 @@ public:
     // initial state load in progress?
     bool fetchingnodes;
     int fetchnodestag;
+
+    // total number of Node objects
+    long long totalNodes;
 
     // server-client request sequence number
     char scsn[12];
@@ -731,6 +768,9 @@ public:
     // number of sync-initiated putnodes() in progress
     int syncadding;
 
+    // total number of LocalNode objects
+    long long totalLocalNodes;
+
     // sync id dispatch
     handle nextsyncid();
     handle currsyncid;
@@ -798,9 +838,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
-    
-    // queue for load balancing requests
-    std::queue<CommandLoadBalancing*> loadbalancingreqs;
+
+    bool requestLock;
+    dstime disconnecttimestamp;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
@@ -820,6 +860,8 @@ public:
 
     void procsnk(JSON*);
     void procsuk(JSON*);
+
+    void procmcf(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
@@ -860,12 +902,27 @@ public:
     // dummy key to obfuscate non protected cache
     SymmCipher tckey;
 
-    // account access (full account): RSA key
+    // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
-    EdDSA signkey;
+#ifdef ENABLE_CHAT
+    // RSA public key
+    AsymmCipher pubk;
+
+    // EdDSA signing key (Ed25519 private key seed).
+    EdDSA *signkey;
+
+    // ECDH key (x25519 private key).
+    ECDH *chatkey;
+
+    // actual state of keys
+    bool fetchingkeys;
+
+    // invalidate received keys (when fail to load)
+    void clearKeys();
+
+    // delete chatkey and signing key
+    void resetKeyring();
 #endif
 
     // binary session ID
@@ -880,7 +937,10 @@ public:
     // locate user by e-mail address or by handle
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
+    User* ownuser();
     void mapuser(handle, const char*);
+    void discarduser(handle);
+    void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
 
     PendingContactRequest* findpcr(handle);
@@ -902,14 +962,14 @@ public:
     // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
     handle getrootpublicfolder();
 
+    // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
+    handle getpublicfolderhandle();
+
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
-
-    // load balancing request
-    void loadbalancing(const char *);
 
     // convert hex digit to number
     static int hexval(char);
@@ -918,6 +978,30 @@ public:
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);
+
+    // request a link to recover account
+    void getrecoverylink(const char *email, bool hasMasterkey);
+
+    // query information about recovery link
+    void queryrecoverylink(const char *link);
+
+    // request private key for integrity checking the masterkey
+    void getprivatekey(const char *code);
+
+    // confirm a recovery link to restore the account
+    void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
+
+    // request a link to cancel the account
+    void getcancellink(const char *email);
+
+    // confirm a link to cancel the account
+    void confirmcancellink(const char *code);
+
+    // get a link to change the email address
+    void getemaillink(const char *email);
+
+    // confirm a link to change the email address
+    void confirmemaillink(const char *code, const char *email, const byte *pwkey);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

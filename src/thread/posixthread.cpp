@@ -53,6 +53,14 @@ PosixMutex::PosixMutex()
     attr = NULL;
 }
 
+PosixMutex::PosixMutex(bool recursive)
+{
+    mutex = NULL;
+    attr = NULL;
+
+    init(recursive);
+}
+
 void PosixMutex::init(bool recursive)
 {
     if (recursive)

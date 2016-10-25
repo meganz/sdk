@@ -1011,7 +1011,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, true);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, HttpIO::CONNECTTIMEOUT / 10);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
@@ -1022,15 +1022,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
 #else
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        if(!MegaClient::disablepkp)
+        if (!MegaClient::disablepkp)
         {
-            if(!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
+            if (!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
             {
                 curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "g.api.mega.co.nz.der");
-            }
-            else if(!req->posturl.compare(0, strlen(MegaClient::BALANCERURL), MegaClient::BALANCERURL))
-            {
-                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "karere-001.developers.mega.co.nz.der");
             }
             else
             {
@@ -1636,6 +1632,7 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
                 {
                     dnsok = true;
                     lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
                 else
                 {
@@ -1835,19 +1832,21 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
 size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target)
 {
-    if(((HttpReq*)target)->httpio)
+    HttpReq *req = (HttpReq*)target;
+    if (req->httpio)
     {
-        if (((HttpReq*)target)->chunked)
+        if (req->chunked)
         {
-            ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
+            ((CurlHttpIO*)req->httpio)->statechange = true;
         }
 
         if (size * nmemb)
         {
-            ((HttpReq*)target)->put(ptr, size * nmemb, true);
+            req->put(ptr, size * nmemb, true);
         }
 
-        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+        req->httpio->lastdata = Waiter::ds;
+        req->lastdata = Waiter::ds;
     }
 
     return size * nmemb;
@@ -1856,6 +1855,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
+    HttpReq *req = (HttpReq*)target;
     if (size * nmemb > 2)
     {
         LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
@@ -1863,40 +1863,41 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 
     if (!memcmp(ptr, "HTTP/", 5))
     {
-        if (((HttpReq*)target)->contentlength >= 0)
+        if (req->contentlength >= 0)
         {
             // For authentication with some proxies, cURL sends two requests in the context of a single one
             // Content-Length is reset here to not take into account the header from the first response
 
             LOG_warn << "Receiving a second response. Resetting Content-Length";
-            ((HttpReq*)target)->contentlength = -1;
+            req->contentlength = -1;
         }
 
         return size * nmemb;
     }
     else if (!memcmp(ptr, "Content-Length:", 15))
     {
-        if (((HttpReq*)target)->contentlength < 0)
+        if (req->contentlength < 0)
         {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+            req->setcontentlength(atol((char*)ptr + 15));
         }
     }
     else if (!memcmp(ptr, "Original-Content-Length:", 24))
     {
-        ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+        req->setcontentlength(atol((char*)ptr + 24));
     }
     else if (!memcmp(ptr, "X-MEGA-Time-Left:", 17))
     {
-        ((HttpReq*)target)->timeleft = atol((char*)ptr + 17);
+        req->timeleft = atol((char*)ptr + 17);
     }
     else
     {
         return size * nmemb;
     }
 
-    if (((HttpReq*)target)->httpio)
+    if (req->httpio)
     {
-        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+        req->httpio->lastdata = Waiter::ds;
+        req->lastdata = Waiter::ds;
     }
 
     return size * nmemb;
@@ -2019,16 +2020,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
             if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
                 (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
-            {
-                BN_bn2bin(evp->pkey.rsa->e, buf);
-
-                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
-                {
-                    ok = 1;
-                }
-            }
-            else if (!memcmp(request->posturl.data(), MegaClient::BALANCERURL, strlen(MegaClient::BALANCERURL)) &&
-                     !memcmp(buf, BALANCERMODULUS1, sizeof BALANCERMODULUS1 - 1))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 

@@ -56,7 +56,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
         localdebris.insert(0, *crootpath);
@@ -66,7 +66,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
 
     // set specified fsfp or get from fs if none
@@ -572,11 +572,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     // attempt to open/type this file
     fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    if (initializing || fullscan)
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (initializing || fullscan)
+        if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
@@ -620,6 +620,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
+        delete fa;
+        fa = client->fsaccess->newfileaccess();
+    }
+
+    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    {
         if (!isroot)
         {
             if (l)
@@ -871,12 +877,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     }
     else
     {
-        if (initializing)
-        {
-            delete fa;
-            return NULL;
-        }
-
         LOG_warn << "Error opening file";
         if (fa->retry)
         {

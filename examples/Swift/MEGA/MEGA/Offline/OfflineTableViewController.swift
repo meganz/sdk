@@ -55,11 +55,9 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
         let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] 
         
         if let directoryContent : Array = try? NSFileManager.defaultManager().contentsOfDirectoryAtPath(documentDirectory) {
-            var i = 0
             
-            for i = 0; i < directoryContent.count; i++ {
+            for i in 0  ..< directoryContent.count {
                 let filename: String = String(directoryContent[i] as NSString)
-                let filePath = (documentDirectory as NSString).stringByAppendingPathComponent(filename)
                 
                 if !((filename.lowercaseString as NSString).pathExtension == "mega") {
                     if let node = megaapi.nodeForHandle(MEGASdk.handleForBase64Handle(filename)) {

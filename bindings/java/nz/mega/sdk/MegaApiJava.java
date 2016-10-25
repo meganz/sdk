@@ -114,7 +114,13 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO = MegaApi.TRANSFER_METHOD_AUTO;
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
-    
+
+
+    MegaApi getMegaApi()
+    {
+        return megaApi;
+    }
+
     /**
      * Constructor suitable for most applications.
      * 
@@ -949,6 +955,192 @@ public class MegaApiJava {
     }
 
     /**
+     * Initialize the reset of the existing password, with and without the Master Key.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_RECOVERY_LINK.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
+     *
+     * If this request succeed, a recovery link will be sent to the user.
+     * If no account is registered under the provided email, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email used to register the account whose password wants to be reset.
+     * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void resetPassword(String email, boolean hasMasterKey, MegaRequestListenerInterface listener){
+        megaApi.resetPassword(email, hasMasterKey, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a recovery link created by MegaApi::resetPassword.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the recovery link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+     *
+     * @param link Recovery link (#recover)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryResetPasswordLink(String link, MegaRequestListenerInterface listener){
+        megaApi.queryResetPasswordLink(link, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set a new password for the account pointed by the recovery link.
+     *
+     * Recovery links are created by calling MegaApi::resetPassword and may or may not
+     * require to provide the Master Key.
+     *
+     * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the recovery link
+     * - MegaRequest::getPassword - Returns the new password
+     * - MegaRequest::getPrivateKey - Returns the Master Key, when provided
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+     *
+     * @param link The recovery link sent to the user's email address.
+     * @param newPwd The new password to be set.
+     * @param masterKey Base64-encoded string containing the master key (optional).
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void confirmResetPassword(String link, String newPwd, String masterKey, MegaRequestListenerInterface listener){
+        megaApi.confirmResetPassword(link, newPwd, masterKey, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the cancellation of an account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+     *
+     * If this request succeed, a cancellation link will be sent to the email address of the user.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * @see MegaApi::confirmCancelAccount
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void cancelAccount(MegaRequestListenerInterface listener){
+        megaApi.cancelAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a cancel link created by MegaApi::cancelAccount.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the cancel link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     *
+     * @param link Cancel link (#cancel)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryCancelLink(String link, MegaRequestListenerInterface listener){
+        megaApi.queryCancelLink(link, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Effectively parks the user's account without creating a new fresh account.
+     *
+     * The contents of the account will then be purged after 60 days. Once the account is
+     * parked, the user needs to contact MEGA support to restore the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CANCEL_LINK.
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the recovery link
+     * - MegaRequest::getPassword - Returns the new password
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     *
+     * @param link Cancellation link sent to the user's email address;
+     * @param pwd Password for the account.
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void confirmCancelAccount(String link, String pwd, MegaRequestListenerInterface listener){
+        megaApi.confirmCancelAccount(link, pwd, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the change of the email address associated to the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     *
+     * If this request succeed, a change-email link will be sent to the specified email address.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * @param email The new email to be associated to the account.
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void changeEmail(String email, MegaRequestListenerInterface listener){
+        megaApi.changeEmail(email, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a change-email link created by MegaApi::changeEmail.
+     *
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the change-email link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     *
+     * @param link Change-email link (#verify)
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void queryChangeEmailLink(String link, MegaRequestListenerInterface listener){
+        megaApi.queryChangeEmailLink(link, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Effectively changes the email address associated to the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the change-email link
+     * - MegaRequest::getPassword - Returns the password
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     *
+     * @param link Change-email link sent to the user's email address.
+     * @param pwd Password for the account.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void confirmChangeEmail(String link, String pwd, MegaRequestListenerInterface listener){
+        megaApi.confirmChangeEmail(link, pwd, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Set proxy settings.
      * <p>
      * The SDK will start using the provided proxy settings as soon as this function returns.
@@ -1032,6 +1224,22 @@ public class MegaApiJava {
      */
     public String getMyXMPPJid() {
     	return megaApi.getMyXMPPJid();
+    }
+
+
+    /**
+     * Returns the fingerprint of the signing key of the currently open account
+     *
+     * If the MegaApi object isn't logged in or there's no signing key available,
+     * this function returns NULL
+     *
+     * You take the ownership of the returned value.
+     * Use delete [] to free it.
+     *
+     * @return Fingerprint of the signing key of the current account
+     */
+    public String getMyFingerprint(){
+        return megaApi.getMyFingerprint();
     }
 
     /**
@@ -1784,7 +1992,38 @@ public class MegaApiJava {
     public void getUserAvatar(String dstFilePath) {
     	megaApi.getUserAvatar(dstFilePath);
     }
-    
+
+    /**
+     * Get the default color for the avatar.
+     *
+     * This color should be used only when the user doesn't have an avatar.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
+     *  is obtained for the active account.
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     * If the user is not found, this function returns NULL.
+     */
+    public String getUserAvatarColor(MegaUser user){
+        return megaApi.getUserAvatarColor(user);
+    }
+
+    /**
+     * Get the default color for the avatar.
+     *
+     * This color should be used only when the user doesn't have an avatar.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
+     * set to NULL, the avatar is obtained for the active account
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     * If the user is not found (invalid userhandle), this function returns NULL.
+     */
+    public String getUserAvatarColor(String userhandle){
+        return megaApi.getUserAvatarColor(userhandle);
+    }
 
     /**
      * Get an attribute of a MegaUser.
@@ -2129,6 +2368,49 @@ public class MegaApiJava {
     }
 
     /**
+     * Set the duration of audio/video files as a node attribute.
+     *
+     * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumber - Returns the number of seconds for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+     *
+     * @param node Node that will receive the information.
+     * @param duration Length of the audio/video in seconds.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeDuration(MegaNode node, int duration,  MegaRequestListenerInterface listener){
+        megaApi.setNodeDuration(node, duration, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set the GPS coordinates of image files as a node attribute.
+     *
+     * To remove the existing coordinates, set both the latitude and longitud to
+     * the value MegaNode::INVALID_COORDINATE.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+     * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+     * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+     *
+     * @param node Node that will receive the information.
+     * @param latitude Latitude in signed decimal degrees notation
+     * @param longitude Longitude in signed decimal degrees notation
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeCoordinates(MegaNode node, double latitude, double longitude,  MegaRequestListenerInterface listener){
+        megaApi.setNodeCoordinates(node, latitude, longitude, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Generate a public link of a file/folder in MEGA.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_EXPORT
@@ -2157,6 +2439,29 @@ public class MegaApiJava {
      */
     public void exportNode(MegaNode node) {
         megaApi.exportNode(node);
+    }
+
+    /**
+     * Generate a temporary public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * @param node MegaNode to get the public link
+     * @param expireTime Unix timestamp until the public link will be valid
+     * @param listener MegaRequestListener to track this request
+     *
+     * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+     */
+
+    public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
+        megaApi.exportNode(node, expireTime, createDelegateRequestListener(listener));
     }
 
     /**

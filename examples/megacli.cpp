@@ -31,6 +31,7 @@
 using namespace mega;
 
 MegaClient* client;
+MegaClient* clientFolder;
 
 // login e-mail address
 static string login;
@@ -44,14 +45,49 @@ static string signupcode;
 // signup password challenge and encrypted master key
 static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
 
+// password recovery e-mail address and code being confirmed
+static string recoveryemail, recoverycode;
+
+// password recovery code requires MK or not
+static bool hasMasterKey;
+
+// master key for password recovery
+static byte masterkey[SymmCipher::KEYLENGTH];
+
+// change email link to be confirmed
+static string changeemail, changecode;
+
+// chained folder link creation
+static handle hlink = UNDEF;
+static int del = 0;
+static int ets = 0;
+
 // local console
 Console* console;
 
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
-static const char* accesslevels[] =
-{ "read-only", "read/write", "full access" };
+static const char* getAccessLevelStr(int access)
+{
+    switch(access)
+    {
+    case ACCESS_UNKNOWN:
+        return "unkown";
+    case RDONLY:
+        return "read-only";
+    case RDWR:
+        return "read/write";
+    case FULL:
+        return "full access";
+    case OWNER:
+        return "owner access";
+    case OWNERPRELOGIN:
+        return "owner (prelogin) access";
+    default:
+        return "UNDEFINED";
+    }
+}
 
 const char* errorstring(error e)
 {
@@ -470,6 +506,24 @@ void DemoApp::users_updated(User** u, int count)
     {
         cout << count << " users received or updated" << endl;
     }
+
+    if (u)
+    {
+        User* user;
+        for (int i = 0; i < count; i++)
+        {
+            user = u[i];
+            cout << "User " << user->email;
+            if (user->getTag()) // false if external change
+            {
+                cout << " has been changed by your own client" << endl;
+            }
+            else
+            {
+                cout << " has been changed externally" << endl;
+            }
+        }
+    }
 }
 
 #ifdef ENABLE_CHAT
@@ -485,31 +539,6 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
         cout << "Chat created successfully" << endl;
         printChatInformation(chat);
         cout << endl;
-    }
-}
-
-void DemoApp::chatfetch_result(textchat_vector *chats, error e)
-{
-    if (e)
-    {
-        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat received or updated" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats received or updated" << endl;
-        }
-
-        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
-        {
-            printChatInformation(*it);
-            cout << endl;
-        }
     }
 }
 
@@ -574,6 +603,41 @@ void DemoApp::chatremoveaccess_result(error e)
     }
 }
 
+void DemoApp::chatupdatepermissions_result(error e)
+{
+    if (e)
+    {
+        cout << "Permissions update failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Permissions updated successfully" << endl;
+    }
+}
+
+void DemoApp::chattruncate_result(error e)
+{
+    if (e)
+    {
+        cout << "Truncate message/s failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Message/s truncated successfully" << endl;
+    }
+}
+void DemoApp::chatsettitle_result(error e)
+{
+    if (e)
+    {
+        cout << "Set title failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Title updated successfully" << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_vector *chats)
 {
     if (chats)
@@ -585,6 +649,11 @@ void DemoApp::chats_updated(textchat_vector *chats)
         else
         {
             cout << chats->size() << " chats updated or created" << endl;
+        }
+
+        for (unsigned int i = 0; i < chats->size(); i++)
+        {
+            printChatInformation(chats->at(i));
         }
     }
 }
@@ -627,20 +696,26 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << " no peers (only you as participant)" << endl;
     }
+    if (!chat->title.empty())
+    {
+        char *tstr = new char[chat->title.size() * 4 / 3 + 4];
+        Base64::btoa((const byte *)chat->title.data(), chat->title.size(), tstr);
+
+        cout << "\tTitle: " << tstr << endl;
+        delete [] tstr;
+    }
 }
 
 string DemoApp::getPrivilegeString(privilege_t priv)
 {
     switch (priv)
     {
-    case PRIV_FULL:
-        return "PRIV_FULL (full access)";
-    case PRIV_OPERATOR:
-        return "PRIV_OPERATOR (operator)";
+    case PRIV_STANDARD:
+        return "PRIV_STANDARD (standard access)";
+    case PRIV_MODERATOR:
+        return "PRIV_MODERATOR (moderator)";
     case PRIV_RO:
         return "PRIV_RO (read-only)";
-    case PRIV_RW:
-        return "PRIV_RW (read-write)";
     case PRIV_RM:
         return "PRIV_RM (removed)";
     case PRIV_UNKNOWN:
@@ -737,6 +812,10 @@ void DemoApp::fetchnodes_result(error e)
             {
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
+            else
+            {
+                cout << "Folder link loaded correctly." << endl;
+            }
         }
     }
 }
@@ -764,6 +843,34 @@ void DemoApp::share_result(error e)
     if (e)
     {
         cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (hlink != UNDEF)
+        {
+            if (!del)
+            {
+                Node *n = client->nodebyhandle(hlink);
+                if (!n)
+                {
+                    char buf[sizeof hlink * 4 / 3 + 3];
+                    Base64::btoa((byte *)&hlink, sizeof hlink, buf);
+
+                    cout << "Node was not found. (" << buf << ")" << endl;
+
+                    hlink = UNDEF;
+                    del = ets = 0;
+                    return;
+                }
+
+                client->getpubliclink(n, del, ets);
+            }
+            else
+            {
+                hlink = UNDEF;
+                del = ets = 0;
+            }
+        }
     }
 }
 
@@ -860,15 +967,83 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l)
 {
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
 }
+
+void DemoApp::getua_result(TLVstore *tlv)
+{
+#ifdef ENABLE_CHAT
+    if (client->fetchingkeys)
+    {
+        return;
+    }
+#endif
+
+    if (!tlv)
+    {
+        cout << "Error getting private user attribute" << endl;
+    }
+    else
+    {
+        cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+
+        vector<string> *keys = tlv->getKeys();
+        vector<string>::const_iterator it;
+        unsigned valuelen;
+        string value, key;
+        char *buf;
+        for (it=keys->begin(); it != keys->end(); it++)
+        {
+            key = (*it).empty() ? "(no key)" : *it;
+            value = tlv->get(*it);
+            valuelen = value.length();
+
+            buf = new char[valuelen * 4 / 3 + 4];
+            Base64::btoa((const byte *) value.data(), valuelen, buf);
+
+            cout << "\t" << key << "\t" << buf << endl;
+
+            delete [] buf;
+        }
+        delete keys;
+    }
+}
+
+#ifdef DEBUG
+void DemoApp::delua_result(error e)
+{
+    if (e)
+    {
+        cout << "User attribute removal failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Success." << endl;
+    }
+}
+#endif
+
 
 void DemoApp::notify_retry(dstime dsdelta)
 {
@@ -940,9 +1115,18 @@ static void listtrees()
                 if ((n = client->nodebyhandle(*sit)) && n->inshare)
                 {
                     cout << "INSHARE on " << u->email << ":" << n->displayname() << " ("
-                         << accesslevels[n->inshare->access] << ")" << endl;
+                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
                 }
             }
+        }
+    }
+
+    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
+    {
+        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+        if (n)
+        {
+            cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
         }
     }
 }
@@ -955,6 +1139,7 @@ static void listtrees()
 // * //bin is in RUBBISH
 // * X: is user X's INBOX
 // * X:SHARE is share SHARE from user X
+// * Y:name is folder in FOLDERLINK, Y is the public handle
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
@@ -965,6 +1150,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
+    int folderlink = 0;
     Node* n;
     Node* nn;
 
@@ -1048,7 +1234,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     if (remote)
     {
         // target: user inbox - record username/email and return NULL
-        if (c.size() == 2 && !c[1].size())
+        if (c.size() == 2 && c[0].find("@") != string::npos && !c[1].size())
         {
             if (user)
             {
@@ -1056,6 +1242,23 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
 
             return NULL;
+        }
+
+        // target is not a user, but a public folder link
+        if (c.size() >= 2 && c[0].find("@") == string::npos)
+        {
+            if (!clientFolder)
+            {
+                return NULL;
+            }
+
+            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+            if (c.size() == 2 && c[1].empty())
+            {
+                return n;
+            }
+            l = 1;   // <folder_name>:[/<subfolder>][/<file>]
+            folderlink = 1;
         }
 
         User* u;
@@ -1142,7 +1345,14 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = client->childnodebyname(n, c[l].c_str());
+                    if (folderlink)
+                    {
+                        nn = clientFolder->childnodebyname(n, c[l].c_str());
+                    }
+                    else
+                    {
+                        nn = client->childnodebyname(n, c[l].c_str());
+                    }
 
                     if (!nn)
                     {
@@ -1177,7 +1387,7 @@ static void listnodeshares(Node* n)
 
             if (it->first)
             {
-                cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
+                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
                      << endl;
             }
             else
@@ -1245,7 +1455,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared with " << it->second->user->email << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }
                     }
 
@@ -1271,14 +1481,14 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         if (it->first)
                         {
                             cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
-                                 << accesslevels[it->second->access];
+                                 << getAccessLevelStr(it->second->access);
                         }                        
                     }
                 }
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << accesslevels[n->inshare->access] << " share";
+                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
@@ -1365,12 +1575,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
 };
 
 static prompttype prompt = COMMAND;
@@ -1577,6 +1787,14 @@ static void process_line(char* l)
 
                 signupcode.clear();
             }
+            else if (recoverycode.size())   // cancelling account --> check password
+            {
+                client->validatepwd(pwkey);
+            }
+            else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
+            {
+                client->validatepwd(pwkey);
+            }
             else
             {
                 client->login(login.c_str(), pwkey);
@@ -1611,7 +1829,7 @@ static void process_line(char* l)
         case PASSWORDCONFIRM:
             client->pw_key(l, pwkeybuf);
 
-            if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+            if (memcmp(pwkeybuf, newpwkey, sizeof pwkeybuf))
             {
                 cout << endl << "Mismatch, please try again" << endl;
             }
@@ -1622,6 +1840,24 @@ static void process_line(char* l)
                 if (signupemail.size())
                 {
                     client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
+                else if (recoveryemail.size() && recoverycode.size())
+                {
+                    cout << endl << "Reseting password..." << endl;
+
+                    if (hasMasterKey)
+                    {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, masterkey);
+                    }
+                    else
+                    {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, NULL);
+                    }
+
+                    recoverycode.clear();
+                    recoveryemail.clear();
+                    hasMasterKey = false;
+                    memset(masterkey, 0, sizeof masterkey);
                 }
                 else
                 {
@@ -1639,6 +1875,13 @@ static void process_line(char* l)
 
             setprompt(COMMAND);
             signupemail.clear();
+            return;
+
+        case MASTERKEY:
+            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key..." << endl;
+
+            Base64::atob(l, masterkey, sizeof masterkey);
+            client->getprivatekey(recoverycode.c_str());
             return;
 
         case COMMAND:
@@ -1727,6 +1970,7 @@ static void process_line(char* l)
                 cout << "      pwd" << endl;
                 cout << "      lcd [localpath]" << endl;
                 cout << "      import exportedfilelink#key" << endl;
+                cout << "      open exportedfolderlink#key" << endl;
                 cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
                 cout << "      putq [cancelslot]" << endl;
                 cout << "      get remotepath [offset [length]]" << endl;
@@ -1749,10 +1993,17 @@ static void process_line(char* l)
                 cout << "      users [email del]" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
+#ifdef DEBUG
+                cout << "      delua attrname" << endl;
+#endif
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
+                cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
+                cout << "      recover recoverylink" << endl;
+                cout << "      cancel [cancellink]" << endl;
+                cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -1762,13 +2013,13 @@ static void process_line(char* l)
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chatf " << endl;
-                cout << "      chatc group [email ro|rw|full|op]*" << endl;
-                cout << "      chati chatid email ro|rw|full|op" << endl;
+                cout << "      chatc group [email ro|sta|mod]*" << endl;
+                cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
+                cout << "      chatst chatid title64" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -2174,6 +2425,20 @@ static void process_line(char* l)
                                     if (n->type == FILENODE)
                                     {
                                         f = new AppFileGet(n);
+
+                                        string::size_type index = words[1].find(":");
+                                        // node from public folder link
+                                        if (index != string::npos && words[1].substr(0, index).find("@") == string::npos)
+                                        {
+                                            handle h = clientFolder->getrootpublicfolder();
+                                            char *pubauth = new char[12];
+                                            Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
+                                            f->pubauth = pubauth;
+                                            f->hprivate = true;
+                                            f->hforeign = true;
+                                            memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+                                        }
+
                                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                                         client->startxfer(GET, f);
                                     }
@@ -2341,6 +2606,51 @@ static void process_line(char* l)
                     else if (words[0] == "getq")
                     {
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }
+                    else if (words[0] == "open")
+                    {
+                        if (words.size() > 1)
+                        {
+                            if (strstr(words[1].c_str(), "#F!"))  // folder link indicator
+                            {
+                                if (!clientFolder)
+                                {
+                                    // create a new MegaClient with a different MegaApp to process callbacks
+                                    // from the client logged into a folder. Reuse the waiter and httpio
+                                    clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
+                                                                    client->httpio, new FSACCESS_CLASS,
+                                        #ifdef DBACCESS_CLASS
+                                                                    new DBACCESS_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                        #ifdef GFX_CLASS
+                                                                    new GFX_CLASS,
+                                        #else
+                                                                    NULL,
+                                        #endif
+                                                                    "SDKSAMPLE",
+                                                                    "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MINOR_VERSION)
+                                                                    "." TOSTRING(MEGA_MICRO_VERSION));
+                                }
+                                else
+                                {
+                                    clientFolder->logout();
+                                }
+
+                                return clientFolder->app->login_result(clientFolder->folderaccess(words[1].c_str()));
+                            }
+                            else
+                            {
+                                cout << "Invalid folder link." << endl;
+                            }
+                        }
+                        else
+                        {
+                             cout << "      open exportedfolderlink#key" << endl;
+                        }
                         return;
                     }
 #ifdef ENABLE_SYNC
@@ -2568,7 +2878,7 @@ static void process_line(char* l)
                                                 if ((n = client->nodebyhandle(*sit)))
                                                 {
                                                     cout << "\t" << n->displayname() << " ("
-                                                         << accesslevels[n->inshare->access] << ")" << endl;
+                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
                                                 }
                                             }
                                         }
@@ -2819,7 +3129,8 @@ static void process_line(char* l)
                             // get other user's attribute
                             if (!(u = client->finduser(words[2].c_str())))
                             {
-                                cout << words[2] << ": Unknown user." << endl;
+                                cout << "Retrieving user attribute for unknown user: " << words[2] << endl;
+                                client->getua(words[2].c_str(), User::string2attr(words[1].c_str()));
                                 return;
                             }
                         }
@@ -2832,59 +3143,78 @@ static void process_line(char* l)
                         if (!u)
                         {
                             // get logged in user's attribute
-                            if (!(u = client->finduser(client->me)))
+                            if (!(u = client->ownuser()))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
                                 return;
                             }
                         }
 
-                        client->getua(u, words[1].c_str());
+                        client->getua(u, User::string2attr(words[1].c_str()));
 
                         return;
                     }
                     else if (words[0] == "putua")
                     {
-                        if (words.size() == 2)
+                        if (words.size() >= 2)
                         {
-                            // delete attribute
-                            client->putua(words[1].c_str());
-
-                            return;
-                        }
-                        else if (words.size() == 3)
-                        {
-                            if (words[2] == "del")
+                            attr_t attrtype = User::string2attr(words[1].c_str());
+                            if (attrtype == ATTR_UNKNOWN)
                             {
-                                client->putua(words[1].c_str());
+                                cout << "Attribute not recognized" << endl;
+                                return;
+                            }
+
+                            if (words.size() == 2)
+                            {
+                                // delete attribute
+                                client->putua(attrtype);
 
                                 return;
                             }
-                        }
-                        else if (words.size() == 4)
-                        {
-                            if (words[2] == "set")
+                            else if (words.size() == 3)
                             {
-                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
+                                if (words[2] == "del")
+                                {
+                                    client->putua(attrtype);
 
-                                return;
+                                    return;
+                                }
                             }
-                            else if (words[2] == "load")
+                            else if (words.size() == 4)
                             {
-                                string data, localpath;
-
-                                client->fsaccess->path2local(&words[3], &localpath);
-
-                                if (loadfile(&localpath, &data))
+                                if (words[2] == "set")
                                 {
-                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
-                                }
-                                else
-                                {
-                                    cout << "Cannot read " << words[3] << endl;
-                                }
+                                    client->putua(attrtype, (const byte*) words[3].c_str(), words[3].size());
 
-                                return;
+                                    return;
+                                }
+                                else if (words[2] == "set64")
+                                {
+                                    int len = words[3].size() * 3 / 4 + 3;
+                                    byte *value = new byte[len];
+                                    int valuelen = Base64::atob(words[3].data(), value, len);
+                                    client->putua(attrtype, value, valuelen);
+                                    delete [] value;
+                                    return;
+                                }
+                                else if (words[2] == "load")
+                                {
+                                    string data, localpath;
+
+                                    client->fsaccess->path2local(&words[3], &localpath);
+
+                                    if (loadfile(&localpath, &data))
+                                    {
+                                        client->putua(attrtype, (const byte*) data.data(), data.size());
+                                    }
+                                    else
+                                    {
+                                        cout << "Cannot read " << words[3] << endl;
+                                    }
+
+                                    return;
+                                }
                             }
                         }
 
@@ -2892,6 +3222,20 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef DEBUG
+                    else if (words[0] == "delua")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->delua(words[1].c_str());
+                            return;
+                        }
+
+                        cout << "      delua attrname" << endl;
+
+                        return;
+                    }
+#endif
                     else if (words[0] == "pause")
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
@@ -2922,7 +3266,7 @@ static void process_line(char* l)
                             {
                                 if (!client->xferpaused[GET] && !client->xferpaused[PUT])
                                 {
-                                    cout << "Transfers not paused at the moment.";
+                                    cout << "Transfers not paused at the moment." << endl;
                                 }
                                 else
                                 {
@@ -3005,18 +3349,61 @@ static void process_line(char* l)
 
                         return;
                     }
-#ifdef ENABLE_CHAT
-                    else if (words[0] == "chatf")
+                    else if (words[0] == "email")
                     {
-                        client->fetchChats();
+                        if (words.size() == 1)
+                        {
+                            User *u = client->finduser(client->me);
+                            if (u)
+                            {
+                                cout << "Your current email address is " << u->email << endl;
+                            }
+                            else
+                            {
+                                cout << "Please, login first" << endl;
+                            }
+                        }
+                        else if (words.size() == 2)
+                        {
+                            if (words[1].find("@") != words[1].npos)    // get change email link
+                            {
+                                client->getemaillink(words[1].c_str());
+                            }
+                            else    // confirm change email link
+                            {
+                                string link = words[1];
+
+                                size_t pos = link.find("#verify");
+                                if (pos == link.npos)
+                                {
+                                    cout << "Invalid email change link." << endl;
+                                    return;
+                                }
+
+                                changecode.assign(link.substr(pos+strlen("#verify")));
+                                client->queryrecoverylink(changecode.c_str());
+                            }
+                        }
+                        else
+                        {
+                            cout << "      email [newemail|emaillink]" << endl;
+                        }
+
                         return;
                     }
+#ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
                         unsigned wordscount = words.size();
                         if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
                         {
                             int group = atoi(words[1].c_str());
+                            if (!group && (wordscount - 2) != 2)
+                            {
+                                cout << "Only group chats can have more than one peer" << endl;
+                                return;
+                            }
+
                             userpriv_vector *userpriv = new userpriv_vector;
 
                             unsigned numUsers = 0;
@@ -3033,27 +3420,30 @@ static void process_line(char* l)
 
                                 string privstr = words[numUsers*2 + 2 + 1];
                                 privilege_t priv;
-                                if (privstr ==  "ro")
+                                if (!group) // 1:1 chats enforce peer to be moderator
                                 {
-                                    priv = PRIV_RO;
-                                }
-                                else if (privstr == "rw")
-                                {
-                                    priv = PRIV_RW;
-                                }
-                                else if (privstr == "full")
-                                {
-                                    priv = PRIV_FULL;
-                                }
-                                else if (privstr == "op")
-                                {
-                                    priv = PRIV_OPERATOR;
+                                    priv = PRIV_MODERATOR;
                                 }
                                 else
                                 {
-                                    cout << "Unknown privilege for " << email << endl;
-                                    delete userpriv;
-                                    return;
+                                    if (privstr ==  "ro")
+                                    {
+                                        priv = PRIV_RO;
+                                    }
+                                    else if (privstr == "sta")
+                                    {
+                                        priv = PRIV_STANDARD;
+                                    }
+                                    else if (privstr == "mod")
+                                    {
+                                        priv = PRIV_MODERATOR;
+                                    }
+                                    else
+                                    {
+                                        cout << "Unknown privilege for " << email << endl;
+                                        delete userpriv;
+                                        return;
+                                    }
                                 }
 
                                 userpriv->push_back(userpriv_pair(u->userhandle, priv));
@@ -3066,7 +3456,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                            cout << "      chatc group [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -3091,17 +3481,13 @@ static void process_line(char* l)
                             {
                                 priv = PRIV_RO;
                             }
-                            else if (privstr == "rw")
+                            else if (privstr == "sta")
                             {
-                                priv = PRIV_RW;
+                                priv = PRIV_STANDARD;
                             }
-                            else if (privstr == "full")
+                            else if (privstr == "mod")
                             {
-                                priv = PRIV_FULL;
-                            }
-                            else if (privstr == "op")
-                            {
-                                priv = PRIV_OPERATOR;
+                                priv = PRIV_MODERATOR;
                             }
                             else
                             {
@@ -3114,7 +3500,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|rw|full|op" << endl;
+                            cout << "      chati chatid email ro|sta|mod" << endl;
                             return;
 
                         }
@@ -3173,6 +3559,25 @@ static void process_line(char* l)
                         }
                     }
 #endif
+                    else if (words[0] == "reset")
+                    {
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2 ||
+                            (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
+                        {
+                            recoveryemail = words[1];
+                            client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
+                        }
+                        else
+                        {
+                            cout << "      reset email [mk]" << endl;
+                        }
+                        return;
+                    }
+
                     break;
 
                 case 6:
@@ -3236,31 +3641,38 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        if (client->finduser(client->me)->email.compare(words[1]))
+                        if (client->loggedin() != FULLACCOUNT)
                         {
-                            int del = words.size() == 3 && words[2] == "del";
-                            int rmd = words.size() == 3 && words[2] == "rmd";
-                            if (words.size() == 2 || words.size() == 3)
+                            cout << "Not logged in." << endl;
+                        }
+                        else
+                        {
+                            if (client->ownuser()->email.compare(words[1]))
                             {
-                                if (del || rmd)
+                                int del = words.size() == 3 && words[2] == "del";
+                                int rmd = words.size() == 3 && words[2] == "rmd";
+                                if (words.size() == 2 || words.size() == 3)
                                 {
-                                    client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                    if (del || rmd)
+                                    {
+                                        client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                    }
+                                    else
+                                    {
+                                        // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                        // to have the invite come from a specific email
+                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                    }
                                 }
                                 else
                                 {
-                                    // Original email is not required, but can be used if this account has multiple email addresses associated,
-                                    // to have the invite come from a specific email
-                                    client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                    cout << "      invite dstemail [origemail|del|rmd]" << endl;
                                 }
                             }
                             else
                             {
-                                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                                cout << "Cannot send invitation to your own user" << endl;
                             }
-                        }
-                        else
-                        {
-                            cout << "Cannot send invitation to your own user" << endl;
                         }
 
                         return;
@@ -3334,6 +3746,12 @@ static void process_line(char* l)
                             if ((u = client->finduser(client->me)))
                             {
                                 cout << "Account e-mail: " << u->email << endl;
+#ifdef ENABLE_CHAT
+                                if (client->signkey)
+                                {
+                                    cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                                }
+#endif
                             }
 
                             cout << "Retrieving account status..." << endl;
@@ -3347,27 +3765,37 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
+                            hlink = UNDEF;
+                            del = ets = 0;
+
                             Node* n;
-                            int del = 0;
-                            int ets = 0;
+                            int deltmp = 0;
+                            int etstmp = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
                                 if (words.size() > 2)
                                 {
-                                    del = (words[2] == "del");
-                                    if (!del)
+                                    deltmp = (words[2] == "del");
+                                    if (!deltmp)
                                     {
-                                        ets = atol(words[2].c_str());
+                                        etstmp = atol(words[2].c_str());
                                     }
                                 }
+
 
                                 cout << "Exporting..." << endl;
 
                                 error e;
-                                if ((e = client->exportnode(n, del, ets)))
+                                if ((e = client->exportnode(n, deltmp, etstmp)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
+                                }
+                                else
+                                {
+                                    hlink = n->nodehandle;
+                                    ets = etstmp;
+                                    del = deltmp;
                                 }
                             }
                             else
@@ -3419,6 +3847,13 @@ static void process_line(char* l)
                         cwd = UNDEF;
                         client->logout();
 
+                        if (clientFolder)
+                        {
+                            clientFolder->logout();
+                            delete clientFolder;
+                            clientFolder = NULL;
+                        }
+
                         return;
                     }
 #ifdef ENABLE_CHAT
@@ -3465,8 +3900,70 @@ static void process_line(char* l)
                             return;
                         }
                     }
+                    else if (words[0] == "chatst")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            if (words.size() == 2)  // empty title / remove title
+                            {
+                                client->setChatTitle(chatid, "");
+                            }
+                            else if (words.size() == 3)
+                            {
+                                client->setChatTitle(chatid, words[2].c_str());
+                            }
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatst chatid title64" << endl;
+                            return;
+                        }
+                    }
 #endif
+                    else if (words[0] == "cancel")
+                    {
+                        if (client->loggedin() != FULLACCOUNT)
+                        {
+                            cout << "Please, login into your account first." << endl;
+                            return;
+                        }
+
+                        if (words.size() == 1)  // get link
+                        {
+                            User *u = client->finduser(client->me);
+                            if (!u)
+                            {
+                                cout << "Error retrieving logged user." << endl;
+                                return;
+                            }
+                            client->getcancellink(u->email.c_str());
+                        }
+                        else if (words.size() == 2) // link confirmation
+                        {
+                            string link = words[1];
+
+                            size_t pos = link.find("#cancel");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid cancellation link." << endl;
+                                return;
+                            }
+
+                            recoverycode.assign(link.substr(pos+strlen("#cancel")));
+                            setprompt(LOGINPASSWORD);
+                        }
+                        else
+                        {
+                            cout << "       cancel [link]" << endl;
+                        }
+                        return;
+                    }
                     break;
+
 
                 case 7:
                     if (words[0] == "confirm")
@@ -3481,6 +3978,31 @@ static void process_line(char* l)
                             cout << "No signup confirmation pending." << endl;
                         }
 
+                        return;
+                    }
+                    else if (words[0] == "recover")
+                    {
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2)
+                        {
+                            string link = words[1];
+
+                            size_t pos = link.find("#recover");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid recovery link." << endl;
+                            }
+
+                            recoverycode.assign(link.substr(pos+strlen("#recover")));
+                            client->queryrecoverylink(recoverycode.c_str());
+                        }
+                        else
+                        {
+                            cout << "      recover recoverylink" << endl;
+                        }
                         return;
                     }
                     else if (words[0] == "session")
@@ -3772,6 +4294,167 @@ void DemoApp::setkeypair_result(error e)
     }
 }
 
+void DemoApp::getrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command \"recover\" / \"cancel\" followed by the link." << endl;
+    }
+}
+
+void DemoApp::queryrecoverylink_result(error e)
+{
+        cout << "The link is invalid (" << errorstring(e) << ")." << endl;
+}
+
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
+{
+    recoveryemail = email ? email : "";
+    hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
+
+    cout << "The link is valid";
+
+    if (type == RECOVER_WITH_MASTERKEY)
+    {
+        cout <<  " to reset the password for " << email << " with masterkey." << endl;
+
+        setprompt(MASTERKEY);
+    }
+    else if (type == RECOVER_WITHOUT_MASTERKEY)
+    {
+        cout <<  " to reset the password for " << email << " without masterkey." << endl;
+
+        setprompt(NEWPASSWORD);
+    }
+    else if (type == CANCEL_ACCOUNT)
+    {
+        cout << " to cancel the account for " << email << "." << endl;
+    }
+    else if (type == CHANGE_EMAIL)
+    {
+        cout << " to change the email from " << client->finduser(client->me)->email << " to " << email << "." << endl;
+
+        changeemail = email ? email : "";
+        setprompt(LOGINPASSWORD);
+    }
+}
+
+void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len_privk)
+{
+    if (e)
+    {
+        cout << "Unable to get private key (" << errorstring(e) << ")" << endl;
+        setprompt(COMMAND);
+    }
+    else
+    {
+        // check the private RSA is valid after decryption with master key
+        SymmCipher key;
+        key.setkey(masterkey);
+
+        byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+        memcpy(privkbuf, privk, len_privk);
+        key.ecb_decrypt(privkbuf, len_privk);
+
+        AsymmCipher uk;
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+        {
+            cout << "The master key doesn't seem to be correct." << endl;
+
+            recoverycode.clear();
+            recoveryemail.clear();
+            hasMasterKey = false;
+            memset(masterkey, 0, sizeof masterkey);
+
+            setprompt(COMMAND);
+        }
+        else
+        {
+            cout << "Private key successfully retrieved for integrity check masterkey." << endl;
+            setprompt(NEWPASSWORD);
+        }
+    }
+}
+
+void DemoApp::confirmrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to reset the password (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Password changed successfully." << endl;
+    }
+}
+
+void DemoApp::confirmcancellink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to cancel the account (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Account cancelled successfully." << endl;
+    }
+}
+
+void DemoApp::validatepassword_result(error e)
+{
+    if (e)
+    {
+        cout << "Wrong password (" << errorstring(e) << ")" << endl;
+        setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        if (recoverycode.size())
+        {
+            cout << "Password is correct, cancelling account..." << endl;
+
+            client->confirmcancellink(recoverycode.c_str());
+            recoverycode.clear();
+        }
+        else if (changecode.size())
+        {
+            cout << "Password is correct, changing email..." << endl;
+
+            client->confirmemaillink(changecode.c_str(), changeemail.c_str(), pwkey);
+            changecode.clear();
+            changeemail.clear();
+        }
+    }
+}
+
+void DemoApp::getemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send the link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command \"email\" followed by the link." << endl;
+    }
+}
+
+void DemoApp::confirmemaillink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to change the email address (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Email address changed successfully to " << changeemail << "." << endl;
+    }
+}
+
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
@@ -3805,6 +4488,9 @@ void DemoApp::exportnode_result(error e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
     }
+
+    del = ets = 0;
+    hlink = UNDEF;
 }
 
 void DemoApp::exportnode_result(handle h, handle ph)
@@ -3835,6 +4521,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
         else
         {
             cout << "No key available for exported folder" << endl;
+
+            del = ets = 0;
+            hlink = UNDEF;
             return;
         }
 
@@ -3844,6 +4533,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
+
+    del = ets = 0;
+    hlink = UNDEF;
 }
 
 // the requested link could not be opened
@@ -4338,6 +5030,11 @@ void megacli()
 
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (clientFolder)
+        {
+            clientFolder->exec();
+        }
     }
 }
 
@@ -4364,7 +5061,82 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
+    clientFolder = NULL;    // additional for folder links
+
     console = new CONSOLE_CLASS;
 
     megacli();
 }
+
+
+void DemoAppFolder::login_result(error e)
+{
+    if (e)
+    {
+        cout << "Failed to load the folder link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Folder link loaded, retrieving account..." << endl;
+        clientFolder->fetchnodes();
+    }
+}
+
+void DemoAppFolder::fetchnodes_result(error e)
+{
+    if (e)
+    {
+        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = clientFolder->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = clientFolder->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+        }
+        else
+        {
+            cout << "Failed to load folder link" << endl;
+
+            delete clientFolder;
+            clientFolder = NULL;
+        }
+    }
+}
+
+void DemoAppFolder::nodes_updated(Node **n, int count)
+{
+    int c[2][6] = { { 0 } };
+
+    if (n)
+    {
+        while (count--)
+        {
+            if ((*n)->type < 6)
+            {
+                c[!(*n)->changed.removed][(*n)->type]++;
+                n++;
+            }
+        }
+    }
+    else
+    {
+        for (node_map::iterator it = clientFolder->nodes.begin(); it != clientFolder->nodes.end(); it++)
+        {
+            if (it->second->type < 6)
+            {
+                c[1][it->second->type]++;
+            }
+        }
+    }
+
+    cout << "The folder link contains ";
+    nodestats(c[1], "");
+}
+

@@ -31,18 +31,20 @@ AC_PREREQ([2.61])
 
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
-m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [6])
-m4_define([mega_micro_version], [0])
+m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
+m4_define([mega_minor_version], [$(cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3)])
+m4_define([mega_micro_version], [$(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3)])
+
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
+m4_define([mega_lt_current], [$(echo -n $(( $( cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3 ) * 10000 + $( cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3 ) * 100 + $(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3))))])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | cut -d ' ' -f3 | tr -st '\n' '.' | cut -d '.' -f1,2,3 --output-delimiter='.' | tr -d '\n']), [https://github.com/meganz/sdk])
+
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -55,21 +57,6 @@ AC_CONFIG_MACRO_DIR([m4])
 # enable silent build
 m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
 AM_SILENT_RULES([yes])
-
-MEGA_MAJOR_VERSION=mega_major_version
-MEGA_MINOR_VERSION=mega_minor_version
-MEGA_MICRO_VERSION=mega_micro_version
-
-AC_SUBST(MEGA_MAJOR_VERSION)
-AC_SUBST(MEGA_MINOR_VERSION)
-AC_SUBST(MEGA_MICRO_VERSION)
-
-AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
-    [MEGA SDK major version.])
-AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
-    [MEGA SDK minor version.])
-AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
-    [MEGA SDK micro version.])
 
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision
@@ -100,6 +87,7 @@ AC_CANONICAL_HOST
 AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
 
 # Check programs
+AC_PROG_OBJCXX
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
   AC_MSG_ERROR([C++ compiler not found !])
@@ -190,6 +178,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 # Check if building for Win32, determine Win32 API libs
 WIN32=no
 DARWIN=no
+ANDROID=no
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
@@ -198,7 +187,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
-    CXXFLAGS="$CXXFLAGS -DUNICODE"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501"
     WIN32=yes
     ;;
   *-apple-darwin*)
@@ -206,6 +195,9 @@ case $host in
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
     DARWIN=yes
     ;;
+  *-android*)
+    ANDROID=yes
+    ;;    
   *)
     LIBS_EXTRA=""
     ;;
@@ -213,7 +205,17 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
+AM_CONDITIONAL([ANDROID], [test "${ANDROID}" = "yes"])
+
 AC_SUBST(LIBS_EXTRA)
+
+if test -n "$IOSC_TARGET"; then
+#	bu=yes
+    AC_DEFINE(USE_IOS, 1, [Use IOS])
+fi
+AM_CONDITIONAL([USE_IOS], [test  -n "$IOSC_TARGET"])
+
+
 
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,

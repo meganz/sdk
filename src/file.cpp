@@ -34,6 +34,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    temporaryfile = false;
     h = UNDEF;
 }
 
@@ -92,7 +93,10 @@ bool File::serialize(string *d)
     flag = syncxfer;
     d->append((const char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10);
+    flag = temporaryfile;
+    d->append((const char*)&flag, sizeof(flag));
+
+    d->append("\0\0\0\0\0\0\0\0", 9);
 
     return true;
 }
@@ -202,13 +206,16 @@ File *File::unserialize(string *d)
     file->syncxfer = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0\0\0", 10))
+    file->temporaryfile = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0\0", 9))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 10;
+    ptr += 9;
 
     d->erase(0, ptr - d->data());
     return file;
@@ -314,7 +321,7 @@ void File::terminated()
 bool File::failed(error e)
 {
     return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
-            !((e == API_EREAD || API_EWRITE) && transfer->failcount > 6);
+            !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
 void File::displayname(string* dname)
