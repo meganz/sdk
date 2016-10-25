@@ -178,7 +178,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     retry = false;
 
 #ifdef __MACH__
-    if (read)
+    if (!write)
     {
         char resolved_path[PATH_MAX];
         struct stat statbuf;

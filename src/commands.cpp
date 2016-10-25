@@ -4430,7 +4430,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
 {
     this->client = client;
 
@@ -4440,6 +4440,11 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     arg("u", uid);
     arg("p", priv);
     arg("v", 1);
+
+    if (title != NULL)
+    {
+        arg("ct", title);
+    }
 
     tag = client->reqtag;
 }
@@ -4605,7 +4610,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 {
     this->client = client;
 
-    cmd("mcurl");
+    cmd("mct");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
@@ -4624,6 +4629,32 @@ void CommandChatTruncate::procresult()
     {
         client->json.storeobject();
         client->app->chattruncate_result(API_EINTERNAL);
+    }
+}
+
+CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
+{
+    this->client = client;
+
+    cmd("mcst");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("ct", title);
+
+    tag = client->reqtag;
+}
+
+void CommandChatSetTitle::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatsettitle_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatsettitle_result(API_EINTERNAL);
     }
 }
 
