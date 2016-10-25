@@ -197,6 +197,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("r");
         validParams->insert("l");
     }
+    else if ("du" == thecommand)
+    {
+        validParams->insert("h");
+    }
     else if ("rm" == thecommand)
     {
         validParams->insert("r");

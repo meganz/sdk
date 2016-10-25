@@ -660,6 +660,7 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 bool isRegExp(string what)
 {
 #ifdef USE_PCRE
+    if (what == "." || what == "..") return false;
 
     string s = pcrecpp::RE::QuoteMeta(what);
     string ns=s;
@@ -675,7 +676,7 @@ bool isRegExp(string what)
 string unquote(string what)
 {
 #ifdef USE_PCRE
-
+    if (what == "." || what == "..") return what;
     string s = pcrecpp::RE::QuoteMeta(what.c_str());
     string ns=s;
     replaceAll(ns,"\\\\\\","\\");
@@ -844,12 +845,20 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
     return discarded;
 }
 
-string sizeToText(long long totalSize, bool equalizeUnitsLength)
+string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreadable)
 {
     ostringstream os;
     os.precision(3);
-    double reducedSize = (totalSize > 1048576*2?totalSize/1048576.0:(totalSize>1024*2?totalSize/1024.0:totalSize));
-    os << reducedSize;
-    os << (totalSize > 1048576*2?" MB":(totalSize>1024*2?" KB":(equalizeUnitsLength?"  B":" B")));
+    if (humanreadable)
+    {
+        double reducedSize = (totalSize > 1048576*2?totalSize/1048576.0:(totalSize>1024*2?totalSize/1024.0:totalSize));
+        os << reducedSize;
+        os << (totalSize > 1048576*2?" MB":(totalSize>1024*2?" KB":(equalizeUnitsLength?"  B":" B")));
+    }
+    else
+    {
+        os << totalSize;
+    }
+
     return os.str();
 }

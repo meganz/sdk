@@ -1683,7 +1683,7 @@ void MegaCmdExecuter::dumpNode(MegaNode* n, int extended_info, int depth, const 
         switch (n->getType())
         {
             case MegaNode::TYPE_FILE:
-                OUTSTREAM << n->getSize();
+                OUTSTREAM << sizeToText(n->getSize(), false);
 
                 const char* p;
                 if (( p = strchr(n->getAttrString()->c_str(), ':')))
@@ -2762,8 +2762,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 n = nodebypath(words[1].c_str());
                 if (n)
                 {
-                            dumptree(n, recursive, extended_info, 0, rNpath);
+                    dumptree(n, recursive, extended_info, 0, rNpath);
                     delete n;
+                }
+                else
+                {
+                    setCurrentOutCode(3);
+                    LOG_err << "Couldn't find " << words[1];
                 }
             }
         }
@@ -2772,7 +2777,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             n = api->getNodeByHandle(cwd);
             if (n)
             {
-                            dumptree(n, recursive, extended_info);
+                dumptree(n, recursive, extended_info);
                 delete n;
             }
         }
@@ -2839,6 +2844,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 if (n->getType() == MegaNode::TYPE_FILE)
                 {
+                    setCurrentOutCode(3);
                     LOG_err << words[1] << ": Not a directory";
                 }
                 else
@@ -2851,6 +2857,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                setCurrentOutCode(3);
                 LOG_err << words[1] << ": No such file or directory";
             }
         }
@@ -2906,7 +2913,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            OUTSTREAM << "      rm remotepath" << endl;
+            setCurrentOutCode(2);
+            OUTSTREAM << "      " << getUsageStr("rm") << endl;
         }
 
         return;
@@ -3177,6 +3185,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (words.size()==1)
             words.push_back(".");
 
+        bool humanreadable = getFlag(clflags, "h");
+
         for (int i=1;i < words.size(); i++)
         {
             if (isRegExp(words[i]))
@@ -3192,7 +3202,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             currentSize = api->getSize(n);
                             totalSize += currentSize;
                             dpath = getDisplayPath(words[i],n);
-                            OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  sizeToText(currentSize) << endl;
+                            OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) <<  sizeToText(currentSize,true,humanreadable) << endl;
                             delete n;
                         }
                     }
@@ -3215,14 +3225,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 totalSize += currentSize;
                 dpath = getDisplayPath(words[i],n);
                 if (dpath.size())
-                    OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) << sizeToText(currentSize) << endl;
+                    OUTSTREAM << dpath << ": " << setw(max(10,(int)(40-dpath.size()))) << sizeToText(currentSize,true,humanreadable) << endl;
                 delete n;
             }
         }
         if (dpath.size())
             OUTSTREAM << "---------------------------------------------" << endl;
 
-        OUTSTREAM << "Total storage used: " << setw(22) << sizeToText(totalSize) << endl;
+        OUTSTREAM << "Total storage used: " << setw(22) << sizeToText(totalSize,true,humanreadable) << endl;
         //            OUTSTREAM << "Total # of files: " << du.numfiles << endl;
         //            OUTSTREAM << "Total # of folders: " << du.numfolders << endl;
 
