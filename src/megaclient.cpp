@@ -683,8 +683,6 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
-    requestLock = false;
-    disconnecttimestamp = NEVER;
     totalNodes = 0;
 
 #ifdef ENABLE_SYNC
@@ -719,7 +717,8 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
     btbadhost.reset();
-    btworkinglock.reset();
+
+    abortlockrequest();
 
     jsonsc.pos = NULL;
     insca = false;
