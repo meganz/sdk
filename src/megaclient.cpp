@@ -873,17 +873,19 @@ void MegaClient::exec()
         LOG_debug << "Network timeout. Reconnecting";
         disconnect();
     }
-    else if (EVER(disconnecttimestamp) && disconnecttimestamp <= Waiter::ds)
+    else if (EVER(disconnecttimestamp))
     {
-        int creqtag = reqtag;
-        reqtag = 0;
-        sendevent(99424, "Timeout (server idle)");
-        reqtag = creqtag;
+        if (disconnecttimestamp <= Waiter::ds)
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99424, "Timeout (server idle)");
+            reqtag = creqtag;
 
-        disconnect();
+            disconnect();
+        }
     }
-
-    if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
+    else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
         LOG_debug << "Request timeout. Triggering a lock request";
@@ -2117,7 +2119,18 @@ int MegaClient::preparewait()
 
         if (pendingcs && EVER(pendingcs->lastdata))
         {
-            if (!requestLock && !fetchingnodes)
+            if (EVER(disconnecttimestamp))
+            {
+                if (disconnecttimestamp > Waiter::ds && disconnecttimestamp < nds)
+                {
+                    nds = disconnecttimestamp;
+                }
+                else if (disconnecttimestamp <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (!requestLock && !fetchingnodes)
             {
                 dstime timeout = pendingcs->lastdata + HttpIO::REQUESTTIMEOUT;
                 if (timeout > Waiter::ds && timeout < nds)
@@ -2141,18 +2154,6 @@ int MegaClient::preparewait()
                 {
                     nds = 0;
                 }
-            }
-        }
-
-        if (EVER(disconnecttimestamp))
-        {
-            if (disconnecttimestamp > Waiter::ds && disconnecttimestamp < nds)
-            {
-                nds = disconnecttimestamp;
-            }
-            else if (disconnecttimestamp <= Waiter::ds)
-            {
-                nds = 0;
             }
         }
     }
