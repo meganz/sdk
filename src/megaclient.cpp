@@ -736,6 +736,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
+    workinglockcs = NULL;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
