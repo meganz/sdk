@@ -32,7 +32,7 @@ const int HttpIO::NETWORKTIMEOUT = 6000;
 const int HttpIO::REQUESTTIMEOUT = 1200;
 
 // connect timeout (ds)
-const int HttpIO::CONNECTTIMEOUT = 100;
+const int HttpIO::CONNECTTIMEOUT = 120;
 
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
