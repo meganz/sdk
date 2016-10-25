@@ -4255,6 +4255,18 @@ void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestLi
     waiter->notify();
 }
 
+bool MegaApiImpl::createLocalFolder(const char *path)
+{
+    string localpath;
+    string sPath(path);
+    client->fsaccess->path2local(&sPath, &localpath);
+    sdkMutex.lock();
+    bool success = client->fsaccess->mkdirlocal(&localpath);
+    sdkMutex.unlock();
+
+    return success;
+}
+
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE, listener);

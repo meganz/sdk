@@ -4834,6 +4834,14 @@ class MegaApi
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new empty folder in your local file system
+         *
+         * @param localPath Path of the new folder
+         * @return True if the local folder was successfully created, otherwise false.
+         */
+        bool createLocalFolder(const char* localPath);
+
+        /**
          * @brief Move a node in the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_MOVE
