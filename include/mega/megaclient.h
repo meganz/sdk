@@ -825,6 +825,7 @@ public:
     string badhosts;
 
     bool requestLock;
+    dstime disconnecttimestamp;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);

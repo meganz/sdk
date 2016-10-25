@@ -684,6 +684,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     requestLock = false;
+    disconnecttimestamp = NEVER;
     totalNodes = 0;
 
 #ifdef ENABLE_SYNC
@@ -867,8 +868,8 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
-            && !pendingcs)
+    if ((EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs) || (EVER(disconnecttimestamp) && disconnecttimestamp <= Waiter::ds))
     {
         LOG_debug << "Network timeout. Reconnecting";
         disconnect();
@@ -1402,7 +1403,7 @@ void MegaClient::exec()
                     sendevent(99424, "Timeout (server idle)");
                     reqtag = creqtag;
 
-                    disconnect();
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
                 else if (workinglockcs->in == "0")
                 {
@@ -2138,6 +2139,18 @@ int MegaClient::preparewait()
                 }
             }
         }
+
+        if (EVER(disconnecttimestamp))
+        {
+            if (disconnecttimestamp > Waiter::ds && disconnecttimestamp < nds)
+            {
+                nds = disconnecttimestamp;
+            }
+            else if (disconnecttimestamp <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
     }
 
     // immediate action required?
@@ -2668,6 +2681,7 @@ void MegaClient::abortlockrequest()
     workinglockcs = NULL;
     btworkinglock.reset();
     requestLock = false;
+    disconnecttimestamp = NEVER;
 }
 
 void MegaClient::logout()

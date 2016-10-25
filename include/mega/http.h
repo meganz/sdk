@@ -117,11 +117,14 @@ struct MEGA_API HttpIO : public EventTrigger
     // timestamp of last data received (across all connections)
     dstime lastdata;
 
-    // data receive timeout
+    // data receive timeout (ds)
     static const int NETWORKTIMEOUT;
 
-    // request timeout
+    // request timeout (ds)
     static const int REQUESTTIMEOUT;
+
+    // connection timeout (ds)
+    static const int CONNECTTIMEOUT;
     
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;

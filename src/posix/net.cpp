@@ -867,7 +867,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, true);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, HttpIO::CONNECTTIMEOUT / 10);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
