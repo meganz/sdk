@@ -250,6 +250,9 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // abort lock request
+    void abortlockrequest();
+
     // abort session and free all state information
     void logout();
 
@@ -393,6 +396,7 @@ public:
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -400,6 +404,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -835,6 +842,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
+
+    bool requestLock;
+    dstime disconnecttimestamp;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
