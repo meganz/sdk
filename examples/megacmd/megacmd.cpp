@@ -1466,6 +1466,7 @@ void finalize()
     {
         delete console;
     }
+    delete megaCmdMegaListener;
     delete api;
     while (!apiFolders.empty())
     {
@@ -1480,12 +1481,11 @@ void finalize()
 
     occupiedapiFolders.clear();
 
-    delete loggerCMD;
     delete megaCmdGlobalListener;
-    delete megaCmdMegaListener;
     delete cmdexecuter;
 
     LOG_debug << "resources have been cleaned ...";
+    delete loggerCMD;
 }
 
 // main loop
