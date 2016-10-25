@@ -25,6 +25,15 @@
 
 namespace mega {
 
+// data receive timeout (ds)
+const int HttpIO::NETWORKTIMEOUT = 6000;
+
+// request timeout (ds)
+const int HttpIO::REQUESTTIMEOUT = 1200;
+
+// connect timeout (ds)
+const int HttpIO::CONNECTTIMEOUT = 120;
+
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
 {
@@ -283,8 +292,10 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 
     httpio = client->httpio;
     bufpos = 0;
+    notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
+    lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
 }
@@ -350,9 +361,10 @@ void HttpReq::init()
     inpurge = 0;
     sslcheckfailed = false;
     bufpos = 0;
+    notifiedbufpos = 0;
     contentlength = 0;
     timeleft = -1;
-    lastdata = 0;
+    lastdata = NEVER;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
