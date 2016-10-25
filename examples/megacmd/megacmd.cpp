@@ -482,6 +482,22 @@ char* remotepaths_completion(const char* text, int state)
     return generic_completion(text, state, validpaths);
 }
 
+char* loglevels_completion(const char* text, int state)
+{
+    static vector<string> validloglevels;
+    if (state == 0)
+    {
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_FATAL));
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_ERROR));
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_WARNING));
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_INFO));
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_DEBUG));
+        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_MAX));
+    }
+    return generic_completion(text, state, validloglevels);
+}
+
+
 char* contacts_completion(const char* text, int state)
 {
     static vector<string> validcontacts;
@@ -642,6 +658,13 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         if (currentparameter == 2)
         {
             return nodeattrs_completion;
+        }
+    }
+    else if (thecommand == "log")
+    {
+        if (currentparameter == 1)
+        {
+            return loglevels_completion;
         }
     }
     return empty_completion;
