@@ -23,6 +23,10 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
+#ifdef __APPLE__
+#include "mega/osx/osxutils.h"
+#endif
+
 namespace mega {
 
 // data receive timeout (ds)
@@ -210,7 +214,11 @@ Proxy *HttpIO::getautoproxy()
     if (ieProxyConfig.lpszAutoConfigUrl)
     {
         GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
-    }
+    }    
+#endif
+
+#ifdef __APPLE__
+    getOSXproxy(proxy);
 #endif
 
     return proxy;
