@@ -1356,6 +1356,11 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
     pImpl->createFolder(name, parent, listener);
 }
 
+bool MegaApi::createLocalFolder(const char *localPath)
+{
+    return pImpl->createLocalFolder(localPath);
+}
+
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
     pImpl->moveNode(node, newParent, listener);
