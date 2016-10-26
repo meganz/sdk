@@ -161,6 +161,12 @@ public:
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
+    // maximum number of connections per transfer
+    static const unsigned MAX_NUM_CONNECTIONS = 6;
+
+    // set max connections per transfer
+    void setmaxconnections(direction_t, int);
+
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
@@ -242,6 +248,9 @@ public:
 
     // close all open HTTP connections
     void disconnect();
+
+    // abort lock request
+    void abortlockrequest();
 
     // abort session and free all state information
     void logout();
@@ -383,6 +392,7 @@ public:
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -390,6 +400,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -550,6 +563,9 @@ public:
     void updatesc();
     void finalizesc(bool);
 
+    // flag to pause / resume the processing of action packets
+    bool scpaused;
+
     // MegaClient-Server response JSON
     JSON json;
 
@@ -614,6 +630,10 @@ public:
     // database IDs of cached files and transfers
     // waiting for the completion of a putnodes
     pendingdbid_map pendingtcids;
+
+    // path of temporary files
+    // waiting for the completion of a putnodes
+    pendingfiles_map pendingfiles;
 
     // transfer tslots
     transferslot_list tslots;
@@ -812,6 +832,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
+
+    bool requestLock;
+    dstime disconnecttimestamp;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);

@@ -117,8 +117,14 @@ struct MEGA_API HttpIO : public EventTrigger
     // timestamp of last data received (across all connections)
     dstime lastdata;
 
-    // data receive timeout
-    static const int NETWORKTIMEOUT = 6000;
+    // data receive timeout (ds)
+    static const int NETWORKTIMEOUT;
+
+    // request timeout (ds)
+    static const int REQUESTTIMEOUT;
+
+    // connection timeout (ds)
+    static const int CONNECTTIMEOUT;
     
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
@@ -158,7 +164,7 @@ struct MEGA_API HttpReq
     string chunkedout;
 
     byte* buf;
-    m_off_t buflen, bufpos;
+    m_off_t buflen, bufpos, notifiedbufpos;
 
     // we assume that API responses are smaller than 4 GB
     m_off_t contentlength;
@@ -202,7 +208,7 @@ struct MEGA_API HttpReq
     // progress information
     virtual m_off_t transferred(MegaClient*);
 
-    // timestamp of last data received
+    // timestamp of last data sent or received
     dstime lastdata;
 
     // prevent raw data from being dumped in debug mode

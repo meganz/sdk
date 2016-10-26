@@ -72,6 +72,9 @@ struct MEGA_API File: public FileFingerprint
 
         // is this part of a sync transfer?
         bool syncxfer : 1;
+
+        // is the source file temporary?
+        bool temporaryfile : 1;
     };
 
     // private auth to access the node

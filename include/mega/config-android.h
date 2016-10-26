@@ -111,15 +111,6 @@
    */
 #define LT_OBJDIR ".libs/"
 
-/* MEGA SDK major version. */
-#define MEGA_MAJOR_VERSION 2
-
-/* MEGA SDK micro version. */
-#define MEGA_MICRO_VERSION 0
-
-/* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 6
-
 /* Name of package */
 #define PACKAGE "libmega"
 
@@ -196,13 +187,19 @@
 /* #undef _UINT8_T */
 
 /* Force definition of constant macros for C++ */
+#ifndef __STDC_CONSTANT_MACROS
 #define __STDC_CONSTANT_MACROS /**/
+#endif
 
 /* Force definition of format macros for C++ */
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS /**/
+#endif
 
 /* Force definition of limit macros for C++ */
+#ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS /**/
+#endif
 
 /* Define to rpl_malloc if the replacement function should be used. */
 /* #undef malloc */

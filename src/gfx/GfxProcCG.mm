@@ -63,6 +63,15 @@ const char* GfxProcCG::supportedformats() {
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
+    string absolutename;
+    if (PosixFileSystemAccess::appbasepath) {
+        if (name->size() && name->at(0) != '/') {
+            absolutename = PosixFileSystemAccess::appbasepath;
+            absolutename.append(*name);
+            name = &absolutename;
+        }
+    }
+    
     NSString *nameString = [NSString stringWithCString:name->c_str()
                                               encoding:[NSString defaultCStringEncoding]];
     
@@ -102,6 +111,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
                                                                        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     if (!imageOptions) {
+        CGDataProviderRelease(dataProvider);
         return false;
     }
     
@@ -267,4 +277,8 @@ void ios_statsid(std::string *statsid) {
             break;
         }
     }
+}
+
+void ios_appbasepath(std::string *appbasepath) {
+    appbasepath->assign([NSHomeDirectory() UTF8String]);
 }
