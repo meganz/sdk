@@ -23,7 +23,7 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
 #endif
 
@@ -217,7 +217,7 @@ Proxy *HttpIO::getautoproxy()
     }    
 #endif
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
     getOSXproxy(proxy);
 #endif
 
