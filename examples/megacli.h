@@ -127,7 +127,7 @@ struct DemoApp : public MegaApp
     virtual void chattruncate_result(error);
     virtual void chatsettitle_result(error);
 
-    void chats_updated(textchat_vector *);
+    void chats_updated(textchat_map*);
 
     void printChatInformation(TextChat *);
     string getPrivilegeString(privilege_t priv);

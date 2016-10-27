@@ -3770,7 +3770,7 @@ MegaTextChat::~MegaTextChat()
 
 }
 
-MegaTextChat* MegaTextChat::copy() const
+MegaTextChat *MegaTextChat::copy() const
 {
     return NULL;
 }

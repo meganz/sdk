@@ -638,7 +638,7 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_vector *chats)
+void DemoApp::chats_updated(textchat_map *chats)
 {
     if (chats)
     {
@@ -651,9 +651,10 @@ void DemoApp::chats_updated(textchat_vector *chats)
             cout << chats->size() << " chats updated or created" << endl;
         }
 
-        for (unsigned int i = 0; i < chats->size(); i++)
+        textchat_map::iterator it;
+        for (it = chats->begin(); it != chats->end(); it++)
         {
-            printChatInformation(chats->at(i));
+            printChatInformation(it->second);
         }
     }
 }
@@ -4103,7 +4104,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->targetemail;
 
                                 char buffer[12];
-                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4120,7 +4121,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->originatoremail;
 
                                 char buffer[12];
-                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4899,7 +4900,7 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     else
     {
         char id[12];
-        int size = Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
+        Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
         cout << "Session with id " << id << " has been killed" << endl;
     }
 }
