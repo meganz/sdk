@@ -79,4 +79,10 @@ nobase_libmegainclude_HEADERS += \
 	mega/posix/megaconsolewaiter.h
 endif
 
+if DARWIN
+if !USE_IOS
+nobase_libmegainclude_HEADERS += mega/osx/osxutils.h
+endif
+endif
+
 #noinst_HEADERS = config.h
