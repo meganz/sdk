@@ -3554,6 +3554,10 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+    delete request; // delete here since onRequestFinish() is never called
+    delete gfxAccess;
+    delete fsAccess;
+//    delete httpio;  do not delete since it could crash
 }
 
 int MegaApiImpl::isLoggedIn()
