@@ -2,24 +2,24 @@
 
 Visual Studio solution for compiling the SDK library.
 
-This solution, created with Visual Studio 2010 SP1 C++ Express edition, allows to compile `mega.dll` for Windows
+This solution, created with Visual Studio 2015 Express edition, allows to compile `mega.dll` for Windows
 
 Such library is required to run Java applications using the MEGA SDK and must be provided with its corresponding Java clases.
 
 
 ## How to run the project:
 
-1. Download the 3rd-party libraries from this [link](https://mega.nz/#!osthWZxb!eZmgAXlD80yPcc-W3RGPYo0MTfllTYKGQ-dLVQbMumI).
+1. Download the 3rd-party libraries from this [link](https://mega.nz/#!IwMkyYzK!0tW9hv6m0qZ7ysjwPOTPPktVI0lDQfXaCIa8Pj3DtBA).
 
-2. Extract the content to `sdk/bindings/java/contrib/vs2010/`.
+2. Extract the content to `sdk/bindings/java/contrib/vs2015/`.
 
-3. Download the Java bindings files created by SWIG from this [link](https://mega.nz/#!alcg3YZJ!BouxSESJClRTE8ReW6i3nBUp6ZrcQAbHYw6FkSaL9qY).
+3. Download the Java bindings files created by SWIG from this [link](https://mega.nz/#!g4kHgZ6C!Gn9GFnEUSZwNiW-9j--Ojp7vdUjusTyAtsJuSzITxfQ).
 
 4. Extract the content to `sdk/bindings/java/`
 
 5. Open the solution `MEGAdll.sln` and hit "Build".
 
-6. If success, you should find a `mega.dll` library in `sdk/bindings/java/contrib/vs2010/Release/`.
+6. If success, you should find a `mega.dll` library in `sdk/bindings/java/contrib/vs2015/Release/`.
 
 
 ## Notes
