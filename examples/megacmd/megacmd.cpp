@@ -770,7 +770,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "confirm"))
     {
-        return "confirm link email";
+        return "confirm link email [password]";
     }
     if (!strcmp(command, "session"))
     {
