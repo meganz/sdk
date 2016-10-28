@@ -39,12 +39,18 @@ private:
     MegaFileSystemAccess *fsAccessCMD;
     MegaCMDLogger *loggerCMD;
     MegaMutex mtxSyncMap;
-    // login e-mail address
+
+    // login/signup e-mail address
     string login;
+
+    // signup name
+    string name;
 
     void updateprompt(MegaApi *api, MegaHandle handle);
 
 public:
+    bool signingup = false;
+
     MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD);
     ~MegaCmdExecuter();
 
@@ -100,6 +106,8 @@ public:
     const char* treestatename(treestate_t ts);
     bool is_syncable(const char* name);
     int loadfile(string* name, string* data);
+    void signup(string name, string passwd, string email);
+    void signupWithPassword(string passwd);
 };
 
 #endif // MEGACMDEXECUTER_H

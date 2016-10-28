@@ -2705,6 +2705,25 @@ vector<string> MegaCmdExecuter::getsessions()
 }
 
 
+void MegaCmdExecuter::signup(string name, string passwd, string email)
+{
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+    api->createAccount(email.c_str(),passwd.c_str(),name.c_str(),megaCmdListener);
+    megaCmdListener->wait();
+    if (checkNoErrors(megaCmdListener->getError(), "create account <"+email+">"))
+    {
+        OUTSTREAM << "Account <" << email << "> created succesfully. You will receive a confirmation link. Use \"confirm\" with the provided link to confirm that account" << endl;
+    }
+    delete megaCmdListener;
+}
+
+
+
+void MegaCmdExecuter::signupWithPassword(string passwd)
+{
+    return signup(name,passwd,login);
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n;
@@ -3838,6 +3857,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 ConfigurationManager::loadedSyncs.erase(itr++);
                                 erased = true;
                                 delete ( thesync );
+                                OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+
                             }
                             delete megaCmdListener;
                         }
@@ -4614,22 +4635,19 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         else if (words.size() > 1)
         {
             string email = words[1];
-            string name = getOption(cloptions, "name", email);
             if (words.size() > 2)
             {
+                string name = getOption(cloptions, "name", email);
                 string passwd = words[2];
-                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                api->createAccount(email.c_str(),passwd.c_str(),name.c_str(),megaCmdListener);
-                megaCmdListener->wait();
-                if (checkNoErrors(megaCmdListener->getError(), "create account <"+email+">"))
-                {
-                    OUTSTREAM << "Account <" << email << "> created succesfully. You will receive a confirmation link. Use \"confirm\" with the provided link to confirm that account" << endl;
-                }
-                delete megaCmdListener;
+                signup(name, passwd, email);
             }
             else
             {
                 //TODO: play with prompt
+                login = words[1];
+                name = getOption(cloptions, "name", email);
+                signingup = true;
+                setprompt(NEWPASSWORD);
             }
         }
         else

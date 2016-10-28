@@ -1407,8 +1407,15 @@ static void process_line(char* l)
             else
             {
                 OUTSTREAM << endl;
-
-                cmdexecuter->changePassword(oldpasswd.c_str(), newpasswd.c_str());
+                if (!cmdexecuter->signingup)
+                {
+                    cmdexecuter->changePassword(oldpasswd.c_str(), newpasswd.c_str());
+                }
+                else
+                {
+                    cmdexecuter->signupWithPassword(l);
+                    cmdexecuter->signingup = false;
+                }
             }
 
             setprompt(COMMAND);
