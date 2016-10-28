@@ -3894,7 +3894,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     sstate = rtrim(sstate, '/');
                     int state = api->syncPathState(&sstate);
 
-                    OUTSTREAM << " - " << (( thesync->active ) ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
+                    OUTSTREAM << " - " << (( thesync->active ) ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active";
                     OUTSTREAM << ", " << sizeToText(api->getSize(n),false) << "yte(s) in ";
                     OUTSTREAM << nfiles << " file(s) and " << nfolders << " folder(s)" << endl;
                     delete n;

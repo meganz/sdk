@@ -139,12 +139,23 @@ void sigint_handler(int signum)
         exit(-2);
     }
 
+
+    // reset position and print prompt
     rl_replace_line("", 0); //clean contents of actual command
     rl_crlf(); //move to nextline
 
-    // reset position and print prompt
-    pw_buf_pos = 0;
-    OUTSTREAM << ( *dynamicprompt ? dynamicprompt : prompts[prompt] ) << flush;
+    if ( RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) )
+    {
+        RL_UNSETSTATE(RL_STATE_ISEARCH);
+        RL_UNSETSTATE(RL_STATE_NSEARCH);
+        RL_UNSETSTATE(RL_STATE_SEARCH);
+        history_set_pos(history_length);
+        rl_restore_prompt(); // readline has stored it when searching
+    }
+    else{
+        rl_reset_line_state();
+    }
+    rl_redisplay();
 }
 #endif
 
