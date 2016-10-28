@@ -1151,8 +1151,8 @@ string getHelpStr(const char *command)
         os << "If provided local and remote paths, it will start synchronizing a local folder into a remote folder" << endl;
         os << endl;
         os << "If an ID is provided, it will list such synchronization with its state, unless an option is specified:" << endl;
-        os << "-d" << " " << "ID " << "\t" << "deletes a synchronization" << endl;
-        os << "-s" << " " << "ID " << "\t" << "stops(pauses) a synchronization" << endl;
+        os << "-d" << " " << "ID|localpath" << "\t" << "deletes a synchronization" << endl;
+        os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) a synchronization" << endl;
     }
     else if (!strcmp(command, "export"))
     {

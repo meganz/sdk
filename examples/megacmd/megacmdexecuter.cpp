@@ -3764,7 +3764,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else if (words.size() == 2)
         {
-            int id = atoi(words[1].c_str()); //TODO: check if not a number and look by path
+            int id = toInteger(words[1].c_str());
             map<string, sync_struct *>::iterator itr;
             int i = 0;
             for (itr = ConfigurationManager::loadedSyncs.begin(); itr != ConfigurationManager::loadedSyncs.end(); i++)
@@ -3776,7 +3776,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 if (n)
                 {
-                    if (id == i)
+                    char * nodepath = api->getNodePath(n);
+
+                    if (id == i || (id == -1  && words[1] == thesync->localpath) )
                     {
                         int nfiles = 0;
                         int nfolders = 0;
@@ -3788,9 +3790,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (getFlag(clflags, "s"))
                         {
-                            char * nodepath = api->getNodePath(n);
                             OUTSTREAM << "Stopping (disabling)/Resuming sync " << key << " to " << nodepath << endl;
-                            delete []nodepath;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)
                             {
@@ -3818,9 +3818,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else if (getFlag(clflags, "d"))
                         {
-                            char * nodepath = api->getNodePath(n);
                             LOG_debug << "Removing sync " << key << " to " << nodepath;
-                            delete []nodepath;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)  //if not active, removeSync will fail.)
                             {
@@ -3831,9 +3829,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     ConfigurationManager::loadedSyncs.erase(itr++);
                                     erased = true;
                                     delete ( thesync );
-                                    char * nodepath = api->getNodePath(n);
                                     OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
-                                    delete []nodepath;
                                 }
                             }
                             else //if !active simply remove
@@ -3847,19 +3843,18 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
-                            char * nodepath = api->getNodePath(n);
                             OUTSTREAM << i << ": " << key << " to " << nodepath;
-                            delete []nodepath;
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
                             int state = api->syncPathState(&sstate);
 
-                            OUTSTREAM << " - " << ( thesync->active ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active"; //TODO: show inactives
+                            OUTSTREAM << " - " << ( thesync->active ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state);
                             OUTSTREAM << ", " << sizeToText(api->getSize(n),false) << "yte(s) in ";
                             OUTSTREAM << nfiles << " file(s) and " << nfolders << " folder(s)" << endl;
                         }
                     }
                     delete n;
+                    delete []nodepath;
                 }
                 else
                 {

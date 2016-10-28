@@ -112,6 +112,8 @@ string unquote(string what);
 
 bool patternMatches(const char *what, const char *pattern);
 
+int toInteger(string what, int failValue = -1);
+
 
 /* Flags and Options */
 int getFlag(map<string, int> *flags, const char * optname);

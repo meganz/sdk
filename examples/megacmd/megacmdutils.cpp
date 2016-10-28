@@ -747,6 +747,23 @@ bool patternMatches(const char *what, const char *pattern)
     return false;
 }
 
+int toInteger(string what, int failValue)
+{
+   if (what.empty()) return failValue;
+   if (!isdigit(what[0]) && !(what[0] != '-') && (what[0] != '+')) return failValue;
+
+   char * p ;
+   long l = strtol(what.c_str(), &p, 10) ;
+
+   if (*p != 0) return failValue;
+
+   if (l < INT_MIN || l > INT_MAX)
+   {
+       return failValue;
+   }
+   return (int) l;
+}
+
 
 int getFlag(map<string, int> *flags, const char * optname)
 {
