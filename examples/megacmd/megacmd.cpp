@@ -139,6 +139,10 @@ void sigint_handler(int signum)
         exit(-2);
     }
 
+    if (prompt != COMMAND)
+    {
+        setprompt(COMMAND);
+    }
 
     // reset position and print prompt
     rl_replace_line("", 0); //clean contents of actual command
@@ -1377,6 +1381,7 @@ static void process_line(char* l)
     {
         case LOGINPASSWORD:
         {
+            if (!strlen(l)) break;
             if (!cmdexecuter->confirming)
             {
                 cmdexecuter->loginWithPassword(l);
@@ -1392,6 +1397,7 @@ static void process_line(char* l)
 
         case OLDPASSWORD:
         {
+            if (!strlen(l)) break;
             oldpasswd = l;
             OUTSTREAM << endl;
             setprompt(NEWPASSWORD);
@@ -1400,6 +1406,7 @@ static void process_line(char* l)
 
         case NEWPASSWORD:
         {
+            if (!strlen(l)) break;
             newpasswd = l;
             OUTSTREAM << endl;
             setprompt(PASSWORDCONFIRM);
@@ -1408,6 +1415,7 @@ static void process_line(char* l)
 
         case PASSWORDCONFIRM:
         {
+            if (!strlen(l)) break;
             if (l != newpasswd)
             {
                 OUTSTREAM << endl << "New passwords differ, please try again" << endl;
