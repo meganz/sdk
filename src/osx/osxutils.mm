@@ -4,7 +4,7 @@
 
 using namespace mega;
 
-enum {HTTP_PROXY = 0, HTTPS_PROXY};
+enum { HTTP_PROXY = 0, HTTPS_PROXY };
 
 CFTypeRef getValueFromKey(CFDictionaryRef dict, const void *key, CFTypeID type)
 {
@@ -39,9 +39,10 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
     CFNumberRef proxyEnabledRef = (CFNumberRef)getValueFromKey(dict, proxyEnableKey, CFNumberGetTypeID());
     if (proxyEnabledRef && CFNumberGetValue(proxyEnabledRef, kCFNumberIntType, &isEnabled) && (isEnabled != 0))
     {
-        if ([(NSDictionary*)dict valueForKey: proxyType == HTTPS_PROXY ? @"HTTPSUser": @"HTTPUser"] != nil)
+        if ([(NSDictionary*)dict valueForKey: proxyType == HTTP_PROXY ? @"HTTPUser" : @"HTTPSUser"] != nil)
         {
-            //Username set, skip proxy configuration. We only allow proxies withouth user/pw credentials
+            // Username set, skip proxy configuration. We only allow proxies withouth user/pw credentials
+            // to not have to request the password to the user to read the keychain
             return false;
         }
 
@@ -50,23 +51,22 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
         {
             CFIndex length = CFStringGetLength(hostRef);
             CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
-            char *buffer = (char *) malloc (maxSize);
+            char *buffer = new char[maxSize];
             if (CFStringGetCString(hostRef, buffer, maxSize, kCFStringEncodingUTF8))
             {
                 CFNumberRef portRef = (CFNumberRef)getValueFromKey(dict, portKey, CFNumberGetTypeID());
                 if (portRef && CFNumberGetValue(portRef, kCFNumberIntType, &port))
                 {
                     ostringstream oss;
-                    oss << (proxyType == HTTPS_PROXY ? "https://" : "http://") << buffer << ":" << port;
+                    oss << (proxyType == HTTP_PROXY ? "http://" : "https://") << buffer << ":" << port;
                     string link = oss.str();
                     proxy->setProxyType(Proxy::CUSTOM);
                     proxy->setProxyURL(&link);
-                    free(buffer);
+                    delete [] buffer;
                     return true;
                 }
-
             }
-            free(buffer);
+            delete [] buffer;
         }
     }
     return false;
@@ -81,9 +81,9 @@ void getOSXproxy(Proxy* proxy)
         return;
     }
 
-    if (!getProxyConfiguration(proxySettings, HTTP_PROXY, proxy))
+    if (!getProxyConfiguration(proxySettings, HTTPS_PROXY, proxy))
     {
-        getProxyConfiguration(proxySettings, HTTPS_PROXY, proxy);
+        getProxyConfiguration(proxySettings, HTTP_PROXY, proxy);
     }
     CFRelease(proxySettings);
 }
