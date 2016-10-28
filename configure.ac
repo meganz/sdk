@@ -40,10 +40,10 @@ m4_define([mega_version],
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [$(echo -n $(( $( cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3 ) * 10000 + $( cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3 ) * 100 + $(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3))))])
+m4_define([mega_lt_current], [$(grep define <include/mega/version.h | awk '{print @S|@3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf @S|@1*10000+@S|@2*100+@S|@3}')])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | cut -d ' ' -f3 | tr -st '\n' '.' | cut -d '.' -f1,2,3 --output-delimiter='.' | tr -d '\n']), [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
 
 # Define _GNU_SOURCE
