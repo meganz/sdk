@@ -229,7 +229,9 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
             int i = 0;
             for (itr = ConfigurationManager::configuredSyncs.begin(); itr != ConfigurationManager::configuredSyncs.end(); ++itr, i++)
             {
-                sync_struct *thesync = ((sync_struct*)( *itr ).second );
+                sync_struct *oldsync = ((sync_struct*)( *itr ).second );
+                sync_struct *thesync = new sync_struct;
+                *thesync = *oldsync;
 
                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
                 MegaNode * node = api->getNodeByHandle(thesync->handle);
@@ -241,10 +243,18 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                     thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
                     thesync->active = true;
 
+                    if (ConfigurationManager::loadedSyncs.find(thesync->localpath) != ConfigurationManager::loadedSyncs.end() )
+                    {
+                        delete ConfigurationManager::loadedSyncs[thesync->localpath];
+                    }
                     ConfigurationManager::loadedSyncs[thesync->localpath] = thesync;
                     char *nodepath = api->getNodePath(node);
                     LOG_info << "Loaded sync: " << thesync->localpath << " to " << nodepath;
                     delete []nodepath;
+                }
+                else
+                {
+                    delete thesync;
                 }
 
                 delete megaCmdListener;

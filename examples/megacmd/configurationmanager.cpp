@@ -147,6 +147,23 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
     }
 }
 
+void ConfigurationManager::unloadConfiguration(){
+
+    map<string, sync_struct *>::iterator itr;
+    for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); ++itr)
+    {
+        sync_struct *thesync = ((sync_struct*)( *itr ).second );
+        delete thesync;
+    }
+
+    for (itr = loadedSyncs.begin(); itr != loadedSyncs.end(); ++itr)
+    {
+        sync_struct *thesync = ((sync_struct*)( *itr ).second );
+        delete thesync;
+    }
+}
+
+
 void ConfigurationManager::loadConfiguration(){
     stringstream sessionfile;
     if (!configFolder.size())
@@ -192,7 +209,7 @@ void ConfigurationManager::loadConfiguration(){
 
                 while (!( fi.peek() == EOF ))
                 {
-                    sync_struct *thesync = new sync_struct; //TODO: this is never deleted
+                    sync_struct *thesync = new sync_struct;
                     //Load syncs
                     fi.read((char*)&thesync->fingerprint, sizeof( long long ));
                     fi.read((char*)&thesync->handle, sizeof( MegaHandle ));
@@ -203,6 +220,10 @@ void ConfigurationManager::loadConfiguration(){
                     localPath[lengthLocalPath] = '\0';
                     thesync->localpath = string(localPath);
 
+                    if (configuredSyncs.find(localPath) != configuredSyncs.end())
+                    {
+                        delete configuredSyncs[localPath];
+                    }
                     configuredSyncs[localPath] = thesync;
                 }
 

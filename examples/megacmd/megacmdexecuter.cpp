@@ -857,7 +857,8 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
         }
     }
 
-                    getNodesMatching(n, c, nodesMatching);
+    getNodesMatching(n, c, nodesMatching);
+    delete n;
 
     return nodesMatching;
 }
@@ -1833,7 +1834,7 @@ void MegaCmdExecuter::dumptree(MegaNode* n, int recurse, int extended_info, int 
 
                 dumpNode(n, extended_info, depth, pathToShow);
 
-                delete nodepath;
+                delete []nodepath;
             }
         }
         else
@@ -2785,11 +2786,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "find")
     {
-        if (words.size()<2)
-        {
-            words.push_back(string(".")); //TODO: pensar si meter el pattron via --pattern= y no hacer esta pirula, sino coger nodo de cwd si no hay parametro
-        }
-
         string rNpath = "";
 
         if (words.size()>1)
@@ -3737,9 +3733,18 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         thesync->handle = megaCmdListener->getRequest()->getNodeHandle();
                         thesync->localpath = string(megaCmdListener->getRequest()->getFile());
                         thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
+
+
+                        if (ConfigurationManager::loadedSyncs.find(megaCmdListener->getRequest()->getFile()) != ConfigurationManager::loadedSyncs.end())
+                        {
+                            delete ConfigurationManager::loadedSyncs[megaCmdListener->getRequest()->getFile()];
+                        }
                         ConfigurationManager::loadedSyncs[megaCmdListener->getRequest()->getFile()] = thesync;
 
-                        OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << api->getNodePath(n);
+                        char * nodepath = api->getNodePath(n);
+                        OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << nodepath;
+                        delete []nodepath;
+
                     }
 
                     delete megaCmdListener;
@@ -3783,7 +3788,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (getFlag(clflags, "s"))
                         {
-                            OUTSTREAM << "Stopping (disabling)/Resuming sync " << key << " to " << api->getNodePath(n) << endl;
+                            char * nodepath = api->getNodePath(n);
+                            OUTSTREAM << "Stopping (disabling)/Resuming sync " << key << " to " << nodepath << endl;
+                            delete []nodepath;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)
                             {
@@ -3811,7 +3818,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else if (getFlag(clflags, "d"))
                         {
-                            LOG_debug << "Removing sync " << key << " to " << api->getNodePath(n);
+                            char * nodepath = api->getNodePath(n);
+                            LOG_debug << "Removing sync " << key << " to " << nodepath;
+                            delete []nodepath;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)  //if not active, removeSync will fail.)
                             {
@@ -3822,7 +3831,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     ConfigurationManager::loadedSyncs.erase(itr++);
                                     erased = true;
                                     delete ( thesync );
-                                    OUTSTREAM << "Removed sync " << key << " to " << api->getNodePath(n) << endl;
+                                    char * nodepath = api->getNodePath(n);
+                                    OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+                                    delete []nodepath;
                                 }
                             }
                             else //if !active simply remove
@@ -3836,7 +3847,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
-                            OUTSTREAM << i << ": " << key << " to " << api->getNodePath(n);
+                            char * nodepath = api->getNodePath(n);
+                            OUTSTREAM << i << ": " << key << " to " << nodepath;
+                            delete []nodepath;
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
                             int state = api->syncPathState(&sstate);
@@ -3878,7 +3891,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     nfiles += nFolderFiles[1];
                     delete []nFolderFiles;
 
-                    OUTSTREAM << i++ << ": " << ( *itr ).first << " to " << api->getNodePath(n);
+                    char * nodepath = api->getNodePath(n);
+                    OUTSTREAM << i++ << ": " << ( *itr ).first << " to " << nodepath;
+                    delete []nodepath;
+
                     string sstate(( *itr ).first);
                     sstate = rtrim(sstate, '/');
                     int state = api->syncPathState(&sstate);

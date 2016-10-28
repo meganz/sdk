@@ -50,6 +50,9 @@ public:
 
     static void saveSession(const char*session);
     static std::string getConfigFolder();
+
+    static void unloadConfiguration();
+
 };
 
 

@@ -1490,6 +1490,8 @@ void finalize()
 
     LOG_debug << "resources have been cleaned ...";
     delete loggerCMD;
+    ConfigurationManager::unloadConfiguration();
+
 }
 
 // main loop
