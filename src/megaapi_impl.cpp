@@ -3664,6 +3664,10 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+    delete request; // delete here since onRequestFinish() is never called
+    delete gfxAccess;
+    delete fsAccess;
+//    delete httpio;  do not delete since it could crash
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -4419,6 +4423,30 @@ void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestLi
 	request->setName(name);
 	requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::createLocalFolder(const char *path)
+{
+    if (!path)
+    {
+        return false;
+    }
+
+    string localpath;
+    string sPath(path);
+	
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if(!PathIsRelativeA(sPath.c_str()) && ((sPath.size()<2) || sPath.compare(0, 2, "\\\\")))
+        sPath.insert(0, "\\\\?\\");
+#endif
+	
+    client->fsaccess->path2local(&sPath, &localpath);
+
+    sdkMutex.lock();
+    bool success = client->fsaccess->mkdirlocal(&localpath);
+    sdkMutex.unlock();
+
+    return success;
 }
 
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)

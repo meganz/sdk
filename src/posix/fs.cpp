@@ -247,8 +247,19 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
+    mode_t mode;
+    if (write)
+    {
+        mode = umask(0);
+    }
+
     if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY, defaultfilepermissions)) >= 0)
     {
+        if (write)
+        {
+            umask(mode);
+        }
+
         if (!fstat(fd, &statbuf))
         {
             #ifdef __MACH__
@@ -273,6 +284,10 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
         }
 
         close(fd);
+    }
+    else if (write)
+    {
+        umask(mode);
     }
 
     return false;
@@ -777,8 +792,10 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     if ((sfd = open(oldname->c_str(), O_RDONLY | O_DIRECT)) >= 0)
     {
         LOG_verbose << "Copying via sendfile";
+        mode_t mode = umask(0);
         if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, defaultfilepermissions)) >= 0)
         {
+            umask(mode);
             while ((t = sendfile(tfd, sfd, NULL, 1024 * 1024 * 1024)) > 0);
 #else
     char buf[16384];
@@ -786,14 +803,17 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     if ((sfd = open(oldname->c_str(), O_RDONLY)) >= 0)
     {
         LOG_verbose << "Copying via read/write";
+        mode_t mode = umask(0);
         if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
         {
+            umask(mode);
             while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
 #endif
             close(tfd);
         }
         else
         {
+            umask(mode);
             target_exists = errno == EEXIST;
             transient_error = errno == ETXTBSY || errno == EBUSY;
 
@@ -983,10 +1003,13 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
     }
 #endif
 
+    mode_t mode = umask(0);
     bool r = !mkdir(name->c_str(), defaultfolderpermissions);
+    umask(mode);
 
     if (!r)
     {
+        LOG_err << "Error creating local directory: " << name->c_str() << " errno: " << errno;
         target_exists = errno == EEXIST;
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
