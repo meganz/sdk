@@ -3668,6 +3668,14 @@ MegaApiImpl::~MegaApiImpl()
     delete gfxAccess;
     delete fsAccess;
 //    delete httpio;  do not delete since it could crash
+
+    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
+    while(it != syncMap.end())
+    {
+        MegaSyncPrivate* sync = it->second;
+        delete sync;
+        it++;
+    }
 }
 
 int MegaApiImpl::isLoggedIn()
