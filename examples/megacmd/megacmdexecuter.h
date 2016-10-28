@@ -46,10 +46,14 @@ private:
     // signup name
     string name;
 
+    // link to confirm
+    string link;
+
     void updateprompt(MegaApi *api, MegaHandle handle);
 
 public:
     bool signingup = false;
+    bool confirming = false;
 
     MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD);
     ~MegaCmdExecuter();
@@ -108,6 +112,9 @@ public:
     int loadfile(string* name, string* data);
     void signup(string name, string passwd, string email);
     void signupWithPassword(string passwd);
+    void confirm(string passwd, string email, string link);
+    void confirmWithPassword(string passwd);
+
 };
 
 #endif // MEGACMDEXECUTER_H

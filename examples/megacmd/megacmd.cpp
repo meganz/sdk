@@ -1377,7 +1377,15 @@ static void process_line(char* l)
     {
         case LOGINPASSWORD:
         {
-            cmdexecuter->loginWithPassword(l);
+            if (!cmdexecuter->confirming)
+            {
+                cmdexecuter->loginWithPassword(l);
+            }
+            else
+            {
+                cmdexecuter->confirmWithPassword(l);
+                cmdexecuter->confirming = false;
+            }
             setprompt(COMMAND);
             break;
         }

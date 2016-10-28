@@ -2724,6 +2724,25 @@ void MegaCmdExecuter::signupWithPassword(string passwd)
     return signup(name,passwd,login);
 }
 
+void MegaCmdExecuter::confirm(string passwd, string email, string link)
+{
+    MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
+    api->confirmAccount(link.c_str(),passwd.c_str(),megaCmdListener2);
+    megaCmdListener2->wait();
+    if (checkNoErrors(megaCmdListener2->getError(),"confirm account"))
+    {
+        OUTSTREAM << "Account " << email << " confirmed succesfully. You can login with it now" << endl;
+    }
+    delete megaCmdListener2;
+}
+
+void MegaCmdExecuter::confirmWithPassword(string passwd)
+{
+    return confirm(passwd,login,link);
+}
+
+
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n;
@@ -4643,7 +4662,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                //TODO: play with prompt
                 login = words[1];
                 name = getOption(cloptions, "name", email);
                 signingup = true;
@@ -4948,18 +4966,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     if ( words.size() > 3 )
                     {
                         passwd = words[3];
-                        MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
-                        api->confirmAccount(link.c_str(),passwd.c_str(),megaCmdListener2);
-                        megaCmdListener2->wait();
-                        if (checkNoErrors(megaCmdListener2->getError(),"confirm account"))
-                        {
-                            OUTSTREAM << "Account " << email << " confirmed succesfully. You can login with it now" << endl;
-                        }
-                        delete megaCmdListener2;
+                        confirm(passwd, email, link);
                     }
                     else
                     {
-                        //TODO: play with password promt
+                        this->login = email;
+                        this->link = link;
+                        confirming = true;
+                        setprompt(LOGINPASSWORD);
                     }
                 }
                 else
