@@ -114,7 +114,13 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO = MegaApi.TRANSFER_METHOD_AUTO;
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
-    
+
+
+    MegaApi getMegaApi()
+    {
+        return megaApi;
+    }
+
     /**
      * Constructor suitable for most applications.
      * 
@@ -1031,6 +1037,24 @@ public class MegaApiJava {
      */
     public void cancelAccount(MegaRequestListenerInterface listener){
         megaApi.cancelAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a cancel link created by MegaApi::cancelAccount.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink - Returns the cancel link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Return the email associated with the link
+     *
+     * @param link Cancel link (#cancel)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryCancelLink(String link, MegaRequestListenerInterface listener){
+        megaApi.queryCancelLink(link, createDelegateRequestListener(listener));
     }
 
     /**
