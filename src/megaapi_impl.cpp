@@ -13045,7 +13045,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             // if 1:1 chat, peer is enforced to be moderator too
-            if (!group && userpriv->at(1).second != PRIV_MODERATOR)
+            if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
