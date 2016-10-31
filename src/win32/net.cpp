@@ -226,6 +226,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->status == REQ_SUCCESS)
                 {
                     httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
                 httpio->success = true;
             }
@@ -267,6 +268,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->httpio)
                 {
                     req->httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
             
                 if (httpctx->gzip)
@@ -325,6 +327,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->httpio)
                 {
                     req->httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
 
                 if (!req->buf)

@@ -410,7 +410,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 		void setSpeed(long long speed);
 		void setDeltaSize(long long deltaSize);
         void setUpdateTime(int64_t updateTime);
-        void setPublicNode(MegaNode *publicNode);
+        void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStreamingTransfer(bool streamingTransfer);
@@ -611,7 +611,7 @@ class MegaRequestPrivate : public MegaRequest
 		void setAccess(int access);
 		void setNumRetry(int ds);
 		void setNextRetryDelay(int delay);
-        void setPublicNode(MegaNode* publicNode);
+        void setPublicNode(MegaNode* publicNode, bool copyChildren = false);
 		void setNumDetails(int numDetails);
 		void setFile(const char* file);
         void setParamType(int type);
@@ -920,7 +920,7 @@ class MegaTextChatListPrivate : public MegaTextChatList
 {
 public:
     MegaTextChatListPrivate();
-    MegaTextChatListPrivate(textchat_vector *list);
+    MegaTextChatListPrivate(textchat_map *list);
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
@@ -976,13 +976,13 @@ class MegaNodeListPrivate : public MegaNodeList
 	public:
         MegaNodeListPrivate();
         MegaNodeListPrivate(Node** newlist, int size);
+        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
 	
 	protected:
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -1290,6 +1290,7 @@ class MegaApiImpl : public MegaApp
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+        bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
@@ -1815,7 +1816,7 @@ protected:
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
 
-        virtual void chats_updated(textchat_vector *);
+        virtual void chats_updated(textchat_map *);
 #endif
 
 #ifdef ENABLE_SYNC

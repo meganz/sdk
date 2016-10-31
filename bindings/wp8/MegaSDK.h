@@ -325,6 +325,8 @@ namespace mega
         void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName);
 		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime, MTransferListenerInterface^ listener);
 		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime);
+        void startUploadWithMtimeTempSource(String^ localPath, MNode^ parent, uint64 mtime, bool isSourceTemporary, MTransferListenerInterface^ listener);
+        void startUploadWithMtimeTempSource(String^ localPath, MNode^ parent, uint64 mtime, bool isSourceTemporary);
         void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime, MTransferListenerInterface^ listener);
         void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime);
         void startUploadWithData(String^ localPath, MNode^ parent, String^ appData, MTransferListenerInterface^ listener);

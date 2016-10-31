@@ -726,6 +726,8 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
+    abortlockrequest();
+
     jsonsc.pos = NULL;
     insca = false;
     scnotifyurl.clear();
@@ -742,6 +744,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
+    workinglockcs = NULL;
     scpaused = false;
 
 #ifndef EMSCRIPTEN
@@ -851,6 +854,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
+    delete workinglockcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -872,9 +876,29 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs)
     {
+        LOG_debug << "Network timeout. Reconnecting";
         disconnect();
+    }
+    else if (EVER(disconnecttimestamp))
+    {
+        if (disconnecttimestamp <= Waiter::ds)
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99424, "Timeout (server idle)");
+            reqtag = creqtag;
+
+            disconnect();
+        }
+    }
+    else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
+            &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
+    {
+        LOG_debug << "Request timeout. Triggering a lock request";
+        requestLock = true;
     }
 
     // successful network operation with a failed transfer chunk: increment error count
@@ -1096,11 +1120,17 @@ void MegaClient::exec()
                     case REQ_INFLIGHT:
                         if (pendingcs->contentlength > 0)
                         {
-                            app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                            if (pendingcs->bufpos > pendingcs->notifiedbufpos)
+                            {
+                                abortlockrequest();
+                                app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                                pendingcs->notifiedbufpos = pendingcs->bufpos;
+                            }
                         }
                         break;
 
                     case REQ_SUCCESS:
+                        abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
                         if (pendingcs->in != "-3" && pendingcs->in != "-4")
@@ -1116,6 +1146,8 @@ void MegaClient::exec()
                                 // request succeeded, process result array
                                 json.begin(pendingcs->in.c_str());
                                 reqs.procresult(this);
+
+                                WAIT_CLASS::bumpds();
 
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -1155,6 +1187,7 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        abortlockrequest();
                         if (pendingcs->sslcheckfailed)
                         {
                             sslfakeissuer = pendingcs->sslfakeissuer;
@@ -1372,6 +1405,46 @@ void MegaClient::exec()
                 badhosts = badhostcs->outbuf;
                 delete badhostcs;
                 badhostcs = NULL;
+            }
+        }
+
+        if (workinglockcs)
+        {
+            if (workinglockcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful lock request";
+                btworkinglock.reset();
+
+                if (workinglockcs->in == "1")
+                {
+                    LOG_warn << "Timeout (server idle)";
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
+                }
+                else if (workinglockcs->in == "0")
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99425, "Timeout (server busy)");
+                    reqtag = creqtag;
+
+                    pendingcs->lastdata = Waiter::ds;
+                }
+                else
+                {
+                    LOG_err << "Error in lock request: " << workinglockcs->in;
+                }
+
+                delete workinglockcs;
+                workinglockcs = NULL;
+                requestLock = false;
+            }
+            else if (workinglockcs->status == REQ_FAILURE
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+            {
+                LOG_warn << "Failed lock request. Retrying...";
+                btworkinglock.backoff();
+                delete workinglockcs;
+                workinglockcs = NULL;
             }
         }
 
@@ -1888,6 +1961,18 @@ void MegaClient::exec()
             badhostcs->post(this);
             badhosts.clear();
         }
+
+        if (!workinglockcs && requestLock && btworkinglock.armed())
+        {
+            LOG_debug << "Sending lock request";
+            workinglockcs = new HttpReq();
+            workinglockcs->posturl = APIURL;
+            workinglockcs->posturl.append("cs?");
+            workinglockcs->posturl.append(auth);
+            workinglockcs->posturl.append("&wlt=1");
+            workinglockcs->type = REQ_JSON;
+            workinglockcs->post(this);
+        }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
 
@@ -1954,9 +2039,14 @@ int MegaClient::preparewait()
         }
 
         // retry failed badhost requests
-        if (!badhostcs)
+        if (!badhostcs && badhosts.size())
         {
             btbadhost.update(&nds);
+        }
+
+        if (!workinglockcs && requestLock)
+        {
+            btworkinglock.update(&nds);
         }
 
         // retry failed file attribute puts
@@ -2022,13 +2112,57 @@ int MegaClient::preparewait()
 #endif
 
         // detect stuck network
-        if (EVER(httpio->lastdata))
+        if (EVER(httpio->lastdata) && !pendingcs)
         {
             dstime timeout = httpio->lastdata + HttpIO::NETWORKTIMEOUT;
 
-            if (timeout >= Waiter::ds && timeout < nds)
+            if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
+
+        if (pendingcs && EVER(pendingcs->lastdata))
+        {
+            if (EVER(disconnecttimestamp))
+            {
+                if (disconnecttimestamp > Waiter::ds && disconnecttimestamp < nds)
+                {
+                    nds = disconnecttimestamp;
+                }
+                else if (disconnecttimestamp <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (!requestLock && !fetchingnodes)
+            {
+                dstime timeout = pendingcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (workinglockcs && EVER(workinglockcs->lastdata)
+                     && workinglockcs->status == REQ_INFLIGHT)
+            {
+                dstime timeout = workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
             }
         }
     }
@@ -2109,6 +2243,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btbadhost.arm())
+    {
+        r = true;
+    }
+
+    if (btworkinglock.arm())
     {
         r = true;
     }
@@ -2519,6 +2658,8 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
+    abortlockrequest();
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
         (*it)->disconnect();
@@ -2546,6 +2687,15 @@ void MegaClient::disconnect()
 
     httpio->lastdata = NEVER;
     httpio->disconnect();
+}
+
+void MegaClient::abortlockrequest()
+{
+    delete workinglockcs;
+    workinglockcs = NULL;
+    btworkinglock.reset();
+    requestLock = false;
+    disconnecttimestamp = NEVER;
 }
 
 void MegaClient::logout()
@@ -6982,7 +7132,7 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify.push_back(chat);
+    chatnotify[chat->id] = chat;
 }
 
 #endif
@@ -7188,8 +7338,7 @@ void MegaClient::procmcf(JSON *j)
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                            && shard != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;

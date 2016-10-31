@@ -31,18 +31,20 @@ AC_PREREQ([2.61])
 
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
-m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [6])
-m4_define([mega_micro_version], [0])
+m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
+m4_define([mega_minor_version], [$(cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3)])
+m4_define([mega_micro_version], [$(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3)])
+
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
+m4_define([mega_lt_current], [$(grep define <include/mega/version.h | awk '{print @S|@3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf @S|@1*10000+@S|@2*100+@S|@3}')])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
+
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -55,21 +57,6 @@ AC_CONFIG_MACRO_DIR([m4])
 # enable silent build
 m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
 AM_SILENT_RULES([yes])
-
-MEGA_MAJOR_VERSION=mega_major_version
-MEGA_MINOR_VERSION=mega_minor_version
-MEGA_MICRO_VERSION=mega_micro_version
-
-AC_SUBST(MEGA_MAJOR_VERSION)
-AC_SUBST(MEGA_MINOR_VERSION)
-AC_SUBST(MEGA_MICRO_VERSION)
-
-AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
-    [MEGA SDK major version.])
-AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
-    [MEGA SDK minor version.])
-AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
-    [MEGA SDK micro version.])
 
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision

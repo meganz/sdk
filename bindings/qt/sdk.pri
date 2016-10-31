@@ -286,9 +286,17 @@ unix:!macx {
 
 macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+
+   OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
+
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
+
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
+
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lz -lssl -lcrypto -lcryptopp
+   LIBS += -framework SystemConfiguration
 }
