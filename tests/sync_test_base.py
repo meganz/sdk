@@ -171,12 +171,12 @@ class SyncTestBase(unittest.TestCase):
                 return True
 
             logging.debug("Directory %s is not empty! Retrying [%d/%d] .." % (folder_name, r + 1, self.nr_retries))
-
-            try:
-                shutil.rmtree(folder_name)
-            except OSError, e:
-                logging.error("Failed to delete folder: %s (%s)" % (folder_name, e))
-                return False
+            self.app.sync()
+            #~ try:
+                #~ shutil.rmtree(folder_name)
+            #~ except OSError, e:
+                #~ logging.error("Failed to delete folder: %s (%s)" % (folder_name, e))
+                #~ return False
 
     @staticmethod
     def md5_for_file(fname, block_size=2**20):
