@@ -315,6 +315,18 @@ class SyncTest(SyncTestBase):
             
             self.assertTrue(self.app.is_alive(), "Test application is not running")
 
+        #remove filein
+        l_files=[]
+        l_files.append({"name":in_file, "size":0, "md5":0, "name_orig":in_file})
+        self.assertTrue(self.files_remove(l_files), "Removing file")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        self.app.sync()
+
+        # make sure remote folders are empty
+        self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
     def test_create_rename_delete_unicode_files_dirs(self):
         """
         create directories with different amount of files,
