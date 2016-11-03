@@ -202,7 +202,6 @@ class SyncTest(SyncTestBase):
         write data to a file located in both sync folders
         check for the result, expected result: both files contains the same content
         """
-        l_files=[]
 
         logging.info("Launching test_sync_files_write test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
@@ -253,34 +252,6 @@ class SyncTest(SyncTestBase):
 
                 self.assertEqual(md5_in, md5_out, "Files do not match")
 
-            l_files.append({"name":fname_in, "size":0, "md5":0, "name_orig":fname_in})
-
-        self.app.sync()
-
-        #remove filein
-        self.assertTrue(self.files_remove(l_files), "Removing files")
-        self.assertTrue(self.app.is_alive(), "Test application is not running")
-
-        self.app.sync()
-        #in case both files (in & out) were created at the same time (decisecond), two files could exist in remote folder
-        #deleting one local file, might cause the removal of one file, keeping another in remote, that will be synched down to both local folders
-        
-        new_lfiles=[]
-        for f in l_files:
-            try:
-                with open(f["name"]):
-                    new_lfiles.append(f)
-            except IOError:
-                pass
-
-        self.assertTrue(self.files_remove(new_lfiles), "Removing files that got resynced down")
-        self.assertTrue(self.app.is_alive(), "Test application is not running")
-        
-        self.app.sync()
-
-        # make sure remote folders are empty
-        self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
-        self.assertTrue(self.app.is_alive(), "Test application is not running")
 
     def test_local_operations(self):
         """
@@ -368,7 +339,9 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_rename_delete_unicode_files_dirs test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
-
+        
+        self.app.change_folders();
+        
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")

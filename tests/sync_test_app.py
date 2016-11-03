@@ -52,6 +52,23 @@ class SyncTestApp(object):
         self.nr_retries = 200
         self.delete_tmp_files = delete_tmp_files
         self.use_large_files = use_large_files
+    
+    def change_folders(self):
+        """
+        cleans directories and call finish
+        """
+        if self.delete_tmp_files:
+            try:
+                shutil.rmtree(self.local_folder_in)
+            except OSError:
+                pass
+        time.sleep(0.11) # to prevent from sync algorithm interpreting we are renaming
+        self.rnd_folder = get_random_str()
+        self.local_folder_in = os.path.join(self.local_mount_in, self.rnd_folder)
+        self.local_folder_out = os.path.join(self.local_mount_out, self.rnd_folder)
+        self.work_folder = os.path.join(self.work_folder, self.rnd_folder) 
+        
+        self.prepare_folders();          
 
     def __enter__(self):
         # call subclass function
