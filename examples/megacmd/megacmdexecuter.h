@@ -96,7 +96,7 @@ public:
     void disableExport(MegaNode *n);
     void shareNode(MegaNode *n, string with, int level = MegaShare::ACCESS_READ);
     void disableShare(MegaNode *n, string with);
-    vector<string> listpaths(string askedPath = "");
+    vector<string> listpaths(string askedPath = "", bool discardFiles = false);
     vector<string> getlistusers();
     vector<string> getNodeAttrs(string nodePath);
     vector<string> getsessions();

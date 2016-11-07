@@ -2572,7 +2572,7 @@ string MegaCmdExecuter::getCurrentPath(){
     return toret;
 }
 
-vector<string> MegaCmdExecuter::listpaths(string askedPath)
+vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
 {
     MegaNode *n;
     vector<string> paths;
@@ -2603,7 +2603,15 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath)
                     if (n)
                     {
                         string pathToShow = getDisplayPath(askedPath, n);
-                        paths.push_back(pathToShow);
+                        if (n->getType() != MegaNode::TYPE_FILE)
+                        {
+                            pathToShow+="/";
+                        }
+                        if (! (discardFiles && n->getType() == MegaNode::TYPE_FILE) )
+                        {
+                            paths.push_back(pathToShow);
+                        }
+
                         delete n;
                     }
                 }

@@ -77,8 +77,11 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotepatterncommands [] = {"put", "sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "share", "cd", "find"};
+string aremotepatterncommands[] = {"export", "find"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
+
+string aremotefolderspatterncommands[] = {"cd", "share"};
+vector<string> remotefolderspatterncommands(aremotefolderspatterncommands, aremotefolderspatterncommands + sizeof aremotefolderspatterncommands / sizeof aremotefolderspatterncommands[0]);
 
 string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
 vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amultipleremotepatterncommands + sizeof amultipleremotepatterncommands / sizeof amultipleremotepatterncommands[0]);
@@ -324,7 +327,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
 
         if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
         {
-            if (name.size() && name.at(name.size()-1) == '=')
+            if (name.size() && (name.at(name.size()-1) == '=' || name.at(name.size()-1) == '/'))
             {
                 rl_completion_suppress_append = 1;
             }
@@ -501,6 +504,24 @@ char* remotepaths_completion(const char* text, int state)
     return generic_completion(text, state, validpaths);
 }
 
+char* remotefolders_completion(const char* text, int state)
+{
+    static vector<string> validpaths;
+    if (state == 0)
+    {
+        string wildtext(text);
+#ifdef USE_PCRE
+       wildtext += ".";
+#elif __cplusplus >= 201103L
+        wildtext += ".";
+#endif
+        wildtext += "*";
+
+        validpaths = cmdexecuter->listpaths(wildtext,true);
+    }
+    return generic_completion(text, state, validpaths);
+}
+
 char* loglevels_completion(const char* text, int state)
 {
     static vector<string> validloglevels;
@@ -613,6 +634,13 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         if (currentparameter == 1)
         {
             return remotepaths_completion;
+        }
+    }
+    else if (stringcontained(thecommand.c_str(), remotefolderspatterncommands))
+    {
+        if (currentparameter == 1)
+        {
+            return remotefolders_completion;
         }
     }
     else if (stringcontained(thecommand.c_str(), multipleremotepatterncommands))
