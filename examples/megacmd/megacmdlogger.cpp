@@ -98,7 +98,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
     {
         if (loglevel <= cmdLoggerLevel)
         {
-            *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
+            *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
 
         int currentThreadLogLevel = getCurrentThreadLogLevel();
@@ -108,7 +108,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         }
         if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output ))
         {
-            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
+            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))  << ": " << time << "] " << message << endl;
         }
     }
     else
@@ -118,7 +118,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
             if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) starting") ) return;
             if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) finished")  ) return;
 
-            *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
+            *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
 
         int currentThreadLogLevel = getCurrentThreadLogLevel();
@@ -129,7 +129,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         }
         if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output )) //since it happens in the sdk thread, this shall be false
         {
-            OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << "] " << message << endl;
+            OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
     }
 }
