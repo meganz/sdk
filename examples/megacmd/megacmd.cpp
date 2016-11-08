@@ -458,17 +458,12 @@ char * flags_value_completion(const char*text, int state)
             {
                 if (currentFlag.find("--level=") == 0)
                 {
-                    char buf[3];
-                    sprintf(buf, "%d", MegaShare::ACCESS_UNKNOWN);
-                    validValues.push_back(buf);
-                    sprintf(buf, "%d", MegaShare::ACCESS_READ);
-                    validValues.push_back(buf);
-                    sprintf(buf, "%d", MegaShare::ACCESS_READWRITE);
-                    validValues.push_back(buf);
-                    sprintf(buf, "%d", MegaShare::ACCESS_FULL);
-                    validValues.push_back(buf);
-                    sprintf(buf, "%d", MegaShare::ACCESS_OWNER);
-                    validValues.push_back(buf);
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READ));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READWRITE));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_FULL));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_OWNER));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
                 }
                 if (currentFlag.find("--with=") == 0)
                 {
@@ -536,7 +531,6 @@ char* loglevels_completion(const char* text, int state)
     }
     return generic_completion(text, state, validloglevels);
 }
-
 
 char* contacts_completion(const char* text, int state)
 {

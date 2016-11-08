@@ -4039,14 +4039,22 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
 
         string with = getOption(cloptions, "with", "");
-        if (( getFlag(clflags, "a") || getFlag(clflags, "d")) && ( "" == with ))
+        if ( getFlag(clflags, "a") && ( "" == with ))
         {
             setCurrentOutCode(2);
             OUTSTREAM << " Required --with destiny" << endl << getUsageStr("share") << endl;
             return;
         }
+
+        string slevel = getOption(cloptions,"level","NONE");
+
         int level_NOT_present_value = -214;
-        int level = getintOption(cloptions, "level", level_NOT_present_value);
+        int level;
+        if (slevel == "NONE") level = level_NOT_present_value;
+        else
+        {
+            level = getShareLevelNum(slevel.c_str());
+        }
         if (level != level_NOT_present_value && (level < -1 || level > 3) )
         {
             setCurrentOutCode(2);
@@ -4084,9 +4092,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
                             else if (getFlag(clflags, "d"))
                             {
-                                LOG_debug << " deleting share ... " << n->getName();
-                                disableShare(n, with);
-                                //TODO: disable with all
+                                if ( "" != with )
+                                {
+                                    LOG_debug << " deleting share ... " << n->getName() << " with " << with;
+                                    disableShare(n, with);
+                                }
+                                else
+                                {
+                                    MegaShareList* outShares = api->getOutShares(n);
+                                    if (outShares)
+                                    {
+                                        for (int i = 0; i < outShares->size(); i++)
+                                        {
+                                            if (outShares->get(i)->getNodeHandle() == n->getHandle())
+                                            {
+                                                LOG_debug << " deleting share ... " << n->getName() << " with " << outShares->get(i)->getUser();
+                                                disableShare(n,outShares->get(i)->getUser());
+                                            }
+                                        }
+                                        delete outShares;
+                                    }
+                                }
                             }
                             else
                             {
@@ -4131,8 +4157,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     else if (getFlag(clflags, "d"))
                     {
-                        LOG_debug << " deleting share ... " << n->getName();
-                        disableShare(n, with);
+                        if ( "" != with )
+                        {
+                            LOG_debug << " deleting share ... " << n->getName() << " with " << with;
+                            disableShare(n, with);
+                        }
+                        else
+                        {
+                            MegaShareList* outShares = api->getOutShares(n);
+                            if (outShares)
+                            {
+                                for (int i = 0; i < outShares->size(); i++)
+                                {
+                                    if (outShares->get(i)->getNodeHandle() == n->getHandle())
+                                    {
+                                        LOG_debug << " deleting share ... " << n->getName() << " with " << outShares->get(i)->getUser();
+                                        disableShare(n,outShares->get(i)->getUser());
+                                    }
+                                }
+                                delete outShares;
+                            }
+                        }
                     }
                     else
                     {

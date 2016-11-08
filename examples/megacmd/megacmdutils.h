@@ -61,6 +61,11 @@ const char * getLogLevelStr(int loglevel);
 
 int getLogLevelNum(const char* level);
 
+const char * getShareLevelStr(int sharelevel);
+
+int getShareLevelNum(const char* level);
+
+
 
 /* Files and folders */
 

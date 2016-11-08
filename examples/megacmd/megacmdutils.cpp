@@ -365,6 +365,42 @@ int getLogLevelNum(const char* level){
     return atoi(level);
 }
 
+
+const char * getShareLevelStr(int sharelevel)
+{
+    switch (sharelevel)
+    {
+    case MegaShare::ACCESS_UNKNOWN:
+        return "UNKNOWN";
+        break;
+    case MegaShare::ACCESS_READ:
+        return "READ";
+        break;
+    case MegaShare::ACCESS_READWRITE:
+        return "READWRITE";
+        break;
+    case MegaShare::ACCESS_FULL:
+        return "FULL";
+        break;
+    case MegaShare::ACCESS_OWNER:
+        return "OWNER";
+        break;
+    default:
+        return "UNEXPECTED";
+        break;
+    }
+}
+
+int getShareLevelNum(const char* level){
+    if (!strcmp(level,"UNKNOWN")) return MegaShare::ACCESS_UNKNOWN;
+    if (!strcmp(level,"READ")) return MegaShare::ACCESS_READ;
+    if (!strcmp(level,"READWRITE")) return MegaShare::ACCESS_READWRITE;
+    if (!strcmp(level,"FULL")) return MegaShare::ACCESS_FULL;
+    if (!strcmp(level,"OWNER")) return MegaShare::ACCESS_OWNER;
+    if (!strcmp(level,"UNEXPECTED")) return -9;
+    return atoi(level);
+}
+
 bool isFolder(string path) //TODO: move to MegaFileSystemAccess
 {
     struct stat path_stat;
