@@ -84,4 +84,6 @@ megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
+
 /third_party/Makefile
+/examples/mcmd

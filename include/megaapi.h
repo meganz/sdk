@@ -913,6 +913,19 @@ class MegaNode
          */
         virtual std::string* getPublicAuth();
 
+        /**
+         * @brief Returns the child nodes of an authorized folder node
+         *
+         * This function always returns NULL, except for authorized folder nodes.
+         * Authorized folder nodes are the ones returned by MegaApi::authorizeNode.
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Child nodes of an authorized folder node, otherwise NULL
+         */
+        virtual MegaNodeList *getChildren();
+
 #ifdef ENABLE_SYNC
         /**
          * @brief Returns true if this node was deleted from the MEGA account by the
