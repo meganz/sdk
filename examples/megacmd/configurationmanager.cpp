@@ -148,7 +148,6 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
 }
 
 void ConfigurationManager::unloadConfiguration(){
-
     map<string, sync_struct *>::iterator itr;
     for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); ++itr)
     {

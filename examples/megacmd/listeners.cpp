@@ -168,7 +168,7 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 
 void MegaCmdMegaListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
-    if (e && e->getErrorCode() == MegaError::API_ESID)
+    if (e && ( e->getErrorCode() == MegaError::API_ESID ))
     {
         LOG_err << "Session is no longer valid (it might have been invalidated from elsewhere) ";
         changeprompt(prompts[COMMAND]);
@@ -192,8 +192,7 @@ MegaCmdMegaListener::~MegaCmdMegaListener()
 
 #ifdef ENABLE_CHAT
 void MegaCmdMegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
-{
-}
+{}
 #endif
 
 ////////////////////////////////////////
@@ -243,7 +242,7 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                     thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
                     thesync->active = true;
 
-                    if (ConfigurationManager::loadedSyncs.find(thesync->localpath) != ConfigurationManager::loadedSyncs.end() )
+                    if (ConfigurationManager::loadedSyncs.find(thesync->localpath) != ConfigurationManager::loadedSyncs.end())
                     {
                         delete ConfigurationManager::loadedSyncs[thesync->localpath];
                     }
@@ -400,7 +399,6 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         LOG_err << " onTransferUpdate for undefined Transfer ";
         return;
     }
-
 
 
 #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )

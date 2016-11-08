@@ -116,71 +116,89 @@ const char* getAccessLevelStr(int level){
 const char* getAttrStr(int attr){
     switch (attr)
     {
-
-    case MegaApi::USER_ATTR_AVATAR:
-        return "avatar";
-
+        case MegaApi::USER_ATTR_AVATAR:
+            return "avatar";
 
 
-    case MegaApi::USER_ATTR_FIRSTNAME:
-        return "firstname";
+        case MegaApi::USER_ATTR_FIRSTNAME:
+            return "firstname";
 
 
-
-    case MegaApi::USER_ATTR_LASTNAME:
-        return "lastname";
-
+        case MegaApi::USER_ATTR_LASTNAME:
+            return "lastname";
 
 
-    case MegaApi::USER_ATTR_AUTHRING:
-        return "authring";
+        case MegaApi::USER_ATTR_AUTHRING:
+            return "authring";
 
 
-
-    case MegaApi::USER_ATTR_LAST_INTERACTION:
-        return "lastinteraction";
-
+        case MegaApi::USER_ATTR_LAST_INTERACTION:
+            return "lastinteraction";
 
 
-    case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-        return "ed25519";
+        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+            return "ed25519";
 
 
-
-    case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-        return "cu25519";
-
+        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+            return "cu25519";
 
 
-    case MegaApi::USER_ATTR_KEYRING:
-        return "keyring";
+        case MegaApi::USER_ATTR_KEYRING:
+            return "keyring";
 
 
-
-    case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-        return "rsa";
-
+        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
+            return "rsa";
 
 
-    case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-        return "cu255";
-
-
-  }
+        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
+            return "cu255";
+    }
     return "undefined";
 }
 
 int getAttrNum(const char* attr){
-    if (!strcmp(attr,"avatar")) return MegaApi:: USER_ATTR_AVATAR;
-    if (!strcmp(attr,"firstname")) return MegaApi:: USER_ATTR_FIRSTNAME;
-    if (!strcmp(attr,"lastname")) return MegaApi:: USER_ATTR_LASTNAME;
-    if (!strcmp(attr,"authring")) return MegaApi:: USER_ATTR_AUTHRING;
-    if (!strcmp(attr,"lastinteraction")) return MegaApi:: USER_ATTR_LAST_INTERACTION;
-    if (!strcmp(attr,"ed25519")) return MegaApi:: USER_ATTR_ED25519_PUBLIC_KEY;
-    if (!strcmp(attr,"cu25519")) return MegaApi:: USER_ATTR_CU25519_PUBLIC_KEY;
-    if (!strcmp(attr,"keyring")) return MegaApi:: USER_ATTR_KEYRING;
-    if (!strcmp(attr,"rsa")) return MegaApi:: USER_ATTR_SIG_RSA_PUBLIC_KEY;
-    if (!strcmp(attr,"cu255")) return MegaApi:: USER_ATTR_SIG_CU255_PUBLIC_KEY;
+    if (!strcmp(attr, "avatar"))
+    {
+        return MegaApi:: USER_ATTR_AVATAR;
+    }
+    if (!strcmp(attr, "firstname"))
+    {
+        return MegaApi:: USER_ATTR_FIRSTNAME;
+    }
+    if (!strcmp(attr, "lastname"))
+    {
+        return MegaApi:: USER_ATTR_LASTNAME;
+    }
+    if (!strcmp(attr, "authring"))
+    {
+        return MegaApi:: USER_ATTR_AUTHRING;
+    }
+    if (!strcmp(attr, "lastinteraction"))
+    {
+        return MegaApi:: USER_ATTR_LAST_INTERACTION;
+    }
+    if (!strcmp(attr, "ed25519"))
+    {
+        return MegaApi:: USER_ATTR_ED25519_PUBLIC_KEY;
+    }
+    if (!strcmp(attr, "cu25519"))
+    {
+        return MegaApi:: USER_ATTR_CU25519_PUBLIC_KEY;
+    }
+    if (!strcmp(attr, "keyring"))
+    {
+        return MegaApi:: USER_ATTR_KEYRING;
+    }
+    if (!strcmp(attr, "rsa"))
+    {
+        return MegaApi:: USER_ATTR_SIG_RSA_PUBLIC_KEY;
+    }
+    if (!strcmp(attr, "cu255"))
+    {
+        return MegaApi:: USER_ATTR_SIG_CU255_PUBLIC_KEY;
+    }
     return atoi(attr);
 }
 
@@ -331,37 +349,68 @@ const char * getLogLevelStr(int loglevel)
 {
     switch (loglevel)
     {
-    case MegaApi::LOG_LEVEL_FATAL:
-        return "FATAL";
-        break;
-    case MegaApi::LOG_LEVEL_ERROR:
-        return "ERROR";
-        break;
-    case MegaApi::LOG_LEVEL_WARNING:
-        return "WARNING";
-        break;
-    case MegaApi::LOG_LEVEL_INFO:
-        return "INFO";
-        break;
-    case MegaApi::LOG_LEVEL_DEBUG:
-        return "DEBUG";
-        break;
-    case MegaApi::LOG_LEVEL_MAX:
-        return "VERBOSE";
-        break;
-    default:
-        return "UNKNOWN";
-        break;
+        case MegaApi::LOG_LEVEL_FATAL:
+            return "FATAL";
+
+            break;
+
+        case MegaApi::LOG_LEVEL_ERROR:
+            return "ERROR";
+
+            break;
+
+        case MegaApi::LOG_LEVEL_WARNING:
+            return "WARNING";
+
+            break;
+
+        case MegaApi::LOG_LEVEL_INFO:
+            return "INFO";
+
+            break;
+
+        case MegaApi::LOG_LEVEL_DEBUG:
+            return "DEBUG";
+
+            break;
+
+        case MegaApi::LOG_LEVEL_MAX:
+            return "VERBOSE";
+
+            break;
+
+        default:
+            return "UNKNOWN";
+
+            break;
     }
 }
 
 int getLogLevelNum(const char* level){
-    if (!strcmp(level,"FATAL")) return MegaApi:: LOG_LEVEL_FATAL;
-    if (!strcmp(level,"ERROR")) return MegaApi:: LOG_LEVEL_ERROR;
-    if (!strcmp(level,"WARNING")) return MegaApi:: LOG_LEVEL_WARNING;
-    if (!strcmp(level,"INFO")) return MegaApi:: LOG_LEVEL_INFO;
-    if (!strcmp(level,"DEBUG")) return MegaApi:: LOG_LEVEL_DEBUG;
-    if (!strcmp(level,"VERBOSE")) return MegaApi:: LOG_LEVEL_MAX;
+    if (!strcmp(level, "FATAL"))
+    {
+        return MegaApi:: LOG_LEVEL_FATAL;
+    }
+    if (!strcmp(level, "ERROR"))
+    {
+        return MegaApi:: LOG_LEVEL_ERROR;
+    }
+    if (!strcmp(level, "WARNING"))
+    {
+        return MegaApi:: LOG_LEVEL_WARNING;
+    }
+    if (!strcmp(level, "INFO"))
+    {
+        return MegaApi:: LOG_LEVEL_INFO;
+    }
+    if (!strcmp(level, "DEBUG"))
+    {
+        return MegaApi:: LOG_LEVEL_DEBUG;
+    }
+    if (!strcmp(level, "VERBOSE"))
+    {
+        return MegaApi:: LOG_LEVEL_MAX;
+    }
     return atoi(level);
 }
 
@@ -370,34 +419,63 @@ const char * getShareLevelStr(int sharelevel)
 {
     switch (sharelevel)
     {
-    case MegaShare::ACCESS_UNKNOWN:
-        return "UNKNOWN";
-        break;
-    case MegaShare::ACCESS_READ:
-        return "READ";
-        break;
-    case MegaShare::ACCESS_READWRITE:
-        return "READWRITE";
-        break;
-    case MegaShare::ACCESS_FULL:
-        return "FULL";
-        break;
-    case MegaShare::ACCESS_OWNER:
-        return "OWNER";
-        break;
-    default:
-        return "UNEXPECTED";
-        break;
+        case MegaShare::ACCESS_UNKNOWN:
+            return "UNKNOWN";
+
+            break;
+
+        case MegaShare::ACCESS_READ:
+            return "READ";
+
+            break;
+
+        case MegaShare::ACCESS_READWRITE:
+            return "READWRITE";
+
+            break;
+
+        case MegaShare::ACCESS_FULL:
+            return "FULL";
+
+            break;
+
+        case MegaShare::ACCESS_OWNER:
+            return "OWNER";
+
+            break;
+
+        default:
+            return "UNEXPECTED";
+
+            break;
     }
 }
 
 int getShareLevelNum(const char* level){
-    if (!strcmp(level,"UNKNOWN")) return MegaShare::ACCESS_UNKNOWN;
-    if (!strcmp(level,"READ")) return MegaShare::ACCESS_READ;
-    if (!strcmp(level,"READWRITE")) return MegaShare::ACCESS_READWRITE;
-    if (!strcmp(level,"FULL")) return MegaShare::ACCESS_FULL;
-    if (!strcmp(level,"OWNER")) return MegaShare::ACCESS_OWNER;
-    if (!strcmp(level,"UNEXPECTED")) return -9;
+    if (!strcmp(level, "UNKNOWN"))
+    {
+        return MegaShare::ACCESS_UNKNOWN;
+    }
+    if (!strcmp(level, "READ"))
+    {
+        return MegaShare::ACCESS_READ;
+    }
+    if (!strcmp(level, "READWRITE"))
+    {
+        return MegaShare::ACCESS_READWRITE;
+    }
+    if (!strcmp(level, "FULL"))
+    {
+        return MegaShare::ACCESS_FULL;
+    }
+    if (!strcmp(level, "OWNER"))
+    {
+        return MegaShare::ACCESS_OWNER;
+    }
+    if (!strcmp(level, "UNEXPECTED"))
+    {
+        return -9;
+    }
     return atoi(level);
 }
 
@@ -411,7 +489,9 @@ bool isFolder(string path) //TODO: move to MegaFileSystemAccess
 bool canWrite(string path)
 {
     if (access(path.c_str(), W_OK) == 0)
+    {
         return true;
+    }
     return false;
 }
 
@@ -575,7 +655,7 @@ std::string &ltrim(std::string &s, const char &c) {
 std::string &rtrim(std::string &s, const char &c) {
     size_t pos = s.find_last_of(c);
     size_t last = pos == string::npos ? s.length() : pos;
-    if (last +1 < s.length() )
+    if (last + 1 < s.length())
     {
         if (s.at(last + 1) != c)
         {
@@ -655,7 +735,7 @@ vector<string> getlistOfWords(char *ptr)
 }
 
 bool stringcontained(const char * s, vector<string> list){
-    for (int i = 0; i < (int) list.size(); i++)
+    for (int i = 0; i < (int)list.size(); i++)
     {
         if (list[i] == s)
         {
@@ -677,17 +757,22 @@ char * dupstr(char* s) {
 
 bool replace(std::string& str, const std::string& from, const std::string& to) {
     size_t start_pos = str.find(from);
-    if(start_pos == std::string::npos)
+    if (start_pos == std::string::npos)
+    {
         return false;
+    }
     str.replace(start_pos, from.length(), to);
     return true;
 }
 
 void replaceAll(std::string& str, const std::string& from, const std::string& to) {
-    if(from.empty())
+    if (from.empty())
+    {
         return;
+    }
     size_t start_pos = 0;
-    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    while (( start_pos = str.find(from, start_pos)) != std::string::npos)
+    {
         str.replace(start_pos, from.length(), to);
         start_pos += from.length();
     }
@@ -696,13 +781,17 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 bool isRegExp(string what)
 {
 #ifdef USE_PCRE
-    if (what == "." || what == "..") return false;
+    if (( what == "." ) || ( what == ".." ))
+    {
+        return false;
+    }
 
     string s = pcrecpp::RE::QuoteMeta(what);
-    string ns=s;
-    replaceAll(ns,"\\\\\\","\\");
-    bool isregex = strcmp(what.c_str(),ns.c_str());
+    string ns = s;
+    replaceAll(ns, "\\\\\\", "\\");
+    bool isregex = strcmp(what.c_str(), ns.c_str());
     return isregex;
+
 #elif __cplusplus >= 201103L
     //TODO??
 #endif
@@ -712,34 +801,38 @@ bool isRegExp(string what)
 string unquote(string what)
 {
 #ifdef USE_PCRE
-    if (what == "." || what == "..") return what;
+    if (( what == "." ) || ( what == ".." ))
+    {
+        return what;
+    }
     string s = pcrecpp::RE::QuoteMeta(what.c_str());
-    string ns=s;
-    replaceAll(ns,"\\\\\\","\\");
+    string ns = s;
+    replaceAll(ns, "\\\\\\", "\\");
     return ns;
+
 #endif
     return what;
 }
 
 bool patternMatches(const char *what, const char *pattern)
 {
-
 #ifdef USE_PCRE
     pcrecpp::RE re(pattern);
 
-    if (!re.error().length() > 0) {
+    if (!re.error().length() > 0)
+    {
         bool toret = re.FullMatch(what);
 
         return toret;
     }
     else
     {
-       LOG_verbose << "Invalid PCRE regex: " << re.error();
+        LOG_verbose << "Invalid PCRE regex: " << re.error();
     }
 #elif __cplusplus >= 201103L
     try
     {
-        return std::regex_match (what, std::regex(pattern) );
+        return std::regex_match(what, std::regex(pattern));
     }
     catch (std::regex_error e)
     {
@@ -785,19 +878,28 @@ bool patternMatches(const char *what, const char *pattern)
 
 int toInteger(string what, int failValue)
 {
-   if (what.empty()) return failValue;
-   if (!isdigit(what[0]) && !(what[0] != '-') && (what[0] != '+')) return failValue;
+    if (what.empty())
+    {
+        return failValue;
+    }
+    if (!isdigit(what[0]) && !( what[0] != '-' ) && ( what[0] != '+' ))
+    {
+        return failValue;
+    }
 
-   char * p ;
-   long l = strtol(what.c_str(), &p, 10) ;
+    char * p;
+    long l = strtol(what.c_str(), &p, 10);
 
-   if (*p != 0) return failValue;
+    if (*p != 0)
+    {
+        return failValue;
+    }
 
-   if (l < INT_MIN || l > INT_MAX)
-   {
-       return failValue;
-   }
-   return (int) l;
+    if (( l < INT_MIN ) || ( l > INT_MAX ))
+    {
+        return failValue;
+    }
+    return (int)l;
 }
 
 
@@ -904,9 +1006,9 @@ string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreada
     os.precision(3);
     if (humanreadable)
     {
-        double reducedSize = (totalSize > 1048576*2?totalSize/1048576.0:(totalSize>1024*2?totalSize/1024.0:totalSize));
+        double reducedSize = ( totalSize > 1048576 * 2 ? totalSize / 1048576.0 : ( totalSize > 1024 * 2 ? totalSize / 1024.0 : totalSize ));
         os << reducedSize;
-        os << (totalSize > 1048576*2?" MB":(totalSize>1024*2?" KB":(equalizeUnitsLength?"  B":" B")));
+        os << ( totalSize > 1048576 * 2 ? " MB" : ( totalSize > 1024 * 2 ? " KB" : ( equalizeUnitsLength ? "  B" : " B" )));
     }
     else
     {

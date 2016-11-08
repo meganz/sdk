@@ -151,15 +151,16 @@ void sigint_handler(int signum)
     rl_replace_line("", 0); //clean contents of actual command
     rl_crlf(); //move to nextline
 
-    if ( RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) )
+    if (RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH))
     {
         RL_UNSETSTATE(RL_STATE_ISEARCH);
         RL_UNSETSTATE(RL_STATE_NSEARCH);
-        RL_UNSETSTATE(RL_STATE_SEARCH);
+        RL_UNSETSTATE( RL_STATE_SEARCH);
         history_set_pos(history_length);
         rl_restore_prompt(); // readline has stored it when searching
     }
-    else{
+    else
+    {
         rl_reset_line_state();
     }
     rl_redisplay();
@@ -208,7 +209,10 @@ static void store_line(char* l)
 }
 
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL){
-    if (!validOptValues) validOptValues=validParams;
+    if (!validOptValues)
+    {
+        validOptValues = validParams;
+    }
     if ("ls" == thecommand)
     {
         validParams->insert("R");
@@ -327,7 +331,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
 
         if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
         {
-            if (name.size() && (name.at(name.size()-1) == '=' || name.at(name.size()-1) == '/'))
+            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
             {
                 rl_completion_suppress_append = 1;
             }
@@ -365,7 +369,7 @@ char* empty_completion(const char* text, int state)
 
 void addGlobalFlags(set<string> *setvalidparams)
 {
-    for (size_t i=0;i<sizeof(validGlobalParameters)/sizeof(*validGlobalParameters); i++)
+    for (size_t i = 0; i < sizeof( validGlobalParameters ) / sizeof( *validGlobalParameters ); i++)
     {
         setvalidparams->insert(validGlobalParameters[i]);
     }
@@ -412,11 +416,11 @@ char * flags_completion(const char*text, int state)
 
                 if (param.size() > 1)
                 {
-                    toinsert = "--" + param+'=';
+                    toinsert = "--" + param + '=';
                 }
                 else
                 {
-                    toinsert = "-" + param+'=';
+                    toinsert = "-" + param + '=';
                 }
 
                 validparams.push_back(toinsert);
@@ -431,7 +435,7 @@ char * flags_value_completion(const char*text, int state)
 {
     static vector<string> validValues;
 
-    if (state == 0 )
+    if (state == 0)
     {
         validValues.clear();
 
@@ -470,7 +474,7 @@ char * flags_value_completion(const char*text, int state)
                     validValues = cmdexecuter->getlistusers();
                 }
             }
-            if (thecommand == "userattr" && currentFlag.find("--user=") == 0)
+            if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
             {
                 validValues = cmdexecuter->getlistusers();
             }
@@ -488,7 +492,7 @@ char* remotepaths_completion(const char* text, int state)
     {
         string wildtext(text);
 #ifdef USE_PCRE
-       wildtext += ".";
+        wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
@@ -506,13 +510,13 @@ char* remotefolders_completion(const char* text, int state)
     {
         string wildtext(text);
 #ifdef USE_PCRE
-       wildtext += ".";
+        wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
         wildtext += "*";
 
-        validpaths = cmdexecuter->listpaths(wildtext,true);
+        validpaths = cmdexecuter->listpaths(wildtext, true);
     }
     return generic_completion(text, state, validpaths);
 }
@@ -536,7 +540,9 @@ char* contacts_completion(const char* text, int state)
 {
     static vector<string> validcontacts;
     if (state == 0)
+    {
         validcontacts = cmdexecuter->getlistusers();
+    }
     return generic_completion(text, state, validcontacts);
 }
 
@@ -544,10 +550,14 @@ char* sessions_completion(const char* text, int state)
 {
     static vector<string> validSessions;
     if (state == 0)
+    {
         validSessions = cmdexecuter->getsessions();
+    }
 
-    if (validSessions.size()==0)
-            return empty_completion(text,state);
+    if (validSessions.size() == 0)
+    {
+        return empty_completion(text, state);
+    }
 
     return generic_completion(text, state, validSessions);
 }
@@ -560,14 +570,16 @@ char* nodeattrs_completion(const char* text, int state)
         validAttrs.clear();
         char *saved_line = rl_copy_text(0, rl_point);
         vector<string> words = getlistOfWords(saved_line);
-        if (words.size()>1)
+        if (words.size() > 1)
         {
             validAttrs = cmdexecuter->getNodeAttrs(words[1]);
         }
     }
 
-    if (validAttrs.size()==0)
-            return empty_completion(text,state);
+    if (validAttrs.size() == 0)
+    {
+        return empty_completion(text, state);
+    }
 
     return generic_completion(text, state, validAttrs);
 }
@@ -1020,8 +1032,8 @@ bool validCommand(string thecommand){
 void printAvailableCommands()
 {
     vector<string> validCommandsOrdered = validCommands;
-    sort(validCommandsOrdered.begin(),validCommandsOrdered.end());
-    for (size_t i=0;i<validCommandsOrdered.size();i++)
+    sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
+    for (size_t i = 0; i < validCommandsOrdered.size(); i++)
     {
         OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str()) << endl;
     }
@@ -1037,7 +1049,7 @@ string getHelpStr(const char *command)
         os << "Logs in. Either with email and password, with session ID, or into an exportedfolder";
         os << " If login into an exported folder indicate url#key" << endl;
     }
-    else if(!strcmp(command,"signup") )
+    else if (!strcmp(command, "signup"))
     {
         os << "Register as user with a given email" << endl;
         os << endl;
@@ -1046,7 +1058,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
     }
-    else if(!strcmp(command,"confirm") ){
+    else if (!strcmp(command, "confirm"))
+    {
         os << "Confirm an account using the link provided after the \"singup\" process. It requires the email and the password used to obtain the link." << endl;
         os << endl;
     }
@@ -1135,7 +1148,7 @@ string getHelpStr(const char *command)
     }
 //    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
 //    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
-    if(!strcmp(command,"attr") )
+    if (!strcmp(command, "attr"))
     {
         os << "Lists/updates node attributes" << endl;
         os << endl;
@@ -1143,7 +1156,7 @@ string getHelpStr(const char *command)
         os << " -s" << "\tattribute value \t" << "sets an attribute to a value" << endl;
         os << " -d" << "\tattribute       \t" << "removes the attribute" << endl;
     }
-    if(!strcmp(command,"userattr") )
+    if (!strcmp(command, "userattr"))
     {
         os << "Lists/updates user attributes" << endl;
         os << endl;
@@ -1223,7 +1236,7 @@ string getHelpStr(const char *command)
         os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
         os << " it will display all the shares existing in the tree of that path" << endl;
     }
-    else if(!strcmp(command,"invite") )
+    else if (!strcmp(command, "invite"))
     {
         os << "Invites/deletes a contact" << endl;
         os << endl;
@@ -1235,7 +1248,7 @@ string getHelpStr(const char *command)
         os << "Use \"showpcr\" to browse invitations" << endl;
         os << "Use \"ipc\" to manage invitations received" << endl;
     }
-    if(!strcmp(command,"ipc") )
+    if (!strcmp(command, "ipc"))
     {
         os << "Manages contact invitations." << endl;
         os << endl;
@@ -1247,7 +1260,7 @@ string getHelpStr(const char *command)
         os << "Use \"invite\" to send invitations" << endl;
         os << "Use \"showpcr\" to browse invitations" << endl;
     }
-    if(!strcmp(command,"showpcr") )
+    if (!strcmp(command, "showpcr"))
     {
         os << "Shows incoming and outcoming contact requests." << endl;
         os << endl;
@@ -1264,11 +1277,11 @@ string getHelpStr(const char *command)
     }
 //    if(!strcmp(command,"getua") ) return "getua attrname [email]";
 //    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
-    else if(!strcmp(command,"putbps") )
+    else if (!strcmp(command, "putbps"))
     {
         os << "Sets upload limit" << endl;
     }
-    else if(!strcmp(command,"killsession") )
+    else if (!strcmp(command, "killsession"))
     {
         os << "Kills a session of current user." << endl;
         os << endl;
@@ -1284,7 +1297,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
     }
-    if(!strcmp(command,"passwd") )
+    if (!strcmp(command, "passwd"))
     {
         os << "Modifies user password" << endl;
     }
@@ -1403,7 +1416,10 @@ static void process_line(char* l)
     {
         case LOGINPASSWORD:
         {
-            if (!strlen(l)) break;
+            if (!strlen(l))
+            {
+                break;
+            }
             if (!cmdexecuter->confirming)
             {
                 cmdexecuter->loginWithPassword(l);
@@ -1419,7 +1435,10 @@ static void process_line(char* l)
 
         case OLDPASSWORD:
         {
-            if (!strlen(l)) break;
+            if (!strlen(l))
+            {
+                break;
+            }
             oldpasswd = l;
             OUTSTREAM << endl;
             setprompt(NEWPASSWORD);
@@ -1428,16 +1447,22 @@ static void process_line(char* l)
 
         case NEWPASSWORD:
         {
-            if (!strlen(l)) break;
+            if (!strlen(l))
+            {
+                break;
+            }
             newpasswd = l;
             OUTSTREAM << endl;
             setprompt(PASSWORDCONFIRM);
         }
-            break;
+        break;
 
         case PASSWORDCONFIRM:
         {
-            if (!strlen(l)) break;
+            if (!strlen(l))
+            {
+                break;
+            }
             if (l != newpasswd)
             {
                 OUTSTREAM << endl << "New passwords differ, please try again" << endl;
@@ -1547,7 +1572,6 @@ void finalize()
     LOG_debug << "resources have been cleaned ...";
     delete loggerCMD;
     ConfigurationManager::unloadConfiguration();
-
 }
 
 // main loop
@@ -1619,7 +1643,6 @@ void megacmd()
 
                         LOG_debug << "starting processing: " << inf->line;
                         petitionThread->start(doProcessLine, (void*)inf);
-
                     }
                 }
                 else
@@ -1686,8 +1709,10 @@ int main(int argc, char* argv[])
         semaphoreapiFolders.release();
     }
 
-    for (int i=0;i<100;i++)
+    for (int i = 0; i < 100; i++)
+    {
         semaphoreClients.release();
+    }
 
     mutexapiFolders.init(false);
 
@@ -1696,7 +1721,7 @@ int main(int argc, char* argv[])
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 
-    if (argc>1 && !(strcmp(argv[1],"--debug")) )
+    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
     {
         loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
         loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -1708,7 +1733,7 @@ int main(int argc, char* argv[])
     cmdexecuter = new MegaCmdExecuter(api, loggerCMD);
 
     megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD);
-    megaCmdMegaListener = new MegaCmdMegaListener(api,NULL);
+    megaCmdMegaListener = new MegaCmdMegaListener(api, NULL);
     api->addGlobalListener(megaCmdGlobalListener);
     api->addListener(megaCmdMegaListener);
 

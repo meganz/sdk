@@ -108,15 +108,21 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         }
         if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output ))
         {
-            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel))  << ": " << time << "] " << message << endl;
+            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
     }
     else
     {
         if (loglevel <= apiLoggerLevel)
         {
-            if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) starting") ) return;
-            if (apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG && !strcmp(message,"Request (RETRY_PENDING_CONNECTIONS) finished")  ) return;
+            if (( apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG ) && !strcmp(message, "Request (RETRY_PENDING_CONNECTIONS) starting"))
+            {
+                return;
+            }
+            if (( apiLoggerLevel <= MegaApi::LOG_LEVEL_DEBUG ) && !strcmp(message, "Request (RETRY_PENDING_CONNECTIONS) finished"))
+            {
+                return;
+            }
 
             *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
