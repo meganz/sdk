@@ -490,8 +490,10 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])]
-  )
+  [AC_MSG_RESULT([--with-pcre not specified])
+      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
+  ])
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)
