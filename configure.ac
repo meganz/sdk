@@ -414,10 +414,14 @@ AC_ARG_WITH(sodium,
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
     AC_CHECK_HEADERS([sodium.h], [sodium=true], [
-        AC_MSG_ERROR([sodium.h header not found or not usable])
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([sodium.h header not found or not usable])
+		fi
     ])
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
-		AC_MSG_ERROR([Could not find libsodium])    
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([Could not find libsodium])
+		fi
     ])
     ]
   )
