@@ -1298,7 +1298,7 @@ void MegaClient::exec()
                                 int creqtag = reqtag;
                                 reqtag = 0;
                                 fetchingnodes = false;
-                                fetchnodes();
+                                fetchnodes(true);
                                 reqtag = creqtag;
                             }
                         }
@@ -8033,7 +8033,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes()
+void MegaClient::fetchnodes(bool nocache)
 {
     opensctable();
 
@@ -8082,7 +8082,7 @@ void MegaClient::fetchnodes()
             fetchkeys();
         }
 #endif
-        reqs.add(new CommandFetchNodes(this));
+        reqs.add(new CommandFetchNodes(this, nocache));
     }
 }
 

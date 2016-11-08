@@ -127,7 +127,7 @@ public:
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes();
+    void fetchnodes(bool nocache = false);
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
