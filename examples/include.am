@@ -29,6 +29,8 @@ examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_
 else
 
 if BUILD_MEGACMD
+megacmdscripts_bindir = $(bindir)
+megacmdscripts_bin_SCRIPTS = examples/megacmd/megaexec
 EXAMPLES += examples/mcmd
 examples_mcmd_SOURCES = examples/megacmd/megacmd.cpp examples/megacmd/comunicationsmanager.cpp examples/megacmd/megacmdutils.cpp examples/megacmd/configurationmanager.cpp examples/megacmd/megacmdlogger.cpp examples/megacmd/synchronousrequestlistener.cpp examples/megacmd/listeners.cpp examples/megacmd/megacmdexecuter.cpp
 
