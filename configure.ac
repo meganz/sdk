@@ -363,8 +363,8 @@ AC_ARG_WITH(sodium,
     sodium=false
      ;;
    yes)
-    AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    AC_CHECK_HEADERS([sodium.h],, [
+        AC_MSG_ERROR([sodium.h header not found or not usable])
     ])
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
             AC_MSG_ERROR([Could not find libsodium])
@@ -379,7 +379,7 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/lib",
@@ -391,11 +391,11 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
-         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         AC_MSG_ERROR([sodium.h header not found or not usable])
          )
     fi
 
@@ -413,8 +413,16 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    AC_CHECK_HEADERS([sodium.h], [sodium=true], [
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([sodium.h header not found or not usable])
+		fi
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([Could not find libsodium])
+		fi
+    ])
     ]
   )
 AC_SUBST(SODIUM_CXXFLAGS)
