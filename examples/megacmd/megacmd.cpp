@@ -108,7 +108,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users",
                              "putbps", "killsession", "whoami",
-                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview", "find" };
+                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview", "find", "completion" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -132,6 +132,31 @@ static int pw_buf_pos;
 Console* console;
 
 MegaMutex mutexHistory;
+
+map<int, string> threadline;
+
+string getCurrentThreadLine(){
+    int currentThread = getCurrentThread();
+    if (threadline.find(currentThread) == threadline.end())
+    {
+        char *saved_line = rl_copy_text(0, rl_point);
+        string toret(saved_line);
+        free(saved_line);
+        return toret;
+    }
+    else
+    {
+        return threadline[currentThread];
+    }
+}
+
+void setCurrentThreadLine(string s){
+    threadline[getCurrentThread()] = s;
+}
+
+void setCurrentThreadLine(const vector<string>& vec){
+   setCurrentThreadLine(joinStrings(vec));
+}
 
 #ifdef __linux__
 void sigint_handler(int signum)
@@ -381,8 +406,9 @@ char * flags_completion(const char*text, int state)
     if (state == 0)
     {
         validparams.clear();
-        char *saved_line = rl_copy_text(0, rl_point);
+        char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
+        free(saved_line);
         if (words.size())
         {
             set<string> setvalidparams;
@@ -439,8 +465,9 @@ char * flags_value_completion(const char*text, int state)
     {
         validValues.clear();
 
-        char *saved_line = rl_copy_text(0, rl_point);
+        char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
+        free(saved_line);
         if (words.size() > 1)
         {
             string thecommand = words[0];
@@ -568,8 +595,9 @@ char* nodeattrs_completion(const char* text, int state)
     if (state == 0)
     {
         validAttrs.clear();
-        char *saved_line = rl_copy_text(0, rl_point);
+        char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
+        free(saved_line);
         if (words.size() > 1)
         {
             validAttrs = cmdexecuter->getNodeAttrs(words[1]);
@@ -739,18 +767,44 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
-        char *saved_line = rl_copy_text(0, rl_point);
+        char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
+        free(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
         {
             words.push_back("");
         }
 
         matches = rl_completion_matches((char*)text, getCompletionFunction(words));
-        free(saved_line);
     }
     return( matches );
 }
+
+string getListOfCompletionValues(vector<string> words)
+{
+    string completionValues;
+    rl_compentry_func_t * compfunction = getCompletionFunction(words);
+    int state=0;
+    if (words.size()>1)
+    while (true)
+    {
+        char *newval;
+        string &lastword = words[words.size()-1];
+        if (lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
+            newval = compfunction("", state);
+        else
+            newval = compfunction(lastword.c_str(), state);
+
+        if (!newval) break;
+        if (completionValues.size())
+            completionValues+=" ";
+
+        completionValues+=newval;
+        state++;
+    }
+    return completionValues;
+}
+
 
 
 void printHistory()
@@ -1371,6 +1425,16 @@ void executecommand(char* ptr)
     if (( thecommand == "?" ) || ( thecommand == "h" ) || ( thecommand == "help" ))
     {
         printAvailableCommands();
+        return;
+    }
+
+    if (words[0] == "completion")
+    {
+        if (words.size() < 3) words.push_back("");
+        vector<string> wordstocomplete(words.begin()+1,words.end());
+        setCurrentThreadLine(wordstocomplete);
+        OUTSTREAM << getListOfCompletionValues(wordstocomplete);
+        cout << " devolviendo: " << getListOfCompletionValues(wordstocomplete);
         return;
     }
 

@@ -2758,7 +2758,6 @@ void MegaCmdExecuter::confirmWithPassword(string passwd)
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n;
-
     if (words[0] == "ls")
     {
         int recursive = getFlag(clflags, "R") + getFlag(clflags, "r");
@@ -3782,7 +3781,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                     api->syncFolder(localpath.c_str(), n, megaCmdListener);
                     megaCmdListener->wait();
-                    //TODO:  api->addSyncListener();
                     if (checkNoErrors(megaCmdListener->getError(), "sync folder"))
                     {
                         sync_struct *thesync = new sync_struct;
@@ -4460,7 +4458,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "userattr")
     {
-        //TODO: implement --load=file option
         bool settingattr = getFlag(clflags, "s");
 
         int attribute = getAttrNum(words.size() > 1 ? words[1].c_str() : "-1");
