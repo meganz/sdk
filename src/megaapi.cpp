@@ -399,6 +399,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+MegaNodeList *MegaNode::getChildren()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
@@ -1351,6 +1356,11 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
     pImpl->createFolder(name, parent, listener);
 }
 
+bool MegaApi::createLocalFolder(const char *localPath)
+{
+    return pImpl->createLocalFolder(localPath);
+}
+
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
     pImpl->moveNode(node, newParent, listener);
@@ -1685,6 +1695,16 @@ bool MegaApi::areTransfersPaused(int direction)
 void MegaApi::setUploadLimit(int bpslimit)
 {
     pImpl->setUploadLimit(bpslimit);
+}
+
+void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
+{
+    pImpl->setMaxConnections(direction,  connections, listener);
+}
+
+void MegaApi::setMaxConnections(int connections, MegaRequestListener *listener)
+{
+    pImpl->setMaxConnections(-1,  connections, listener);
 }
 
 void MegaApi::setDownloadMethod(int method)
@@ -2117,6 +2137,16 @@ void MegaApi::retrySSLerrors(bool enable)
 void MegaApi::setPublicKeyPinning(bool enable)
 {
     pImpl->setPublicKeyPinning(enable);
+}
+
+void MegaApi::pauseActionPackets()
+{
+    pImpl->pauseActionPackets();
+}
+
+void MegaApi::resumeActionPackets()
+{
+    pImpl->resumeActionPackets();
 }
 
 char *MegaApi::base64ToBase32(const char *base64)
@@ -3740,7 +3770,7 @@ MegaTextChat::~MegaTextChat()
 
 }
 
-MegaTextChat* MegaTextChat::copy() const
+MegaTextChat *MegaTextChat::copy() const
 {
     return NULL;
 }

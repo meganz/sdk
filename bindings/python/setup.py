@@ -23,13 +23,13 @@ def get_version():
     """
     Grabs and returns the version and release numbers from autotools.
     """
-    configure_ac = open(os.path.join('..', '..', 'configure.ac')).read()
-    major = re.search('m4_define\(\[mega_major_version\], \[([0-9]+)\]',
-                      configure_ac)
-    minor = re.search('m4_define\(\[mega_minor_version\], \[([0-9]+)\]',
-                      configure_ac)
-    micro = re.search('m4_define\(\[mega_micro_version\], \[(.+?)\]',
-                      configure_ac)
+    version_h = open(os.path.join('..', '..', 'include', 'mega', 'version.h')).read()
+    major = re.search('define MEGA_MAJOR_VERSION ([0-9]+)',
+                      version_h)
+    minor = re.search('define MEGA_MINOR_VERSION ([0-9]+)',
+                      version_h)
+    micro = re.search('define MEGA_MICRO_VERSION (.+?)',
+                      version_h)
     if major:
         major, minor, micro = major.group(1), minor.group(1), micro.group(1)
         version = '.'.join([major, minor])

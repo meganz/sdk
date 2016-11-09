@@ -48,7 +48,7 @@ You have two options, using a prebuilt native library or building it by yourself
 ### To use a prebuilt library (the easy way), follow these steps:
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!zws2WBjR!NKvG-k_5UeW0R6oo2XWHrThUwQ9YlRXOmKDAi7I7nHg).
+2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!N0VmQRDD!HJc5-kUu_EDMwnAFUYueePuhW6pI0ytEff88ZWxHPxc). Commit: 92cb2b896cfe5ee9d3520cc05641ef248963f3de
 3. Extract the content into `sdk/examples/java/`, keeping the folder structure.
 
 ### To build the library by yourself
@@ -56,9 +56,9 @@ You have two options, using a prebuilt native library or building it by yourself
 Instead of downloading the prebuilt library, you can build it directly from the sources.
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Follow the instructions in [this guide](https://github.com/meganz/sdk/blob/master/bindings/java/contrib/vs2010/README.md).
-3. Copy the new file `mega.dll` from `sdk/bindings/java/contrib/vs2010/Debug` and its dependencies into `sdk/examples/java/libs`.
-4. Copy the Java classes from `sdk/bindings/java/nz/mega/sdk` into `sdk/bindings/java/src/nz/mega/sdk`.
+2. Follow the instructions in [this guide](https://github.com/meganz/sdk/blob/master/bindings/java/contrib/vs2015/README.md).
+3. Copy the new file `mega.dll` from `sdk/bindings/java/contrib/vs2015/Release` and its dependencies into `sdk/examples/java/libs`.
+4. Copy the Java classes from `sdk/bindings/java/nz/mega/sdk` into `sdk/examples/java/src/nz/mega/sdk`.
 
 ## How to run the application
 
@@ -85,7 +85,7 @@ set PATH=%PATH%;<sdkpath>\examples\java\libs
 - If setting the `PATH` environment variable doesn't solve the solve the problem loading the library, you may try moving `mega.dll` and all its dependencies to the working directory.
 
 - A 64 bit version of all required libraries is provided in the `x64` folder inside the `libs` folder of our package with prebuilt libraries. 
-You can replace the 32-bit DLLs with the 64-bit ones to run the example app in a 64 bit environment.
+You can replace the 32-bit DLLs with the 64-bit ones to run the example app in a 64 bit environment. Since all prebuilt libraries are built with Visual Studio 2015, you will need to install the Microsoft Visual Studio 2015 Redistributable Package (32 bit or 64 bit) to use them.
 
 - The console example will not work from some IDEs (like Eclipse) as it requires the hidden password entry using the console directly.
 

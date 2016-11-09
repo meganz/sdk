@@ -867,7 +867,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, true);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, HttpIO::CONNECTTIMEOUT / 10);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
@@ -1491,6 +1491,7 @@ bool CurlHttpIO::doio()
                 {
                     dnsok = true;
                     lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
                 else
                 {
@@ -1690,19 +1691,21 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
 size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target)
 {
-    if(((HttpReq*)target)->httpio)
+    HttpReq *req = (HttpReq*)target;
+    if (req->httpio)
     {
-        if (((HttpReq*)target)->chunked)
+        if (req->chunked)
         {
-            ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
+            ((CurlHttpIO*)req->httpio)->statechange = true;
         }
 
         if (size * nmemb)
         {
-            ((HttpReq*)target)->put(ptr, size * nmemb, true);
+            req->put(ptr, size * nmemb, true);
         }
 
-        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+        req->httpio->lastdata = Waiter::ds;
+        req->lastdata = Waiter::ds;
     }
 
     return size * nmemb;
@@ -1711,6 +1714,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
+    HttpReq *req = (HttpReq*)target;
     if (size * nmemb > 2)
     {
         LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
@@ -1718,40 +1722,41 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 
     if (!memcmp(ptr, "HTTP/", 5))
     {
-        if (((HttpReq*)target)->contentlength >= 0)
+        if (req->contentlength >= 0)
         {
             // For authentication with some proxies, cURL sends two requests in the context of a single one
             // Content-Length is reset here to not take into account the header from the first response
 
             LOG_warn << "Receiving a second response. Resetting Content-Length";
-            ((HttpReq*)target)->contentlength = -1;
+            req->contentlength = -1;
         }
 
         return size * nmemb;
     }
     else if (!memcmp(ptr, "Content-Length:", 15))
     {
-        if (((HttpReq*)target)->contentlength < 0)
+        if (req->contentlength < 0)
         {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+            req->setcontentlength(atol((char*)ptr + 15));
         }
     }
     else if (!memcmp(ptr, "Original-Content-Length:", 24))
     {
-        ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+        req->setcontentlength(atol((char*)ptr + 24));
     }
     else if (!memcmp(ptr, "X-MEGA-Time-Left:", 17))
     {
-        ((HttpReq*)target)->timeleft = atol((char*)ptr + 17);
+        req->timeleft = atol((char*)ptr + 17);
     }
     else
     {
         return size * nmemb;
     }
 
-    if (((HttpReq*)target)->httpio)
+    if (req->httpio)
     {
-        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+        req->httpio->lastdata = Waiter::ds;
+        req->lastdata = Waiter::ds;
     }
 
     return size * nmemb;

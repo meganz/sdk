@@ -1,11 +1,11 @@
 #!/bin/sh
-		
-CARES_VERSION="1.11.0"													      
-SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  
 
+EXPAT_VERSION="2.1.1"
+SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
 CURRENTPATH=`pwd`
+OPENSSL_PREFIX="${CURRENTPATH}"
 ARCHS="i386 x86_64 armv7 armv7s arm64"
 DEVELOPER=`xcode-select -print-path`
 
@@ -18,14 +18,14 @@ if [ ! -d "$DEVELOPER" ]; then
   exit 1
 fi
 
-case $DEVELOPER in  
+case $DEVELOPER in
      *\ * )
            echo "Your Xcode path contains whitespaces, which is not supported."
            exit 1
           ;;
 esac
 
-case $CURRENTPATH in  
+case $CURRENTPATH in
      *\ * )
            echo "Your path contains whitespaces, which is not supported by 'make install'."
            exit 1
@@ -34,13 +34,10 @@ esac
 
 set -e
 
-if [ ! -e "c-ares-${CARES_VERSION}.tar.gz" ]
+if [ ! -e "expat-${EXPAT_VERSION}.tar.bz2" ]
 then
-    wget "http://c-ares.haxx.se/download/c-ares-${CARES_VERSION}.tar.gz"
+wget "http://downloads.sourceforge.net/project/expat/expat/2.1.1/expat-${EXPAT_VERSION}.tar.bz2"
 fi
-
-tar zxf c-ares-${CARES_VERSION}.tar.gz
-pushd "c-ares-${CARES_VERSION}"
 
 for ARCH in ${ARCHS}
 do
@@ -51,6 +48,10 @@ else
 PLATFORM="iPhoneOS"
 fi
 
+rm -rf expat-${EXPAT_VERSION}
+tar zxf expat-${EXPAT_VERSION}.tar.bz2
+pushd "expat-${EXPAT_VERSION}"
+
 export BUILD_TOOLS="${DEVELOPER}"
 export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
 export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
@@ -60,7 +61,7 @@ mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
 export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=7.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0 -Wno-implicit-function-declaration"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
@@ -71,20 +72,23 @@ else
 fi
 
 make -j8
-cp -f .libs/libcares.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
-make clean
+cp -f .libs/libexpat.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
+#make clean
+
+popd
 
 done
 
-popd
+
 mkdir lib || true
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcares.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcares.a -output ${CURRENTPATH}/lib/libcares.a
-mkdir -p include || true
-cp -f c-ares-${CARES_VERSION}/ares.h c-ares-${CARES_VERSION}/ares_build.h c-ares-${CARES_VERSION}/ares_dns.h c-ares-${CARES_VERSION}/ares_rules.h c-ares-${CARES_VERSION}/ares_version.h include/
-sed -i '' $'s/\#define CARES_SIZEOF_LONG 8/\#ifdef __LP64__\\\n\#define CARES_SIZEOF_LONG 8\\\n#else\\\n\#define CARES_SIZEOF_LONG 4\\\n\#endif/' include/ares_build.h
+lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libexpat.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libexpat.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libexpat.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libexpat.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libexpat.a -output ${CURRENTPATH}/lib/libexpat.a
 
+mkdir -p include/expat || true
+cp -f expat-${EXPAT_VERSION}/lib/*.h include/expat/
 
-rm -rf c-ares-${CARES_VERSION}
 rm -rf bin
+rm -rf expat-${EXPAT_VERSION}
+rm -rf expat-${EXPAT_VERSION}.tar.bz2
+
 
 echo "Done."

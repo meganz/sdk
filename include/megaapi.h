@@ -913,6 +913,19 @@ class MegaNode
          */
         virtual std::string* getPublicAuth();
 
+        /**
+         * @brief Returns the child nodes of an authorized folder node
+         *
+         * This function always returns NULL, except for authorized folder nodes.
+         * Authorized folder nodes are the ones returned by MegaApi::authorizeNode.
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Child nodes of an authorized folder node, otherwise NULL
+         */
+        virtual MegaNodeList *getChildren();
+
 #ifdef ENABLE_SYNC
         /**
          * @brief Returns true if this node was deleted from the MEGA account by the
@@ -1337,6 +1350,18 @@ class MegaTextChat
 public:
 
     virtual ~MegaTextChat();
+
+    /**
+     * @brief Creates a copy of this MegaTextChat object
+     *
+     * The resulting object is fully independent of the source MegaTextChat,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChat object
+     */
     virtual MegaTextChat *copy() const;
 
     /**
@@ -1780,7 +1805,7 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS
         };
 
         virtual ~MegaRequest();
@@ -2135,6 +2160,7 @@ class MegaRequest
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
+         * - MegaApi::setMaxConnections - Returns the direction of transfers
          *
          * @return Type of parameter related to the request
          */
@@ -2174,6 +2200,7 @@ class MegaRequest
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
          * - MegaApi::sendEvent - Returns the event type
+         * - MegaApi::setMaxConnections - Returns the number of connections
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4853,6 +4880,14 @@ class MegaApi
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new empty folder in your local file system
+         *
+         * @param localPath Path of the new folder
+         * @return True if the local folder was successfully created, otherwise false.
+         */
+        bool createLocalFolder(const char* localPath);
+
+        /**
          * @brief Move a node in the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_MOVE
@@ -4903,9 +4938,6 @@ class MegaApi
          * @param node Node to copy
          * @param newParent Parent for the new node
          * @param newName Name for the new node
-         *
-         * This parameter is only used if the original node is a file and it isn't a public node,
-         * otherwise, it's ignored.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6239,6 +6271,39 @@ class MegaApi
         void setUploadLimit(int bpslimit);
 
         /**
+         * @brief Set the maximum number of connections per transfer
+         *
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value for \c direction parameter
+         * - MegaRequest::getNumber - Returns the number of \c connections
+         *
+         * @param direction Direction of transfers
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         * @param connections Maximum number of connection (it should between 1 and 6)
+         */
+        void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Set the maximum number of connections per transfer for downloads and uploads
+         *
+         * The maximum number of allowed connections is 6. If a higher number of connections is passed
+         * to this function, it will fail with the error code API_ETOOMANY.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of connections
+         *
+         * @param connections Maximum number of connection (it should between 1 and 6)
+         */
+        void setMaxConnections(int connections, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Set the transfer method for downloads
          *
          * Valid methods are:
@@ -7568,8 +7633,6 @@ class MegaApi
         /**
          * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
          *
-         * This function only allows to authorize file nodes.
-         *
          * You can use MegaApi::startDownload with the resulting node with any instance
          * of MegaApi, even if it's logged into another account, a public folder, or not
          * logged in.
@@ -7589,7 +7652,7 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * @param node MegaNode to authorize
-         * @return Authorized node, or NULL if the node can't be authorized or is not a file
+         * @return Authorized node, or NULL if the node can't be authorized
          */
         MegaNode *authorizeNode(MegaNode *node);
 
@@ -7660,6 +7723,30 @@ class MegaApi
          * @param enable true to keep public key pinning enabled, false to disable it
          */
         void setPublicKeyPinning(bool enable);
+
+        /**
+         * @brief Pause the reception of action packets
+         *
+         * This function is intended to help apps to initialize themselves
+         * after the reception of nodes (MegaApi::fetchNodes) but before the reception
+         * of action packets.
+         *
+         * For that purpose, this function can be called synchronously in the callback
+         * onRequestFinish related to the fetchNodes request.
+         *
+         * After your initialization is finished, you can call MegaApi::resumeActionPackets
+         * to start receiving external updates.
+         *
+         * If you forget to call MegaApi::resumeActionPackets after the usage of this function
+         * the SDK won't work properly. Do not use this function for other purposes.
+         */
+        void pauseActionPackets();
+
+        /**
+         * @brief Resume the reception of action packets
+         * @see MegaApi::pauseActionPackets
+         */
+        void resumeActionPackets();
 
 	#ifdef _WIN32
 		/**
