@@ -25,7 +25,10 @@ _megacmd()
 		lasta=$a
 	done
 
-	opts="$(mega-exec completion ${linetoexec/#mega-/})"
+	opts="$(mega-exec completion ${linetoexec/#mega-/} 2>/dev/null)"
+	if [ $? -ne 0 ]; then
+		return $?
+	fi
 
 	declare -a "aOPTS=($opts)"
 

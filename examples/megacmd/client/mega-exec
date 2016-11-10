@@ -91,6 +91,7 @@ try:
 	if (outCode <0): exit(-outCode)
 	exit(outCode)
 except Exception as ex:
-	print "Unable to connect to service",ex
+	sys.stderr.write("Unable to connect to service"+" "+str(ex)+"\n")
+	sys.stderr.write("Please ensure MegaCMD is running\n")
 	exit(1)
 
