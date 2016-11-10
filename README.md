@@ -24,6 +24,8 @@ In the `examples` folder you can find example apps using:
 1. The low level SDK:
   - megacli (a powerful command line tool that allows to use all SDK features)
   - megasimplesync (a command line tool that allows to use the synchronization engine)
+  - [MegaCMD!](examples/megacmd) (a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA.
+
 
 2. The intermediate layer:
   - An example app for Visual Studio in `examples/win32`

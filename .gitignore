@@ -86,4 +86,4 @@ megaclient_statecache*
 *.db-journal
 
 /third_party/Makefile
-/examples/mcmd
+/examples/mega-cmd
