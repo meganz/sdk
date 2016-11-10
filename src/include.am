@@ -80,7 +80,7 @@ else
 if DARWIN
 # MacOS specific
 src_libmega_la_SOURCES += src/osx/osxutils.mm
-src_libmega_la_LDFLAGS += -framework SystemConfiguration
+src_libmega_la_LDFLAGS += -framework SystemConfiguration -framework Foundation
 endif
 endif
 
