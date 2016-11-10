@@ -1,1 +1,1 @@
-mega-exec session $@
+mega-exec session "$@"

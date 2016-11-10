@@ -1,1 +1,1 @@
-mega-exec passwd $@
+mega-exec passwd "$@"

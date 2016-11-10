@@ -1,1 +1,1 @@
-mega-exec whoami $@
+mega-exec whoami "$@"

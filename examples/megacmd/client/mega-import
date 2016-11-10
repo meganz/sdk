@@ -1,1 +1,1 @@
-mega-exec import $@
+mega-exec import "$@"

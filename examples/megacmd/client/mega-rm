@@ -1,1 +1,1 @@
-mega-exec rm $@
+mega-exec rm "$@"

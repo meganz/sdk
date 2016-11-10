@@ -1,1 +1,1 @@
-mega-exec showpcr $@
+mega-exec showpcr "$@"

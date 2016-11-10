@@ -1,1 +1,1 @@
-mega-exec invite $@
+mega-exec invite "$@"

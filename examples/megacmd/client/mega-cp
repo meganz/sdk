@@ -1,1 +1,1 @@
-mega-exec cp $@
+mega-exec cp "$@"

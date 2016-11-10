@@ -791,7 +791,9 @@ string getListOfCompletionValues(vector<string> words)
         char *newval;
         string &lastword = words[words.size()-1];
         if (lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
-            newval = compfunction("", state);
+        {
+            newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
+        }
         else
             newval = compfunction(lastword.c_str(), state);
 
@@ -799,7 +801,18 @@ string getListOfCompletionValues(vector<string> words)
         if (completionValues.size())
             completionValues+=" ";
 
-        completionValues+=newval;
+
+        if (strstr(newval," "))
+        {
+            completionValues+="\"";
+            completionValues+=newval;
+            completionValues+="\"";
+        }
+        else
+        {
+            completionValues+=newval;
+        }
+
         state++;
     }
     return completionValues;
@@ -1434,7 +1447,6 @@ void executecommand(char* ptr)
         vector<string> wordstocomplete(words.begin()+1,words.end());
         setCurrentThreadLine(wordstocomplete);
         OUTSTREAM << getListOfCompletionValues(wordstocomplete);
-        cout << " devolviendo: " << getListOfCompletionValues(wordstocomplete);
         return;
     }
 

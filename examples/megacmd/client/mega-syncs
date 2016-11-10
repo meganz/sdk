@@ -1,1 +1,1 @@
-mega-exec sync $@
+mega-exec sync "$@"

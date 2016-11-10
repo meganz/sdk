@@ -1,1 +1,1 @@
-mega-exec log $@
+mega-exec log "$@"

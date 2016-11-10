@@ -1,1 +1,1 @@
-mega-exec logout $@
+mega-exec logout "$@"

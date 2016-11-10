@@ -1,1 +1,1 @@
-mega-exec lpwd $@
+mega-exec lpwd "$@"

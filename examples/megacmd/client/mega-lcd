@@ -1,1 +1,1 @@
-mega-exec lcd $@
+mega-exec lcd "$@"

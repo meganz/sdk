@@ -1,1 +1,1 @@
-mega-exec thumbnail $@
+mega-exec thumbnail "$@"

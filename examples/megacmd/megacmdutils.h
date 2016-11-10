@@ -111,6 +111,10 @@ bool stringcontained(const char * s, vector<string> list);
 
 char * dupstr(char* s);
 
+bool replace(std::string& str, const std::string& from, const std::string& to);
+
+void replaceAll(std::string& str, const std::string& from, const std::string& to);
+
 bool isRegExp(string what);
 
 string unquote(string what);

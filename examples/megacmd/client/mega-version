@@ -1,1 +1,1 @@
-mega-exec version $@
+mega-exec version "$@"

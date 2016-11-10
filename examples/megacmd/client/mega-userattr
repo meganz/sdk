@@ -1,1 +1,1 @@
-mega-exec userattr $@
+mega-exec userattr "$@"

@@ -1,1 +1,1 @@
-mega-exec ipc $@
+mega-exec ipc "$@"

@@ -9,9 +9,29 @@ _megacmd()
 	fi
 	
 	COMP_WORDS[0]="${COMP_WORDS[0]/mega-/}"
-	opts="$(mega-exec completion ${COMP_LINE/#mega-/})"
+	linetoexec=""
+	lasta=""
+	for a in "${COMP_WORDS[@]}"; do
+		if [[ $a == *" "* ]]
+			then
+				linetoexec=$linetoexec" \""$(echo $a | sed 's#\\$#\\ #g' | sed 's#\\\ # #g')"\""
+			else
+				if [[ ${a} == '=' ]] || [[ ${lasta} == '=' ]]; then
+					linetoexec=$linetoexec$a
+				else
+					linetoexec=$linetoexec" "$(echo $a | sed 's#\\$#\\ #g' | sed 's#\\\ # #g')
+				fi
+			fi
+		lasta=$a
+	done
 
-	COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+	opts="$(mega-exec completion ${linetoexec/#mega-/})"
+
+	declare -a "aOPTS=($opts)"
+
+	for a in `seq 0 $(( ${#aOPTS[@]} -1 ))`; do
+		COMPREPLY[$a]=$( echo ${aOPTS[$a]} | sed "s# #\\\ #g")
+	done
 
 	for i in "${COMPREPLY[@]}"; do
 		if [[ ${i} == --*= ]] || [[ ${i} == */ ]]; then

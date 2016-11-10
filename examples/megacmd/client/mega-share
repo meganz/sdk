@@ -1,1 +1,1 @@
-mega-exec share $@
+mega-exec share "$@"

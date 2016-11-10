@@ -1,1 +1,1 @@
-mega-exec users $@
+mega-exec users "$@"

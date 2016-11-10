@@ -1,1 +1,1 @@
-mega-exec mv $@
+mega-exec mv "$@"

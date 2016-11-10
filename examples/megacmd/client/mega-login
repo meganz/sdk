@@ -1,1 +1,1 @@
-mega-exec login $@
+mega-exec login "$@"

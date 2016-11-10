@@ -1,1 +1,1 @@
-mega-exec ls $@
+mega-exec ls "$@"

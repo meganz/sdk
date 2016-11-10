@@ -1,1 +1,1 @@
-mega-exec mount $@
+mega-exec mount "$@"

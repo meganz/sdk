@@ -1,1 +1,1 @@
-mega-exec signup $@
+mega-exec signup "$@"

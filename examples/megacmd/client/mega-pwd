@@ -1,1 +1,1 @@
-mega-exec pwd $@
+mega-exec pwd "$@"

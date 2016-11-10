@@ -1,1 +1,1 @@
-mega-exec quit $@
+mega-exec quit "$@"

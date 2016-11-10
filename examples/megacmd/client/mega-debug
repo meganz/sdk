@@ -1,1 +1,1 @@
-mega-exec debug $@
+mega-exec debug "$@"
