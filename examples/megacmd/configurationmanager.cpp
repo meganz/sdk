@@ -108,7 +108,7 @@ void ConfigurationManager::saveSession(const char*session){
     }
 }
 
-void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
+void ConfigurationManager::saveSyncs(map<string, sync_struct *> *syncsmap)
 {
     stringstream syncsfile;
     if (!configFolder.size())
@@ -126,16 +126,19 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
         {
             map<string, sync_struct *>::iterator itr;
             int i = 0;
-            for (itr = syncsmap.begin(); itr != syncsmap.end(); ++itr, i++)
+            if (syncsmap)
             {
-                sync_struct *thesync = ((sync_struct*)( *itr ).second );
+                for (itr = syncsmap->begin(); itr != syncsmap->end(); ++itr, i++)
+                {
+                    sync_struct *thesync = ((sync_struct*)( *itr ).second );
 
-                fo.write((char*)&thesync->fingerprint, sizeof( long long ));
-                fo.write((char*)&thesync->handle, sizeof( MegaHandle ));
-                const char * localPath = thesync->localpath.c_str();
-                size_t lengthLocalPath = thesync->localpath.size();
-                fo.write((char*)&lengthLocalPath, sizeof( size_t ));
-                fo.write((char*)localPath, sizeof( char ) * lengthLocalPath);
+                    fo.write((char*)&thesync->fingerprint, sizeof( long long ));
+                    fo.write((char*)&thesync->handle, sizeof( MegaHandle ));
+                    const char * localPath = thesync->localpath.c_str();
+                    size_t lengthLocalPath = thesync->localpath.size();
+                    fo.write((char*)&lengthLocalPath, sizeof( size_t ));
+                    fo.write((char*)localPath, sizeof( char ) * lengthLocalPath);
+                }
             }
 
             fo.close();
@@ -149,19 +152,72 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> syncsmap)
 
 void ConfigurationManager::unloadConfiguration(){
     map<string, sync_struct *>::iterator itr;
-    for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); ++itr)
+    for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); itr++)
     {
         sync_struct *thesync = ((sync_struct*)( *itr ).second );
+        configuredSyncs.erase(itr);
         delete thesync;
     }
 
-    for (itr = loadedSyncs.begin(); itr != loadedSyncs.end(); ++itr)
+    for (itr = loadedSyncs.begin(); itr != loadedSyncs.end(); itr++)
     {
         sync_struct *thesync = ((sync_struct*)( *itr ).second );
+        loadedSyncs.erase(itr);
         delete thesync;
     }
 }
 
+
+void ConfigurationManager::loadsyncs()
+{
+    stringstream syncsfile;
+    if (!configFolder.size())
+    {
+        loadConfigDir();
+    }
+    if (configFolder.size())
+    {
+        syncsfile << configFolder << "/" << "syncs";
+        LOG_debug << "Syncs file: " << syncsfile.str();
+
+        ifstream fi(syncsfile.str().c_str(), ios::in | ios::binary);
+
+        if (fi.is_open())
+        {
+            if (fi.fail())
+            {
+                LOG_err << "fail with sync file";
+            }
+
+            while (!( fi.peek() == EOF ))
+            {
+                sync_struct *thesync = new sync_struct;
+                //Load syncs
+                fi.read((char*)&thesync->fingerprint, sizeof( long long ));
+                fi.read((char*)&thesync->handle, sizeof( MegaHandle ));
+                size_t lengthLocalPath;
+                fi.read((char*)&lengthLocalPath, sizeof( size_t ));
+                char localPath[lengthLocalPath + 1];
+                fi.read((char*)localPath, sizeof( char ) * lengthLocalPath);
+                localPath[lengthLocalPath] = '\0';
+                thesync->localpath = string(localPath);
+
+                if (configuredSyncs.find(localPath) != configuredSyncs.end())
+                {
+                    delete configuredSyncs[localPath];
+                }
+                configuredSyncs[localPath] = thesync;
+            }
+
+            if (fi.bad())
+            {
+                LOG_err << "fail with sync file  at the end";
+            }
+
+            fi.close();
+        }
+    }
+}
 
 void ConfigurationManager::loadConfiguration(){
     stringstream sessionfile;
@@ -182,58 +238,12 @@ void ConfigurationManager::loadConfiguration(){
             {
                 session = line;
                 LOG_debug << "Session read from configuration: " << line.substr(0, 5) << "...";
-                //login?
             }
             fi.close();
         }
 
-        stringstream syncsfile;
-        if (!configFolder.size())
-        {
-            loadConfigDir();
-        }
-        if (configFolder.size())
-        {
-            syncsfile << configFolder << "/" << "syncs";
-            LOG_debug << "Syncs file: " << syncsfile.str();
 
-            ifstream fi(syncsfile.str().c_str(), ios::in | ios::binary);
-
-            if (fi.is_open())
-            {
-                if (fi.fail())
-                {
-                    LOG_err << "fail with sync file";
-                }
-
-                while (!( fi.peek() == EOF ))
-                {
-                    sync_struct *thesync = new sync_struct;
-                    //Load syncs
-                    fi.read((char*)&thesync->fingerprint, sizeof( long long ));
-                    fi.read((char*)&thesync->handle, sizeof( MegaHandle ));
-                    size_t lengthLocalPath;
-                    fi.read((char*)&lengthLocalPath, sizeof( size_t ));
-                    char localPath[lengthLocalPath + 1];
-                    fi.read((char*)localPath, sizeof( char ) * lengthLocalPath);
-                    localPath[lengthLocalPath] = '\0';
-                    thesync->localpath = string(localPath);
-
-                    if (configuredSyncs.find(localPath) != configuredSyncs.end())
-                    {
-                        delete configuredSyncs[localPath];
-                    }
-                    configuredSyncs[localPath] = thesync;
-                }
-
-                if (fi.bad())
-                {
-                    LOG_err << "fail with sync file  at the end";
-                }
-
-                fi.close();
-            }
-        }
+       // loadsyncs();
     }
     else
     {

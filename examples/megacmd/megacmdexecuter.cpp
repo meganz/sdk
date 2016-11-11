@@ -2345,6 +2345,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
         LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
         session = srl->getApi()->dumpSession();
         ConfigurationManager::saveSession(session);
+        ConfigurationManager::loadsyncs();
         LOG_info << "Fetching nodes ... ";
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(api, srl, timeout);
@@ -2372,10 +2373,14 @@ void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, bool delete
         cwd = UNDEF;
         delete []session;
         session = NULL;
+        mtxSyncMap.lock();
+        ConfigurationManager::unloadConfiguration();
         if (deletedSession)
         {
             ConfigurationManager::saveSession("");
+            ConfigurationManager::saveSyncs(&ConfigurationManager::loadedSyncs);
         }
+        mtxSyncMap.unlock();
     }
     updateprompt(api, cwd);
 }
@@ -3764,6 +3769,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 #ifdef ENABLE_SYNC
     else if (words[0] == "sync")
     {
+        if (!api->isLoggedIn())
+        {
+            LOG_err << "Not logged in";
+            setCurrentOutCode(3);
+            return;
+        }
+        bool modifiedsyncs = false;
         mtxSyncMap.lock();
         if (words.size() == 3)
         {
@@ -3798,6 +3810,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         char * nodepath = api->getNodePath(n);
                         OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << nodepath;
+                        modifiedsyncs=true;
                         delete []nodepath;
                     }
 
@@ -3867,6 +3880,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                         thesync->fingerprint = megaCmdListener->getRequest()->getNumber();
                                     }
                                 }
+                                modifiedsyncs=true;
                             }
                             delete megaCmdListener;
                         }
@@ -3884,6 +3898,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     erased = true;
                                     delete ( thesync );
                                     OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+                                    modifiedsyncs=true;
                                 }
                             }
                             else //if !active simply remove
@@ -3893,6 +3908,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 erased = true;
                                 delete ( thesync );
                                 OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+                                modifiedsyncs=true;
                             }
                             delete megaCmdListener;
                         }
@@ -3967,7 +3983,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             mtxSyncMap.unlock();
             return;
         }
-        ConfigurationManager::saveSyncs(ConfigurationManager::loadedSyncs);
+        if (modifiedsyncs)
+        {
+            ConfigurationManager::saveSyncs(&ConfigurationManager::loadedSyncs);
+        }
         mtxSyncMap.unlock();
         return;
     }

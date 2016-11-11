@@ -39,14 +39,10 @@ public:
     static std::map<std::string, sync_struct *> loadedSyncs;
     static std::string session;
 
-    static bool isConfigurationLoaded()
-    {
-        return configFolder.size();
-    }
-
     static void loadConfiguration();
+    static void loadsyncs();
 
-    static void saveSyncs(std::map<std::string, sync_struct *> syncsmap);
+    static void saveSyncs(map<string, sync_struct *> *syncsmap);
 
     static void saveSession(const char*session);
     static std::string getConfigFolder();
