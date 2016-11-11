@@ -57,6 +57,14 @@ CppMutex::CppMutex()
     rmutex = NULL;
 }
 
+CppMutex::CppMutex(bool recursive)
+{
+    mutex = NULL;
+    rmutex = NULL;
+
+    init(recursive);
+}
+
 void CppMutex::init(bool recursive = true)
 {
     if (mutex || rmutex)

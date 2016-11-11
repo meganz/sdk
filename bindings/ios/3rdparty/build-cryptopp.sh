@@ -20,8 +20,8 @@ fi
 unzip cryptopp${CRYPTOPP_VERSION}.zip -d cryptopp
  
 # Step 1. Build versions for devices and simulator
-xcodebuild -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
-xcodebuild -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphonesimulator BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
+xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
+xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphonesimulator BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
  
 # Make sure the output directory exists
 mkdir -p "${UNIVERSAL_OUTPUTFOLDER}"

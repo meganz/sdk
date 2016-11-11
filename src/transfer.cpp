@@ -1054,6 +1054,7 @@ bool DirectReadSlot::doio()
             if (req->httpio)
             {
                 req->httpio->lastdata = Waiter::ds;
+                req->lastdata = Waiter::ds;
             }
 
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))

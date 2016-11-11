@@ -128,7 +128,7 @@ public:
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes();
+    void fetchnodes(bool nocache = false);
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
@@ -161,6 +161,12 @@ public:
     bool startxfer(direction_t, File*, bool skipdupes = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
+
+    // maximum number of connections per transfer
+    static const unsigned MAX_NUM_CONNECTIONS = 6;
+
+    // set max connections per transfer
+    void setmaxconnections(direction_t, int);
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
@@ -244,6 +250,9 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // abort lock request
+    void abortlockrequest();
+
     // abort session and free all state information
     void logout();
 
@@ -313,7 +322,7 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, const char *uid = NULL);
@@ -335,6 +344,9 @@ public:
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
+
+    // set title of the chat
+    void setChatTitle(handle chatid, const char *title = NULL);
 #endif
 
     // toggle global debug flag
@@ -378,12 +390,16 @@ public:
     // account auth for public folders
     string accountauth;
 
+    // file that is blocking the sync engine
+    string blockedfile;
+
     // stats id
     static char* statsid;
 
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
+    BackoffTimer btworkinglock;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -391,6 +407,9 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
+
+    // Working lock
+    HttpReq* workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -554,6 +573,9 @@ public:
     void updatesc();
     void finalizesc(bool);
 
+    // flag to pause / resume the processing of action packets
+    bool scpaused;
+
     // MegaClient-Server response JSON
     JSON json;
 
@@ -685,7 +707,7 @@ public:
     void filecachedel(File*);
 
 #ifdef ENABLE_CHAT
-    textchat_vector chatnotify;
+    textchat_map chatnotify;
     void notifychat(TextChat *);
 #endif
 
@@ -823,6 +845,9 @@ public:
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
+
+    bool requestLock;
+    dstime disconnecttimestamp;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);

@@ -76,7 +76,15 @@ endif
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
+else 
+if DARWIN
+# MacOS specific
+src_libmega_la_SOURCES += src/osx/osxutils.mm
+src_libmega_la_LDFLAGS += -framework SystemConfiguration -framework Foundation
 endif
+endif
+
+
 
 # win32 sources
 if WIN32

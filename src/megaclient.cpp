@@ -143,7 +143,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
     if ((n = nodebyhandle(s->h)))
     {
-        if (!n->sharekey && s->have_key)
+        if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
         {
             // setting an outbound sharekey requires node authentication
             // unless coming from a trusted source (the local cache)
@@ -172,6 +172,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
             if (auth)
             {
+                if (n->sharekey)
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99424,"Replacing share key");
+                    reqtag = creqtag;
+                    delete n->sharekey;
+                }
                 n->sharekey = new SymmCipher(s->key);
                 skreceived = true;
             }
@@ -217,7 +225,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 }
 
                 // Erase sharekey if no outgoing shares (incl pending) exist
-                if (!n->outshares && !n->pendingshares)
+                if (s->remove_key && !n->outshares && !n->pendingshares)
                 {
                     rewriteforeignkeys(n);
 
@@ -718,6 +726,8 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
+    abortlockrequest();
+
     jsonsc.pos = NULL;
     insca = false;
     scnotifyurl.clear();
@@ -734,6 +744,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
+    workinglockcs = NULL;
+    scpaused = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -842,6 +854,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
+    delete workinglockcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -863,9 +876,29 @@ void MegaClient::exec()
         abortbackoff(overquotauntil <= Waiter::ds);
     }
 
-    if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs)
     {
+        LOG_debug << "Network timeout. Reconnecting";
         disconnect();
+    }
+    else if (EVER(disconnecttimestamp))
+    {
+        if (disconnecttimestamp <= Waiter::ds)
+        {
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99424, "Timeout (server idle)");
+            reqtag = creqtag;
+
+            disconnect();
+        }
+    }
+    else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
+            &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
+    {
+        LOG_debug << "Request timeout. Triggering a lock request";
+        requestLock = true;
     }
 
     // successful network operation with a failed transfer chunk: increment error count
@@ -1098,11 +1131,17 @@ void MegaClient::exec()
                     case REQ_INFLIGHT:
                         if (pendingcs->contentlength > 0)
                         {
-                            app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                            if (pendingcs->bufpos > pendingcs->notifiedbufpos)
+                            {
+                                abortlockrequest();
+                                app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                                pendingcs->notifiedbufpos = pendingcs->bufpos;
+                            }
                         }
                         break;
 
                     case REQ_SUCCESS:
+                        abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
                         if (pendingcs->in != "-3" && pendingcs->in != "-4")
@@ -1118,6 +1157,8 @@ void MegaClient::exec()
                                 // request succeeded, process result array
                                 json.begin(pendingcs->in.c_str());
                                 reqs.procresult(this);
+
+                                WAIT_CLASS::bumpds();
 
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -1157,6 +1198,7 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        abortlockrequest();
                         if (pendingcs->sslcheckfailed)
                         {
                             sslfakeissuer = pendingcs->sslfakeissuer;
@@ -1267,7 +1309,7 @@ void MegaClient::exec()
                                 int creqtag = reqtag;
                                 reqtag = 0;
                                 fetchingnodes = false;
-                                fetchnodes();
+                                fetchnodes(true);
                                 reqtag = creqtag;
                             }
                         }
@@ -1306,9 +1348,9 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
 #else
-        if (jsonsc.pos)
+        if (!scpaused && jsonsc.pos)
 #endif
         {
             // FIXME: reload in case of bad JSON
@@ -1374,6 +1416,46 @@ void MegaClient::exec()
                 badhosts = badhostcs->outbuf;
                 delete badhostcs;
                 badhostcs = NULL;
+            }
+        }
+
+        if (workinglockcs)
+        {
+            if (workinglockcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful lock request";
+                btworkinglock.reset();
+
+                if (workinglockcs->in == "1")
+                {
+                    LOG_warn << "Timeout (server idle)";
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
+                }
+                else if (workinglockcs->in == "0")
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99425, "Timeout (server busy)");
+                    reqtag = creqtag;
+
+                    pendingcs->lastdata = Waiter::ds;
+                }
+                else
+                {
+                    LOG_err << "Error in lock request: " << workinglockcs->in;
+                }
+
+                delete workinglockcs;
+                workinglockcs = NULL;
+                requestLock = false;
+            }
+            else if (workinglockcs->status == REQ_FAILURE
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+            {
+                LOG_warn << "Failed lock request. Retrying...";
+                btworkinglock.backoff();
+                delete workinglockcs;
+                workinglockcs = NULL;
             }
         }
 
@@ -1654,6 +1736,7 @@ void MegaClient::exec()
                         if (syncfsopsfailed)
                         {
                             syncfsopsfailed = false;
+                            blockedfile.clear();
                             app->syncupdate_local_lockretry(false);
                         }
                     }
@@ -1858,6 +1941,7 @@ void MegaClient::exec()
                     if (syncfsopsfailed)
                     {
                         syncfsopsfailed = false;
+                        blockedfile.clear();
                         app->syncupdate_local_lockretry(false);
                     }
                 }
@@ -1889,6 +1973,18 @@ void MegaClient::exec()
             badhostcs->type = REQ_JSON;
             badhostcs->post(this);
             badhosts.clear();
+        }
+
+        if (!workinglockcs && requestLock && btworkinglock.armed())
+        {
+            LOG_debug << "Sending lock request";
+            workinglockcs = new HttpReq();
+            workinglockcs->posturl = APIURL;
+            workinglockcs->posturl.append("cs?");
+            workinglockcs->posturl.append(auth);
+            workinglockcs->posturl.append("&wlt=1");
+            workinglockcs->type = REQ_JSON;
+            workinglockcs->post(this);
         }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
@@ -1956,9 +2052,14 @@ int MegaClient::preparewait()
         }
 
         // retry failed badhost requests
-        if (!badhostcs)
+        if (!badhostcs && badhosts.size())
         {
             btbadhost.update(&nds);
+        }
+
+        if (!workinglockcs && requestLock)
+        {
+            btworkinglock.update(&nds);
         }
 
         // retry failed file attribute puts
@@ -2024,13 +2125,57 @@ int MegaClient::preparewait()
 #endif
 
         // detect stuck network
-        if (EVER(httpio->lastdata))
+        if (EVER(httpio->lastdata) && !pendingcs)
         {
             dstime timeout = httpio->lastdata + HttpIO::NETWORKTIMEOUT;
 
-            if (timeout >= Waiter::ds && timeout < nds)
+            if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
+
+        if (pendingcs && EVER(pendingcs->lastdata))
+        {
+            if (EVER(disconnecttimestamp))
+            {
+                if (disconnecttimestamp > Waiter::ds && disconnecttimestamp < nds)
+                {
+                    nds = disconnecttimestamp;
+                }
+                else if (disconnecttimestamp <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (!requestLock && !fetchingnodes)
+            {
+                dstime timeout = pendingcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
+            else if (workinglockcs && EVER(workinglockcs->lastdata)
+                     && workinglockcs->status == REQ_INFLIGHT)
+            {
+                dstime timeout = workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
             }
         }
     }
@@ -2111,6 +2256,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btbadhost.arm())
+    {
+        r = true;
+    }
+
+    if (btworkinglock.arm())
     {
         r = true;
     }
@@ -2514,6 +2664,8 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
+    abortlockrequest();
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
         (*it)->disconnect();
@@ -2541,6 +2693,15 @@ void MegaClient::disconnect()
 
     httpio->lastdata = NEVER;
     httpio->disconnect();
+}
+
+void MegaClient::abortlockrequest()
+{
+    delete workinglockcs;
+    workinglockcs = NULL;
+    btworkinglock.reset();
+    requestLock = false;
+    disconnecttimestamp = NEVER;
 }
 
 void MegaClient::logout()
@@ -2599,6 +2760,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     overquotauntil = 0;
+    scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -3479,7 +3641,7 @@ void MegaClient::sc_newnodes()
 
 // share requests come in the following flavours:
 // - n/k (set share key) (always symmetric)
-// - n/o/u (share deletion)
+// - n/o/u[/okd] (share deletion)
 // - n/o/u/k/r/ts[/ok][/ha] (share addition) (k can be asymmetric)
 // returns 0 in case of a share addition or error, 1 otherwise
 bool MegaClient::sc_shares()
@@ -3491,6 +3653,7 @@ bool MegaClient::sc_shares()
     bool upgrade_pending_to_full = false;
     const char* k = NULL;
     const char* ok = NULL;
+    bool okremoved = false;
     byte ha[SymmCipher::BLOCKSIZE];
     byte sharekey[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
@@ -3524,6 +3687,10 @@ bool MegaClient::sc_shares()
 
             case MAKENAMEID2('o', 'k'):  // owner key
                 ok = jsonsc.getvalue();
+                break;
+
+            case MAKENAMEID3('o', 'k', 'd'):
+                okremoved = (jsonsc.getint() == 1); // owner key removed
                 break;
 
             case MAKENAMEID2('h', 'a'):  // outgoing share signature
@@ -3601,7 +3768,8 @@ bool MegaClient::sc_shares()
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         // share revocation or share without key
-                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, r, 0, NULL, NULL, p, false));
+                        newshares.push_back(new NewShare(h, outbound,
+                                                         outbound ? uh : oh, r, 0, NULL, NULL, p, false, okremoved));
                         return r == ACCESS_UNKNOWN;
                     }
                 }
@@ -4356,6 +4524,7 @@ void MegaClient::sc_chatupdate()
     userpriv_vector *upnotif = NULL;
     bool group = false;
     handle ou = UNDEF;
+    string title;
 
     bool done = false;
     while (!done)
@@ -4386,6 +4555,11 @@ void MegaClient::sc_chatupdate()
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
+            case MAKENAMEID2('c','t'):
+                jsonsc.storeobject(&title);
+                break;
+
+
             case EOO:
                 done = true;
 
@@ -4410,6 +4584,7 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->url = ""; // not received in action packets
                     chat->ou = ou;
+                    chat->title = title;
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -6972,7 +7147,7 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify.push_back(chat);
+    chatnotify[chat->id] = chat;
 }
 
 #endif
@@ -7142,6 +7317,7 @@ void MegaClient::procmcf(JSON *j)
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
+            string title;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -7172,9 +7348,12 @@ void MegaClient::procmcf(JSON *j)
                     group = j->getint();
                     break;
 
+                case MAKENAMEID2('c','t'):
+                    j->storeobject(&title);
+                    break;
+
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
-                            && shard != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
                         TextChat *chat = new TextChat();
                         chat->id = chatid;
@@ -7182,6 +7361,7 @@ void MegaClient::procmcf(JSON *j)
                         chat->url = url;
                         chat->shard = shard;
                         chat->group = group;
+                        chat->title = title;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)
@@ -7872,7 +8052,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes()
+void MegaClient::fetchnodes(bool nocache)
 {
     opensctable();
 
@@ -7921,7 +8101,7 @@ void MegaClient::fetchnodes()
             fetchkeys();
         }
 #endif
-        reqs.add(new CommandFetchNodes(this));
+        reqs.add(new CommandFetchNodes(this, nocache));
     }
 }
 
@@ -8817,6 +8997,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     success = false;
                     lit++;
                 }
@@ -8881,6 +9062,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     // schedule retry
+                    fsaccess->local2path(&curpath, &blockedfile);
                     LOG_debug << "Transient error moving localnode";
                     success = false;
                 }
@@ -8951,6 +9133,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else if (success && fsaccess->transient_error)
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     LOG_debug << "Transient error creating folder";
                     success = false;
                 }
@@ -10052,6 +10235,29 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     }
 }
 
+void MegaClient::setmaxconnections(direction_t d, int num)
+{
+    if (num > 0)
+    {
+        if (num > MegaClient::MAX_NUM_CONNECTIONS)
+        {
+            num = MegaClient::MAX_NUM_CONNECTIONS;
+        }
+
+        connections[d] = num;
+        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+        {
+            TransferSlot *slot = *it++;
+            if (slot->transfer->type == d)
+            {
+                slot->transfer->bt.arm();
+                slot->transfer->cachedtempurl = slot->tempurl;
+                delete slot;
+            }
+        }
+    }
+}
+
 Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
     fingerprint_set::iterator it;
@@ -10152,9 +10358,9 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
+void MegaClient::inviteToChat(handle chatid, const char *uid, int priv, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));
+    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv, title));
 }
 
 void MegaClient::removeFromChat(handle chatid, const char *uid)
@@ -10242,6 +10448,11 @@ void MegaClient::updateChatPermissions(handle chatid, const char *uid, int priv)
 void MegaClient::truncateChat(handle chatid, handle messageid)
 {
     reqs.add(new CommandChatTruncate(this, chatid, messageid));
+}
+
+void MegaClient::setChatTitle(handle chatid, const char *title)
+{
+    reqs.add(new CommandChatSetTitle(this, chatid, title));
 }
 
 #endif

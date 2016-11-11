@@ -572,11 +572,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     // attempt to open/type this file
     fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    if (initializing || fullscan)
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (initializing || fullscan)
+        if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
@@ -620,6 +620,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
+        delete fa;
+        fa = client->fsaccess->newfileaccess();
+    }
+
+    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    {
         if (!isroot)
         {
             if (l)
@@ -724,9 +730,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         // (we tolerate overwritten folders, because we do a
                         // content scan anyway)
-                        if (fa->fsidvalid)
+                        if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
                             l->setfsid(fa->fsid);
+                            newnode = true;
                         }
                     }
                 }
@@ -871,12 +878,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     }
     else
     {
-        if (initializing)
-        {
-            delete fa;
-            return NULL;
-        }
-
         LOG_warn << "Error opening file";
         if (fa->retry)
         {

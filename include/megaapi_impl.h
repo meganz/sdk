@@ -145,6 +145,32 @@ private:
 };
 
 class MegaTransferPrivate;
+class MegaTreeProcCopy : public MegaTreeProcessor
+{
+public:
+    NewNode* nn;
+    unsigned nc;
+
+    MegaTreeProcCopy(MegaClient *client);
+    virtual bool processMegaNode(MegaNode* node);
+    void allocnodes(void);
+
+protected:
+    MegaClient *client;
+};
+
+
+class MegaSizeProcessor : public MegaTreeProcessor
+{
+    protected:
+        long long totalBytes;
+
+    public:
+        MegaSizeProcessor();
+        virtual bool processMegaNode(MegaNode* node);
+        long long getTotalBytes();
+};
+
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
 {
 public:
@@ -177,10 +203,10 @@ class MegaFolderDownloadController : public MegaTransferListener
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start();
+    void start(MegaNode *node);
 
 protected:
-    void downloadFolderNode(Node *node, string *path);
+    void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
 
     MegaApiImpl *megaApi;
@@ -190,6 +216,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    error e;
 
 public:
     virtual void onTransferStart(MegaApi *, MegaTransfer *t);
@@ -244,9 +271,12 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isTakenDown();
         virtual bool isForeign();
         virtual std::string* getPrivateAuth();
+        virtual MegaNodeList *getChildren();
         virtual void setPrivateAuth(const char *privateAuth);
         void setPublicAuth(const char *publicAuth);
         void setForeign(bool foreign);
+        void setChildren(MegaNodeList *children);
+        void setName(const char *newName);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
@@ -295,6 +325,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         double latitude;
         double longitude;
+        MegaNodeList *children;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -379,7 +410,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 		void setSpeed(long long speed);
 		void setDeltaSize(long long deltaSize);
         void setUpdateTime(int64_t updateTime);
-        void setPublicNode(MegaNode *publicNode);
+        void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStreamingTransfer(bool streamingTransfer);
@@ -610,7 +641,7 @@ class MegaRequestPrivate : public MegaRequest
 		void setAccess(int access);
 		void setNumRetry(int ds);
 		void setNextRetryDelay(int delay);
-        void setPublicNode(MegaNode* publicNode);
+        void setPublicNode(MegaNode* publicNode, bool copyChildren = false);
 		void setNumDetails(int numDetails);
 		void setFile(const char* file);
         void setParamType(int type);
@@ -879,6 +910,8 @@ public:
     // returns the list of user-privilege (this object keeps the ownership)
     const userpriv_vector * getList() const;
 
+    void setPeerPrivilege(handle uh, privilege_t priv);
+
 private:
     userpriv_vector list;
 };
@@ -887,9 +920,11 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
     virtual ~MegaTextChatPrivate();
+    virtual MegaTextChat *copy() const;
+
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
@@ -898,6 +933,7 @@ public:
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
+    virtual const char *getTitle() const;
 
 private:
     handle id;
@@ -907,18 +943,18 @@ private:
     MegaTextChatPeerList *peers;
     bool group;
     handle ou;
+    string title;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
 {
 public:
     MegaTextChatListPrivate();
-    MegaTextChatListPrivate(textchat_vector *list);
+    MegaTextChatListPrivate(textchat_map *list);
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(unsigned int i) const;
-    virtual MegaTextChat *get(unsigned int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -970,13 +1006,13 @@ class MegaNodeListPrivate : public MegaNodeList
 	public:
         MegaNodeListPrivate();
         MegaNodeListPrivate(Node** newlist, int size);
+        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
 	
 	protected:
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -1282,6 +1318,7 @@ class MegaApiImpl : public MegaApp
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+        bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
@@ -1370,6 +1407,7 @@ class MegaApiImpl : public MegaApp
         void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
+        void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
         int getDownloadMethod();
@@ -1402,6 +1440,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
+        char *getBlockedPath();
 #endif
         void update();
         bool isWaiting();
@@ -1431,7 +1470,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
-        MegaUser* getContact(const char* email);
+        MegaUser* getContact(const char* uid);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
@@ -1490,13 +1529,17 @@ class MegaApiImpl : public MegaApp
                                          const char *privateauth, const char *publicauth);
 
         MegaNode *authorizeNode(MegaNode *node);
+        void authorizeMegaNodePrivate(MegaNodePrivate *node);
 
         const char *getVersion();
         const char *getUserAgent();
+        const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
+        void pauseActionPackets();
+        void resumeActionPackets();
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
@@ -1552,13 +1595,14 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
+        void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1617,6 +1661,7 @@ protected:
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
+        string basePath;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
@@ -1816,8 +1861,9 @@ protected:
         virtual void chatremoveaccess_result(error);
         virtual void chatupdatepermissions_result(error);
         virtual void chattruncate_result(error);
+        virtual void chatsettitle_result(error);
 
-        virtual void chats_updated(textchat_vector *);
+        virtual void chats_updated(textchat_map *);
 #endif
 
 #ifdef ENABLE_SYNC

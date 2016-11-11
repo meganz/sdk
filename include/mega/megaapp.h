@@ -203,8 +203,9 @@ struct MEGA_API MegaApp
     virtual void chatremoveaccess_result(error) { }
     virtual void chatupdatepermissions_result(error) { }
     virtual void chattruncate_result(error) { }
+    virtual void chatsettitle_result(error) { }
 
-    virtual void chats_updated(textchat_vector *) { }
+    virtual void chats_updated(textchat_map *) { }
 #endif
 
     // global transfer queue updates

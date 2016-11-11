@@ -36,6 +36,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/waiter.h \
 	mega/proxy.h \
 	mega/pendingcontactrequest.h \
+	mega/version.h \
 	mega/crypto/cryptopp.h \
 	mega/crypto/sodium.h \
 	mega/db/sqlite.h \
@@ -77,6 +78,12 @@ nobase_libmegainclude_HEADERS += \
 	mega/posix/megawaiter.h \
 	mega/posix/megaconsole.h \
 	mega/posix/megaconsolewaiter.h
+endif
+
+if DARWIN
+if !USE_IOS
+nobase_libmegainclude_HEADERS += mega/osx/osxutils.h
+endif
 endif
 
 #noinst_HEADERS = config.h

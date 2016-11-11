@@ -47,6 +47,7 @@ class PosixMutex : public Mutex
 {
 public:
     PosixMutex();
+    PosixMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

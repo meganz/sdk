@@ -430,6 +430,7 @@ struct TextChat
     int shard;
     userpriv_vector *userpriv;
     bool group;
+    string title;   // byte array
     handle ou;
 
     TextChat()
@@ -448,6 +449,7 @@ struct TextChat
     }
 };
 typedef vector<TextChat*> textchat_vector;
+typedef map<handle, TextChat*> textchat_map;
 #endif
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;

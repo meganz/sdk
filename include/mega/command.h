@@ -257,7 +257,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     void procresult();
 
-    CommandFetchNodes(MegaClient*);
+    CommandFetchNodes(MegaClient*, bool nocache = false);
 };
 
 // update own node keys
@@ -720,7 +720,7 @@ class MEGA_API CommandChatInvite : public Command
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, const char *, privilege_t);
+    CommandChatInvite(MegaClient*, handle, const char *, privilege_t, const char *);
 };
 
 class MEGA_API CommandChatRemove : public Command
@@ -781,6 +781,17 @@ public:
 
     CommandChatTruncate(MegaClient*, handle, handle);
 };
+
+class MEGA_API CommandChatSetTitle : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatSetTitle(MegaClient*, handle, const char *);
+};
+
 #endif
 
 

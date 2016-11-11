@@ -58,7 +58,6 @@ using namespace mega;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 
 @property MegaApi *megaApi;
-- (MegaApi *)getCPtr;
 
 @end
 
@@ -95,6 +94,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (MEGATransferList *)transfers {
     return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers() cMemoryOwn:YES];
+}
+
+- (MEGATransferList *)downloadTransfers {
+    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_DOWNLOAD) cMemoryOwn:YES];
+}
+
+- (MEGATransferList *)uploadTransfers {
+    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_UPLOAD) cMemoryOwn:YES];
 }
 
 - (NSNumber *)totalsDownloadedBytes {
@@ -494,6 +501,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->cancelAccount();
 }
 
+- (void)queryCancelLink:(NSString *)link {
+    self.megaApi->queryCancelLink((link != nil) ? [link UTF8String] : NULL);
+}
+
+- (void)queryCancelLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryCancelLink((link != nil) ? [link UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -840,6 +855,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)getUserDataWithUser:(NSString *)user {
     self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL);
+}
+
+- (void)killSession:(uint64_t)sessionHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->killSession(sessionHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)killSession:(uint64_t)sessionHandle {
+    self.megaApi->killSession(sessionHandle);
 }
 
 #pragma mark - Transfer

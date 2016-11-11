@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e openssl-${VERSION}.tar.gz ]; 
 then
-    curl -O http://www.openssl.org/source/openssl-${VERSION}.tar.gz
+    wget http://www.openssl.org/source/openssl-${VERSION}.tar.gz
 fi
 
 mkdir -p "${CURRENTPATH}/src"
@@ -88,9 +88,9 @@ do
 
 	if [ "$1" == "verbose" ];
 	then
-		make
+		make -j8
 	else
-		make >> "${LOG}" 2>&1
+		make -j8 >> "${LOG}" 2>&1
 	fi
 	
 	if [ $? != 0 ];

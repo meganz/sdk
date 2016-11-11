@@ -166,6 +166,16 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 @property (readonly, nonatomic) MEGATransferList *transfers;
 
 /**
+ * @brief Download active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *downloadTransfers;
+
+/**
+ * @brief Upload active transfers.
+ */
+@property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
  * @deprecated Property related to statistics will be reviewed in future updates to
@@ -968,6 +978,37 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  */
 - (void)cancelAccount;
+
+/**
+ * @brief Get information about a cancel link created by [MEGASdk cancelAccount].
+ *
+ * The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the cancel link
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Return the email associated with the link
+ *
+ * @param link Cancel link (#cancel)
+ * @param delegate Delegate to track this request
+ */
+- (void)queryCancelLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Get information about a cancel link created by [MEGASdk cancelAccount].
+*
+* The associated request type with this request is MEGARequestTypeQueryRecoveryLink
+* Valid data in the MEGARequest object received on all callbacks:
+* - [MEGARequest link] - Returns the cancel link
+*
+* Valid data in the MegaRequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest email] - Return the email associated with the link
+*
+* @param link Cancel link (#cancel)
+*/
+- (void)queryCancelLink:(NSString *)link;
 
 /**
  * @brief Effectively parks the user's account without creating a new fresh account.
@@ -2414,6 +2455,39 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param user Email or Base64 handle of the contact
  */
 - (void)getUserDataWithUser:(NSString *)user;
+
+/**
+ * @brief Close a MEGA session
+ *
+ * All clients using this session will be automatically logged out.
+ *
+ * You can get session information using [MEGASdk getExtendedAccountDetailsWithSessions:purchases:transactions:].
+ * Then use [MEGAAccountDetails numSessions] and [MEGAAccountDetails session]
+ * to get session info.
+ * [MEGAAccountDetails handle] provides the handle that this function needs.
+ *
+ * If you use -1, all sessions except the current one will be closed
+ *
+ * @param sessionHandle Handle of the session. Use -1 to cancel all sessions except the current one
+ * @param delegate Delegate to track this request
+ */
+- (void)killSession:(uint64_t)sessionHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Close a MEGA session
+ *
+ * All clients using this session will be automatically logged out.
+ *
+ * You can get session information using [MEGASdk getExtendedAccountDetailsWithSessions:purchases:transactions:].
+ * Then use [MEGAAccountDetails numSessions] and [MEGAAccountDetails session]
+ * to get session info.
+ * [MEGAAccountDetails handle] provides the handle that this function needs.
+ *
+ * If you use -1, all sessions except the current one will be closed
+ *
+ * @param sessionHandle Handle of the session. Use -1 to cancel all sessions except the current one
+ */
+- (void)killSession:(uint64_t)sessionHandle;
 
 #pragma mark - Transfers
 

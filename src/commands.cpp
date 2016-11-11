@@ -3629,12 +3629,16 @@ void CommandSetKeyPair::procresult()
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
 {
     cmd("f");
     arg("c", 1);
     arg("r", 1);
-    arg("ca", 1);
+
+    if (!nocache)
+    {
+        arg("ca", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -4359,6 +4363,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
     endarray();
 
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4430,7 +4435,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
 {
     this->client = client;
 
@@ -4440,6 +4445,12 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     arg("u", uid);
     arg("p", priv);
     arg("v", 1);
+
+    if (title != NULL)
+    {
+        arg("ct", title);
+    }
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4470,6 +4481,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const ch
         arg("u", uid);
     }
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4495,6 +4507,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4529,6 +4542,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4556,6 +4570,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4583,6 +4598,7 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("u", uid);
     arg("p", priv);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4605,11 +4621,12 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 {
     this->client = client;
 
-    cmd("mcurl");
+    cmd("mct");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("m", (byte*)&messageid, MegaClient::CHATHANDLE);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4624,6 +4641,33 @@ void CommandChatTruncate::procresult()
     {
         client->json.storeobject();
         client->app->chattruncate_result(API_EINTERNAL);
+    }
+}
+
+CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
+{
+    this->client = client;
+
+    cmd("mcst");
+    arg("v", 1);
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("ct", title);
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandChatSetTitle::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatsettitle_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatsettitle_result(API_EINTERNAL);
     }
 }
 

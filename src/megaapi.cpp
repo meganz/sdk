@@ -399,6 +399,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+MegaNodeList *MegaNode::getChildren()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
@@ -1325,6 +1330,11 @@ void MegaApi::cancelAccount(MegaRequestListener *listener)
     pImpl->cancelAccount(listener);
 }
 
+void MegaApi::queryCancelLink(const char *link, MegaRequestListener *listener)
+{
+    pImpl->queryRecoveryLink(link, listener);
+}
+
 void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
 {
     pImpl->confirmCancelAccount(link, pwd, listener);
@@ -1358,6 +1368,11 @@ MegaProxy *MegaApi::getAutoProxySettings()
 void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListener *listener)
 {
     pImpl->createFolder(name, parent, listener);
+}
+
+bool MegaApi::createLocalFolder(const char *localPath)
+{
+    return pImpl->createLocalFolder(localPath);
 }
 
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
@@ -1706,6 +1721,16 @@ void MegaApi::setUploadLimit(int bpslimit)
     pImpl->setUploadLimit(bpslimit);
 }
 
+void MegaApi::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
+{
+    pImpl->setMaxConnections(direction,  connections, listener);
+}
+
+void MegaApi::setMaxConnections(int connections, MegaRequestListener *listener)
+{
+    pImpl->setMaxConnections(-1,  connections, listener);
+}
+
 void MegaApi::setDownloadMethod(int method)
 {
     pImpl->setDownloadMethod(method);
@@ -1784,6 +1809,11 @@ void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, mtime, listener);
+}
+
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUpload(localPath, parent, (const char *)NULL, mtime, 0, NULL, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
@@ -1944,6 +1974,11 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
+char *MegaApi::getBlockedPath()
+{
+    return pImpl->getBlockedPath();
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -2051,9 +2086,9 @@ MegaUserList* MegaApi::getContacts()
     return pImpl->getContacts();
 }
 
-MegaUser* MegaApi::getContact(const char* email)
+MegaUser* MegaApi::getContact(const char* user)
 {
-    return pImpl->getContact(email);
+    return pImpl->getContact(user);
 }
 
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
@@ -2178,6 +2213,11 @@ const char *MegaApi::getUserAgent()
     return pImpl->getUserAgent();
 }
 
+const char *MegaApi::getBasePath()
+{
+    return pImpl->getBasePath();
+}
+
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 {
     pImpl->changeApiUrl(apiURL, disablepkp);
@@ -2191,6 +2231,16 @@ void MegaApi::retrySSLerrors(bool enable)
 void MegaApi::setPublicKeyPinning(bool enable)
 {
     pImpl->setPublicKeyPinning(enable);
+}
+
+void MegaApi::pauseActionPackets()
+{
+    pImpl->pauseActionPackets();
+}
+
+void MegaApi::resumeActionPackets()
+{
+    pImpl->resumeActionPackets();
 }
 
 char *MegaApi::base64ToBase32(const char *base64)
@@ -3183,9 +3233,9 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestLis
     pImpl->createChat(group, peers, listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, uh, privilege, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, title, listener);
 }
 
 void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
@@ -3216,6 +3266,11 @@ void MegaApi::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privil
 void MegaApi::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
 {
     pImpl->truncateChat(chatid, messageid, listener);
+}
+
+void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestListener *listener)
+{
+    pImpl->setChatTitle(chatid, title, listener);
 }
 
 #endif
@@ -3809,6 +3864,11 @@ MegaTextChat::~MegaTextChat()
 
 }
 
+MegaTextChat *MegaTextChat::copy() const
+{
+    return NULL;
+}
+
 MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;
@@ -3849,6 +3909,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
     return INVALID_HANDLE;
 }
 
+const char * MegaTextChat::getTitle() const
+{
+    return NULL;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
@@ -3860,11 +3925,6 @@ MegaTextChatList *MegaTextChatList::copy() const
 }
 
 const MegaTextChat *MegaTextChatList::get(unsigned int) const
-{
-    return NULL;
-}
-
-MegaTextChat *MegaTextChatList::get(unsigned int)
 {
     return NULL;
 }
