@@ -920,7 +920,7 @@ class MegaTextChatListPrivate : public MegaTextChatList
 {
 public:
     MegaTextChatListPrivate();
-    MegaTextChatListPrivate(textchat_vector *list);
+    MegaTextChatListPrivate(textchat_map *list);
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
@@ -1290,6 +1290,7 @@ class MegaApiImpl : public MegaApp
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+        bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
@@ -1407,6 +1408,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
         bool isIndexing();
+        char *getBlockedPath();
 #endif
         void update();
         bool isWaiting();
@@ -1819,7 +1821,7 @@ protected:
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
 
-        virtual void chats_updated(textchat_vector *);
+        virtual void chats_updated(textchat_map *);
 #endif
 
 #ifdef ENABLE_SYNC

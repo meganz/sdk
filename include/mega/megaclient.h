@@ -127,7 +127,7 @@ public:
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes();
+    void fetchnodes(bool nocache = false);
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
@@ -391,6 +391,9 @@ public:
 
     // account auth for public folders
     string accountauth;
+
+    // file that is blocking the sync engine
+    string blockedfile;
 
     // stats id
     static char* statsid;
@@ -700,7 +703,7 @@ public:
     void filecachedel(File*);
 
 #ifdef ENABLE_CHAT
-    textchat_vector chatnotify;
+    textchat_map chatnotify;
     void notifychat(TextChat *);
 #endif
 

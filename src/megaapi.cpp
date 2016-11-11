@@ -1356,6 +1356,11 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
     pImpl->createFolder(name, parent, listener);
 }
 
+bool MegaApi::createLocalFolder(const char *localPath)
+{
+    return pImpl->createLocalFolder(localPath);
+}
+
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
     pImpl->moveNode(node, newParent, listener);
@@ -1787,6 +1792,11 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
     pImpl->startUpload(localPath, parent, mtime, listener);
 }
 
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUpload(localPath, parent, (const char *)NULL, mtime, 0, NULL, isSourceTemporary, listener);
+}
+
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, fileName, listener);
@@ -1893,6 +1903,11 @@ string MegaApi::getLocalPath(MegaNode *n)
 long long MegaApi::getNumLocalNodes()
 {
     return pImpl->getNumLocalNodes();
+}
+
+char *MegaApi::getBlockedPath()
+{
+    return pImpl->getBlockedPath();
 }
 
 bool MegaApi::isScanning()
@@ -3780,7 +3795,7 @@ MegaTextChat::~MegaTextChat()
 
 }
 
-MegaTextChat* MegaTextChat::copy() const
+MegaTextChat *MegaTextChat::copy() const
 {
     return NULL;
 }

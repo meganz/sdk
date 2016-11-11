@@ -1350,6 +1350,18 @@ class MegaTextChat
 public:
 
     virtual ~MegaTextChat();
+
+    /**
+     * @brief Creates a copy of this MegaTextChat object
+     *
+     * The resulting object is fully independent of the source MegaTextChat,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChat object
+     */
     virtual MegaTextChat *copy() const;
 
     /**
@@ -4868,6 +4880,14 @@ class MegaApi
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new empty folder in your local file system
+         *
+         * @param localPath Path of the new folder
+         * @return True if the local folder was successfully created, otherwise false.
+         */
+        bool createLocalFolder(const char* localPath);
+
+        /**
          * @brief Move a node in the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_MOVE
@@ -6023,6 +6043,17 @@ class MegaApi
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
 
         /**
+         * @brief Upload a file or a folder with a custom modification time
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener=NULL);
+
+        /**
          * @brief Upload a file or folder with a custom name
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -6738,6 +6769,16 @@ class MegaApi
          * @return Total number of local nodes in the account
          */
         long long getNumLocalNodes();
+
+        /**
+         * @brief Get the path if the file/folder that is blocking the sync engine
+         *
+         * If the sync engine is not blocked, this function returns NULL
+         * You take the ownership of the returned value
+         *
+         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
+         */
+        char *getBlockedPath();
 #endif
 
         /**

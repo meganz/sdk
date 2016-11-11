@@ -943,6 +943,18 @@ bool MegaApiImpl::isIndexing()
     sdkMutex.unlock();
     return indexing;
 }
+
+char *MegaApiImpl::getBlockedPath()
+{
+    char *path = NULL;
+    sdkMutex.lock();
+    if (client->blockedfile.size())
+    {
+        path = MegaApi::strdup(client->blockedfile.c_str());
+    }
+    sdkMutex.unlock();
+    return path;
+}
 #endif
 
 bool MegaNodePrivate::hasThumbnail()
@@ -3554,6 +3566,10 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+    delete request; // delete here since onRequestFinish() is never called
+    delete gfxAccess;
+    delete fsAccess;
+//    delete httpio;  do not delete since it could crash
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -4309,6 +4325,30 @@ void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestLi
 	request->setName(name);
 	requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::createLocalFolder(const char *path)
+{
+    if (!path)
+    {
+        return false;
+    }
+
+    string localpath;
+    string sPath(path);
+	
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if(!PathIsRelativeA(sPath.c_str()) && ((sPath.size()<2) || sPath.compare(0, 2, "\\\\")))
+        sPath.insert(0, "\\\\?\\");
+#endif
+	
+    client->fsaccess->path2local(&sPath, &localpath);
+
+    sdkMutex.lock();
+    bool success = client->fsaccess->mkdirlocal(&localpath);
+    sdkMutex.unlock();
+
+    return success;
 }
 
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
@@ -7978,8 +8018,8 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     if (!e)
     {
         // encapsulate the chat in a list for the request
-        textchat_vector chatList;
-        chatList.push_back(chat);
+        textchat_map chatList;
+        chatList[chat->id] = chat;
 
         MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
         request->setMegaTextChatList(megaChatList);
@@ -8100,7 +8140,7 @@ void MegaApiImpl::chatsettitle_result(error e)
 
 
 
-void MegaApiImpl::chats_updated(textchat_vector *chats)
+void MegaApiImpl::chats_updated(textchat_map *chats)
 {
     if (!chats || !chats->size())
     {
@@ -8652,7 +8692,11 @@ void MegaApiImpl::share_result(error e)
             return;
         }
 
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
         client->getpubliclink(node, false, request->getNumber());
+        client->reqtag = creqtag;
+
 		return;
     }
 
@@ -13167,7 +13211,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             // if 1:1 chat, peer is enforced to be moderator too
-            if (!group && userpriv->at(1).second != PRIV_MODERATOR)
+            if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
@@ -16448,14 +16492,14 @@ MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int sh
     this->title = title;
 }
 
-MegaTextChatPrivate::~MegaTextChatPrivate()
-{
-    delete peers;
-}
-
 MegaTextChat *MegaTextChatPrivate::copy() const
 {
     return new MegaTextChatPrivate(this);
+}
+
+MegaTextChatPrivate::~MegaTextChatPrivate()
+{
+    delete peers;
 }
 
 MegaHandle MegaTextChatPrivate::getHandle() const
@@ -16561,15 +16605,16 @@ MegaTextChatListPrivate::MegaTextChatListPrivate()
 
 }
 
-MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
+MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 {
     MegaTextChatPrivate *megaChat;
     MegaTextChatPeerListPrivate *chatPeers;
     TextChat *chat;
 
-    for (unsigned i = 0; i < list->size(); i++)
+    textchat_map::iterator it;
+    for (it = list->begin(); it != list->end(); it++)
     {
-        chat = list->at(i);
+        chat = it->second;
         chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
         megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->url, chat->shard, chatPeers, chat->group, chat->ou, chat->title);
 

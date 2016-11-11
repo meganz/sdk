@@ -25,6 +25,10 @@
 
 #define SPEED_MEAN_INTERVAL_DS 50
 
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#include "mega/osx/osxutils.h"
+#endif
+
 namespace mega {
 
 // data receive timeout (ds)
@@ -268,7 +272,11 @@ Proxy *HttpIO::getautoproxy()
     if (ieProxyConfig.lpszAutoConfigUrl)
     {
         GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
-    }
+    }    
+#endif
+
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+    getOSXproxy(proxy);
 #endif
 
     return proxy;
