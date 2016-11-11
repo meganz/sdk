@@ -257,7 +257,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     void procresult();
 
-    CommandFetchNodes(MegaClient*);
+    CommandFetchNodes(MegaClient*, bool nocache = false);
 };
 
 // update own node keys

@@ -3629,12 +3629,16 @@ void CommandSetKeyPair::procresult()
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
 {
     cmd("f");
     arg("c", 1);
     arg("r", 1);
-    arg("ca", 1);
+
+    if (!nocache)
+    {
+        arg("ca", 1);
+    }
 
     tag = client->reqtag;
 }
