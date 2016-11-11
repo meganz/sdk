@@ -233,8 +233,8 @@ class SyncTest(SyncTestBase):
                 with open(fname_out, 'a') as f_out:
                     f_out.write(get_random_str(100))
 
-                for _ in range(50):
-                    self.app.sync()
+                for r in range(self.app.nr_retries):
+                    self.app.attempt=r
                     md5_in = "INPUT FILE NOT READABLE";
                     md5_out = "OUTPUT FILE NOT READABLE";
 
@@ -246,6 +246,7 @@ class SyncTest(SyncTestBase):
 
                     if md5_in == md5_out:
                         break
+                    self.app.sync()
 
                 logging.debug("File %s md5: %s" % (fname_in, md5_in))
                 logging.debug("File %s md5: %s" % (fname_out, md5_out))
@@ -293,7 +294,7 @@ class SyncTest(SyncTestBase):
             atime=0
             mtime=0
             for r in range(self.app.nr_retries):
-                self.app.sync()
+                self.app.attempt=r
                 try:
                     mtime = os.path.getmtime(out_file)
                 except OSError:
@@ -308,6 +309,7 @@ class SyncTest(SyncTestBase):
                 
                 if (mtime==now): #all good
                     break;
+                self.app.sync()
                 logging.debug("Comparing time for %s failed! Retrying [%d/%d] .." % (out_file, r + 1, self.nr_retries))
 
             

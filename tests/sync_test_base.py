@@ -161,6 +161,7 @@ class SyncTestBase(unittest.TestCase):
             return True
 
         for r in range(0, self.nr_retries):
+            self.app.attempt=r
             try:
                 res = not os.listdir(folder_name)
             except OSError, e:
@@ -293,6 +294,7 @@ class SyncTestBase(unittest.TestCase):
             logging.debug("Comparing %s and %s" % (ffname_in, ffname))
             # try to access the file
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     with open(ffname):
                         pass
@@ -390,6 +392,7 @@ class SyncTestBase(unittest.TestCase):
 
             # try to access the dir
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     if os.path.isdir(dname):
                         success = True
@@ -419,8 +422,8 @@ class SyncTestBase(unittest.TestCase):
         renaming file
         return True if renamed
         """
-
         for r in range(0, self.nr_retries):
+            self.app.attempt=r
             if os.path.exists(ffname_src):
                 try:
                     shutil.move(ffname_src, ffname_dst)
@@ -481,6 +484,7 @@ class SyncTestBase(unittest.TestCase):
             logging.debug("Deleting: %s" % ffname)
 
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     os.remove(ffname)
                 except OSError, e:
@@ -501,7 +505,9 @@ class SyncTestBase(unittest.TestCase):
         success = False
         for f in l_files:
             ffname = os.path.join(self.app.local_folder_out, f["name"])
+            
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     # file must be deleted
                     with open(ffname):
@@ -575,6 +581,7 @@ class SyncTestBase(unittest.TestCase):
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_out, d["name"])
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     # dir must be deleted
                     if not os.path.isdir(dname):
@@ -713,6 +720,7 @@ class SyncTestBase(unittest.TestCase):
 
             # logging.debug("Trying to access dir: %s" % dname)
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     if os.path.isdir(dname):
                         success = True
@@ -737,6 +745,7 @@ class SyncTestBase(unittest.TestCase):
 
             # logging.debug("Trying to access file: %s" % fname)
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     with open(fname):
                         pass

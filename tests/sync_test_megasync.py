@@ -30,6 +30,7 @@ import xmlrunner
 import logging
 import argparse
 import platform
+import math
 
 
 class SyncTestMegaSyncApp(SyncTestApp):
@@ -116,7 +117,14 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
         TODO: wait for full synchronization
         """
-        time.sleep(5)
+        if not hasattr(self,'attempt'):
+            self.attempt=self.nr_retries
+        if (self.attempt==self.nr_retries):
+            time.sleep(5)
+        else:
+
+            print " giving it a while:", math.pow(1.0181780986123312,self.attempt+1)*0.5
+            time.sleep(math.pow(1.0181780986123312,self.attempt+1)*0.5)
 
     def start(self):
         """
