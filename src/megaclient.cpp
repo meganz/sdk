@@ -1725,6 +1725,7 @@ void MegaClient::exec()
                         if (syncfsopsfailed)
                         {
                             syncfsopsfailed = false;
+                            blockedfile.clear();
                             app->syncupdate_local_lockretry(false);
                         }
                     }
@@ -1929,6 +1930,7 @@ void MegaClient::exec()
                     if (syncfsopsfailed)
                     {
                         syncfsopsfailed = false;
+                        blockedfile.clear();
                         app->syncupdate_local_lockretry(false);
                     }
                 }
@@ -8978,6 +8980,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     success = false;
                     lit++;
                 }
@@ -9042,6 +9045,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     // schedule retry
+                    fsaccess->local2path(&curpath, &blockedfile);
                     LOG_debug << "Transient error moving localnode";
                     success = false;
                 }
@@ -9112,6 +9116,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else if (success && fsaccess->transient_error)
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     LOG_debug << "Transient error creating folder";
                     success = false;
                 }

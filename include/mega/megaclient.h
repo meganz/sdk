@@ -386,6 +386,9 @@ public:
     // account auth for public folders
     string accountauth;
 
+    // file that is blocking the sync engine
+    string blockedfile;
+
     // stats id
     static char* statsid;
 
