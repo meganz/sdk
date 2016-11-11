@@ -60,3 +60,15 @@ There are two different kinds of logging messages:
 
 You can adjust the level of logging for those kinds with `log` command.
 However, for non interactive commands, passing `-v` (`-vv`, `-vvv`, and so on for a more verbose output) will use higher level of verbosity to an specific command.
+
+### Regular Expressions
+If you have compiled MegaCMD with PCRE (enabled by default), you can use PCRE compatible expressions. Otherwise, if compiled with c++11, c++11 regular expressions will be used. If non of the above is the case, you can only use "*" for any number of characters or "?" for a single unknown character.
+You can check the regular expressions compatibility with `find --help`. e.g:
+```
+find --help
+...
+Options:
+ --pattern=PATTERN	Pattern to match (Perl Compatible Regular Expressions)
+```
+
+Notice: if you use MegaCMD in non interactive mode, notice that shell pattern will take precedence. You will need to either escape symbols like `*` (`\*`) or surround them between quotes ("*")
