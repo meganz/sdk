@@ -48,6 +48,8 @@ Use the different `mega-*` commands available.
 `mega-help` will list all these commands (you will need to prepend "mega-")
 You can obtain further info with `mega-command --help`
 
+Those commands will have an output value != 0 in case of failure. See `megacmd.h` to view the existing error codes.
+
 ### Autocompletion:
 
 MegaCMD features autocompletion in both interactive and non-interactive (only for bash) mode. It will help completing both local and remote (Mega Cloud) files, flags for commands, values for flags/access levels, even contacts.  
