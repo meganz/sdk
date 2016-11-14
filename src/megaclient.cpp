@@ -10308,6 +10308,16 @@ bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
     return httpio->setmaxuploadspeed(bpslimit >= 0 ? bpslimit : 0);
 }
 
+m_off_t MegaClient::getmaxdownloadspeed()
+{
+    return httpio->getmaxdownloadspeed();
+}
+
+m_off_t MegaClient::getmaxuploadspeed()
+{
+    return httpio->getmaxuploadspeed();
+}
+
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";

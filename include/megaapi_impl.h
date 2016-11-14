@@ -1378,6 +1378,8 @@ class MegaApiImpl : public MegaApp
         void setUploadMethod(int method);
         bool setMaxDownloadSpeed(m_off_t bpslimit);
         bool setMaxUploadSpeed(m_off_t bpslimit);
+        int getMaxDownloadSpeed();
+        int getMaxUploadSpeed();
         int getCurrentDownloadSpeed();
         int getCurrentUploadSpeed();
         int getDownloadMethod();

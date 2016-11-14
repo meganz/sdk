@@ -165,6 +165,12 @@ public:
     // set max upload speed
     virtual bool setmaxuploadspeed(m_off_t bpslimit);
 
+    // get max download speed
+    virtual m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    virtual m_off_t getmaxuploadspeed();
+
     CurlHttpIO();
     ~CurlHttpIO();
 };

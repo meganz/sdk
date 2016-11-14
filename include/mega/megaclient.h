@@ -359,6 +359,12 @@ public:
     // set max upload speed
     bool setmaxuploadspeed(m_off_t bpslimit);
 
+    // get max download speed
+    m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    m_off_t getmaxuploadspeed();
+
     // use HTTPS for all communications
     bool usehttps;
     

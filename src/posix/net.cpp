@@ -494,6 +494,16 @@ bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
     return true;
 }
 
+m_off_t CurlHttpIO::getmaxdownloadspeed()
+{
+    return maxdownloadspeed;
+}
+
+m_off_t CurlHttpIO::getmaxuploadspeed()
+{
+    return maxuploadspeed;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {

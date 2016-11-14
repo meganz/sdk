@@ -5184,6 +5184,16 @@ bool MegaApiImpl::setMaxUploadSpeed(m_off_t bpslimit)
     return result;
 }
 
+int MegaApiImpl::getMaxDownloadSpeed()
+{
+    return client->getmaxdownloadspeed();
+}
+
+int MegaApiImpl::getMaxUploadSpeed()
+{
+    return client->getmaxuploadspeed();
+}
+
 int MegaApiImpl::getCurrentDownloadSpeed()
 {
     return httpio->downloadSpeed;

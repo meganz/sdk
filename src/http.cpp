@@ -357,6 +357,16 @@ bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
     return false;
 }
 
+m_off_t HttpIO::getmaxdownloadspeed()
+{
+    return 0;
+}
+
+m_off_t HttpIO::getmaxuploadspeed()
+{
+    return 0;
+}
+
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
     if (httpio)

@@ -6376,6 +6376,20 @@ class MegaApi
         bool setMaxUploadSpeed(int bpslimit);
 
         /**
+         * @brief Get the maximum download speed in bytes per second
+         *
+         * @return Download speed in bytes per second
+         */
+        int getMaxDownloadSpeed();
+
+        /**
+         * @brief Get the maximum upload speed in bytes per second
+         *
+         * @return Upload speed in bytes per second
+         */
+        int getMaxUploadSpeed();
+
+        /**
          * @brief Return the current download speed
          * @return Download speed in bytes per second
          */
