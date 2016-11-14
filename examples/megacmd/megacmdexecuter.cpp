@@ -2414,7 +2414,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     char *nodePath = api->getNodePath(nodeToDelete);
     if (( nodeToDelete->getType() == MegaNode::TYPE_FOLDER ) && !recursive)
     {
-        setCurrentOutCode(5);
+        setCurrentOutCode(MCMD_INVALIDTYPE);
         OUTSTREAM << "Unable to delete folder: " << nodePath << ". Use -r to delete a folder recursively" << endl;
     }
     else
@@ -2490,7 +2490,7 @@ void MegaCmdExecuter::exportNode(MegaNode *n, int expireTime)
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_NOTFOUND);
             LOG_err << "Exported node not found!";
         }
     }
@@ -2501,7 +2501,7 @@ void MegaCmdExecuter::disableExport(MegaNode *n)
 {
     if (!n->isExported())
     {
-            setCurrentOutCode(3);
+        setCurrentOutCode(MCMD_INVALIDSTATE);
         OUTSTREAM << "Could not disable export: node not exported." << endl;
         return;
     }
@@ -2521,7 +2521,7 @@ void MegaCmdExecuter::disableExport(MegaNode *n)
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_NOTFOUND);
             LOG_err << "Exported node not found!";
         }
     }
@@ -2555,7 +2555,7 @@ void MegaCmdExecuter::shareNode(MegaNode *n, string with, int level)
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_NOTFOUND);
             LOG_err << "Shared node not found!";
         }
     }
@@ -2822,7 +2822,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     LOG_err << "Couldn't find " << words[1];
                 }
             }
@@ -2894,7 +2894,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 if (n->getType() == MegaNode::TYPE_FILE)
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     LOG_err << words[1] << ": Not a directory";
                 }
                 else
@@ -2907,7 +2907,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 LOG_err << words[1] << ": No such file or directory";
             }
         }
@@ -2917,7 +2917,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (!rootNode)
             {
                 LOG_err << "nodes not fetched";
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOFETCH);
                 delete rootNode;
                 return;
             }
@@ -2963,7 +2963,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("rm") << endl;
         }
 
@@ -2996,7 +2996,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         {
                             if (tn->getType() == MegaNode::TYPE_FILE)
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_INVALIDTYPE);
                                 OUTSTREAM << words[2] << ": Not a directory" << endl;
                                 delete tn;
                                 delete n;
@@ -3069,7 +3069,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                                 else
                                 {
-                                    setCurrentOutCode(4);
+                                    setCurrentOutCode(MCMD_INVALIDSTATE);
                                     LOG_fatal << "Destiny node is orphan!!!";
                                 }
                             }
@@ -3087,20 +3087,20 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else //target not found (not even its folder), cant move
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << words[2] << ": No such directory" << endl;
                 }
                 delete n;
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 OUTSTREAM << words[1] << ": No such file or directory" << endl;
             }
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("mv") << endl;
         }
 
@@ -3188,13 +3188,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     }
                                     else
                                     {
-                                        setCurrentOutCode(4);
+                                        setCurrentOutCode(MCMD_INVALIDSTATE);
                                         LOG_fatal << "Destiny node is orphan!!!";
                                     }
                                 }
                                 else
                                 {
-                                    setCurrentOutCode(3);
+                                    setCurrentOutCode(MCMD_INVALIDTYPE);
                                     OUTSTREAM << "Cannot overwrite file with folder" << endl;
                                     return;
                                 }
@@ -3215,13 +3215,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 OUTSTREAM << words[1] << ": No such file or directory" << endl;
             }
         }
         else
         {
-            setCurrentOutCode(3);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("cp") << endl;
         }
 
@@ -3268,7 +3268,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 words[i] = unquote(words[i]);
                 if (!( n = nodebypath(words[i].c_str())))
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << words[i] << ": No such file or directory" << endl;
                     return;
                 }
@@ -3314,7 +3314,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                             if (!canWrite(localPath))
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_NOTPERMITTED);
                                 OUTSTREAM << "Write not allowed in " << localPath << endl;
                                 return;
                             }
@@ -3324,13 +3324,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             string containingFolder = localPath.substr(0, localPath.find_last_of("/"));
                             if (!isFolder(containingFolder))
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_INVALIDTYPE);
                                 OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
                                 return;
                             }
                             if (!canWrite(containingFolder))
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_NOTPERMITTED);
                                 OUTSTREAM << "Write not allowed in " << containingFolder << endl;
                                 return;
                             }
@@ -3384,14 +3384,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             localPath = words[2] + "/";
                             if (!canWrite(words[2]))
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_NOTPERMITTED);
                                 OUTSTREAM << "Write not allowed in " << words[2] << endl;
                                 return;
                             }
                         }
                         else
                         {
-                            setCurrentOutCode(3);
+                            setCurrentOutCode(MCMD_INVALIDTYPE);
                             OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
                             return;
                         }
@@ -3430,6 +3430,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
                             else
                             {
+                                setCurrentOutCode(MCMD_INVALIDSTATE);
                                 LOG_err << "Couldn't get root folder for folder link";
                             }
                         }
@@ -3440,7 +3441,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(2);
+                    setCurrentOutCode(MCMD_INVALIDTYPE);
                     OUTSTREAM << "Invalid link: " << words[1] << endl;
                 }
             }
@@ -3455,14 +3456,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             localPath = words[2] + "/";
                             if (!canWrite(words[2]))
                             {
-                                setCurrentOutCode(3);
+                                setCurrentOutCode(MCMD_NOTPERMITTED);
                                 OUTSTREAM << "Write not allowed in " << words[2] << endl;
                                 return;
                             }
                         }
                         else
                         {
-                            setCurrentOutCode(3);
+                            setCurrentOutCode(MCMD_INVALIDTYPE);
                             OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
                             return;
                         }
@@ -3501,7 +3502,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     localPath += "/";
                                     if (!canWrite(words[2]))
                                     {
-                                        setCurrentOutCode(3);
+                                        setCurrentOutCode(MCMD_NOTPERMITTED);
                                         OUTSTREAM << "Write not allowed in " << words[2] << endl;
                                         return;
                                     }
@@ -3511,13 +3512,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     string containingFolder = localPath.substr(0, localPath.find_last_of("/"));
                                     if (!isFolder(containingFolder))
                                     {
-                                        setCurrentOutCode(3);
+                                        setCurrentOutCode(MCMD_INVALIDTYPE);
                                         OUTSTREAM << containingFolder << " is not a valid Download Folder" << endl;
                                         return;
                                     }
                                     if (!canWrite(containingFolder))
                                     {
-                                        setCurrentOutCode(3);
+                                        setCurrentOutCode(MCMD_NOTPERMITTED);
                                         OUTSTREAM << "Write not allowed in " << containingFolder << endl;
                                         return;
                                     }
@@ -3530,14 +3531,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     localPath = words[2] + "/";
                                     if (!canWrite(words[2]))
                                     {
-                                        setCurrentOutCode(3);
+                                        setCurrentOutCode(MCMD_NOTPERMITTED);
                                         OUTSTREAM << "Write not allowed in " << words[2] << endl;
                                         return;
                                     }
                                 }
                                 else
                                 {
-                                    setCurrentOutCode(3);
+                                    setCurrentOutCode(MCMD_INVALIDTYPE);
                                     OUTSTREAM << words[2] << " is not a valid Download Folder" << endl;
                                     return;
                                 }
@@ -3548,6 +3549,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     else
                     {
+                        setCurrentOutCode(MCMD_NOTFOUND);
                         OUTSTREAM << "Couldn't find file" << endl;
                     }
                 }
@@ -3555,7 +3557,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            OUTSTREAM << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
+            setCurrentOutCode(MCMD_EARGS);
+            OUTSTREAM << "      " << getUsageStr("get") << endl;
         }
 
         return;
@@ -3594,27 +3597,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
-                            setCurrentOutCode(3);
+                            setCurrentOutCode(MCMD_NOTFOUND);
                             OUTSTREAM << "Could not find local path " << localname << endl;
                         }
                     }
                 }
                 else
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_INVALIDTYPE);
                     OUTSTREAM << "Destination is not valid (expected folder or alike)" << endl;
                 }
                 delete n;
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 OUTSTREAM << "Couln't find destination folder: " << destination << endl;
             }
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("put") << endl;
         }
 
@@ -3686,13 +3689,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_INVALIDTYPE);
                 LOG_err << "Not a valid folder" << words[1];
             }
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("lcd") << endl;
         }
 
@@ -3729,7 +3732,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(2);
+                setCurrentOutCode(MCMD_EARGS);
                 OUTSTREAM << "      " << getUsageStr("ipc") << endl;
             }
 
@@ -3760,7 +3763,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(2);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 OUTSTREAM << "Could not find invitation " << shandle << endl;
             }
         }
@@ -3772,7 +3775,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (!api->isLoggedIn())
         {
             LOG_err << "Not logged in";
-            setCurrentOutCode(3);
+            setCurrentOutCode(MCMD_NOTLOGGEDIN);
             return;
         }
         bool modifiedsyncs = false;
@@ -3818,14 +3821,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTPERMITTED);
                     LOG_err << words[2] << ": Syncing requires full access to path, current acces: " << api->getAccess(n);
                 }
                 delete n;
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 LOG_err << "Couldn't find remote folder: " << words[2];
             }
         }
@@ -3929,7 +3932,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     LOG_err << "Node not found for sync " << key << " into handle: " << thesync->handle;
                 }
                 if (!erased)
@@ -3972,13 +3975,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     LOG_err << "Node not found for sync " << ( *itr ).first << " into handle: " << thesync->handle;
                 }
             }
         }
         else
         {
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("sync") << endl;
             mtxSyncMap.unlock();
             return;
@@ -4038,7 +4042,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             return;
                         }
                     }
-                    setCurrentOutCode(3);
+                    setCurrentOutCode(MCMD_EARGS);
                     OUTSTREAM << "Invalid argument. Please specify a valid e-mail address, "
                               << "a folder link containing the folder key "
                               << "or a valid session." << endl;
@@ -4046,11 +4050,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
+                setCurrentOutCode(MCMD_EARGS);
                 OUTSTREAM << "      " << getUsageStr("login") << endl;
             }
         }
         else
         {
+            setCurrentOutCode(MCMD_INVALIDSTATE);
             OUTSTREAM << "Already logged in. Please log out first." << endl;
         }
 
@@ -4066,7 +4072,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         string with = getOption(cloptions, "with", "");
         if (getFlag(clflags, "a") && ( "" == with ))
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << " Required --with destiny" << endl << getUsageStr("share") << endl;
             return;
         }
@@ -4085,7 +4091,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         if (( level != level_NOT_present_value ) && (( level < -1 ) || ( level > 3 )))
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "Invalid level of access" << endl;
             return;
         }
@@ -4104,7 +4110,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     if (!nodes->size())
                     {
-                        setCurrentOutCode(2);
+                        setCurrentOutCode(MCMD_NOTFOUND);
                         OUTSTREAM << "Nodes not found: " << words[i] << endl;
                     }
                     for (std::vector< MegaNode * >::iterator it = nodes->begin(); it != nodes->end(); ++it)
@@ -4150,7 +4156,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             {
                                 if (( level != level_NOT_present_value ) || ( with != "" ))
                                 {
-                                    setCurrentOutCode(2);
+                                    setCurrentOutCode(MCMD_EARGS);
                                     OUTSTREAM << "Unexpected option received. To create/modify a share use -a" << endl;
                                 }
                                 else if (listPending)
@@ -4171,7 +4177,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(2);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << "Node not found: " << words[i] << endl;
                 }
             }
@@ -4219,7 +4225,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         if (( level != level_NOT_present_value ) || ( with != "" ))
                         {
-                            setCurrentOutCode(2);
+                            setCurrentOutCode(MCMD_EARGS);
                             OUTSTREAM << "Unexpected option received. To create/modify a share use -a" << endl;
                         }
                         else if (listPending)
@@ -4235,7 +4241,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(2);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << "Node not found: " << words[i] << endl;
                 }
             }
@@ -4342,7 +4348,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         {
                             if (!getFlag(clflags, "p") && !lastleave)
                             {
-                                setCurrentOutCode(2);
+                                setCurrentOutCode(MCMD_EARGS);
                                 OUTSTREAM << "Use -p to create folders recursively" << endl;
                                 delete currentnode;
                                 return;
@@ -4369,7 +4375,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (lastleave && existing_node)
                         {
-                            setCurrentOutCode(3);
+                            setCurrentOutCode(MCMD_INVALIDSTATE);
                             LOG_err << "Folder already exists: " << words[i];
                         }
                     }
@@ -4389,7 +4395,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(2);
+                setCurrentOutCode(MCMD_EARGS);
                 OUTSTREAM << "      " << getUsageStr("mkdir") << endl;
             }
         }
@@ -4428,7 +4434,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     else
                     {
-                        setCurrentOutCode(2);
+                        setCurrentOutCode(MCMD_EARGS);
                         OUTSTREAM << "Attribute not specified" << endl;
                         OUTSTREAM << "      " << getUsageStr("attr") << endl;
                         return;
@@ -4460,14 +4466,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_NOTFOUND);
                 OUTSTREAM << "Couldn't find node: " << nodePath << endl;
                 return;
             }
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("attr") << endl;
             return;
         }
@@ -4503,7 +4509,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(2);
+                setCurrentOutCode(MCMD_EARGS);
                 OUTSTREAM << "Attribute not specified" << endl;
                 OUTSTREAM << "      " << getUsageStr("userattr") << endl;
                 return;
@@ -4515,9 +4521,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
             if (user.size())
             {
-//                MegaUser *u = api->getContact(user.c_str());
                 api->getUserAttribute(user.c_str(), a, megaCmdListener);
-//                delete u;
             }
             else
             {
@@ -4575,7 +4579,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("attr") << endl;
             return;
         }
@@ -4611,7 +4615,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("attr") << endl;
             return;
         }
@@ -4639,13 +4643,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                setCurrentOutCode(2);
+                setCurrentOutCode(MCMD_EARGS);
                 OUTSTREAM << "      " << getUsageStr("passwd") << endl;
             }
         }
         else
         {
-            setCurrentOutCode(3);
+            setCurrentOutCode(MCMD_NOTLOGGEDIN);
             OUTSTREAM << "Not logged in." << endl;
         }
 
@@ -4686,7 +4690,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 || ( email.find(".") == string::npos )
                 || ( email.find("@") > email.find(".")))
             {
-                setCurrentOutCode(6);
+                setCurrentOutCode(MCMD_INVALIDEMAIL);
                 OUTSTREAM << "No valid email provided" << endl;
                 OUTSTREAM << "      " << getUsageStr("invite") << endl;
             }
@@ -4740,7 +4744,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         if (api->isLoggedIn())
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_INVALIDSTATE);
             OUTSTREAM << "Please loggout first " << endl;
         }
         else if (words.size() > 1)
@@ -4762,7 +4766,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("signup") << endl;
         }
 
@@ -4785,7 +4789,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(3);
+            setCurrentOutCode(MCMD_NOTLOGGEDIN);
             OUTSTREAM << "Not logged in." << endl;
         }
 
@@ -4801,7 +4805,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         if (expireTime < 0)
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "Invalid time " << sexpireTime << endl;
             return;
         }
@@ -4819,7 +4823,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     if (!nodes->size())
                     {
-                        setCurrentOutCode(2);
+                        setCurrentOutCode(MCMD_NOTFOUND);
                         OUTSTREAM << "Nodes not found: " << words[i] << endl;
                     }
                     for (std::vector< MegaNode * >::iterator it = nodes->begin(); it != nodes->end(); ++it)
@@ -4850,7 +4854,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(2);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << "Node not found: " << words[i] << endl;
                 }
             }
@@ -4878,7 +4882,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(2);
+                    setCurrentOutCode(MCMD_NOTFOUND);
                     OUTSTREAM << "Node not found: " << words[i] << endl;
                 }
             }
@@ -4965,14 +4969,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     }
                                     else
                                     {
-                                        setCurrentOutCode(3);
+                                        setCurrentOutCode(MCMD_EUNEXPECTED);
                                         LOG_debug << "Node couldn't be authorized: " << words[1];
                                     }
                                     delete folderRootNode;
                                 }
                                 else
                                 {
-                                    setCurrentOutCode(3);
+                                    setCurrentOutCode(MCMD_INVALIDSTATE);
                                     LOG_err << "Couldn't get root folder for folder link";
                                 }
                             }
@@ -4984,26 +4988,26 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     else
                     {
-                        setCurrentOutCode(4);
+                        setCurrentOutCode(MCMD_EARGS);
                         OUTSTREAM << "Invalid link: " << words[1] << endl;
                         OUTSTREAM << "      " << getUsageStr("import") << endl;
                     }
                 }
                 else
                 {
-                        setCurrentOutCode(4);
+                    setCurrentOutCode(MCMD_INVALIDTYPE);
                     OUTSTREAM << "Invalid destiny: " << remotePath << endl;
                 }
             }
             else
             {
-                        setCurrentOutCode(3);
+                setCurrentOutCode(MCMD_INVALIDTYPE);
                 OUTSTREAM << "Invalid link: " << words[1] << endl;
             }
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("import") << endl;
         }
 
@@ -5070,7 +5074,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    setCurrentOutCode(6);
+                    setCurrentOutCode(MCMD_INVALIDEMAIL);
                     OUTSTREAM << email << " doesn't correspond to the confirmation link: " << link << endl;
                 }
             }
@@ -5079,7 +5083,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("confirm") << endl;
         }
 
@@ -5095,7 +5099,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(3);
+            setCurrentOutCode(MCMD_NOTLOGGEDIN);
             OUTSTREAM << "Not logged in." << endl;
         }
         return;
@@ -5222,7 +5226,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         else
         {
-            setCurrentOutCode(2);
+            setCurrentOutCode(MCMD_EARGS);
             OUTSTREAM << "      " << getUsageStr("killsession") << endl;
             return;
         }
@@ -5246,7 +5250,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else
     {
-        setCurrentOutCode(1);
+        setCurrentOutCode(MCMD_EARGS);
         OUTSTREAM << "Invalid command:" << words[0] << endl;
     }
 }

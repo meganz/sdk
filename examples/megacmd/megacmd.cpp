@@ -1581,7 +1581,7 @@ void * doProcessLine(void *pointer)
     std::ostringstream s;
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
-    setCurrentOutCode(0);
+    setCurrentOutCode(MCMD_OK);
 
     LOG_verbose << " Processing " << inf->line << " in thread: " << getCurrentThread()
                 << " socket output: " << inf->outSocket;
