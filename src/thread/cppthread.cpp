@@ -45,6 +45,11 @@ void CppThread::join()
     thread->join();
 }
 
+long CppThread::currentThreadId()
+{
+    return std::this_thread::get_id();
+}
+
 CppThread::~CppThread()
 {
     delete thread;

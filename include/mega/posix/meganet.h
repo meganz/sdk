@@ -22,17 +22,7 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS CurlHttpIO
 
-#include "mega/http.h"
-
-#ifdef _WIN32
-   #ifdef WINDOWS_PHONE
-   #include "mega/wp8/megawaiter.h"
-   #else
-   #include "mega/win32/megawaiter.h"
-   #endif
-#else
-   #include "mega/posix/megawaiter.h"
-#endif
+#include "mega.h"
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 #include <openssl/ssl.h>
@@ -65,6 +55,8 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
+    static MUTEX_CLASS curlMutex;
+
     string useragent;
     CURLM* curlmdownload;
     CURLM* curlmupload;
@@ -101,6 +93,10 @@ protected:
 #endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+    static MUTEX_CLASS **sslMutexes;
+    static void locking_function(int mode, int lockNumber, const char *, int);
+    static unsigned long id_function();
+
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif

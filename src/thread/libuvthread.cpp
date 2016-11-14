@@ -51,6 +51,11 @@ void LibUVThread::join()
     uv_thread_join(thread);
 }
 
+long LibUVThread::currentThreadId()
+{
+    return uv_thread_self();
+}
+
 LibUVThread::~LibUVThread()
 {
     delete thread;
