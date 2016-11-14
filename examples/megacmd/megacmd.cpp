@@ -1458,20 +1458,24 @@ void executecommand(char* ptr)
 
     if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
     {
-        OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+        setCurrentOutCode(MCMD_EARGS);
+        LOG_err << "      " << getUsageStr(thecommand.c_str());
+        return;
     }
 
     insertValidParamsPerCommand(&validParams, thecommand);
 
     if (!validCommand(thecommand))   //unknown command
     {
-        OUTSTREAM << "      " << getUsageStr("unknwon") << endl;
+        setCurrentOutCode(MCMD_EARGS);
+        LOG_err << "      " << getUsageStr("unknwon");
         return;
     }
 
     if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams))
     {
-        OUTSTREAM << "      " << getUsageStr(thecommand.c_str()) << endl;
+        setCurrentOutCode(MCMD_EARGS);
+        LOG_err << "      " << getUsageStr(thecommand.c_str());
         return;
     }
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR + getFlag(&clflags, "v"));
