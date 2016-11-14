@@ -393,12 +393,26 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
 CurlHttpIO::~CurlHttpIO()
 {
+    ares_destroy(ares);
     curl_multi_cleanup(curlmdownload);
     curl_multi_cleanup(curlmupload);
-    ares_destroy(ares);
 
-    curl_global_cleanup();
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    for (unsigned int i = 0; i < aressockets.size(); i++)
+    {
+        if (aressockets[i].handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent(aressockets[i].handle);
+        }
+    }
+    aressockets.clear();
+    closecurlevents(GET);
+    closecurlevents(PUT);
+#endif
+
+
     ares_library_cleanup();
+    curl_global_cleanup();
 }
 
 void CurlHttpIO::setuseragent(string* u)
@@ -439,7 +453,6 @@ void CurlHttpIO::disconnect()
     aressockets.clear();
     closecurlevents(GET);
     closecurlevents(PUT);
-
 #endif
 
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
@@ -538,10 +551,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             m_time_t ds = curldownloadtimeoutreset - Waiter::ds;
             if (ds <= 0)
             {
-                if (curltimeoutms)
-                {
-                    curltimeoutms = 0;
-                }
+                curltimeoutms = 0;
                 curldownloadtimeoutreset = 0;
                 LOG_debug << "Disabling cURL timeout for downloads";
             }
@@ -589,10 +599,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             m_time_t ds = curluploadtimeoutreset - Waiter::ds;
             if (ds <= 0)
             {
-                if (curltimeoutms)
-                {
-                    curltimeoutms = 0;
-                }
+                curltimeoutms = 0;
                 curluploadtimeoutreset = 0;
                 LOG_debug << "Disabling cURL timeout for uploads";
             }

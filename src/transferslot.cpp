@@ -502,7 +502,7 @@ void TransferSlot::doio(MegaClient* client)
 
     p += transfer->progresscompleted;
 
-    if (p != progressreported || (Waiter::ds - lastprogressreport) > 10)
+    if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
         if (p != progressreported)
         {
