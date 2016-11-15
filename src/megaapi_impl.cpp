@@ -3485,10 +3485,10 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
     if (direction == GET)
     {
         totalDownloadedBytes += numBytes;
-        while(downloadBytes.size())
+        while (downloadBytes.size())
         {
             dstime deltaTime = currentTime - downloadTimes[0];
-            if(deltaTime <= 50)
+            if (deltaTime <= 50)
             {
                 break;
             }
@@ -3507,10 +3507,10 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
     else
     {
         totalUploadedBytes += numBytes;
-        while(uploadBytes.size())
+        while (uploadBytes.size())
         {
             dstime deltaTime = currentTime - uploadTimes[0];
-            if(deltaTime <= 50)
+            if (deltaTime <= 50)
             {
                 break;
             }
@@ -5404,7 +5404,8 @@ MegaTransferList *MegaApiImpl::getTransfers()
     vector<MegaTransfer *> transfers;
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != client->transferlist.end((direction_t)d); it++)
+        transfer_list::iterator end = client->transferlist.end((direction_t)d);
+        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != end; it++)
         {
             Transfer *t = (*it);
             for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -5463,7 +5464,8 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
 
     sdkMutex.lock();
     vector<MegaTransfer *> transfers;
-    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != client->transferlist.end((direction_t)type); it++)
+    transfer_list::iterator end = client->transferlist.end((direction_t)type);
+    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != end; it++)
     {
         Transfer *t = (*it);
         for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -8630,7 +8632,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
     }
 
-	MegaError megaError(e);
+    MegaError megaError(e);
     MegaTransferPrivate* transfer = getMegaTransferPrivate(client->restag);
     if (transfer)
     {
@@ -11594,7 +11596,7 @@ void MegaApiImpl::sendPendingTransfers()
                     }
 
                     if (node)
-                	{
+                    {
                         transfer->setFileName(node->displayname());
                         if (startPos >= node->size || endPos >= node->size)
                         {
@@ -11602,10 +11604,10 @@ void MegaApiImpl::sendPendingTransfers()
                             break;
                         }
 
-                		m_off_t totalBytes = endPos - startPos + 1;
+                        m_off_t totalBytes = endPos - startPos + 1;
                 	    transferMap[nextTag]=transfer;
-						transfer->setTotalBytes(totalBytes);
-						transfer->setTag(nextTag);
+                        transfer->setTotalBytes(totalBytes);
+                        transfer->setTag(nextTag);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
 
                         fireOnTransferStart(transfer);
