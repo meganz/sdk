@@ -10107,10 +10107,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 LOG_debug << "Resumable transfer detected";
                 Transfer *transfer = it->second;
                 FileAccess* fa = fsaccess->newfileaccess();
-                if (fa->fopen(&transfer->localfilename)
+                if ((fa->fopen(&transfer->localfilename)
                         && ((d == GET) ||
                             (d == PUT && (time(NULL) - transfer->lastaccesstime) < 86400
                                       && !transfer->genfingerprint(fa))))
+                     || (d == GET && !transfer->progresscompleted))
                 {
                     LOG_debug << "Resuming transfer";
                     t = transfer;
