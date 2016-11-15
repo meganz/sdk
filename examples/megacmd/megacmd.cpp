@@ -769,11 +769,11 @@ static char** getCompletionMatches(const char * text, int start, int end)
     {
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
-        free(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
         {
             words.push_back("");
         }
+        free(saved_line);
 
         matches = rl_completion_matches((char*)text, getCompletionFunction(words));
     }
