@@ -7682,6 +7682,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     transfer->setLastBytes(NULL);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
+        transfer->setLastError(MegaError(e));
         transfer->setState(MegaTransfer::STATE_RETRYING);
         fireOnTransferTemporaryError(transfer, MegaError(e, timeLeft / 10));
         LOG_debug << "Streaming temporarily failed " << retry;
@@ -9829,8 +9830,12 @@ void MegaApiImpl::checkfile_result(handle h, error e)
         for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
         {
             MegaTransferPrivate *transfer = iter->second;
-            if(transfer->getNodeHandle() == h)
+            if (transfer->getNodeHandle() == h)
+            {
+                transfer->setLastError(MegaError(e));
+                transfer->setState(MegaTransfer::STATE_RETRYING);
                 fireOnTransferTemporaryError(transfer, MegaError(e));
+            }
         }
     }
 }
@@ -9842,8 +9847,12 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
         for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
         {
             MegaTransferPrivate *transfer = iter->second;
-            if(transfer->getNodeHandle() == h)
+            if (transfer->getNodeHandle() == h)
+            {
+                transfer->setLastError(MegaError(e));
+                transfer->setState(MegaTransfer::STATE_RETRYING);
                 fireOnTransferTemporaryError(transfer, MegaError(e));
+            }
         }
     }
 }
@@ -10432,6 +10441,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setState(tr->state);
     transfer->setPriority(tr->priority);
+    transfer->setState(MegaTransfer::STATE_RETRYING);
     fireOnTransferTemporaryError(transfer, megaError);
 }
 
