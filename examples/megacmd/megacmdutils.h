@@ -69,8 +69,6 @@ int getShareLevelNum(const char* level);
 
 /* Files and folders */
 
-bool isFolder(string path);
-
 bool canWrite(string path);
 
 int getLinkType(string link);

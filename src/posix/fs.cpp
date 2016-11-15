@@ -1113,6 +1113,26 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
     return false;
 }
 
+bool PosixFileSystemAccess::isFolder(string *path)
+{
+#ifdef USE_IOS
+     //TODO: untested
+    string absolutepath;
+    if (PosixFileSystemAccess::appbasepath)
+    {
+        if (path->size() && path->at(0) != '/')
+        {
+            absolutepath = PosixFileSystemAccess::appbasepath;
+            absolutepath.append(*path);
+            path = &absolutepath;
+        }
+    }
+#endif
+    struct stat path_stat;
+    stat(path->c_str(), &path_stat);
+    return S_ISDIR(path_stat.st_mode);
+}
+
 void PosixFileSystemAccess::osversion(string* u) const
 {
     utsname uts;

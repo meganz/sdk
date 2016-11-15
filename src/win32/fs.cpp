@@ -833,6 +833,12 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 	return false;
 }
 
+bool WinFileSystemAccess::isFolder(string *filename) //TODO: untested
+{
+    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
+}
+
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];

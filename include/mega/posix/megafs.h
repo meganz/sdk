@@ -95,6 +95,7 @@ public:
     bool chdirlocal(string*) const;
     size_t lastpartlocal(string*) const;
     bool getextension(string*, char*, int) const;
+    bool isFolder(string *path);
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);

@@ -479,13 +479,6 @@ int getShareLevelNum(const char* level){
     return atoi(level);
 }
 
-bool isFolder(string path) //TODO: move to MegaFileSystemAccess
-{
-    struct stat path_stat;
-    stat(path.c_str(), &path_stat);
-    return S_ISDIR(path_stat.st_mode);
-}
-
 bool canWrite(string path)
 {
     if (access(path.c_str(), W_OK) == 0)
