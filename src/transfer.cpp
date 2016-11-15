@@ -1298,6 +1298,10 @@ void TransferList::removetransfer(Transfer *transfer)
 void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer)
 {
     transfer_list::iterator dstit = iterator(prevTransfer);
+    if (dstit == transfers[prevTransfer->type].end())
+    {
+        return;
+    }
     movetransfer(transfer, dstit);
 }
 
@@ -1471,8 +1475,12 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     {
         transfer_list::iterator cit = iterator(transfer);
         transfer_list::iterator it = transfers[transfer->type].end();
-        it--;
+        if (cit == it)
+        {
+            return;
+        }
 
+        it--;
         while (it != cit)
         {
             if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
@@ -1577,10 +1585,14 @@ error TransferList::pause(Transfer *transfer, bool enable)
 
         if (!(client->moretransfers(transfer->type) && client->slotavail()))
         {
-            transfer_list::iterator cit = iterator(transfer);
+            transfer_list::iterator cit = iterator(transfer);            
             transfer_list::iterator it = transfers[transfer->type].end();
-            it--;
+            if (cit == it)
+            {
+                return API_OK;
+            }
 
+            it--;
             while (it != cit)
             {
                 if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
