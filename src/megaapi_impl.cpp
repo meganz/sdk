@@ -13192,7 +13192,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
                 {
-                    cancelTransferByTag(it->second->tag);
+                    Transfer *t = it->second;
+                    for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
+                    {
+                        cancelTransferByTag((*it2)->tag);
+                    }
                 }
                 request->setFlag(true);
                 requestQueue.push(request);
