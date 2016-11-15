@@ -510,38 +510,6 @@ bool isPublicLink(string link){
     return false;
 }
 
-bool isRegularFile(string path)
-{
-    struct stat path_stat;
-    stat(path.c_str(), &path_stat);
-    return S_ISREG(path_stat.st_mode);
-}
-
-string getCurrentLocalPath(){ //TODO: move all this into PosixFileSystemAccess
-    char cCurrentPath[FILENAME_MAX];
-    if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
-    {
-        LOG_err << "Couldn't read cwd";
-        return "";
-    }
-
-    return string(cCurrentPath);
-}
-
-string expanseLocalPath(string path){ //TODO: posix dependent!
-    ostringstream os;
-    if (path.at(0) == '/')
-    {
-        return path;
-    }
-    else
-    {
-        os << getCurrentLocalPath() << "/" << path;
-        return os.str();
-    }
-}
-
-
 bool hasWildCards(string &what)
 {
     return what.find('*') != string::npos || what.find('?') != string::npos; // || what.find('/')!=string::npos

@@ -77,12 +77,6 @@ bool isPublicLink(string link);
 
 bool isRegularFile(string path);
 
-bool pathExits(string path);
-
-string getCurrentLocalPath();
-
-string expanseLocalPath(string path);
-
 bool hasWildCards(string &what);
 
 

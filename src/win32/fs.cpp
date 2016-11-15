@@ -845,6 +845,31 @@ bool WinFileSystemAccess::pathExists(string *filename) //TODO: untested
     return (dwAttrib != INVALID_FILE_ATTRIBUTES);
 }
 
+bool WinFileSystemAccess::isRegularFile(string *filename) //TODO: untested
+{
+    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
+}
+
+string WinFileSystemAccess::getCurrentLocalPath(){ //TODO: untested
+    char cCurrentPath[FILENAME_MAX];
+    if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
+    {
+        return "";
+    }
+
+    return string(cCurrentPath);
+}
+
+string WinFileSystemAccess::expanseLocalPath(string *path){ //TODO: untested
+    char full[_MAX_PATH];
+    if( _fullpath( full, path->c_str(), _MAX_PATH ) != NULL )
+    {
+        return string(full);
+    }
+    return *path;
+}
+
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];

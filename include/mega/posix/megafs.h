@@ -97,7 +97,9 @@ public:
     bool getextension(string*, char*, int) const;
     bool isFolder(string *path);
     bool pathExists(string *path);
-
+    bool isRegularFile(string *path);
+    string getCurrentLocalPath();
+    string expanseLocalPath(string *path);
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);

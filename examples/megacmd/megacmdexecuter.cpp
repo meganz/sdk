@@ -2478,7 +2478,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         if (words.size() > 1)
         {
-            string localPath = getCurrentLocalPath() + "/";
+            string localPath = fsAccessCMD->getCurrentLocalPath() + "/";
 
             if (isPublicLink(words[1]))
             {
@@ -2882,7 +2882,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "lpwd")
     {
-        string cCurrentPath = getCurrentLocalPath();
+        string cCurrentPath = fsAccessCMD->getCurrentLocalPath();
 
         OUTSTREAM << cCurrentPath << endl;
         return;
@@ -2961,7 +2961,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         mtxSyncMap.lock();
         if (words.size() == 3)
         {
-            string localpath = expanseLocalPath(words[1]);
+            string localpath = fsAccessCMD->expanseLocalPath(&words[1]);
             MegaNode* n = nodebypath(words[2].c_str());
             if (n)
             {
