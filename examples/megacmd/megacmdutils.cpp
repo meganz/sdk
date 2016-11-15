@@ -21,7 +21,6 @@
 
 #include "megacmdutils.h"
 
-#include <sys/stat.h>
 #ifdef USE_PCRE
 #include <pcrecpp.h>
 #elif __cplusplus >= 201103L

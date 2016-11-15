@@ -23,6 +23,10 @@
 #define COMUNICATIONSMANAGER_H
 
 #include "megaapi_impl.h"
+
+#include <sys/types.h>
+#include <sys/socket.h>
+
 using namespace mega;
 
 struct petition_info_t
@@ -30,6 +34,8 @@ struct petition_info_t
     char * line = NULL;
     int outSocket;
 };
+
+std::ostream &operator<<(std::ostream &os, petition_info_t const &p);
 
 class ComunicationsManager
 {
@@ -79,6 +85,12 @@ public:
      * @return pointer to new petition_info_t. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
      */
     petition_info_t *getPetition();
+
+    /**
+     * @brief get_petition_details
+     * @return a string describing details of the petition
+     */
+    string get_petition_details(petition_info_t *inf);
 
     ~ComunicationsManager();
 };

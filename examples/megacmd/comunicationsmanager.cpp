@@ -21,6 +21,10 @@
 
 #include "comunicationsmanager.h"
 
+std::ostream &operator<<(std::ostream &os, petition_info_t const &p) {
+    return os << p.line;
+}
+
 void destroy_thread_info_t(petition_info_t *t)
 {
     if (t && ( t->line != NULL ))
@@ -215,6 +219,8 @@ int ComunicationsManager::waitForPetition()
  * I will clean struct and close the socket within
  */
 void ComunicationsManager::returnAndClosePetition(petition_info_t *inf, std::ostringstream *s, int outCode){
+
+    LOG_verbose << "Output to write in socket " << inf->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
     int connectedsocket = accept(inf->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
@@ -242,7 +248,6 @@ void ComunicationsManager::returnAndClosePetition(petition_info_t *inf, std::ost
     destroy_thread_info_t(inf);
     delete inf;
 }
-
 
 /**
  * @brief getPetition
@@ -295,6 +300,13 @@ petition_info_t * ComunicationsManager::getPetition(){
 
     return inf;
 }
+
+string ComunicationsManager::get_petition_details(petition_info_t *inf){
+    ostringstream os;
+    os << "socket output: " << inf->outSocket;
+    return os.str();
+}
+
 
 ComunicationsManager::~ComunicationsManager()
 {

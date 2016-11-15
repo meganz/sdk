@@ -33,9 +33,6 @@
 #include <string>
 
 #include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-
 using namespace mega;
 
 static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };

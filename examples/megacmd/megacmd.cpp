@@ -41,9 +41,6 @@
 #include <string>
 
 #include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-
 using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
@@ -1587,15 +1584,11 @@ void * doProcessLine(void *pointer)
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
 
-    LOG_verbose << " Processing " << inf->line << " in thread: " << getCurrentThread()
-                << " socket output: " << inf->outSocket;
+    LOG_verbose << " Processing " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
 
     process_line(inf->line);
 
-    LOG_verbose << " Procesed " << inf->line << " in thread: " << getCurrentThread()
-                << " socket output: " << inf->outSocket;
-
-    LOG_verbose << "Output to write in socket " << inf->outSocket << ": <<" << s.str() << ">>";
+    LOG_verbose << " Procesed " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
 
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
@@ -1713,7 +1706,7 @@ void megacmd()
 
                         petition_info_t *inf = cm->getPetition();
 
-                        LOG_verbose << "petition registered: " << inf->line;
+                        LOG_verbose << "petition registered: " << *inf;
 
                         delete_finished_threads();
 
@@ -1721,7 +1714,8 @@ void megacmd()
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
 
-                        LOG_debug << "starting processing: " << inf->line;
+                        LOG_debug << "starting processing: " << *inf;
+
                         petitionThread->start(doProcessLine, (void*)inf);
                     }
                 }
