@@ -19,9 +19,6 @@
  * program.
  */
 
-// requirements: linux & qt
-#ifdef __linux__
-
 #include "megacmd.h"
 //#include "mega.h"
 
@@ -40,7 +37,15 @@
 #include <iomanip>
 #include <string>
 
+
+#ifdef __linux__
+#include "comunicationsmanagerfilesockets.h"
+#define COMUNICATIONMANAGER ComunicationsManagerFileSockets
 #include <signal.h>
+#else
+#define COMUNICATIONMANAGER ComunicationsManager
+#endif
+
 using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
@@ -155,7 +160,6 @@ void setCurrentThreadLine(const vector<string>& vec){
    setCurrentThreadLine(joinStrings(vec));
 }
 
-#ifdef __linux__
 void sigint_handler(int signum)
 {
     LOG_verbose << "Received signal: " << signum;
@@ -187,7 +191,23 @@ void sigint_handler(int signum)
     }
     rl_redisplay();
 }
+
+#ifdef _WIN32
+BOOL CtrlHandler( DWORD fdwCtrlType )
+{
+  switch( fdwCtrlType )
+  {
+    // Handle the CTRL-C signal.
+    case CTRL_C_EVENT:
+       signal_handler((int)fdCtrlType)
+      return( TRUE );
+
+    default:
+      return FALSE;
+  }
+}
 #endif
+
 
 void setprompt(prompttype p)
 {
@@ -1577,7 +1597,7 @@ static void process_line(char* l)
 
 void * doProcessLine(void *pointer)
 {
-    petition_info_t *inf = (petition_info_t*)pointer;
+    CmdPetition *inf = (CmdPetition*)pointer;
 
     std::ostringstream s;
     setCurrentThreadOutStream(&s);
@@ -1586,7 +1606,7 @@ void * doProcessLine(void *pointer)
 
     LOG_verbose << " Processing " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
 
-    process_line(inf->line);
+    process_line(inf->getLine());
 
     LOG_verbose << " Procesed " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
 
@@ -1704,7 +1724,7 @@ void megacmd()
                         semaphoreClients.wait();
                         LOG_verbose << "Client connected ";
 
-                        petition_info_t *inf = cm->getPetition();
+                        CmdPetition *inf = cm->getPetition();
 
                         LOG_verbose << "petition registered: " << *inf;
 
@@ -1823,11 +1843,21 @@ int main(int argc, char* argv[])
         console = new CONSOLE_CLASS;
     }
 
-    cm = new ComunicationsManager();
+    cm = new COMUNICATIONMANAGER();
 
 #ifdef __linux__
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
+#endif
+#ifdef _WIN32
+    if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
+     {
+        LOG_debug << "Control handler set";
+     }
+     else
+     {
+        LOG_warn << "Control handler set";
+     }
 #endif
 
     atexit(finalize);
@@ -1850,5 +1880,3 @@ int main(int argc, char* argv[])
 
     megacmd();
 }
-
-#endif //linux

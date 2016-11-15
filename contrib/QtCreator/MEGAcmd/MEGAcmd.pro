@@ -40,6 +40,8 @@ SOURCES += ../../../examples/megacmd/megacmd.cpp \
     ../../../examples/megacmd/comunicationsmanager.cpp \
     ../../../examples/megacmd/megacmdutils.cpp \
     ../../../examples/megacmd/synchronousrequestlistener.cpp
+
+
 HEADERS += ../../../examples/megacmd/megacmd.h \
     ../../../examples/megacmd/megacmdexecuter.h \
     ../../../examples/megacmd/listeners.h \
@@ -49,4 +51,10 @@ HEADERS += ../../../examples/megacmd/megacmd.h \
     ../../../examples/megacmd/megacmdutils.h \
     ../../../examples/megacmd/synchronousrequestlistener.h
 
+win32 {
+}
+else {
+    SOURCES +=../../../examples/megacmd/comunicationsmanagerfilesockets.cpp
+    HEADERS +=../../../examples/megacmd/comunicationsmanagerfilesockets.h
+}
 include(../../../bindings/qt/sdk.pri)

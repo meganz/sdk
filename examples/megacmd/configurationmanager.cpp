@@ -43,7 +43,7 @@ std::string ConfigurationManager::getConfigFolder()
     return configFolder;
 }
 
-void ConfigurationManager::loadConfigDir(){
+void ConfigurationManager::loadConfigDir(){ //TODO: make platform independent
     const char *homedir = NULL;
     homedir = getenv("HOME");
     if (!homedir)

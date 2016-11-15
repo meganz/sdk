@@ -23,7 +23,6 @@
 #define CONFIGURATIONMANAGER_H
 
 #include "megacmd.h"
-#include <fstream>
 #include <map>
 
 class ConfigurationManager

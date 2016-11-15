@@ -24,73 +24,59 @@
 
 #include "megaapi_impl.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-
 using namespace mega;
 
-struct petition_info_t
+class CmdPetition
 {
-    char * line = NULL;
-    int outSocket;
+    public:
+        char * line = NULL;
+
+        char *getLine(){
+            return line;
+        }
+        ~CmdPetition(){
+            if ( line != NULL )
+            {
+                free(line);
+            }
+        }
 };
 
-std::ostream &operator<<(std::ostream &os, petition_info_t const &p);
+
+std::ostream &operator<<(std::ostream &os, CmdPetition const &p);
 
 class ComunicationsManager
 {
 private:
     fd_set fds;
 
-    // sockets and asociated variables
-    int sockfd, newsockfd;
-    socklen_t clilen;
-    char buffer[1024];
-    struct sockaddr_in serv_addr, cli_addr;
-
-    // to get next socket id
-    int count;
-    MegaMutex *mtx;
-
-    int get_next_outSocket_id();
-
-    /**
-     * @brief create_new_socket
-     * The caller is responsible for deleting the newly created socket
-     * @return
-     */
-    int create_new_socket(int *sockId);
-
 public:
     ComunicationsManager();
 
-    int initialize();
+    virtual bool receivedReadlineInput(int readline_fd);
 
-    bool receivedReadlineInput(int readline_fd);
+    virtual bool receivedPetition();
 
-    bool receivedPetition();
-
-    int waitForPetitionOrReadlineInput(int readline_fd);
-    int waitForPetition();
+    virtual int waitForPetitionOrReadlineInput(int readline_fd);
+    virtual int waitForPetition();
 
     /**
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(petition_info_t *inf, std::ostringstream *s, int);
-
+    virtual void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
 
     /**
      * @brief getPetition
-     * @return pointer to new petition_info_t. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
+     * @return pointer to new CmdPetition. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
      */
-    petition_info_t *getPetition();
+    virtual CmdPetition *getPetition();
 
     /**
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    string get_petition_details(petition_info_t *inf);
+    virtual string get_petition_details(CmdPetition *inf);
 
     ~ComunicationsManager();
 };

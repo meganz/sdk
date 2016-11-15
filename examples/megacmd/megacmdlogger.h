@@ -24,7 +24,6 @@
 
 #include "megaapi_impl.h"
 #include "megacmd.h"
-#include <fstream>
 
 #define OUTSTREAM getCurrentOut()
 
