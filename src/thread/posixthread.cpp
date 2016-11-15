@@ -43,7 +43,7 @@ void PosixThread::join()
 
 long PosixThread::currentThreadId()
 {
-    return pthread_self();
+    return (long) pthread_self();
 }
 
 PosixThread::~PosixThread()
