@@ -10113,6 +10113,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                                       && !transfer->genfingerprint(fa))))
                      || (d == GET && !transfer->progresscompleted))
                 {
+                    if (!transfer->pos)
+                    {
+                        // to prevent HTTP 403 errors
+                        transfer->cachedtempurl.clear();
+                    }
                     LOG_debug << "Resuming transfer";
                     t = transfer;
                 }
