@@ -7623,16 +7623,16 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-void MegaApiImpl::file_resume(string *d)
+File *MegaApiImpl::file_resume(string *d, direction_t *type)
 {
     if (!d || d->size() < sizeof(char))
     {
-        return;
+        return NULL;
     }
 
     MegaFile *file;
-    char type = MemAccess::get<char>(d->data());
-    switch (type)
+    *type = (direction_t)MemAccess::get<char>(d->data());
+    switch (*type)
     {
     case GET:
         file = MegaFileGet::unserialize(d);
@@ -7662,15 +7662,12 @@ void MegaApiImpl::file_resume(string *d)
         break;
     }
 
-    if (!file)
+    if (file)
     {
-        return;
+        currentTransfer = file->getTransfer();
+        waiter->notify();
     }
-
-    client->nextreqtag();
-    currentTransfer = file->getTransfer();
-    client->startxfer((direction_t)type, file);
-    waiter->notify();
+    return file;
 }
 
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)

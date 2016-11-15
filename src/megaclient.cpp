@@ -2879,8 +2879,20 @@ bool MegaClient::procsc()
                             tctable->begin();
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
-                                tctable->del(cachedfilesdbids.at(i));
-                                app->file_resume(&cachedfiles.at(i));
+                                direction_t type = NONE;
+                                File *file = app->file_resume(&cachedfiles.at(i), &type);
+                                if (!file || (type != GET && type != PUT))
+                                {
+                                    tctable->del(cachedfilesdbids.at(i));
+                                    continue;
+                                }
+                                nextreqtag();
+                                file->dbid = cachedfilesdbids.at(i);
+                                if (!startxfer(type, file))
+                                {
+                                    tctable->del(cachedfilesdbids.at(i));
+                                    continue;
+                                }
                             }
                             cachedfiles.clear();
                             cachedfilesdbids.clear();
@@ -8008,8 +8020,20 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         tctable->begin();
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
-            tctable->del(cachedfilesdbids.at(i));
-            app->file_resume(&cachedfiles.at(i));
+            direction_t type = NONE;
+            File *file = app->file_resume(&cachedfiles.at(i), &type);
+            if (!file || (type != GET && type != PUT))
+            {
+                tctable->del(cachedfilesdbids.at(i));
+                continue;
+            }
+            nextreqtag();
+            file->dbid = cachedfilesdbids.at(i);
+            if (!startxfer(type, file))
+            {
+                tctable->del(cachedfilesdbids.at(i));
+                continue;
+            }
         }
         cachedfiles.clear();
         cachedfilesdbids.clear();
@@ -10089,7 +10113,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             f->file_it = t->files.insert(t->files.begin(), f);
             f->transfer = t;
             f->tag = reqtag;
-            filecacheadd(f);
+            if (!f->dbid)
+            {
+                filecacheadd(f);
+            }
             app->file_added(f);
 
             if (overquotauntil && overquotauntil > Waiter::ds)
@@ -10154,7 +10181,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             f->file_it = t->files.insert(t->files.begin(), f);
             f->transfer = t;
-            filecacheadd(f);
+            if (!f->dbid)
+            {
+                filecacheadd(f);
+            }
 
             transferlist.addtransfer(t);
             app->transfer_added(t);

@@ -325,7 +325,7 @@ typedef map<handle, FileAttributeFetch*> faf_map;
 typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
-typedef enum { GET, PUT } direction_t;
+typedef enum { GET, PUT, NONE } direction_t;
 
 typedef set<pair<int, handle> > fareq_set;
 

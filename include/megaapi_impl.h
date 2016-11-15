@@ -1826,7 +1826,7 @@ protected:
         virtual void file_added(File*);
         virtual void file_removed(File*, error e);
         virtual void file_complete(File*);
-        virtual void file_resume(string*);
+        virtual File* file_resume(string*, direction_t *type);
 
         virtual void transfer_prepare(Transfer*);
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);

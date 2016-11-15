@@ -1276,6 +1276,7 @@ void TransferList::addtransfer(Transfer *transfer)
         transfer->priority = currentpriority;
         assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
     }
     else
     {
@@ -1283,7 +1284,6 @@ void TransferList::addtransfer(Transfer *transfer)
         assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
-    client->transfercacheadd(transfer);
 }
 
 void TransferList::removetransfer(Transfer *transfer)

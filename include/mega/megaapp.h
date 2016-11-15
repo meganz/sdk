@@ -212,7 +212,7 @@ struct MEGA_API MegaApp
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }
     virtual void file_complete(File*) { }
-    virtual void file_resume(string*) { }
+    virtual File* file_resume(string*, direction_t*) { return NULL; }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
