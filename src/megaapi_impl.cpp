@@ -13703,8 +13703,17 @@ char* MegaApiImpl::stringToArray(string &buffer)
 void MegaApiImpl::updateStats()
 {
     sdkMutex.lock();
-    pendingDownloads = client->transfers[0].size();
-    pendingUploads = client->transfers[1].size();
+    if (pendingDownloads && !client->transfers[GET].size())
+    {
+        LOG_warn << "Incorrect number of pending downloads: " << pendingDownloads;
+        pendingDownloads = 0;
+    }
+
+    if (pendingUploads && !client->transfers[PUT].size())
+    {
+        LOG_warn << "Incorrect number of pending uploads: " << pendingUploads;
+        pendingUploads = 0;
+    }
     sdkMutex.unlock();
 }
 
