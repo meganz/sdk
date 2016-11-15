@@ -1313,7 +1313,7 @@ void MegaClient::exec()
                                 int creqtag = reqtag;
                                 reqtag = 0;
                                 fetchingnodes = false;
-                                fetchnodes();
+                                fetchnodes(true);
                                 reqtag = creqtag;
                             }
                         }
@@ -1740,6 +1740,7 @@ void MegaClient::exec()
                         if (syncfsopsfailed)
                         {
                             syncfsopsfailed = false;
+                            blockedfile.clear();
                             app->syncupdate_local_lockretry(false);
                         }
                     }
@@ -1944,6 +1945,7 @@ void MegaClient::exec()
                     if (syncfsopsfailed)
                     {
                         syncfsopsfailed = false;
+                        blockedfile.clear();
                         app->syncupdate_local_lockretry(false);
                     }
                 }
@@ -7150,7 +7152,7 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify.push_back(chat);
+    chatnotify[chat->id] = chat;
 }
 
 #endif
@@ -8055,7 +8057,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes()
+void MegaClient::fetchnodes(bool nocache)
 {
     opensctable();
 
@@ -8104,7 +8106,7 @@ void MegaClient::fetchnodes()
             fetchkeys();
         }
 #endif
-        reqs.add(new CommandFetchNodes(this));
+        reqs.add(new CommandFetchNodes(this, nocache));
     }
 }
 
@@ -9005,6 +9007,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     success = false;
                     lit++;
                 }
@@ -9069,6 +9072,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     // schedule retry
+                    fsaccess->local2path(&curpath, &blockedfile);
                     LOG_debug << "Transient error moving localnode";
                     success = false;
                 }
@@ -9139,6 +9143,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else if (success && fsaccess->transient_error)
                 {
+                    fsaccess->local2path(localpath, &blockedfile);
                     LOG_debug << "Transient error creating folder";
                     success = false;
                 }

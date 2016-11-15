@@ -43,10 +43,10 @@ m4_define([mega_version],
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [$(echo -n $(( $( cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3 ) * 10000 + $( cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3 ) * 100 + $(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3))))])
+m4_define([mega_lt_current], [$(grep define <include/mega/version.h | awk '{print @S|@3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf @S|@1*10000+@S|@2*100+@S|@3}')])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | cut -d ' ' -f3 | tr -st '\n' '.' | cut -d '.' -f1,2,3 --output-delimiter='.' | tr -d '\n']), [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
 
 # Define _GNU_SOURCE
@@ -366,8 +366,8 @@ AC_ARG_WITH(sodium,
     sodium=false
      ;;
    yes)
-    AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    AC_CHECK_HEADERS([sodium.h],, [
+        AC_MSG_ERROR([sodium.h header not found or not usable])
     ])
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
             AC_MSG_ERROR([Could not find libsodium])
@@ -382,7 +382,7 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/lib",
@@ -394,11 +394,11 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
-         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         AC_MSG_ERROR([sodium.h header not found or not usable])
          )
     fi
 
@@ -416,8 +416,16 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    AC_CHECK_HEADERS([sodium.h], [sodium=true], [
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([sodium.h header not found or not usable])
+		fi
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([Could not find libsodium])
+		fi
+    ])
     ]
   )
 AC_SUBST(SODIUM_CXXFLAGS)

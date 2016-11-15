@@ -730,9 +730,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         // (we tolerate overwritten folders, because we do a
                         // content scan anyway)
-                        if (fa->fsidvalid)
+                        if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
                             l->setfsid(fa->fsid);
+                            newnode = true;
                         }
                     }
                 }
