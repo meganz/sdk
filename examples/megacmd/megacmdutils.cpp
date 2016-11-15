@@ -517,13 +517,6 @@ bool isRegularFile(string path)
     return S_ISREG(path_stat.st_mode);
 }
 
-bool pathExits(string path){ //TODO: move to MegaFileSystemAccess
-//    return access( path, F_OK ) != -1 ;
-    struct stat path_stat;
-    int ret = stat(path.c_str(), &path_stat);
-    return ret == 0;
-}
-
 string getCurrentLocalPath(){ //TODO: move all this into PosixFileSystemAccess
     char cCurrentPath[FILENAME_MAX];
     if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))

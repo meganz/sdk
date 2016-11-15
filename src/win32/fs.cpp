@@ -839,6 +839,12 @@ bool WinFileSystemAccess::isFolder(string *filename) //TODO: untested
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
 }
 
+bool WinFileSystemAccess::pathExists(string *filename) //TODO: untested
+{
+    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES);
+}
+
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];

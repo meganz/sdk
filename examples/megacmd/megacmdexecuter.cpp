@@ -2770,7 +2770,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     for (int i = 1; i < max(1, (int)words.size() - 1); i++)
                     {
                         fsAccessCMD->path2local(&words[i], &localname);
-                        if (pathExits(localname))
+                        if (fsAccessCMD->pathExists(&localname))
                         {
                             uploadNode(localname, api, n, newname);
                         }
