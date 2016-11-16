@@ -94,6 +94,8 @@ src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
 
+src_libmega_la_SOURCES+= src/thread/win32thread.cpp
+
 # posix sources
 else
 src_libmega_la_SOURCES += src/posix/fs.cpp
