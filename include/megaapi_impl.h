@@ -23,13 +23,7 @@
 #define MEGAAPI_IMPL_H
 
 #include "mega.h"
-#include "mega/thread/qtthread.h"
-#include "mega/thread/posixthread.h"
-#include "mega/thread/win32thread.h"
 #include "mega/gfx/external.h"
-#include "mega/gfx/qt.h"
-#include "mega/thread/cppthread.h"
-#include "mega/proxy.h"
 #include "megaapi.h"
 
 #ifdef HAVE_LIBUV

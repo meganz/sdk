@@ -28,6 +28,37 @@
 
 namespace mega {
 
+MUTEX_CLASS CurlHttpIO::curlMutex(false);
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+
+MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
+void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
+{
+    MUTEX_CLASS *mutex = sslMutexes[lockNumber];
+    if (mutex == NULL)
+    {
+        mutex = new MUTEX_CLASS(true);
+        sslMutexes[lockNumber] = mutex;
+    }
+
+    if (mode & CRYPTO_LOCK)
+    {
+        mutex->lock();
+    }
+    else
+    {
+        mutex->unlock();
+    }
+}
+
+unsigned long CurlHttpIO::id_function()
+{
+    return THREAD_CLASS::currentThreadId();
+}
+
+#endif
+
 CurlHttpIO::CurlHttpIO()
 {
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
@@ -70,8 +101,23 @@ CurlHttpIO::CurlHttpIO()
     WAIT_CLASS::bumpds();
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
 
+    curlMutex.lock();
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+    if (!CRYPTO_get_id_callback() && !CRYPTO_get_locking_callback())
+    {
+        LOG_debug << "Initializing OpenSSL locking callbacks";
+        int numLocks = CRYPTO_num_locks();
+        sslMutexes = new MUTEX_CLASS*[numLocks];
+        memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
+        CRYPTO_set_id_callback(CurlHttpIO::id_function);
+        CRYPTO_set_locking_callback(CurlHttpIO::locking_function);
+    }
+#endif
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
+    curlMutex.unlock();
 
     curlmapi = curl_multi_init();
     curlmdownload = curl_multi_init();
@@ -419,9 +465,10 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(PUT);
 #endif
 
-
+    curlMutex.lock();
     ares_library_cleanup();
     curl_global_cleanup();
+    curlMutex.unlock();
 }
 
 void CurlHttpIO::setuseragent(string* u)

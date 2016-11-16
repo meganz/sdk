@@ -41,6 +41,11 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
+long PosixThread::currentThreadId()
+{
+    return (long) pthread_self();
+}
+
 PosixThread::~PosixThread()
 {
     delete thread;
