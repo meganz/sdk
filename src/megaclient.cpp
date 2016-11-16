@@ -845,6 +845,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     LOG_debug << "User-Agent: " << useragent;
     h->setuseragent(&useragent);
+    h->setmaxdownloadspeed(0);
+    h->setmaxuploadspeed(0);
 }
 
 MegaClient::~MegaClient()
@@ -2755,9 +2757,6 @@ void MegaClient::locallogout()
     fetchingnodes = false;
     overquotauntil = 0;
     scpaused = false;
-
-    httpio->setmaxdownloadspeed(0);
-    httpio->setmaxuploadspeed(0);
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {

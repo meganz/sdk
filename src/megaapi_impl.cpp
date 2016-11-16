@@ -16524,7 +16524,7 @@ int MegaTextChatPrivate::getOwnPrivilege() const
 
 const char *MegaTextChatPrivate::getUrl() const
 {
-    return url.c_str();
+    return !url.empty() ? url.c_str() : NULL;
 }
 
 void MegaTextChatPrivate::setUrl(const char *url)
@@ -16561,7 +16561,7 @@ MegaHandle MegaTextChatPrivate::getOriginatingUser() const
 
 const char *MegaTextChatPrivate::getTitle() const
 {
-    return title.c_str();
+    return !title.empty() ? title.c_str() : NULL;
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()

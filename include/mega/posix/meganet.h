@@ -58,6 +58,7 @@ protected:
     static MUTEX_CLASS curlMutex;
 
     string useragent;
+    CURLM* curlmapi;
     CURLM* curlmdownload;
     CURLM* curlmupload;
     CURLSH* curlsh;
@@ -86,8 +87,10 @@ protected:
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int api_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 #endif
@@ -132,8 +135,10 @@ protected:
     void closecurlevents(direction_t d);
     void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
+    std::map<int, SockInfo> curlapisockets;
     std::map<int, SockInfo> curldownloadsockets;
     std::map<int, SockInfo> curluploadsockets;
+    m_time_t curlapitimeoutreset;
     m_time_t curldownloadtimeoutreset;
     m_time_t curluploadtimeoutreset;
 #endif
