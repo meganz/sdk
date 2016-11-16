@@ -23,6 +23,8 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
+#define SPEED_MEAN_INTERVAL_DS 50
+
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
 #endif
@@ -81,6 +83,10 @@ HttpIO::HttpIO()
     inetback = false;
     lastdata = NEVER;
     chunkedok = true;
+    downloadPartialBytes = 0;
+    downloadSpeed = 0;
+    uploadPartialBytes = 0;
+    uploadSpeed = 0;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -112,6 +118,58 @@ bool HttpIO::inetisback()
     }
 
     return false;
+}
+
+void HttpIO::updatedownloadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (downloadBytes.size())
+    {
+        dstime deltaTime = currentTime - downloadTimes[0];
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        downloadPartialBytes -= downloadBytes[0];
+        downloadBytes.erase(downloadBytes.begin());
+        downloadTimes.erase(downloadTimes.begin());
+    }
+
+    if (size)
+    {
+        downloadBytes.push_back(size);
+        downloadTimes.push_back(currentTime);
+        downloadPartialBytes += size;
+    }
+
+    downloadSpeed = (downloadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+}
+
+void HttpIO::updateuploadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (uploadBytes.size())
+    {
+        dstime deltaTime = currentTime - uploadTimes[0];
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        uploadPartialBytes -= uploadBytes[0];
+        uploadBytes.erase(uploadBytes.begin());
+        uploadTimes.erase(uploadTimes.begin());
+    }
+
+    if (size)
+    {
+        uploadBytes.push_back(size);
+        uploadTimes.push_back(currentTime);
+        uploadPartialBytes += size;
+    }
+
+    uploadSpeed = (uploadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -287,6 +345,26 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     {
         LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
     }
+}
+
+bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    return false;
+}
+
+bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
+{
+    return false;
+}
+
+m_off_t HttpIO::getmaxdownloadspeed()
+{
+    return 0;
+}
+
+m_off_t HttpIO::getmaxuploadspeed()
+{
+    return 0;
 }
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)

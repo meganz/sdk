@@ -1376,6 +1376,12 @@ class MegaApiImpl : public MegaApp
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
+        bool setMaxDownloadSpeed(m_off_t bpslimit);
+        bool setMaxUploadSpeed(m_off_t bpslimit);
+        int getMaxDownloadSpeed();
+        int getMaxUploadSpeed();
+        int getCurrentDownloadSpeed();
+        int getCurrentUploadSpeed();
         int getDownloadMethod();
         int getUploadMethod();
         MegaTransferList *getTransfers();

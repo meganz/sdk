@@ -5168,6 +5168,42 @@ void MegaApiImpl::setUploadMethod(int method)
     }
 }
 
+bool MegaApiImpl::setMaxDownloadSpeed(m_off_t bpslimit)
+{
+    sdkMutex.lock();
+    bool result = client->setmaxdownloadspeed(bpslimit);
+    sdkMutex.unlock();
+    return result;
+}
+
+bool MegaApiImpl::setMaxUploadSpeed(m_off_t bpslimit)
+{
+    sdkMutex.lock();
+    bool result = client->setmaxuploadspeed(bpslimit);
+    sdkMutex.unlock();
+    return result;
+}
+
+int MegaApiImpl::getMaxDownloadSpeed()
+{
+    return client->getmaxdownloadspeed();
+}
+
+int MegaApiImpl::getMaxUploadSpeed()
+{
+    return client->getmaxuploadspeed();
+}
+
+int MegaApiImpl::getCurrentDownloadSpeed()
+{
+    return httpio->downloadSpeed;
+}
+
+int MegaApiImpl::getCurrentUploadSpeed()
+{
+    return httpio->uploadSpeed;
+}
+
 int MegaApiImpl::getDownloadMethod()
 {
     if (client->autodownport)
