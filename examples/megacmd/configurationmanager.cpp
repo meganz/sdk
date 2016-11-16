@@ -22,8 +22,14 @@
 #include "configurationmanager.h"
 #include "megaapi_impl.h"
 
-#include <pwd.h>  //getpwuid_r
 #include <fstream>
+
+#ifdef _WIN32
+#include <shlobj.h> //SHGetFolderPath
+#include <Shlwapi.h> //PathAppend
+#else
+#include <pwd.h>  //getpwuid_r
+#endif
 
 
 bool is_file_exist(const char *fileName)
@@ -43,8 +49,34 @@ std::string ConfigurationManager::getConfigFolder()
     return configFolder;
 }
 
-void ConfigurationManager::loadConfigDir(){ //TODO: make platform independent
+void ConfigurationManager::loadConfigDir(){
     const char *homedir = NULL;
+
+#ifdef _WIN32 //TODO: untested
+    TCHAR szPath[MAX_PATH];
+#if WINVER>=0x0600
+    if(SUCCEEDED(SHGetKnownFolderPath ( FOLDERID_LocalAppData, KF_FLAG_CREATE, NULL, szPath )))
+    {
+        homedir=szPath;
+    }
+#else
+    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA , NULL, 0, szPath)))
+    {
+        homedir=szPath;
+    }
+    if (homedir)
+    {
+
+        TCHAR fullpath[MAX_PATH];
+        strcmp(fullpath,homedir);
+        if (PathAppend(fullpath,".megaCmd"))
+        {
+            configFolder=string(fullpath);
+        }
+    }
+
+#endif
+#else
     homedir = getenv("HOME");
     if (!homedir)
     {
@@ -64,21 +96,28 @@ void ConfigurationManager::loadConfigDir(){ //TODO: make platform independent
             homedir = pwdptr->pw_dir;
         }
     }
-
     stringstream sconfigDir;
     sconfigDir << homedir << "/" << ".megaCmd";
+    configFolder = sconfigDir.str();
+#endif
+
 
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-    configFolder = sconfigDir.str();
 
+#if __unix__
     int oldPermissions = fsAccess->getdefaultfolderpermissions();
     fsAccess->setdefaultfolderpermissions(0700);
-    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, false))
+#endif
+    //TODO: else?
+    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, true))
     {
         LOG_err << "Config folder not created";
         return;
     }
+#if __unix__
     fsAccess->setdefaultfolderpermissions(oldPermissions);
+#endif
+
     delete fsAccess;
 }
 

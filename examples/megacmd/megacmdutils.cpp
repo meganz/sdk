@@ -478,7 +478,7 @@ int getShareLevelNum(const char* level){
     return atoi(level);
 }
 
-bool canWrite(string path)
+bool canWrite(string path) //TODO: move to fsAccess
 {
     if (access(path.c_str(), W_OK) == 0)
     {

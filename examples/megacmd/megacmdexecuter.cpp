@@ -2475,7 +2475,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         if (words.size() > 1)
         {
-            string localPath = fsAccessCMD->getCurrentLocalPath() + "/";
+            string localPath = fsAccessCMD->getCurrentLocalPath() + fsAccessCMD->localseparator;
 
             if (isPublicLink(words[1]))
             {
@@ -2486,7 +2486,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         localPath = words[2];
                         if (fsAccessCMD->isFolder(&localPath))
                         {
-                            localPath += "/";
+                            localPath += fsAccessCMD->localseparator;
 
                             if (!canWrite(localPath))
                             {
@@ -2497,7 +2497,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
-                            string containingFolder = localPath.substr(0, localPath.find_last_of("/"));
+                            string containingFolder = localPath.substr(0, localPath.find_last_of(fsAccessCMD->localseparator));
                             if (!fsAccessCMD->isFolder(&containingFolder))
                             {
                                 setCurrentOutCode(MCMD_INVALIDTYPE);
@@ -2557,7 +2557,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         if (fsAccessCMD->isFolder(&words[2]))
                         {
-                            localPath = words[2] + "/";
+                            localPath = words[2] + fsAccessCMD->localseparator;
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2629,7 +2629,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         if (fsAccessCMD->isFolder(&words[2]))
                         {
-                            localPath = words[2] + "/";
+                            localPath = words[2] + fsAccessCMD->localseparator;
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2675,7 +2675,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 localPath = words[2];
                                 if (fsAccessCMD->isFolder(&localPath))
                                 {
-                                    localPath += "/";
+                                    localPath += fsAccessCMD->localseparator;
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2704,7 +2704,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             {
                                 if (fsAccessCMD->isFolder(&words[2]))
                                 {
-                                    localPath = words[2] + "/";
+                                    localPath = words[2] + fsAccessCMD->localseparator;
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);

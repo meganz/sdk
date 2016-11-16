@@ -38,12 +38,12 @@
 #include <string>
 
 
-#ifdef __linux__
+#ifdef _WIN32
+#define COMUNICATIONMANAGER ComunicationsManager
+#else
 #include "comunicationsmanagerfilesockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerFileSockets
 #include <signal.h>
-#else
-#define COMUNICATIONMANAGER ComunicationsManager
 #endif
 
 using namespace mega;
@@ -1845,7 +1845,7 @@ int main(int argc, char* argv[])
 
     cm = new COMUNICATIONMANAGER();
 
-#ifdef __linux__
+#ifdef __unix__
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
 #endif
