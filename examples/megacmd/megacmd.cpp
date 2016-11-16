@@ -1833,7 +1833,6 @@ int main(int argc, char* argv[])
 
     // set up the console
 #ifdef __unix__
-
     struct termios term;
     if (tcgetattr(STDIN_FILENO, &term) < 0) //try console
     {
@@ -1842,7 +1841,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        console = new CONSOLE_CLASS
+        console = new CONSOLE_CLASS;
     }
 #endif
 #ifdef _WIN32
