@@ -71,6 +71,7 @@
     #define getcwd _getcwd
 #else
     #include <unistd.h>
+    #define HAVE_STRUCT_TIMESPEC
 #endif
 
 

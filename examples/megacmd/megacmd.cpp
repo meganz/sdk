@@ -199,7 +199,7 @@ BOOL CtrlHandler( DWORD fdwCtrlType )
   {
     // Handle the CTRL-C signal.
     case CTRL_C_EVENT:
-       signal_handler((int)fdCtrlType)
+       sigint_handler((int)fdwCtrlType);
       return( TRUE );
 
     default:

@@ -22,9 +22,6 @@
 #ifndef MEGACMDEXECUTER_H
 #define MEGACMDEXECUTER_H
 
-#include "mega.h"
-#include "megaapi.h"
-
 #include "synchronousrequestlistener.h"
 #include "megacmdlogger.h"
 

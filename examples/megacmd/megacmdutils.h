@@ -22,11 +22,9 @@
 #ifndef MEGACMDUTILS_H
 #define MEGACMDUTILS_H
 
-#include "mega.h"
-#include "megaapi.h"
+#include "megacmd.h"
 
 using namespace mega;
-
 
 /* MegaNode info extracting*/
 /**

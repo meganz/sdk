@@ -2,7 +2,6 @@
 #define COMUNICATIONSMANAGERPOSIX_H
 
 #include "comunicationsmanager.h"
-#include "megaapi_impl.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>

@@ -906,7 +906,7 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
         {
             if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
             {
-                for (uint i = 1; i < w.length(); i++)
+                for (int i = 1; i < w.length(); i++)
                 {
                     string optname = w.substr(i, 1);
                     if (vvalidOptions.find(optname) != vvalidOptions.end())

@@ -27,7 +27,7 @@
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
 #include "listeners.h"
-#include "megaapi_impl.h" //to use such things as MegaThread. It might be interesting to move the typedefs to a separate .h file
+//#include "megaapi_impl.h" //to use such things as MegaThread. It might be interesting to move the typedefs to a separate .h file
 
 #include <iomanip>
 #include <string>
@@ -2107,7 +2107,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         if (words.size() > 1)
         {
-            for (uint i = 1; i < words.size(); i++)
+            for (int i = 1; i < words.size(); i++)
             {
                 if (isRegExp(words[i]))
                 {

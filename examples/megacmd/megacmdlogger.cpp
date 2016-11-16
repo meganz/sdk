@@ -38,7 +38,11 @@ int getCurrentThread(){
     return MegaThread::currentThreadId(); //TODO: create this in thread class
 
 #elif USE_PTHREAD
-    return pthread_self();
+#ifdef __MINGW32__
+    return (int)pthread_self().x;
+#else
+    return (int)pthread_self();
+#endif
 
 #endif
 }

@@ -23,6 +23,7 @@
 #define MEGACMD_H
 
 #include "megaapi.h"
+#include "megaapi_impl.h"
 
 using namespace std;
 using namespace mega;

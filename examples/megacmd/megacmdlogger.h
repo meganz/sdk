@@ -22,7 +22,6 @@
 #ifndef MEGACMDLOGGER_H
 #define MEGACMDLOGGER_H
 
-#include "megaapi_impl.h"
 #include "megacmd.h"
 
 #define OUTSTREAM getCurrentOut()

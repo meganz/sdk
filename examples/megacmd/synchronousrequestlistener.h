@@ -22,9 +22,7 @@
 #ifndef SYNCHRONOUSREQUESTLISTENER_H
 #define SYNCHRONOUSREQUESTLISTENER_H
 
-//#include "megacmd.h"
-//#include "megaapi.h"
-#include "megaapi_impl.h"
+#include "megacmd.h"
 
 using namespace mega;
 

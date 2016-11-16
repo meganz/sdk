@@ -22,7 +22,7 @@
 #ifndef COMUNICATIONSMANAGER_H
 #define COMUNICATIONSMANAGER_H
 
-#include "megaapi_impl.h"
+#include "megacmd.h"
 
 using namespace mega;
 

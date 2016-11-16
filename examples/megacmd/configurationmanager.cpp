@@ -20,7 +20,6 @@
  */
 
 #include "configurationmanager.h"
-#include "megaapi_impl.h"
 
 #include <fstream>
 
@@ -57,21 +56,21 @@ void ConfigurationManager::loadConfigDir(){
 #if WINVER>=0x0600
     if(SUCCEEDED(SHGetKnownFolderPath ( FOLDERID_LocalAppData, KF_FLAG_CREATE, NULL, szPath )))
     {
-        homedir=szPath;
+        homedir=(const char *)szPath;
     }
 #else
     if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA , NULL, 0, szPath)))
     {
-        homedir=szPath;
+        homedir=(const char *)szPath;
     }
     if (homedir)
     {
 
         TCHAR fullpath[MAX_PATH];
-        strcmp(fullpath,homedir);
-        if (PathAppend(fullpath,".megaCmd"))
+        strcmp((const char *)fullpath,homedir);
+        if (PathAppend(fullpath,TEXT(".megaCmd")))
         {
-            configFolder=string(fullpath);
+            configFolder=string((const char *)fullpath);
         }
     }
 
