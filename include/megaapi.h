@@ -6357,6 +6357,8 @@ class MegaApi
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
+         * A value <= 0 means unlimited speed
+         *
          * @param bpslimit Download speed in bytes per second
          * @return true if the network layer allows to control the download speed, otherwise false
          */
@@ -6370,6 +6372,8 @@ class MegaApi
          * by checking the return value. If it's true, the value will be applied. Otherwise,
          * this function returns false.
          *
+         * A value <= 0 means unlimited speed
+         *
          * @param bpslimit Upload speed in bytes per second
          * @return true if the network layer allows to control the upload speed, otherwise false
          */
@@ -6378,12 +6382,16 @@ class MegaApi
         /**
          * @brief Get the maximum download speed in bytes per second
          *
+         * The value 0 means unlimited speed
+         *
          * @return Download speed in bytes per second
          */
         int getMaxDownloadSpeed();
 
         /**
          * @brief Get the maximum upload speed in bytes per second
+         *
+         * The value 0 means unlimited speed
          *
          * @return Upload speed in bytes per second
          */
