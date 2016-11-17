@@ -40,6 +40,8 @@ public:
     virtual void join();
     virtual ~QtThread();
 
+    static long currentThreadId();
+
 protected:
     virtual void run();
 

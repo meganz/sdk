@@ -22,17 +22,7 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS CurlHttpIO
 
-#include "mega/http.h"
-
-#ifdef _WIN32
-   #ifdef WINDOWS_PHONE
-   #include "mega/wp8/megawaiter.h"
-   #else
-   #include "mega/win32/megawaiter.h"
-   #endif
-#else
-   #include "mega/posix/megawaiter.h"
-#endif
+#include "mega.h"
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 #include <openssl/ssl.h>
@@ -65,8 +55,12 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
+    static MUTEX_CLASS curlMutex;
+
     string useragent;
-    CURLM* curlm;
+    CURLM* curlmapi;
+    CURLM* curlmdownload;
+    CURLM* curlmupload;
     CURLSH* curlsh;
     ares_channel ares;
     string proxyurl;
@@ -92,11 +86,20 @@ protected:
     static size_t check_header(void*, size_t, size_t, void*);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
-    static int timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int api_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 #endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+    static MUTEX_CLASS **sslMutexes;
+    static void locking_function(int mode, int lockNumber, const char *, int);
+    static unsigned long id_function();
+
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
@@ -120,13 +123,24 @@ protected:
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
 
+    // download speed limit
+    m_off_t maxdownloadspeed;
+
+    // upload speed limit
+    m_off_t maxuploadspeed;
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     void addaresevents(WinWaiter *waiter);
-    void addcurlevents(WinWaiter *waiter);
+    void addcurlevents(WinWaiter *waiter, direction_t d);
+    void closecurlevents(direction_t d);
+    void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlsockets;
-    m_time_t curltimeoutreset;
-    m_time_t arestimeoutds;
+    std::map<int, SockInfo> curlapisockets;
+    std::map<int, SockInfo> curldownloadsockets;
+    std::map<int, SockInfo> curluploadsockets;
+    m_time_t curlapitimeoutreset;
+    m_time_t curldownloadtimeoutreset;
+    m_time_t curluploadtimeoutreset;
 #endif
 
 public:
@@ -137,6 +151,7 @@ public:
     m_off_t postpos(void*);
 
     bool doio(void);
+    bool multidoio(CURLM *curlm);
 
     void addevents(Waiter*, int);
 
@@ -144,6 +159,18 @@ public:
     void setproxy(Proxy*);
     void setdnsservers(const char*);
     void disconnect();
+
+    // set max download speed
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    virtual bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    virtual m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    virtual m_off_t getmaxuploadspeed();
 
     CurlHttpIO();
     ~CurlHttpIO();

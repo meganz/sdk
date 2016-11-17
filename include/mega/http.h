@@ -117,6 +117,20 @@ struct MEGA_API HttpIO : public EventTrigger
     // timestamp of last data received (across all connections)
     dstime lastdata;
 
+    // download speed
+    vector<m_time_t> downloadTimes;
+    vector<m_off_t> downloadBytes;
+    m_off_t downloadPartialBytes;
+    m_off_t downloadSpeed;
+    void updatedownloadspeed(m_off_t size = 0);
+
+    // upload speed
+    vector<m_time_t> uploadTimes;
+    vector<m_off_t> uploadBytes;
+    m_off_t uploadPartialBytes;
+    m_off_t uploadSpeed;
+    void updateuploadspeed(m_off_t size = 0);
+
     // data receive timeout (ds)
     static const int NETWORKTIMEOUT;
 
@@ -132,7 +146,20 @@ struct MEGA_API HttpIO : public EventTrigger
     // get proxy settings from the system
     virtual Proxy *getautoproxy();
 
+    // get alternative DNS servers
     void getMEGADNSservers(string*, bool = true);
+
+    // set max download speed
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    virtual bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    virtual m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    virtual m_off_t getmaxuploadspeed();
 
     HttpIO();
     virtual ~HttpIO() { }

@@ -845,6 +845,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     LOG_debug << "User-Agent: " << useragent;
     h->setuseragent(&useragent);
+    h->setmaxdownloadspeed(0);
+    h->setmaxuploadspeed(0);
 }
 
 MegaClient::~MegaClient()
@@ -1986,6 +1988,9 @@ void MegaClient::exec()
             workinglockcs->type = REQ_JSON;
             workinglockcs->post(this);
         }
+
+        httpio->updatedownloadspeed();
+        httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 }
 
@@ -10361,6 +10366,26 @@ void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
     reqs.add(new CommandReportEvent(this, event, details));
+}
+
+bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    return httpio->setmaxdownloadspeed(bpslimit >= 0 ? bpslimit : 0);
+}
+
+bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
+{
+    return httpio->setmaxuploadspeed(bpslimit >= 0 ? bpslimit : 0);
+}
+
+m_off_t MegaClient::getmaxdownloadspeed()
+{
+    return httpio->getmaxdownloadspeed();
+}
+
+m_off_t MegaClient::getmaxuploadspeed()
+{
+    return httpio->getmaxuploadspeed();
 }
 
 void MegaClient::userfeedbackstore(const char *message)

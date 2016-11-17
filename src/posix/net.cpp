@@ -24,8 +24,40 @@
 
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
+#define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
 namespace mega {
+
+MUTEX_CLASS CurlHttpIO::curlMutex(false);
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+
+MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
+void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
+{
+    MUTEX_CLASS *mutex = sslMutexes[lockNumber];
+    if (mutex == NULL)
+    {
+        mutex = new MUTEX_CLASS(true);
+        sslMutexes[lockNumber] = mutex;
+    }
+
+    if (mode & CRYPTO_LOCK)
+    {
+        mutex->lock();
+    }
+    else
+    {
+        mutex->unlock();
+    }
+}
+
+unsigned long CurlHttpIO::id_function()
+{
+    return THREAD_CLASS::currentThreadId();
+}
+
+#endif
 
 CurlHttpIO::CurlHttpIO()
 {
@@ -63,14 +95,33 @@ CurlHttpIO::CurlHttpIO()
     dnsok = false;
     reset = false;
     statechange = false;
+    maxdownloadspeed = 0;
+    maxuploadspeed = 0;
 
     WAIT_CLASS::bumpds();
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
 
+    curlMutex.lock();
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+    if (!CRYPTO_get_id_callback() && !CRYPTO_get_locking_callback())
+    {
+        LOG_debug << "Initializing OpenSSL locking callbacks";
+        int numLocks = CRYPTO_num_locks();
+        sslMutexes = new MUTEX_CLASS*[numLocks];
+        memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
+        CRYPTO_set_id_callback(CurlHttpIO::id_function);
+        CRYPTO_set_locking_callback(CurlHttpIO::locking_function);
+    }
+#endif
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
+    curlMutex.unlock();
 
-    curlm = curl_multi_init();
+    curlmapi = curl_multi_init();
+    curlmdownload = curl_multi_init();
+    curlmupload = curl_multi_init();
 
     struct ares_options options;
     options.tries = 2;
@@ -78,12 +129,23 @@ CurlHttpIO::CurlHttpIO()
     filterDNSservers();
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    curl_multi_setopt(curlm, CURLMOPT_SOCKETFUNCTION, socket_callback);
-    curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
-    curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutreset = 0;
-    arestimeoutds = -1;
+    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETFUNCTION, api_socket_callback);
+    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmapi, CURLMOPT_TIMERFUNCTION, api_timer_callback);
+    curl_multi_setopt(curlmapi, CURLMOPT_TIMERDATA, this);
+    curlapitimeoutreset = 0;
+
+    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
+    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
+    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERDATA, this);
+    curldownloadtimeoutreset = 0;
+
+    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
+    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmupload, CURLMOPT_TIMERFUNCTION, upload_timer_callback);
+    curl_multi_setopt(curlmupload, CURLMOPT_TIMERDATA, this);
+    curluploadtimeoutreset = 0;
 #endif
 
     curlsh = curl_share_init();
@@ -286,10 +348,12 @@ void CurlHttpIO::addaresevents(WinWaiter *waiter)
     }
 }
 
-void CurlHttpIO::addcurlevents(WinWaiter *waiter)
+void CurlHttpIO::addcurlevents(WinWaiter *waiter, direction_t d)
 {
+    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
+
     long events;
-    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end(); it++)
+    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
         SockInfo &info = it->second;
 
@@ -330,15 +394,81 @@ void CurlHttpIO::addcurlevents(WinWaiter *waiter)
         ((WinWaiter *)waiter)->addhandle(info.handle, Waiter::NEEDEXEC);
     }
 }
+
+void CurlHttpIO::closecurlevents(direction_t d)
+{
+    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
+
+    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
+    {
+        SockInfo &info = it->second;
+        if (info.handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent(info.handle);
+        }
+    }
+    socketmap.clear();
+}
+
+void CurlHttpIO::processcurlevents(direction_t d)
+{
+    int dummy = 0;
+    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
+
+    bool active = false;
+    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end();)
+    {
+        SockInfo &info = (it++)->second;
+        if (!info.mode || info.handle == WSA_INVALID_EVENT)
+        {
+            continue;
+        }
+
+        if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
+        {
+            active = true;
+            WSAResetEvent(info.handle);
+            curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload),
+                                     info.fd,
+                                     ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
+                                   | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
+                                     &dummy);
+            break;
+        }
+    }
+
+    if (!active)
+    {
+        curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload), CURL_SOCKET_TIMEOUT, 0, &dummy);
+    }
+}
 #endif
 
 CurlHttpIO::~CurlHttpIO()
 {
-    curl_multi_cleanup(curlm);
     ares_destroy(ares);
+    curl_multi_cleanup(curlmapi);
+    curl_multi_cleanup(curlmdownload);
+    curl_multi_cleanup(curlmupload);
 
-    curl_global_cleanup();
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    for (unsigned int i = 0; i < aressockets.size(); i++)
+    {
+        if (aressockets[i].handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent(aressockets[i].handle);
+        }
+    }
+    aressockets.clear();
+    closecurlevents(API);
+    closecurlevents(GET);
+    closecurlevents(PUT);
+#endif
+
+    curlMutex.lock();
     ares_library_cleanup();
+    curl_global_cleanup();
+    curlMutex.unlock();
 }
 
 void CurlHttpIO::setuseragent(string* u)
@@ -365,7 +495,9 @@ void CurlHttpIO::disconnect()
     LOG_debug << "Reinitializing the network layer";
 
     ares_destroy(ares);
-    curl_multi_cleanup(curlm);
+    curl_multi_cleanup(curlmapi);
+    curl_multi_cleanup(curlmdownload);
+    curl_multi_cleanup(curlmupload);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     for (unsigned int i = 0; i < aressockets.size(); i++)
@@ -376,33 +508,39 @@ void CurlHttpIO::disconnect()
         }
     }
     aressockets.clear();
-
-    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end(); it++)
-    {
-        SockInfo &info = it->second;
-        if (info.handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent(info.handle);
-        }
-    }
-    curlsockets.clear();
+    closecurlevents(API);
+    closecurlevents(GET);
+    closecurlevents(PUT);
 #endif
 
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
     dnscache.clear();
 
-    curlm = curl_multi_init();
+    curlmapi = curl_multi_init();
+    curlmdownload = curl_multi_init();
+    curlmupload = curl_multi_init();
     struct ares_options options;
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    curl_multi_setopt(curlm, CURLMOPT_SOCKETFUNCTION, socket_callback);
-    curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
-    curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
-    curltimeoutreset = 0;
-    arestimeoutds = -1;
+    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETFUNCTION, api_socket_callback);
+    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmapi, CURLMOPT_TIMERFUNCTION, api_timer_callback);
+    curl_multi_setopt(curlmapi, CURLMOPT_TIMERDATA, this);
+    curlapitimeoutreset = 0;
+
+    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
+    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
+    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERDATA, this);
+    curldownloadtimeoutreset = 0;
+
+    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
+    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlmupload, CURLMOPT_TIMERFUNCTION, upload_timer_callback);
+    curl_multi_setopt(curlmupload, CURLMOPT_TIMERDATA, this);
+    curluploadtimeoutreset = 0;
 #endif
 
     if (dnsservers.size())
@@ -422,47 +560,169 @@ void CurlHttpIO::disconnect()
     }
 }
 
+bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    maxdownloadspeed = bpslimit;
+    return true;
+}
+
+bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
+{
+    maxuploadspeed = bpslimit;
+    return true;
+}
+
+m_off_t CurlHttpIO::getmaxdownloadspeed()
+{
+    return maxdownloadspeed;
+}
+
+m_off_t CurlHttpIO::getmaxuploadspeed()
+{
+    return maxuploadspeed;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
     waiter = (WAIT_CLASS*)w;
-
-    long curltimeoutms;
+    long curltimeoutms = -1;
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     int t;
-    curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
-    waiter->bumpmaxfd(t);
-
-    long arestimeoutds;
-    curl_multi_timeout(curlm, &curltimeoutms);
-
+    long ms;
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
 #else
     addaresevents(waiter);
-    addcurlevents(waiter);
+#endif
 
-    if (curltimeoutreset)
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        curl_multi_fdset(curlmapi, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
+        waiter->bumpmaxfd(t);
+
+        ms = -1;
+        curl_multi_timeout(curlmapi, &ms);
+        if (curltimeoutms < 0 || (ms >= 0 && curltimeoutms > ms))
+        {
+            curltimeoutms = ms;
+        }
+#else
+        addcurlevents(waiter, API);
+        if (curlapitimeoutreset)
+        {
+            m_time_t ds = curlapitimeoutreset - Waiter::ds;
+            if (ds <= 0)
+            {
+                curltimeoutms = 0;
+                curlapitimeoutreset = 0;
+                LOG_debug << "Disabling cURL timeout for API requests";
+            }
+            else
+            {
+                if (curltimeoutms < 0 || curltimeoutms > ds * 100)
+                {
+                    curltimeoutms = ds * 100;
+                }
+            }
+        }
+#endif
+
+    if (!maxdownloadspeed || maxdownloadspeed > downloadSpeed)
     {
-        m_time_t ds = curltimeoutreset - Waiter::ds;
-        if (ds <= 0)
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        curl_multi_fdset(curlmdownload, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
+        waiter->bumpmaxfd(t);
+
+        ms = -1;
+        curl_multi_timeout(curlmdownload, &ms);
+        if (curltimeoutms < 0 || (ms >= 0 && curltimeoutms > ms))
         {
-            curltimeoutms = 0;
-            curltimeoutreset = 0;
-            LOG_debug << "Disabling cURL timeout";
+            curltimeoutms = ms;
         }
-        else
+#else
+        addcurlevents(waiter, GET);
+        if (curldownloadtimeoutreset)
         {
-            curltimeoutms = ds * 100;
+            m_time_t ds = curldownloadtimeoutreset - Waiter::ds;
+            if (ds <= 0)
+            {
+                curltimeoutms = 0;
+                curldownloadtimeoutreset = 0;
+                LOG_debug << "Disabling cURL timeout for downloads";
+            }
+            else
+            {
+                if (curltimeoutms < 0 || curltimeoutms > ds * 100)
+                {
+                    curltimeoutms = ds * 100;
+                }
+            }
         }
+#endif
     }
     else
     {
-        curltimeoutms = -1;
+        m_off_t excess = downloadSpeed - maxdownloadspeed;
+        long ms = 1000 * excess / maxdownloadspeed;
+        if (curltimeoutms < 0 || ms < curltimeoutms)
+        {
+            curltimeoutms = ms;
+        }
+
+        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+        {
+            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
+        }
     }
 
+    if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
+    {
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        curl_multi_fdset(curlmupload, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
+        waiter->bumpmaxfd(t);
+
+        ms = -1;
+        curl_multi_timeout(curlmupload, &ms);
+        if (curltimeoutms < 0 || (ms >= 0 && curltimeoutms > ms))
+        {
+            curltimeoutms = ms;
+        }
+#else
+        addcurlevents(waiter, PUT);
+        if (curluploadtimeoutreset)
+        {
+            m_time_t ds = curluploadtimeoutreset - Waiter::ds;
+            if (ds <= 0)
+            {
+                curltimeoutms = 0;
+                curluploadtimeoutreset = 0;
+                LOG_debug << "Disabling cURL timeout for uploads";
+            }
+            else
+            {
+                if (curltimeoutms < 0 || curltimeoutms > ds * 100)
+                {
+                    curltimeoutms = ds * 100;
+                }
+            }
+        }
 #endif
+    }
+    else
+    {
+        m_off_t excess = uploadSpeed - maxuploadspeed;
+        long ms = 1000 * excess / maxuploadspeed;
+        if (curltimeoutms < 0 || ms < curltimeoutms)
+        {
+            curltimeoutms = ms;
+        }
+
+        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+        {
+            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
+        }
+    }
 
     if (curltimeoutms >= 0)
     {
@@ -481,6 +741,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
     {
+        long arestimeoutds;
         arestimeoutds = tv.tv_sec * 10 + tv.tv_usec / 100000;
         if (!arestimeoutds && tv.tv_usec)
         {
@@ -491,10 +752,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             waiter->maxds = arestimeoutds;
         }
-    }
-    else
-    {
-        arestimeoutds = -1;
     }
 }
 
@@ -936,7 +1193,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             }
         }
 
-        curl_multi_add_handle(httpio->curlm, curl);
+        curl_multi_add_handle((req->type == REQ_JSON) ? httpio->curlmapi
+                                                      : ((data ? len
+                                                               : req->out->size()) ? httpio->curlmupload
+                                                                                   : httpio->curlmdownload), curl);
 
         httpctx->curl = curl;
     }
@@ -1180,10 +1440,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         options.tries = 2;
         ares_init_options(&ares, &options, ARES_OPT_TRIES);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        arestimeoutds = -1;
-#endif
-
         if (dnsservers.size())
         {
             LOG_info << "Using custom DNS servers: " << dnsservers;
@@ -1357,7 +1613,10 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         if (httpctx->curl)
         {
-            curl_multi_remove_handle(curlm, httpctx->curl);
+            curl_multi_remove_handle((req->type == REQ_JSON) ? curlmapi
+                                                             : ((httpctx->data ? httpctx->len
+                                                                               : req->out->size()) ? curlmupload
+                                                                                                   : curlmdownload), httpctx->curl);
             curl_easy_cleanup(httpctx->curl);
             curl_slist_free_all(httpctx->headers);
         }
@@ -1400,8 +1659,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 bool CurlHttpIO::doio()
 {
     bool result;
-    CURLMsg* msg;
-    int dummy = 0;
+    statechange = false;
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     if (waiter)
@@ -1417,37 +1675,47 @@ bool CurlHttpIO::doio()
                         info.mode & SockInfo::WRITE ? info.fd : ARES_SOCKET_BAD);
     }
 #endif
+    result = statechange;
+    statechange = false;
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
-    curl_multi_perform(curlm, &dummy);
+    int dummy = 0;
+    curl_multi_perform(curlmapi, &dummy);
 #else
-    bool active = false;
-    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end();)
-    {
-        SockInfo &info = (it++)->second;
-        if (!info.mode || info.handle == WSA_INVALID_EVENT)
-        {
-            continue;
-        }
-
-        if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
-        {
-            active = true;
-            WSAResetEvent(info.handle);
-            curl_multi_socket_action(curlm,
-                                     info.fd,
-                                     ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
-                                   | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
-                                     &dummy);
-            break;
-        }
-    }
-
-    if (!active)
-    {
-        curl_multi_socket_action(curlm, CURL_SOCKET_TIMEOUT, 0, &dummy);
-    }
+    processcurlevents(API);
 #endif
+    result |= multidoio(curlmapi);
+
+    if (!maxdownloadspeed || maxdownloadspeed > downloadSpeed)
+    {
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        dummy = 0;
+        curl_multi_perform(curlmdownload, &dummy);
+#else
+        processcurlevents(GET);
+#endif
+        result |= multidoio(curlmdownload);
+    }
+
+    if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
+    {
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+        dummy = 0;
+        curl_multi_perform(curlmupload, &dummy);
+#else
+        processcurlevents(PUT);
+#endif
+        result |= multidoio(curlmupload);
+    }
+
+    return result;
+}
+
+bool CurlHttpIO::multidoio(CURLM *curlm)
+{
+    int dummy = 0;
+    CURLMsg* msg;
+    bool result;
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
     {
@@ -1763,15 +2031,16 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 }
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *)
+int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    std::map<int, SockInfo> &socketmap = (d == API) ? httpio->curlapisockets : ((d == GET) ? httpio->curldownloadsockets : httpio->curluploadsockets);
 
     if (what == CURL_POLL_REMOVE)
     {
         LOG_debug << "Removing socket " << s;
-        HANDLE handle = httpio->curlsockets[s].handle;
-        httpio->curlsockets.erase(s);
+        HANDLE handle = socketmap[s].handle;
+        socketmap.erase(s);
         if (handle != WSA_INVALID_EVENT)
         {
             WSACloseEvent (handle);
@@ -1784,19 +2053,34 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.fd = s;
         info.mode = what;
         info.handle = WSA_INVALID_EVENT;
-        httpio->curlsockets[s] = info;
+        socketmap[s] = info;
     }
 
     return 0;
 }
 
-int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp)
+int CurlHttpIO::api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
+{
+    return socket_callback(e, s, what, userp, socketp, API);
+}
+
+int CurlHttpIO::download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
+{
+    return socket_callback(e, s, what, userp, socketp, GET);
+}
+
+int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
+{
+    return socket_callback(e, s, what, userp, socketp, PUT);
+}
+
+int CurlHttpIO::api_timer_callback(CURLM *, long timeout_ms, void *userp)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
 
     if (timeout_ms < 0)
     {
-        httpio->curltimeoutreset = 0;
+        httpio->curlapitimeoutreset = 0;
     }
     else
     {
@@ -1806,10 +2090,56 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp)
             timeoutds++;
         }
 
-        httpio->curltimeoutreset = Waiter::ds + timeoutds;
+        httpio->curlapitimeoutreset = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";
+    LOG_debug << "Setting cURL API timeout to " << timeout_ms << " ms";
+    return 0;
+}
+
+int CurlHttpIO::download_timer_callback(CURLM *, long timeout_ms, void *userp)
+{
+    CurlHttpIO *httpio = (CurlHttpIO *)userp;
+
+    if (timeout_ms < 0)
+    {
+        httpio->curldownloadtimeoutreset = 0;
+    }
+    else
+    {
+        m_time_t timeoutds = timeout_ms / 100;
+        if (timeout_ms % 100)
+        {
+            timeoutds++;
+        }
+
+        httpio->curldownloadtimeoutreset = Waiter::ds + timeoutds;
+    }
+
+    LOG_debug << "Setting cURL download timeout to " << timeout_ms << " ms";
+    return 0;
+}
+
+int CurlHttpIO::upload_timer_callback(CURLM *, long timeout_ms, void *userp)
+{
+    CurlHttpIO *httpio = (CurlHttpIO *)userp;
+
+    if (timeout_ms < 0)
+    {
+        httpio->curluploadtimeoutreset = 0;
+    }
+    else
+    {
+        m_time_t timeoutds = timeout_ms / 100;
+        if (timeout_ms % 100)
+        {
+            timeoutds++;
+        }
+
+        httpio->curluploadtimeoutreset = Waiter::ds + timeoutds;
+    }
+
+    LOG_debug << "Setting cURL upload timeout to " << timeout_ms << " ms";
     return 0;
 }
 #endif

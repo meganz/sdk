@@ -1377,8 +1377,12 @@ public:
     virtual int getOwnPrivilege() const;
 
     /**
-     * @brief getUrl Returns your URL to connect to chatd for this chat
-     * @return
+     * @brief Returns your URL to connect to chatd for this chat
+     *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The URL of the chatd server, or NULL if not available.
      */
     virtual const char *getUrl() const;
 
@@ -1422,12 +1426,12 @@ public:
     virtual MegaHandle getOriginatingUser() const;
 
     /**
-     * @brief getTitle Returns the title of the chat, if any.
+     * @brief Returns the title of the chat, if any.
      *
      * The MegaTextChat retains the ownership of the returned string. It will
      * be only valid until the MegaTextChat is deleted.
      *
-     * @return The title of the chat as a byte array encoded in Base64URL.
+     * @return The title of the chat as a byte array encoded in Base64URL, or NULL if not available.
      */
     virtual const char *getTitle() const;
 
@@ -6754,6 +6758,66 @@ class MegaApi
          * @param method Selected transfer method for uploads
          */
         void setUploadMethod(int method);
+
+        /**
+         * @brief Set the maximum download speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Download speed in bytes per second
+         * @return true if the network layer allows to control the download speed, otherwise false
+         */
+        bool setMaxDownloadSpeed(int bpslimit);
+
+        /**
+         * @brief Set the maximum upload speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Upload speed in bytes per second
+         * @return true if the network layer allows to control the upload speed, otherwise false
+         */
+        bool setMaxUploadSpeed(int bpslimit);
+
+        /**
+         * @brief Get the maximum download speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Download speed in bytes per second
+         */
+        int getMaxDownloadSpeed();
+
+        /**
+         * @brief Get the maximum upload speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Upload speed in bytes per second
+         */
+        int getMaxUploadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentDownloadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentUploadSpeed();
 
         /**
          * @brief Get the active transfer method for downloads

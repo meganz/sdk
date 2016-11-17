@@ -40,6 +40,8 @@ public:
     void *(*start_routine)(void*);
     void *pointer;
 
+    static long currentThreadId();
+
 protected:
     static DWORD WINAPI run(LPVOID lpParameter);
     HANDLE hThread;

@@ -55,6 +55,10 @@ QtThread::~QtThread()
 
 }
 
+long QtThread::currentThreadId()
+{
+    return QThread::currentThreadId();
+}
 
 //mutex
 QtMutex::QtMutex()
