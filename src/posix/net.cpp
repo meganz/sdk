@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "mega/posix/meganet.h"
 #include "mega/logging.h"
 

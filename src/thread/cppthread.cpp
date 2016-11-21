@@ -47,7 +47,11 @@ void CppThread::join()
 
 long CppThread::currentThreadId()
 {
-    return std::this_thread::get_id();
+#ifdef _WIN32
+    return (long)GetCurrentThreadId();
+#else
+    return (long)&errno;
+#endif
 }
 
 CppThread::~CppThread()
