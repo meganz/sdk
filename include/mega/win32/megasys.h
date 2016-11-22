@@ -73,6 +73,10 @@
     #include <unistd.h>
 #endif
 
+#ifdef USE_PTHREAD
+#include <sys/time.h>
+#endif
+
 
 #include <specstrings.h>
 #include <winsock2.h>

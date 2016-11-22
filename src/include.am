@@ -97,7 +97,7 @@ src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
 if HAVE_PTHREAD
 src_libmega_la_SOURCES += src/thread/posixthread.cpp
 else
-src_libmega_la_SOURCES+= src/win32/win32thread.cpp.cpp
+src_libmega_la_SOURCES+= src/win32/win32thread.cpp
 endif
 
 
