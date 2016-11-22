@@ -233,6 +233,8 @@ fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
 fi
+AM_CONDITIONAL([HAVE_PTHREAD], [test "${HAVE_PTHREAD}" = "yes"])
+
 
 # hardening options
 AC_ARG_ENABLE(gcc-hardening,
