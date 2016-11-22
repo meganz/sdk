@@ -43,7 +43,11 @@ void PosixThread::join()
 
 uint64_t PosixThread::currentThreadId()
 {
+#ifndef __MINGW32__
     return (uint64_t) pthread_self();
+#else
+    return (uint64_t) pthread_self().x;
+#endif
 }
 
 PosixThread::~PosixThread()
