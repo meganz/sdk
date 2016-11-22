@@ -16849,12 +16849,12 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 {
     this->id = chat->getHandle();
     this->priv = chat->getOwnPrivilege();
-    this->url = chat->getUrl();
+    this->url = chat->getUrl() ? chat->getUrl() : "";
     this->shard = chat->getShard();
     this->peers = chat->getPeerList() ? chat->getPeerList()->copy() : NULL;
     this->group = chat->isGroup();
     this->ou = chat->getOriginatingUser();
-    this->title = chat->getTitle();
+    this->title = chat->getTitle() ? chat->getTitle() : "";
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title)
