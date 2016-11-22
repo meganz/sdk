@@ -39,7 +39,7 @@ public:
     void join();
     virtual ~PosixThread();
 
-    static long currentThreadId();
+    static uint64_t currentThreadId();
 
 protected:
     pthread_t *thread;

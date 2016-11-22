@@ -53,9 +53,9 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     }
 }
 
-unsigned long CurlHttpIO::id_function()
+void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
-    return THREAD_CLASS::currentThreadId();
+    CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }
 
 #endif
@@ -105,13 +105,13 @@ CurlHttpIO::CurlHttpIO()
     curlMutex.lock();
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
-    if (!CRYPTO_get_id_callback() && !CRYPTO_get_locking_callback())
+    if (!CRYPTO_THREADID_get_callback() && !CRYPTO_get_locking_callback())
     {
         LOG_debug << "Initializing OpenSSL locking callbacks";
         int numLocks = CRYPTO_num_locks();
         sslMutexes = new MUTEX_CLASS*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
-        CRYPTO_set_id_callback(CurlHttpIO::id_function);
+        CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
         CRYPTO_set_locking_callback(CurlHttpIO::locking_function);
     }
 #endif

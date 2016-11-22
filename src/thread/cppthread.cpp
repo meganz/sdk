@@ -45,12 +45,12 @@ void CppThread::join()
     thread->join();
 }
 
-long CppThread::currentThreadId()
+uint64_t CppThread::currentThreadId()
 {
 #ifdef _WIN32
-    return (long)GetCurrentThreadId();
+    return (uint64_t) GetCurrentThreadId();
 #else
-    return (long)&errno;
+    return (uint64_t) &errno;
 #endif
 }
 
