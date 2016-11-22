@@ -41,9 +41,9 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
-long PosixThread::currentThreadId()
+uint64_t PosixThread::currentThreadId()
 {
-    return (long) pthread_self();
+    return (uint64_t) pthread_self();
 }
 
 PosixThread::~PosixThread()

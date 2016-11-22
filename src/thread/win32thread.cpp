@@ -49,9 +49,9 @@ void Win32Thread::join()
     WaitForSingleObject(hThread, INFINITE);
 }
 
-long Win32Thread::currentThreadId()
+uint64_t Win32Thread::currentThreadId()
 {
-    return GetCurrentThreadId();
+    return (uint64_t) GetCurrentThreadId();
 }
 
 Win32Thread::~Win32Thread()

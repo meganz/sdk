@@ -51,9 +51,9 @@ void LibUVThread::join()
     uv_thread_join(thread);
 }
 
-long LibUVThread::currentThreadId()
+uint64_t LibUVThread::currentThreadId()
 {
-    return uv_thread_self();
+    return (uint64_t) uv_thread_self();
 }
 
 LibUVThread::~LibUVThread()

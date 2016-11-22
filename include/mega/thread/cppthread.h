@@ -42,7 +42,7 @@ public:
     virtual void join();
     virtual ~CppThread();
 
-    static long currentThreadId();
+    static uint64_t currentThreadId();
 
 protected:
     std::thread *thread;

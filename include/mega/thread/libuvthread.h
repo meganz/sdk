@@ -41,7 +41,7 @@ public:
     void *(*start_routine)(void*);
     void *pointer;
 
-    static long currentThreadId();
+    static uint64_t currentThreadId();
 
 protected:
     uv_thread_t *thread;
