@@ -26,7 +26,7 @@
 #include "synchronousrequestlistener.h"
 #include "megacmdlogger.h"
 
-#include "mega/config.h"
+
 
 
 class MegaCmdListener : public SynchronousRequestListener

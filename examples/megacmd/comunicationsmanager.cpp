@@ -49,6 +49,9 @@ int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
     {
         if (errno != EINTR)  //syscall
         {
+#ifdef __MINGW32__
+            if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
+#endif
             LOG_fatal << "Error at select: " << errno;
             return errno;
         }
