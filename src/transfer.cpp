@@ -1607,6 +1607,7 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
                 (*it)->cachedtempurl = (*it)->slot->tempurl;
                 delete (*it)->slot;
                 (*it)->state = TRANSFERSTATE_QUEUED;
+                client->transfercacheadd(*it);
                 client->app->transfer_update(*it);
                 break;
             }
