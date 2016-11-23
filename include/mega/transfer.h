@@ -156,8 +156,8 @@ public:
     uint64_t currentpriority;
 
 private:
-    void prepareMoveUp(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
-    void prepareMoveDown(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
+    void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
 
 };
 

@@ -1315,7 +1315,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
 
     if (position >= transfers[transfer->type].size())
     {
-        prepareMoveDown(transfer, it, transfers[transfer->type].end());
+        prepareDecreasePriority(transfer, it, transfers[transfer->type].end());
 
         transfers[transfer->type].erase(it);
         currentpriority += PRIORITY_STEP;
@@ -1359,7 +1359,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     if (dstit == transfers[transfer->type].end())
     {
         LOG_debug << "Moving transfer to the last position";
-        prepareMoveDown(transfer, it, dstit);
+        prepareDecreasePriority(transfer, it, dstit);
 
         transfers[transfer->type].erase(it);
         currentpriority += PRIORITY_STEP;
@@ -1411,11 +1411,11 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 
     if (srcindex > dstindex)
     {
-        prepareMoveUp(transfer, it, dstit);
+        prepareIncreasePriority(transfer, it, dstit);
     }
     else
     {
-        prepareMoveDown(transfer, it, dstit);
+        prepareDecreasePriority(transfer, it, dstit);
         dstindex--;
     }
 
@@ -1511,7 +1511,7 @@ error TransferList::pause(Transfer *transfer, bool enable)
     if (!enable)
     {
         transfer_list::iterator it = iterator(transfer);
-        prepareMoveUp(transfer, it, it);
+        prepareIncreasePriority(transfer, it, it);
         transfer->state = TRANSFERSTATE_QUEUED;
         client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
@@ -1586,7 +1586,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareMoveUp(Transfer *transfer, transfer_list::iterator, transfer_list::iterator dstit)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator, transfer_list::iterator dstit)
 {
     if (!transfer->slot && transfer->state != TRANSFERSTATE_PAUSED
             && !(client->moretransfers(transfer->type) && client->slotavail()))
@@ -1615,7 +1615,7 @@ void TransferList::prepareMoveUp(Transfer *transfer, transfer_list::iterator, tr
     }
 }
 
-void TransferList::prepareMoveDown(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
+void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
 {
     if (transfer->slot && transfer->state == TRANSFERSTATE_ACTIVE)
     {
