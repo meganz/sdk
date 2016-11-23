@@ -1481,6 +1481,12 @@ void TransferList::movedown(Transfer *transfer)
     }
 
     transfer_list::iterator dstit = it + 1;
+    if (dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    dstit++;
     movetransfer(it, dstit);
 }
 
