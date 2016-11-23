@@ -3787,7 +3787,7 @@ char* MegaApiImpl::getBase64PwKey(const char *password)
 	return buf;
 }
 
-int MegaApiImpl::getSDKtime()
+long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
 }

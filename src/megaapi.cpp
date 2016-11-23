@@ -1178,7 +1178,7 @@ char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
     return pImpl->getStringHash(base64pwkey, inBuf);
 }
 
-int MegaApi::getSDKtime()
+long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
 }

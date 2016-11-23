@@ -4315,7 +4315,7 @@ class MegaApi
          *
          * @return actual SDK time in deciseconds
          */
-        int getSDKtime();
+        long long getSDKtime();
 
         /**
          * @brief Get an URL to transfer the current session to the webclient

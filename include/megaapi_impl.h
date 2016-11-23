@@ -1255,7 +1255,7 @@ class MegaApiImpl : public MegaApp
 
         //Utils
         char *getBase64PwKey(const char *password);
-        int getSDKtime();
+        long long getSDKtime();
         char *getStringHash(const char* base64pwkey, const char* inBuf);
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
