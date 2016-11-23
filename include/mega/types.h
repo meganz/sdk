@@ -90,7 +90,7 @@ struct User;
 struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
-struct TransferList;
+class TransferList;
 
 #define EOO 0
 
