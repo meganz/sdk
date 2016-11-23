@@ -6761,6 +6761,66 @@ class MegaApi
         void setUploadMethod(int method);
 
         /**
+         * @brief Set the maximum download speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Download speed in bytes per second
+         * @return true if the network layer allows to control the download speed, otherwise false
+         */
+        bool setMaxDownloadSpeed(int bpslimit);
+
+        /**
+         * @brief Set the maximum upload speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Upload speed in bytes per second
+         * @return true if the network layer allows to control the upload speed, otherwise false
+         */
+        bool setMaxUploadSpeed(int bpslimit);
+
+        /**
+         * @brief Get the maximum download speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Download speed in bytes per second
+         */
+        int getMaxDownloadSpeed();
+
+        /**
+         * @brief Get the maximum upload speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Upload speed in bytes per second
+         */
+        int getMaxUploadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentDownloadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentUploadSpeed();
+
+        /**
          * @brief Get the active transfer method for downloads
          *
          * Valid values for the return parameter are:

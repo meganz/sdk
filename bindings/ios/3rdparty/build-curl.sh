@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.48.0"
+CURL_VERSION="7.50.3"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################

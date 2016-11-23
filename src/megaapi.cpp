@@ -1741,6 +1741,36 @@ void MegaApi::setUploadMethod(int method)
     pImpl->setUploadMethod(method);
 }
 
+int MegaApi::getMaxDownloadSpeed()
+{
+    return pImpl->getMaxDownloadSpeed();
+}
+
+int MegaApi::getMaxUploadSpeed()
+{
+    return pImpl->getMaxUploadSpeed();
+}
+
+bool MegaApi::setMaxDownloadSpeed(int bpslimit)
+{
+    return pImpl->setMaxDownloadSpeed(bpslimit);
+}
+
+bool MegaApi::setMaxUploadSpeed(int bpslimit)
+{
+    return pImpl->setMaxUploadSpeed(bpslimit);
+}
+
+int MegaApi::getCurrentDownloadSpeed()
+{
+    return pImpl->getCurrentDownloadSpeed();
+}
+
+int MegaApi::getCurrentUploadSpeed()
+{
+    return pImpl->getCurrentUploadSpeed();
+}
+
 int MegaApi::getDownloadMethod()
 {
     return pImpl->getDownloadMethod();

@@ -45,6 +45,15 @@ void CppThread::join()
     thread->join();
 }
 
+uint64_t CppThread::currentThreadId()
+{
+#ifdef _WIN32
+    return (uint64_t) GetCurrentThreadId();
+#else
+    return (uint64_t) &errno;
+#endif
+}
+
 CppThread::~CppThread()
 {
     delete thread;

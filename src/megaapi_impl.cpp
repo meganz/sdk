@@ -5345,6 +5345,42 @@ void MegaApiImpl::setUploadMethod(int method)
     }
 }
 
+bool MegaApiImpl::setMaxDownloadSpeed(m_off_t bpslimit)
+{
+    sdkMutex.lock();
+    bool result = client->setmaxdownloadspeed(bpslimit);
+    sdkMutex.unlock();
+    return result;
+}
+
+bool MegaApiImpl::setMaxUploadSpeed(m_off_t bpslimit)
+{
+    sdkMutex.lock();
+    bool result = client->setmaxuploadspeed(bpslimit);
+    sdkMutex.unlock();
+    return result;
+}
+
+int MegaApiImpl::getMaxDownloadSpeed()
+{
+    return client->getmaxdownloadspeed();
+}
+
+int MegaApiImpl::getMaxUploadSpeed()
+{
+    return client->getmaxuploadspeed();
+}
+
+int MegaApiImpl::getCurrentDownloadSpeed()
+{
+    return httpio->downloadSpeed;
+}
+
+int MegaApiImpl::getCurrentUploadSpeed()
+{
+    return httpio->uploadSpeed;
+}
+
 int MegaApiImpl::getDownloadMethod()
 {
     if (client->autodownport)
@@ -16870,12 +16906,12 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 {
     this->id = chat->getHandle();
     this->priv = chat->getOwnPrivilege();
-    this->url = chat->getUrl();
+    this->url = chat->getUrl() ? chat->getUrl() : "";
     this->shard = chat->getShard();
     this->peers = chat->getPeerList() ? chat->getPeerList()->copy() : NULL;
     this->group = chat->isGroup();
     this->ou = chat->getOriginatingUser();
-    this->title = chat->getTitle();
+    this->title = chat->getTitle() ? chat->getTitle() : "";
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title)
