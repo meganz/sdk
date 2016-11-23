@@ -27,28 +27,12 @@
 using namespace std;
 
 // different outstreams for every thread. to gather all the output data
-map<int, ostream *> outstreams;
-map<int, int> threadLogLevel;
-map<int, int> threadoutCode;
-
-int getCurrentThread(){
-    //return std::this_thread::get_id();
-    //return std::thread::get_id();
-#ifdef USE_QT
-    return MegaThread::currentThreadId(); //TODO: create this in thread class
-
-#elif USE_PTHREAD
-#ifdef __MINGW32__
-    return (int)pthread_self().x;
-#else
-    return (int)pthread_self();
-#endif
-
-#endif
-}
+map<uint64_t, ostream *> outstreams;
+map<uint64_t, int> threadLogLevel;
+map<uint64_t, int> threadoutCode;
 
 ostream &getCurrentOut(){
-    int currentThread = getCurrentThread();
+    uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
         return cout;
@@ -60,7 +44,7 @@ ostream &getCurrentOut(){
 }
 
 int getCurrentOutCode(){
-    int currentThread = getCurrentThread();
+    uint64_t currentThread = MegaThread::currentThreadId();
     if (threadoutCode.find(currentThread) == threadoutCode.end())
     {
         return 0; //default OK
@@ -73,7 +57,7 @@ int getCurrentOutCode(){
 
 
 int getCurrentThreadLogLevel(){
-    int currentThread = getCurrentThread();
+    uint64_t currentThread = MegaThread::currentThreadId();
     if (threadLogLevel.find(currentThread) == threadLogLevel.end())
     {
         return -1;
@@ -85,15 +69,15 @@ int getCurrentThreadLogLevel(){
 }
 
 void setCurrentThreadLogLevel(int level){
-    threadLogLevel[getCurrentThread()] = level;
+    threadLogLevel[MegaThread::currentThreadId()] = level;
 }
 
 void setCurrentThreadOutStream(ostream *s){
-    outstreams[getCurrentThread()] = s;
+    outstreams[MegaThread::currentThreadId()] = s;
 }
 
 void setCurrentOutCode(int outCode){
-    threadoutCode[getCurrentThread()] = outCode;
+    threadoutCode[MegaThread::currentThreadId()] = outCode;
 }
 
 void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)

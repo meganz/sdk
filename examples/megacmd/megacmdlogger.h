@@ -26,8 +26,6 @@
 
 #define OUTSTREAM getCurrentOut()
 
-int getCurrentThread();
-
 ostream &getCurrentOut();
 void setCurrentThreadOutStream(ostream *);
 int getCurrentOutCode();

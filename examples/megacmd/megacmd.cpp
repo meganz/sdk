@@ -138,7 +138,7 @@ MegaMutex mutexHistory;
 map<int, string> threadline;
 
 string getCurrentThreadLine(){
-    int currentThread = getCurrentThread();
+    uint64_t currentThread = MegaThread::currentThreadId();
     if (threadline.find(currentThread) == threadline.end())
     {
         char *saved_line = rl_copy_text(0, rl_point);
@@ -153,7 +153,7 @@ string getCurrentThreadLine(){
 }
 
 void setCurrentThreadLine(string s){
-    threadline[getCurrentThread()] = s;
+    threadline[MegaThread::currentThreadId()] = s;
 }
 
 void setCurrentThreadLine(const vector<string>& vec){
@@ -1604,11 +1604,11 @@ void * doProcessLine(void *pointer)
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
 
-    LOG_verbose << " Processing " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
+    LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
     process_line(inf->getLine());
 
-    LOG_verbose << " Procesed " << *inf << " in thread: " << getCurrentThread() << " " << cm->get_petition_details(inf);
+    LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
