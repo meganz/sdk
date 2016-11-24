@@ -10472,7 +10472,6 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
     transfer->setLastError(megaError);
-    transfer->setState(tr->state);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
     fireOnTransferTemporaryError(transfer, megaError);
