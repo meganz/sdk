@@ -15,10 +15,11 @@ $(EXAMPLES): $(top_builddir)/src/libmega.la
 # rules
 examples_megacli_SOURCES = examples/megacli.cpp
 examples_megaclidir=examples
-noinst_HEADERS = examples/megacli.h examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/synchronousrequestlistener.h examples/megacmd/listeners.h examples/megacmd/megacmdexecuter.h
+noinst_HEADERS = examples/megacli.h
 examples_megasimplesync_SOURCES = examples/megasimplesync.cpp
 
 if BUILD_MEGACMD
+noinst_HEADERS += examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/synchronousrequestlistener.h examples/megacmd/listeners.h examples/megacmd/megacmdexecuter.h
 megacmdcompletiondir = $(sysconfdir)/bash_completion.d/
 megacmdcompletion_DATA = examples/megacmd/client/megacmd_completion.sh
 megacmdscripts_bindir = $(bindir)
