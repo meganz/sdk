@@ -1404,6 +1404,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         LOG_debug << "Fixed priority: " << fixedPriority;
     }
 
+    transfer->priority = newpriority;
     if (srcindex > dstindex)
     {
         prepareIncreasePriority(transfer, it, dstit);
@@ -1414,7 +1415,6 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         dstindex--;
     }
 
-    transfer->priority = newpriority;
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
@@ -1512,8 +1512,8 @@ error TransferList::pause(Transfer *transfer, bool enable)
     if (!enable)
     {
         transfer_list::iterator it = iterator(transfer);
-        prepareIncreasePriority(transfer, it, it);
         transfer->state = TRANSFERSTATE_QUEUED;
+        prepareIncreasePriority(transfer, it, it);
         client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
         return API_OK;
@@ -1596,35 +1596,27 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
 
     if (!transfer->slot && transfer->state != TRANSFERSTATE_PAUSED)
     {
-        transfer_list::iterator it;
-        if (srcit == dstit)
+        Transfer *lastActiveTransfer = NULL;
+        for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
         {
-            it = transfers[transfer->type].end();
-        }
-        else
-        {
-            it = srcit;
+            Transfer *t = (*it)->transfer;
+            if (t && t->type == transfer->type && t->slot
+                    && t->state == TRANSFERSTATE_ACTIVE
+                    && t->priority > transfer->priority
+                    && (!lastActiveTransfer || t->priority > lastActiveTransfer->priority))
+            {
+                lastActiveTransfer = t;
+            }
         }
 
-        it--;
-        while (true)
+        if (lastActiveTransfer)
         {
-            if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
-            {
-                (*it)->bt.arm();
-                (*it)->cachedtempurl = (*it)->slot->tempurl;
-                delete (*it)->slot;
-                (*it)->state = TRANSFERSTATE_QUEUED;
-                client->transfercacheadd(*it);
-                client->app->transfer_update(*it);
-                break;
-            }
-
-            if (it == dstit)
-            {
-                break;
-            }
-            it--;
+            lastActiveTransfer->bt.arm();
+            lastActiveTransfer->cachedtempurl = lastActiveTransfer->slot->tempurl;
+            delete lastActiveTransfer->slot;
+            lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
+            client->transfercacheadd(lastActiveTransfer);
+            client->app->transfer_update(lastActiveTransfer);
         }
     }
 }
