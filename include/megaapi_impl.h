@@ -455,9 +455,9 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
 
-	protected:		
-		int type;
-		int tag;
+    protected:
+        int type;
+        int tag;
         int state;
         uint64_t priority;
 
@@ -471,23 +471,23 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         int64_t startTime;
         int64_t updateTime;
         int64_t time;
-		long long transferredBytes;
-		long long totalBytes;
-		long long speed;
-		long long deltaSize;
+        long long transferredBytes;
+        long long totalBytes;
+        long long speed;
+        long long deltaSize;
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
-		const char* path;
-		const char* parentPath;
-		const char* fileName;
+        const char* path;
+        const char* parentPath;
+        const char* fileName;
         char *lastBytes;
         MegaNode *publicNode;
-		long long startPos;
-		long long endPos;
-		int retry;
-		int maxRetries;
+        long long startPos;
+        long long endPos;
+        int retry;
+        int maxRetries;
 
-		MegaTransferListener *listener;
+        MegaTransferListener *listener;
         Transfer *transfer;
         MegaError lastError;
         int folderTransferTag;
@@ -1255,6 +1255,7 @@ class MegaApiImpl : public MegaApp
 
         //Utils
         char *getBase64PwKey(const char *password);
+        long long getSDKtime();
         char *getStringHash(const char* base64pwkey, const char* inBuf);
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
@@ -1825,7 +1826,7 @@ protected:
         virtual void file_added(File*);
         virtual void file_removed(File*, error e);
         virtual void file_complete(File*);
-        virtual void file_resume(string*);
+        virtual File* file_resume(string*, direction_t *type);
 
         virtual void transfer_prepare(Transfer*);
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);

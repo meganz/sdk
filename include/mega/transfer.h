@@ -123,8 +123,9 @@ struct MEGA_API Transfer : public FileFingerprint
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 };
 
-struct MEGA_API TransferList
+class MEGA_API TransferList
 {
+public:
     static const uint64_t PRIORITY_START = 0x0000800000000000;
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000;
 
@@ -153,6 +154,11 @@ struct MEGA_API TransferList
     transfer_list transfers[2];
     MegaClient *client;
     uint64_t currentpriority;
+
+private:
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit);
+    void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
+    bool isReady(Transfer *transfer);
 };
 
 struct MEGA_API DirectReadSlot

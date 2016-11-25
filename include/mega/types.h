@@ -90,7 +90,7 @@ struct User;
 struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
-struct TransferList;
+class TransferList;
 
 #define EOO 0
 
@@ -325,7 +325,7 @@ typedef map<handle, FileAttributeFetch*> faf_map;
 typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
-typedef enum { GET, PUT, API } direction_t;
+typedef enum { GET, PUT, API, NONE } direction_t;
 
 typedef set<pair<int, handle> > fareq_set;
 

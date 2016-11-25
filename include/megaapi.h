@@ -4309,6 +4309,15 @@ class MegaApi
         char* getStringHash(const char* base64pwkey, const char* email);
 
         /**
+         * @brief Get internal timestamp used by the SDK
+         *
+         * This is a time used in certain internal operations.
+         *
+         * @return actual SDK time in deciseconds
+         */
+        long long getSDKtime();
+
+        /**
          * @brief Get an URL to transfer the current session to the webclient
          *
          * This function creates a new session for the link so logging out in the web client won't log out

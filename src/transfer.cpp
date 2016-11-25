@@ -1276,6 +1276,7 @@ void TransferList::addtransfer(Transfer *transfer)
         transfer->priority = currentpriority;
         assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
     }
     else
     {
@@ -1283,7 +1284,6 @@ void TransferList::addtransfer(Transfer *transfer)
         assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
-    client->transfercacheadd(transfer);
 }
 
 void TransferList::removetransfer(Transfer *transfer)
@@ -1298,6 +1298,10 @@ void TransferList::removetransfer(Transfer *transfer)
 void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer)
 {
     transfer_list::iterator dstit = iterator(prevTransfer);
+    if (dstit == transfers[prevTransfer->type].end())
+    {
+        return;
+    }
     movetransfer(transfer, dstit);
 }
 
@@ -1309,19 +1313,16 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
         return;
     }
 
+    transfer_list::iterator dstit;
     if (position >= transfers[transfer->type].size())
     {
-        transfers[transfer->type].erase(it);
-        currentpriority += PRIORITY_STEP;
-        transfer->priority = currentpriority;
-        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
-        transfers[transfer->type].push_back(transfer);
-        client->transfercacheadd(transfer);
-        client->app->transfer_update(transfer);
-        return;
+        dstit = transfers[transfer->type].end();
+    }
+    else
+    {
+        dstit = transfers[transfer->type].begin() + position;
     }
 
-    transfer_list::iterator dstit = transfers[transfer->type].begin() + position;
     movetransfer(it, dstit);
 }
 
@@ -1339,37 +1340,21 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 {
     if (it == dstit)
     {
+        LOG_warn << "Trying to move before the same transfer";
+        return;
+    }
+
+    if ((it + 1) == dstit)
+    {
         LOG_warn << "Trying to move to the same position";
         return;
     }
 
     Transfer *transfer = (*it);
-    if (it == (transfers[transfer->type].end() - 1)
-            && dstit == transfers[transfer->type].end())
-    {
-        LOG_warn << "Trying to move the last transfer down";
-        return;
-    }
-
-    if (dstit == transfers[transfer->type].end()
-            || (dstit + 1) == transfers[transfer->type].end())
+    if (dstit == transfers[transfer->type].end())
     {
         LOG_debug << "Moving transfer to the last position";
-        if (transfer->slot)
-        {
-            transfer_list::iterator cit = it + 1;
-            while (cit != transfers[transfer->type].end())
-            {
-                if (!(*cit)->slot)
-                {
-                    transfer->bt.arm();
-                    transfer->cachedtempurl = (*it)->slot->tempurl;
-                    delete transfer->slot;
-                    transfer->state = TRANSFERSTATE_QUEUED;
-                    break;
-                }
-            }
-        }
+        prepareDecreasePriority(transfer, it, dstit);
 
         transfers[transfer->type].erase(it);
         currentpriority += PRIORITY_STEP;
@@ -1388,42 +1373,15 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     uint64_t prevpriority = 0;
     uint64_t nextpriority = 0;
 
-    bool up = false;
-    if (srcindex > dstindex)
+    nextpriority = (*dstit)->priority;
+    if (dstit != transfers[transfer->type].begin())
     {
-        up = true;
-        nextpriority = (*dstit)->priority;
-        if (dstit != transfers[transfer->type].begin())
-        {
-            transfer_list::iterator previt = dstit - 1;
-            prevpriority = (*previt)->priority;
-        }
-        else
-        {
-            prevpriority = nextpriority - 2 * PRIORITY_STEP;
-        }
+        transfer_list::iterator previt = dstit - 1;
+        prevpriority = (*previt)->priority;
     }
     else
     {
-        if (transfer->slot)
-        {
-            transfer_list::iterator cit = it + 1;
-            while (cit != transfers[transfer->type].end())
-            {
-                if (!(*cit)->slot)
-                {
-                    transfer->bt.arm();
-                    transfer->cachedtempurl = (*it)->slot->tempurl;
-                    delete transfer->slot;
-                    transfer->state = TRANSFERSTATE_QUEUED;
-                    break;
-                }
-            }
-        }
-
-        prevpriority = (*dstit)->priority;
-        transfer_list::iterator nextit = dstit + 1;
-        nextpriority = (*nextit)->priority;
+        prevpriority = nextpriority - 2 * PRIORITY_STEP;
     }
 
     uint64_t newpriority = (prevpriority + nextpriority) / 2;
@@ -1432,11 +1390,6 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     {
         LOG_warn << "There is no space for the move. Adjusting priorities.";
         int positions = dstindex;
-        if (srcindex < dstindex)
-        {
-            positions++;
-        }
-
         uint64_t fixedPriority = transfers[transfer->type][0]->priority - PRIORITY_STEP * (positions + 1);
         for (int i = 0; i < positions; i++)
         {
@@ -1452,33 +1405,22 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     }
 
     transfer->priority = newpriority;
+    if (srcindex > dstindex)
+    {
+        prepareIncreasePriority(transfer, it, dstit);
+    }
+    else
+    {
+        prepareDecreasePriority(transfer, it, dstit);
+        dstindex--;
+    }
+
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer);
     client->app->transfer_update(transfer);
-
-    if (up && !transfer->slot && !(client->moretransfers(transfer->type) && client->slotavail()))
-    {
-        transfer_list::iterator cit = iterator(transfer);
-        transfer_list::iterator it = transfers[transfer->type].end();
-        it--;
-
-        while (it != cit)
-        {
-            if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
-            {
-                (*it)->bt.arm();
-                (*it)->cachedtempurl = (*it)->slot->tempurl;
-                delete (*it)->slot;
-                (*it)->state = TRANSFERSTATE_QUEUED;
-                client->app->transfer_update(*it);
-                break;
-            }
-            it--;
-        }
-    }
 }
 
 void TransferList::movetofirst(Transfer *transfer)
@@ -1534,6 +1476,12 @@ void TransferList::movedown(Transfer *transfer)
     }
 
     transfer_list::iterator dstit = it + 1;
+    if (dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    dstit++;
     movetransfer(it, dstit);
 }
 
@@ -1563,31 +1511,11 @@ error TransferList::pause(Transfer *transfer, bool enable)
 
     if (!enable)
     {
+        transfer_list::iterator it = iterator(transfer);
         transfer->state = TRANSFERSTATE_QUEUED;
+        prepareIncreasePriority(transfer, it, it);
         client->transfercacheadd(transfer);
         client->app->transfer_update(transfer);
-
-        if (!(client->moretransfers(transfer->type) && client->slotavail()))
-        {
-            transfer_list::iterator cit = iterator(transfer);
-            transfer_list::iterator it = transfers[transfer->type].end();
-            it--;
-
-            while (it != cit)
-            {
-                if ((*it)->slot && (*it)->state == TRANSFERSTATE_ACTIVE)
-                {
-                    (*it)->bt.arm();
-                    (*it)->cachedtempurl = (*it)->slot->tempurl;
-                    delete (*it)->slot;
-                    (*it)->state = TRANSFERSTATE_QUEUED;
-                    client->app->transfer_update(*it);
-                    break;
-                }
-                it--;
-            }
-        }
-
         return API_OK;
     }
 
@@ -1642,7 +1570,7 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && (transfer->state == TRANSFERSTATE_QUEUED || transfer->state == TRANSFERSTATE_RETRYING) && transfer->bt.armed())
+        if (!transfer->slot && isReady(transfer))
         {
             return transfer;
         }
@@ -1657,6 +1585,72 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
         return transfers[direction][position];
     }
     return NULL;
+}
+
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit)
+{
+    if (dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    if (!transfer->slot && transfer->state != TRANSFERSTATE_PAUSED)
+    {
+        Transfer *lastActiveTransfer = NULL;
+        for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
+        {
+            Transfer *t = (*it)->transfer;
+            if (t && t->type == transfer->type && t->slot
+                    && t->state == TRANSFERSTATE_ACTIVE
+                    && t->priority > transfer->priority
+                    && (!lastActiveTransfer || t->priority > lastActiveTransfer->priority))
+            {
+                lastActiveTransfer = t;
+            }
+        }
+
+        if (lastActiveTransfer)
+        {
+            lastActiveTransfer->bt.arm();
+            lastActiveTransfer->cachedtempurl = lastActiveTransfer->slot->tempurl;
+            delete lastActiveTransfer->slot;
+            lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
+            client->transfercacheadd(lastActiveTransfer);
+            client->app->transfer_update(lastActiveTransfer);
+        }
+    }
+}
+
+void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
+{
+    if (transfer->slot && transfer->state == TRANSFERSTATE_ACTIVE)
+    {
+        transfer_list::iterator cit = it + 1;
+        while (cit != transfers[transfer->type].end())
+        {
+            if (!(*cit)->slot && isReady(*cit))
+            {
+                transfer->bt.arm();
+                transfer->cachedtempurl = (*it)->slot->tempurl;
+                delete transfer->slot;
+                transfer->state = TRANSFERSTATE_QUEUED;
+                break;
+            }
+
+            if (cit == dstit)
+            {
+                break;
+            }
+
+            cit++;
+        }
+    }
+}
+
+bool TransferList::isReady(Transfer *transfer)
+{
+    return ((transfer->state == TRANSFERSTATE_QUEUED || transfer->state == TRANSFERSTATE_RETRYING)
+            && transfer->bt.armed());
 }
 
 } // namespace
