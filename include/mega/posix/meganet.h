@@ -98,7 +98,12 @@ protected:
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     static MUTEX_CLASS **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
+
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
     static void id_function(CRYPTO_THREADID* id);
+#else
+    static unsigned long id_function();
+#endif
 
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);

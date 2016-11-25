@@ -53,10 +53,17 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     }
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
 void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }
+#else
+unsigned long CurlHttpIO::id_function()
+{
+    return THREAD_CLASS::currentThreadId();
+}
+#endif
 
 #endif
 
@@ -105,15 +112,26 @@ CurlHttpIO::CurlHttpIO()
     curlMutex.lock();
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
-    if (!CRYPTO_THREADID_get_callback() && !CRYPTO_get_locking_callback())
+
+    if (!CRYPTO_get_locking_callback()
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
+        && !CRYPTO_THREADID_get_callback())
+#else
+        && !CRYPTO_get_id_callback())
+#endif
     {
         LOG_debug << "Initializing OpenSSL locking callbacks";
         int numLocks = CRYPTO_num_locks();
         sslMutexes = new MUTEX_CLASS*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
         CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
+#else
+        CRYPTO_set_id_callback(CurlHttpIO::id_function);
+#endif
         CRYPTO_set_locking_callback(CurlHttpIO::locking_function);
     }
+
 #endif
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
