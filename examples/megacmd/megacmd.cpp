@@ -1123,6 +1123,17 @@ void printAvailableCommands()
     }
 }
 
+string getsupportedregexps()
+{
+#ifdef USE_PCRE
+        return "Perl Compatible Regular Expressions";
+#elif __cplusplus >= 201103L
+        return "c++11 Regular Expressions";
+#else
+        return "it accepts wildcards: ? and *. e.g.: ls f*00?.txt";
+#endif
+}
+
 string getHelpStr(const char *command)
 {
     ostringstream os;
@@ -1157,8 +1168,9 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "ls"))
     {
-        os << "Lists files in a remote folder" << endl;
-        os << "it accepts wildcards (? and *). e.g.: ls /a/b*/f00?.txt" << endl;
+        os << "Lists files in a remote path" << endl;
+        os << " remotepath can be a pattern (" << getsupportedregexps() << ") " << endl;
+        os << " Also, constructions like /PATTERN1/PATTERN2/PATTERN3 are allowed" << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -R|-r" << "\t" << "list folders recursively" << endl;
@@ -1416,12 +1428,7 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " --pattern=PATTERN" << "\t" << "Pattern to match";
-#ifdef USE_PCRE
-        os << " (Perl Compatible Regular Expressions)";
-#elif __cplusplus >= 201103L
-        os << " (c++11 Regular Expressions)";
-#endif
-        os << endl;
+        os << " (" << getsupportedregexps() << ") " << endl;
     }
 //    if(!strcmp(command,"debug") ) return "debug";
 //    if(!strcmp(command,"chatf") ) return "chatf ";
@@ -1789,9 +1796,21 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
+
+    loggerCMD = new MegaCMDLogger(&cout);
+
+    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+
+    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
+    {
+        loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    }
+
     mutexHistory.init(false);
 
-    ConfigurationManager::loadConfiguration();
+    ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
     api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
     for (int i = 0; i < 5; i++)
@@ -1809,17 +1828,6 @@ int main(int argc, char* argv[])
     }
 
     mutexapiFolders.init(false);
-
-    loggerCMD = new MegaCMDLogger(&cout);
-
-    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-
-    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
-    {
-        loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-    }
 
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);

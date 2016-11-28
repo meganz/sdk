@@ -54,27 +54,30 @@ void ConfigurationManager::loadConfigDir(){
 #ifdef _WIN32 //TODO: untested
     TCHAR szPath[MAX_PATH];
 #if WINVER>=0x0600
-    if(SUCCEEDED(SHGetKnownFolderPath ( FOLDERID_LocalAppData, KF_FLAG_CREATE, NULL, szPath )))
+    if(!SUCCEEDED(SHGetKnownFolderPath ( FOLDERID_LocalAppData, KF_FLAG_CREATE, NULL, szPath )))
     {
-        homedir=(const char *)szPath;
+        LOG_fatal << "Couldnt get HOME folder";
     }
 #else
     if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA , NULL, 0, szPath)))
     {
-        homedir=(const char *)szPath;
+        LOG_fatal << "Couldnt get HOME folder";
     }
-    if (homedir)
+#endif
+    if (szPath)
     {
-
-        TCHAR fullpath[MAX_PATH];
-        strcmp((const char *)fullpath,homedir);
-        if (PathAppend(fullpath,TEXT(".megaCmd")))
+        if (PathAppend(szPath,TEXT(".megaCmd")))
         {
+#ifdef UNICODE
+            wstring aux=szPath;
+            configFolder=string(aux.begin(),aux.end());
+#else
             configFolder=string((const char *)fullpath);
+#endif
         }
     }
 
-#endif
+
 #else
     homedir = getenv("HOME");
     if (!homedir)
@@ -257,7 +260,7 @@ void ConfigurationManager::loadsyncs()
     }
 }
 
-void ConfigurationManager::loadConfiguration(){
+void ConfigurationManager::loadConfiguration(bool debug){
     stringstream sessionfile;
     if (!configFolder.size())
     {
@@ -266,7 +269,9 @@ void ConfigurationManager::loadConfiguration(){
     if (configFolder.size())
     {
         sessionfile << configFolder << "/" << "session";
-        LOG_debug << "Session file: " << sessionfile.str();
+
+        if (debug)
+            cout << "Session file: " << sessionfile.str() << endl;
 
         ifstream fi(sessionfile.str().c_str(), ios::in);
         if (fi.is_open())
@@ -275,7 +280,8 @@ void ConfigurationManager::loadConfiguration(){
             getline(fi, line);
             {
                 session = line;
-                LOG_debug << "Session read from configuration: " << line.substr(0, 5) << "...";
+                if (debug)
+                    cout << "Session read from configuration: " << line.substr(0, 5) << "..." << endl;
             }
             fi.close();
         }
@@ -285,6 +291,7 @@ void ConfigurationManager::loadConfiguration(){
     }
     else
     {
-        LOG_err << "Couldnt access configuration folder ";
+        if (debug)
+            cout  << "Couldnt access configuration folder " << endl;
     }
 }

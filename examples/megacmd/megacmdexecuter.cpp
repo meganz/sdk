@@ -3210,7 +3210,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (words[1].size() < sizeof session * 4 / 3)
                         {
-                            OUTSTREAM << "Resuming session..." << endl;
+                            LOG_info << "Resuming session...";
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             api->fastLogin(words[1].c_str(), megaCmdListener);
                             actUponLogin(megaCmdListener);
@@ -3358,7 +3358,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     LOG_err << "Node not found: " << words[i];
                 }
             }
-            else // non-wildcard
+            else // non-regexp
             {
                 words[i] = unquote(words[i]);
                 MegaNode *n = nodebypath(words[i].c_str());

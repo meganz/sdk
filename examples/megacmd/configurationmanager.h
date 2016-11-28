@@ -38,7 +38,7 @@ public:
     static std::map<std::string, sync_struct *> loadedSyncs;
     static std::string session;
 
-    static void loadConfiguration();
+    static void loadConfiguration(bool debug);
     static void loadsyncs();
 
     static void saveSyncs(map<string, sync_struct *> *syncsmap);
