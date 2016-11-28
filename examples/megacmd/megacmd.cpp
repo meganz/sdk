@@ -1840,7 +1840,9 @@ int main(int argc, char* argv[])
     api->addListener(megaCmdMegaListener);
 
     // set up the console
-#ifdef __unix__
+#ifdef _WIN32
+    console = new CONSOLE_CLASS;
+#else
     struct termios term;
     if (tcgetattr(STDIN_FILENO, &term) < 0) //try console
     {
@@ -1852,15 +1854,9 @@ int main(int argc, char* argv[])
         console = new CONSOLE_CLASS;
     }
 #endif
-#ifdef _WIN32
-    console = new CONSOLE_CLASS;
-#endif
     cm = new COMUNICATIONMANAGER();
 
-#ifdef __unix__
-    // prevent CTRL+C exit
-    signal(SIGINT, sigint_handler);
-#endif
+
 #ifdef _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
      {
@@ -1870,6 +1866,9 @@ int main(int argc, char* argv[])
      {
         LOG_warn << "Control handler set";
      }
+#else
+    // prevent CTRL+C exit
+    signal(SIGINT, sigint_handler);
 #endif
 
     atexit(finalize);

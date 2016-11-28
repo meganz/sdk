@@ -106,17 +106,18 @@ void ConfigurationManager::loadConfigDir(){
 
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
 
-#if __unix__
+#ifndef __WIN32
     int oldPermissions = fsAccess->getdefaultfolderpermissions();
     fsAccess->setdefaultfolderpermissions(0700);
 #endif
-    //TODO: else?
+    //TODO: #else
+
     if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, true))
     {
         LOG_err << "Config folder not created";
         return;
     }
-#if __unix__
+#ifndef __WIN32
     fsAccess->setdefaultfolderpermissions(oldPermissions);
 #endif
 
