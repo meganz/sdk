@@ -59,7 +59,7 @@ void ConfigurationManager::loadConfigDir(){
         LOG_fatal << "Couldnt get HOME folder";
     }
 #else
-    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA , NULL, 0, szPath)))
+    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
     {
         LOG_fatal << "Couldnt get HOME folder";
     }
