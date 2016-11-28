@@ -53,27 +53,15 @@ void ConfigurationManager::loadConfigDir(){
 
 #ifdef _WIN32 //TODO: untested
     TCHAR szPath[MAX_PATH];
-#if WINVER>=0x0600
-    if(!SUCCEEDED(SHGetKnownFolderPath ( FOLDERID_LocalAppData, KF_FLAG_CREATE, NULL, szPath )))
+    if (!SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
     {
         LOG_fatal << "Couldnt get HOME folder";
     }
-#else
-    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
-    {
-        LOG_fatal << "Couldnt get HOME folder";
-    }
-#endif
-    if (szPath)
+    else
     {
         if (PathAppend(szPath,TEXT(".megaCmd")))
         {
-#ifdef UNICODE
-            wstring aux=szPath;
-            configFolder=string(aux.begin(),aux.end());
-#else
-            configFolder=string((const char *)fullpath);
-#endif
+            MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
         }
     }
 
@@ -112,7 +100,9 @@ void ConfigurationManager::loadConfigDir(){
 #endif
     //TODO: #else
 
-    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, true))
+    string configFolderUtf16;
+    MegaApi::utf8ToUtf16(configFolder.c_str(), &configFolderUtf16);
+    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolderUtf16, true))
     {
         LOG_err << "Config folder not created";
         return;
@@ -239,16 +229,14 @@ void ConfigurationManager::loadsyncs()
                 fi.read((char*)&thesync->handle, sizeof( MegaHandle ));
                 size_t lengthLocalPath;
                 fi.read((char*)&lengthLocalPath, sizeof( size_t ));
-                char localPath[lengthLocalPath + 1];
-                fi.read((char*)localPath, sizeof( char ) * lengthLocalPath);
-                localPath[lengthLocalPath] = '\0';
-                thesync->localpath = string(localPath);
+                thesync->localpath.resize(lengthLocalPath);
+                fi.read((char*)thesync->localpath.c_str(), sizeof( char ) * lengthLocalPath);
 
-                if (configuredSyncs.find(localPath) != configuredSyncs.end())
+                if (configuredSyncs.find(thesync->localpath) != configuredSyncs.end())
                 {
-                    delete configuredSyncs[localPath];
+                    delete configuredSyncs[thesync->localpath];
                 }
-                configuredSyncs[localPath] = thesync;
+                configuredSyncs[thesync->localpath] = thesync;
             }
 
             if (fi.bad())

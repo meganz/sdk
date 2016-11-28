@@ -480,11 +480,16 @@ int getShareLevelNum(const char* level){
 
 bool canWrite(string path) //TODO: move to fsAccess
 {
+#ifdef _WIN32
+    // TODO: Check permissions
+    return true;
+#else
     if (access(path.c_str(), W_OK) == 0)
     {
         return true;
     }
     return false;
+#endif
 }
 
 int getLinkType(string link)

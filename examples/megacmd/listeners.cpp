@@ -292,14 +292,15 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
                 rl_resize_terminal();
                 rl_get_screen_size(&rows, &cols);
             }
-            char outputString[cols + 1];
+            string outputString;
+            outputString.resize(cols+1);
             for (int i = 0; i < cols; i++)
             {
                 outputString[i] = '.';
             }
 
             outputString[cols] = '\0';
-            char * ptr = outputString;
+            char *ptr = (char *)outputString.c_str();
             sprintf(ptr, "%s", "Fetching nodes ||");
             ptr += strlen("Fetching nodes ||");
             *ptr = '.'; //replace \0 char
@@ -326,7 +327,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
                 return;                                                            // after a 100% this happens
             }
             sprintf(aux,                               "||(%lld/%lld MB: %.2f %%) ", request->getTransferredBytes() / 1024 / 1024, request->getTotalBytes() / 1024 / 1024, percentFetchnodes);
-            sprintf(outputString + cols - strlen(aux), "%s",                         aux);
+            sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
             for (int i = 0; i <= ( cols - strlen("Fetching nodes ||") - strlen(aux)) * 1.0 * percentFetchnodes / 100.0; i++)
             {
                 *ptr++ = '#';
@@ -409,14 +410,15 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         rl_resize_terminal();
         rl_get_screen_size(&rows, &cols);
     }
-    char outputString[cols + 1];
+    string outputString;
+    outputString.resize(cols + 1);
     for (int i = 0; i < cols; i++)
     {
         outputString[i] = '.';
     }
 
     outputString[cols] = '\0';
-    char * ptr = outputString;
+    char *ptr = (char *)outputString.c_str();
     sprintf(ptr, "%s", "TRANSFERING ||");
     ptr += strlen("TRANSFERING ||");
     *ptr = '.'; //replace \0 char
@@ -443,7 +445,7 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         return;                                                            // after a 100% this happens
     }
     sprintf(aux,                               "||(%lld/%lld MB: %.2f %%) ", transfer->getTransferredBytes() / 1024 / 1024, transfer->getTotalBytes() / 1024 / 1024, percentFetchnodes);
-    sprintf(outputString + cols - strlen(aux), "%s",                         aux);
+    sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
     for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentFetchnodes / 100.0; i++)
     {
         *ptr++ = '#';

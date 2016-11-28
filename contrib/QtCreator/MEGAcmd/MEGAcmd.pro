@@ -52,6 +52,7 @@ HEADERS += ../../../examples/megacmd/megacmd.h \
     ../../../examples/megacmd/synchronousrequestlistener.h
 
 win32 {
+    LIBS += -lshell32
 }
 else {
     SOURCES +=../../../examples/megacmd/comunicationsmanagerfilesockets.cpp
