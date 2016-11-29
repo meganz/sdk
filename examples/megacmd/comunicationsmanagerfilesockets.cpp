@@ -94,18 +94,14 @@ int ComunicationsManagerFileSockets::initialize(){
     sprintf(csocketsFolder, "/tmp/megaCMD_%d", getuid());
     string socketsFolder = csocketsFolder;
 
-    int oldPermissions = fsAccess->getdefaultfolderpermissions();
     fsAccess->setdefaultfolderpermissions(0700);
     fsAccess->rmdirlocal(&socketsFolder);
     LOG_debug << "CREATING sockets folder: " << socketsFolder << "!!!";
-
     if (!fsAccess->mkdirlocal(&socketsFolder, false))
     {
         LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": " << errno;
     }
-    fsAccess->setdefaultfolderpermissions(oldPermissions);
     delete fsAccess;
-
 
 //        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 //        sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
