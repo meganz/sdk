@@ -8277,8 +8277,8 @@ class MegaApi
         /**
          * @brief Convert an UTF8 string to UTF16 (Windows only)
          *
-         * The converted string will be always a valid UTF16 string. It will have a trailing null byte
-         * added to the string, that along with the null character of the string itself form a valid
+         * The converted string will always be a valid UTF16 string. It will have a trailing null byte
+         * added to the string, that along with the null character of the string itself forms a valid
          * UTF16 string terminator character. Thus, it's valid to pass utf16string->data() to any function
          * accepting a UTF16 string.
          *
