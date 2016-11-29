@@ -429,12 +429,20 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
 
-    // resize to actual result
-    local->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-                                                         path->c_str(),
-                                                         -1,
-                                                         (wchar_t*)local->data(),
-                                                         local->size() / sizeof(wchar_t) + 1) - 1));
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+                                  path->c_str(),
+                                  -1,
+                                  (wchar_t*)local->data(),
+                                  local->size() / sizeof(wchar_t) + 1);
+    if (len)
+    {
+        // resize to actual result
+        local->resize(sizeof(wchar_t) * (len - 1));
+    }
+    else
+    {
+        local->clear();
+    }
 }
 
 // convert Windows Unicode to UTF-8
