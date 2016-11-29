@@ -867,7 +867,7 @@ string WinFileSystemAccess::getCurrentLocalPath(){ //TODO: untested
     return string(cCurrentPath);
 }
 
-string WinFileSystemAccess::expanseLocalPath(string *path){ //TODO: untested
+string WinFileSystemAccess::expansePath(string *path){ //TODO: untested
     char full[_MAX_PATH];
     if( _fullpath( full, path->c_str(), _MAX_PATH ) != NULL )
     {

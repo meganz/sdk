@@ -1184,7 +1184,7 @@ string PosixFileSystemAccess::getCurrentLocalPath(){
     return string(cCurrentPath);
 }
 
-string PosixFileSystemAccess::expanseLocalPath(string *path){
+string PosixFileSystemAccess::expansePath(string *path){
     ostringstream os;
     if (path->at(0) == '/')
     {

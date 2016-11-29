@@ -99,7 +99,7 @@ public:
     bool pathExists(string *path);
     bool isRegularFile(string *path);
     string getCurrentLocalPath();
-    string expanseLocalPath(string *path);
+    string expansePath(string *path);
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);
