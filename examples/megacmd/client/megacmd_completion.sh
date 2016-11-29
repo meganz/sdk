@@ -38,7 +38,7 @@ _megacmd()
 
 	for i in "${COMPREPLY[@]}"; do
 		if [[ ${i} == --*= ]] || [[ ${i} == */ ]]; then
-			compopt -o nospace
+			hash compopt 2>/dev/null >/dev/null && compopt -o nospace
 		fi
 	done
 	
