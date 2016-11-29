@@ -91,15 +91,11 @@ void ConfigurationManager::loadConfigDir(){
     configFolder = sconfigDir.str();
 #endif
 
+    string localConfigFolder;
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
     fsAccess->setdefaultfolderpermissions(0700);
-#ifdef _WIN32
-    string configFolderUtf16;
-    MegaApi::utf8ToUtf16(configFolder.c_str(), &configFolderUtf16);
-    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolderUtf16, true))
-#else
-    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&configFolder, true))
-#endif
+    fsAccess->path2local(&configFolder, &localConfigFolder);
+    if (!is_file_exist(configFolder.c_str()) && !fsAccess->mkdirlocal(&localConfigFolder, true))
     {
         LOG_err << "Config folder not created";
     }
