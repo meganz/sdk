@@ -336,7 +336,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
             {
                 if (RL_ISSTATE(RL_STATE_INITIALIZED))
                 {
-                    rl_message("%s", outputString);
+                    rl_message("%s", outputString.c_str());
                 }
                 else
                 {
@@ -454,7 +454,7 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
     {
         if (RL_ISSTATE(RL_STATE_INITIALIZED))
         {
-            rl_message("%s", outputString);
+            rl_message("%s", outputString.c_str());
         }
         else
         {
