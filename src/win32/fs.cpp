@@ -785,7 +785,9 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
-        if (((wchar_t*)name->data())[i] == '\\' || ((wchar_t*)name->data())[i] == ':')
+        if (((wchar_t*)name->data())[i] == '\\'
+                || ((wchar_t*)name->data())[i] == '/'
+                || ((wchar_t*)name->data())[i] == ':')
         {
             return (i + 1) * sizeof(wchar_t);
         }
@@ -833,15 +835,19 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 	return false;
 }
 
-bool WinFileSystemAccess::isFolder(string *filename) //TODO: untested
+bool WinFileSystemAccess::isFolder(string *filename)
 {
-    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
+    string localfilename;
+    path2local(filename, &localfilename);
+    DWORD dwAttrib = GetFileAttributes((LPCWSTR)localfilename.c_str());
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
 }
 
-bool WinFileSystemAccess::pathExists(string *filename) //TODO: untested
+bool WinFileSystemAccess::pathExists(string *filename)
 {
-    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
+    string localfilename;
+    path2local(filename, &localfilename);
+    DWORD dwAttrib = GetFileAttributes((LPCWSTR)localfilename.c_str());
     return (dwAttrib != INVALID_FILE_ATTRIBUTES);
 }
 
