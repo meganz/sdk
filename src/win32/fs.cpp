@@ -839,6 +839,7 @@ bool WinFileSystemAccess::isFolder(string *filename)
 {
     string localfilename;
     path2local(filename, &localfilename);
+    localfilename.append("", 1);
     DWORD dwAttrib = GetFileAttributes((LPCWSTR)localfilename.c_str());
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
 }
@@ -847,6 +848,7 @@ bool WinFileSystemAccess::pathExists(string *filename)
 {
     string localfilename;
     path2local(filename, &localfilename);
+    localfilename.append("", 1);
     DWORD dwAttrib = GetFileAttributes((LPCWSTR)localfilename.c_str());
     return (dwAttrib != INVALID_FILE_ATTRIBUTES);
 }
