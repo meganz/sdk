@@ -215,7 +215,9 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, s
         return;
     }
     string sout = s->str();
-
+#ifdef __MACH__
+#define MSG_NOSIGNAL 0
+#endif
     int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
     if (n < 0)
     {
