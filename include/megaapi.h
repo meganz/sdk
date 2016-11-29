@@ -8262,18 +8262,33 @@ class MegaApi
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
+         *
+         * If the conversion fails, the size of the string will be 0
+         * If the input string is empty, the size of the result will be also 0
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 and the size of the output is zero
+         *
 		 * @param utf16data UTF16 buffer
 		 * @param utf16size Size of the UTF16 buffer (in characters)
 		 * @param utf8string Pointer to a string that will be filled with UTF8 characters
-		 * If the conversion fails, the size of the string will be 0
 		 */
         static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
 
         /**
          * @brief Convert an UTF8 string to UTF16 (Windows only)
+         *
+         * The converted string will be always a valid UTF16 string. It will have a trailing null byte
+         * added to the string, that along with the null character of the string itself form a valid
+         * UTF16 string terminator character. Thus, it's valid to pass utf16string->data() to any function
+         * accepting a UTF16 string.
+         *
+         * If the conversion fails, the size of the string will be 1 (null character)
+         * If the input string is empty, the size of the result will be also 1 (null character)
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 (or NULL) and the size of the output is zero
+         *
          * @param utf8data NULL-terminated UTF8 character array
          * @param utf16string Pointer to a string that will be filled with UTF16 characters
-         * If the conversion fails, the size of the string will be 0
          */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif

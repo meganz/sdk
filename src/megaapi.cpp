@@ -3340,6 +3340,7 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     if(!utf8data)
     {
         utf16string->clear();
+        utf16string->append("", 1);
         return;
     }
 
@@ -3349,11 +3350,16 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     utf16string->resize(size * sizeof(wchar_t));
 
     // resize to actual result
-    utf16string->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-        utf8data,
-        size,
-        (wchar_t*)utf16string->data(),
-                                                               utf16string->size())));
+    utf16string->resize(sizeof(wchar_t) * MultiByteToWideChar(CP_UTF8, 0, utf8data, size, (wchar_t*)utf16string->data(),
+                                                              utf16string->size() / sizeof(wchar_t) + 1));
+    if (utf16string->size())
+    {
+        utf16string->resize(utf16string->size() - 1);
+    }
+    else
+    {
+        utf16string->append("", 1);
+    }
 }
 
 #endif

@@ -11703,9 +11703,9 @@ void MegaApiImpl::removeRecursively(const char *path)
 #else
     string utf16path;
     MegaApi::utf8ToUtf16(path, &utf16path);
-    if(utf16path.size())
+    if (utf16path.size() > 1)
     {
-        utf16path.resize(utf16path.size()-2);
+        utf16path.resize(utf16path.size() - 1);
         WinFileSystemAccess::emptydirlocal(&utf16path);
     }
 #endif
