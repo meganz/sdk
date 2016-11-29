@@ -15360,7 +15360,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         if (child->getType() == MegaNode::TYPE_FILE)
         {
             pendingTransfers++;
-            megaApi->startDownload(child, utf8path.c_str(), 0, 0, tag, NULL, this);
+            megaApi->startDownload(child, utf8path.c_str(), 0, 0, tag, transfer->getAppData(), this);
         }
         else
         {
