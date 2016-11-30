@@ -71,6 +71,8 @@ class MegaShareList;
 class MegaTransferList;
 class MegaApi;
 
+class MegaSemaphore;
+
 /**
  * @brief Interface to provide an external GFX processor
  *
@@ -3458,6 +3460,45 @@ class MegaRequestListener
 };
 
 /**
+ * @brief This abstract class extendes the functionality of MegaRequestListener
+ * allowing a synchronous beheviour
+ * A virtual method is declared and should be implemented: doOnRequestFinish
+ * when onRequestFinish is called by the SDK.
+ * A client for this listener may wait() until the request is finished and doOnRequestFinish is completed.
+ *
+ * @see MegaRequestListener
+ */
+class SynchronousRequestListener : public MegaRequestListener
+{
+private:
+    MegaSemaphore* semaphore;
+
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
+
+protected:
+    MegaRequestListener *listener = NULL;
+    MegaApi *megaApi = NULL;
+    MegaRequest *megaRequest = NULL;
+    MegaError *megaError = NULL;
+
+public:
+
+    SynchronousRequestListener();
+
+    virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
+
+    void wait();
+
+    int trywait(int milliseconds);
+
+    MegaError *getError() const;
+    MegaRequest *getRequest() const;
+    MegaApi *getApi() const;
+
+    virtual ~SynchronousRequestListener();
+};
+
+/**
  * @brief Interface to receive information about transfers
  *
  * All transfers allows to pass a pointer to an implementation of this interface in the last parameter.
@@ -3559,6 +3600,39 @@ class MegaTransferListener
          */
         virtual bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
 };
+
+
+/**
+ * TODO
+ * @see MegaTransferListener
+ */
+class SynchronousTransferListener : public MegaTransferListener
+{
+private:
+    MegaSemaphore* semaphore;
+    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+
+protected:
+    MegaTransferListener *listener = NULL;
+    MegaApi *megaApi = NULL;
+    MegaTransfer *megaTransfer = NULL;
+    MegaError *megaError = NULL;
+
+public:
+    SynchronousTransferListener();
+    virtual ~SynchronousTransferListener();
+    virtual void doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+
+    void wait();
+
+    int trywait(int milliseconds);
+
+    MegaError *getError() const;
+    MegaTransfer *getTransfer() const;
+    MegaApi *getApi() const;
+};
+
+
 
 /**
  * @brief Interface to get information about global events

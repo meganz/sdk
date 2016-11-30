@@ -23,11 +23,7 @@
 #define LISTENERS_H
 
 #include "megacmd.h"
-#include "synchronousrequestlistener.h"
 #include "megacmdlogger.h"
-
-
-
 
 class MegaCmdListener : public SynchronousRequestListener
 {
