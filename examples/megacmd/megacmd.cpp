@@ -109,7 +109,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 //"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users",
-                             "putbps", "killsession", "whoami",
+                             "putbps", "killsession", "whoami", "help",
                              "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview", "find", "completion" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -264,6 +264,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("du" == thecommand)
     {
         validParams->insert("h");
+    }
+    else if ("help" == thecommand)
+    {
+        validParams->insert("f");
     }
     else if ("rm" == thecommand)
     {
@@ -1117,16 +1121,6 @@ bool validCommand(string thecommand){
     return stringcontained((char*)thecommand.c_str(), validCommands);
 }
 
-void printAvailableCommands()
-{
-    vector<string> validCommandsOrdered = validCommands;
-    sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
-    for (size_t i = 0; i < validCommandsOrdered.size(); i++)
-    {
-        OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str()) << endl;
-    }
-}
-
 string getsupportedregexps()
 {
 #ifdef USE_PCRE
@@ -1145,8 +1139,9 @@ string getHelpStr(const char *command)
     os << getUsageStr(command) << endl;
     if (!strcmp(command, "login"))
     {
-        os << "Logs in. Either with email and password, with session ID, or into an exportedfolder";
-        os << " If login into an exported folder indicate url#key" << endl;
+        os << "Logs into a mega" << endl;
+        os << " You can log in either with email and password, with session ID, or into an exportedfolder" << endl;
+        os << " If loging into an exported folder indicate url#key" << endl;
     }
     else if (!strcmp(command, "signup"))
     {
@@ -1157,9 +1152,21 @@ string getHelpStr(const char *command)
         os << endl;
         os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
     }
+    else if (!strcmp(command, "help"))
+    {
+        os << "Prints list of commands" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -f" << "\t" << "Indluce a brief description of the commands" << endl;
+    }
+    else if (!strcmp(command, "history"))
+    {
+        os << "Prints history of used commands" << endl;
+    }
     else if (!strcmp(command, "confirm"))
     {
-        os << "Confirm an account using the link provided after the \"singup\" process. It requires the email and the password used to obtain the link." << endl;
+        os << "Confirm an account using the link provided after the \"singup\" process." << endl;
+        os << " It requires the email and the password used to obtain the link." << endl;
         os << endl;
     }
     else if (!strcmp(command, "session"))
@@ -1197,6 +1204,7 @@ string getHelpStr(const char *command)
     else if (!strcmp(command, "du"))
     {
         os << "Prints size used by files/folders" << endl;
+        os << " remotepath can be a pattern (" << getsupportedregexps() << ") " << endl;
     }
     else if (!strcmp(command, "pwd"))
     {
@@ -1437,7 +1445,10 @@ string getHelpStr(const char *command)
         os << " --pattern=PATTERN" << "\t" << "Pattern to match";
         os << " (" << getsupportedregexps() << ") " << endl;
     }
-//    if(!strcmp(command,"debug") ) return "debug";
+    if(!strcmp(command,"debug") )
+    {
+        os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
+    }
 //    if(!strcmp(command,"chatf") ) return "chatf ";
 //    if(!strcmp(command,"chatc") ) return "chatc group [email ro|rw|full|op]*";
 //    if(!strcmp(command,"chati") ) return "chati chatid email ro|rw|full|op";
@@ -1456,6 +1467,27 @@ string getHelpStr(const char *command)
     return os.str();
 }
 
+
+void printAvailableCommands(int extensive = 0)
+{
+    vector<string> validCommandsOrdered = validCommands;
+    sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
+    for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+    {
+        if (validCommandsOrdered.at(i)!="completion")
+        {
+            OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str());
+            if (extensive)
+            {
+                string helpstr = getHelpStr(validCommandsOrdered.at(i).c_str());
+                helpstr=string(helpstr,helpstr.find_first_of("\n")+1);
+                OUTSTREAM << ": " << string(helpstr,0,helpstr.find_first_of("\n"));
+            }
+            OUTSTREAM << endl;
+        }
+    }
+}
+
 void executecommand(char* ptr)
 {
     vector<string> words = getlistOfWords(ptr);
@@ -1466,7 +1498,7 @@ void executecommand(char* ptr)
 
     string thecommand = words[0];
 
-    if (( thecommand == "?" ) || ( thecommand == "h" ) || ( thecommand == "help" ))
+    if (( thecommand == "?" ) || ( thecommand == "h" ))
     {
         printAvailableCommands();
         return;
@@ -1517,6 +1549,19 @@ void executecommand(char* ptr)
         OUTSTREAM << h << endl;
         return;
     }
+
+
+    if ( thecommand == "help" )
+    {
+        OUTSTREAM << "Here is the list of available commands and their usage" << endl;
+        OUTSTREAM << "Use \"help\" -f to get a brief description of the commands" << endl;
+        OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
+        OUTSTREAM << endl << "Commands:" << endl;
+
+        printAvailableCommands(getFlag(&clflags,"f"));
+        return;
+    }
+
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
