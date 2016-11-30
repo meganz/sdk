@@ -48,7 +48,8 @@ std::string ConfigurationManager::getConfigFolder()
     return configFolder;
 }
 
-void ConfigurationManager::loadConfigDir(){
+void ConfigurationManager::loadConfigDir()
+{
     const char *homedir = NULL;
 
 #ifdef _WIN32 //TODO: untested
@@ -103,7 +104,8 @@ void ConfigurationManager::loadConfigDir(){
 }
 
 
-void ConfigurationManager::saveSession(const char*session){
+void ConfigurationManager::saveSession(const char*session)
+{
     stringstream sessionfile;
     if (!configFolder.size())
     {
@@ -170,7 +172,8 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> *syncsmap)
     }
 }
 
-void ConfigurationManager::unloadConfiguration(){
+void ConfigurationManager::unloadConfiguration()
+{
     map<string, sync_struct *>::iterator itr;
     for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); itr++)
     {
@@ -237,7 +240,8 @@ void ConfigurationManager::loadsyncs()
     }
 }
 
-void ConfigurationManager::loadConfiguration(bool debug){
+void ConfigurationManager::loadConfiguration(bool debug)
+{
     stringstream sessionfile;
     if (!configFolder.size())
     {

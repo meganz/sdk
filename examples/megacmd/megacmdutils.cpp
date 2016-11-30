@@ -28,7 +28,8 @@
 #endif
 
 
-int * getNumFolderFiles(MegaNode *n, MegaApi *api){
+int * getNumFolderFiles(MegaNode *n, MegaApi *api)
+{
     int * nFolderFiles = new int[2]();
 //    MegaNodeList *totalnodes = api->getChildren(n,MegaApi::ORDER_DEFAULT_ASC); //sort folders first
     MegaNodeList *totalnodes = api->getChildren(n);
@@ -80,7 +81,8 @@ string getUserInSharedNode(MegaNode *n, MegaApi *api)
 }
 
 
-const char* getAccessLevelStr(int level){
+const char* getAccessLevelStr(int level)
+{
     switch (level)
     {
         case MegaShare::ACCESS_UNKNOWN:
@@ -112,7 +114,8 @@ const char* getAccessLevelStr(int level){
 }
 
 
-const char* getAttrStr(int attr){
+const char* getAttrStr(int attr)
+{
     switch (attr)
     {
         case MegaApi::USER_ATTR_AVATAR:
@@ -157,7 +160,8 @@ const char* getAttrStr(int attr){
     return "undefined";
 }
 
-int getAttrNum(const char* attr){
+int getAttrNum(const char* attr)
+{
     if (!strcmp(attr, "avatar"))
     {
         return MegaApi:: USER_ATTR_AVATAR;
@@ -201,7 +205,8 @@ int getAttrNum(const char* attr){
     return atoi(attr);
 }
 
-const char* getSyncStateStr(int state){
+const char* getSyncStateStr(int state)
+{
     switch (state)
     {
         case 0:
@@ -385,7 +390,8 @@ const char * getLogLevelStr(int loglevel)
     }
 }
 
-int getLogLevelNum(const char* level){
+int getLogLevelNum(const char* level)
+{
     if (!strcmp(level, "FATAL"))
     {
         return MegaApi:: LOG_LEVEL_FATAL;
@@ -450,7 +456,8 @@ const char * getShareLevelStr(int sharelevel)
     }
 }
 
-int getShareLevelNum(const char* level){
+int getShareLevelNum(const char* level)
+{
     if (!strcmp(level, "UNKNOWN"))
     {
         return MegaShare::ACCESS_UNKNOWN;
@@ -506,7 +513,8 @@ int getLinkType(string link)
     return MegaNode::TYPE_FILE;
 }
 
-bool isPublicLink(string link){
+bool isPublicLink(string link)
+{
     if (( link.find_first_of("http") == 0 ) && ( link.find_first_of("#") != string::npos ))
     {
         return true;
@@ -604,13 +612,15 @@ time_t getTimeStampAfter(string timestring)
     return getTimeStampAfter(initial, timestring);
 }
 
-std::string &ltrim(std::string &s, const char &c) {
+std::string &ltrim(std::string &s, const char &c)
+{
     size_t pos = s.find_first_not_of(c);
     s = s.substr(pos == string::npos ? s.length() : pos, s.length());
     return s;
 }
 
-std::string &rtrim(std::string &s, const char &c) {
+std::string &rtrim(std::string &s, const char &c)
+{
     size_t pos = s.find_last_of(c);
     size_t last = pos == string::npos ? s.length() : pos;
     if (last + 1 < s.length())
@@ -692,7 +702,8 @@ vector<string> getlistOfWords(char *ptr)
     return words;
 }
 
-bool stringcontained(const char * s, vector<string> list){
+bool stringcontained(const char * s, vector<string> list)
+{
     for (int i = 0; i < (int)list.size(); i++)
     {
         if (list[i] == s)
@@ -704,7 +715,8 @@ bool stringcontained(const char * s, vector<string> list){
     return false;
 }
 
-char * dupstr(char* s) {
+char * dupstr(char* s)
+{
     char *r;
 
     r = (char*)malloc(sizeof( char ) * ( strlen(s) + 1 ));
@@ -713,7 +725,8 @@ char * dupstr(char* s) {
 }
 
 
-bool replace(std::string& str, const std::string& from, const std::string& to) {
+bool replace(std::string& str, const std::string& from, const std::string& to)
+{
     size_t start_pos = str.find(from);
     if (start_pos == std::string::npos)
     {
@@ -723,7 +736,8 @@ bool replace(std::string& str, const std::string& from, const std::string& to) {
     return true;
 }
 
-void replaceAll(std::string& str, const std::string& from, const std::string& to) {
+void replaceAll(std::string& str, const std::string& from, const std::string& to)
+{
     if (from.empty())
     {
         return;

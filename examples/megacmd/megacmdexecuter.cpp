@@ -43,7 +43,8 @@ static const char* rootnodepaths[] = { "/", "//in", "//bin" };
  * @param api
  * @param handle
  */
-void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle){
+void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
+{
     static char dynamicprompt[128];
 
     MegaNode *n = api->getNodeByHandle(handle);
@@ -89,14 +90,16 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle){
 }
 
 
-MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD){
+MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
+{
     this->api = api;
     this->loggerCMD = loggerCMD;
     cwd = UNDEF;
     fsAccessCMD = new MegaFileSystemAccess();
     mtxSyncMap.init(false);
 }
-MegaCmdExecuter::~MegaCmdExecuter(){
+MegaCmdExecuter::~MegaCmdExecuter()
+{
     delete fsAccessCMD;
     delete []session;
 }
@@ -1842,7 +1845,8 @@ int MegaCmdExecuter::makedir(string remotepath, bool recursive, MegaNode *parent
 }
 
 
-string MegaCmdExecuter::getCurrentPath(){
+string MegaCmdExecuter::getCurrentPath()
+{
     string toret;
     MegaNode *ncwd = api->getNodeByHandle(cwd);
     if (ncwd)

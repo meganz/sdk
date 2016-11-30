@@ -31,10 +31,12 @@ class CmdPetition
     public:
         char * line = NULL;
 
-        char *getLine(){
+        char *getLine()
+        {
             return line;
         }
-        ~CmdPetition(){
+        ~CmdPetition()
+        {
             if ( line != NULL )
             {
                 free(line);

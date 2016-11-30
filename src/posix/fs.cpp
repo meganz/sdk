@@ -1174,7 +1174,8 @@ bool PosixFileSystemAccess::isRegularFile(string *path)
     return S_ISREG(path_stat.st_mode);
 }
 
-string PosixFileSystemAccess::getCurrentLocalPath(){
+string PosixFileSystemAccess::getCurrentLocalPath()
+{
     char cCurrentPath[FILENAME_MAX];
     if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
     {
@@ -1184,7 +1185,8 @@ string PosixFileSystemAccess::getCurrentLocalPath(){
     return string(cCurrentPath);
 }
 
-string PosixFileSystemAccess::expansePath(string *path){
+string PosixFileSystemAccess::expansePath(string *path)
+{
     ostringstream os;
     if (path->at(0) == '/')
     {

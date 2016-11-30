@@ -137,7 +137,8 @@ MegaMutex mutexHistory;
 
 map<int, string> threadline;
 
-string getCurrentThreadLine(){
+string getCurrentThreadLine()
+{
     uint64_t currentThread = MegaThread::currentThreadId();
     if (threadline.find(currentThread) == threadline.end())
     {
@@ -152,11 +153,13 @@ string getCurrentThreadLine(){
     }
 }
 
-void setCurrentThreadLine(string s){
+void setCurrentThreadLine(string s)
+{
     threadline[MegaThread::currentThreadId()] = s;
 }
 
-void setCurrentThreadLine(const vector<string>& vec){
+void setCurrentThreadLine(const vector<string>& vec)
+{
    setCurrentThreadLine(joinStrings(vec));
 }
 
@@ -250,7 +253,8 @@ static void store_line(char* l)
     line = l;
 }
 
-void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL){
+void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
+{
     if (!validOptValues)
     {
         validOptValues = validParams;
@@ -866,7 +870,8 @@ void printHistory()
     mutexHistory.unlock();
 }
 
-MegaApi* getFreeApiFolder(){
+MegaApi* getFreeApiFolder()
+{
     semaphoreapiFolders.wait();
     mutexapiFolders.lock();
     MegaApi* toret = apiFolders.front();
@@ -876,7 +881,8 @@ MegaApi* getFreeApiFolder(){
     return toret;
 }
 
-void freeApiFolder(MegaApi *apiFolder){
+void freeApiFolder(MegaApi *apiFolder)
+{
     mutexapiFolders.lock();
     occupiedapiFolders.erase(std::remove(occupiedapiFolders.begin(), occupiedapiFolders.end(), apiFolder), occupiedapiFolders.end());
     apiFolders.push(apiFolder);
@@ -1117,7 +1123,8 @@ const char * getUsageStr(const char *command)
     return "command not found";
 }
 
-bool validCommand(string thecommand){
+bool validCommand(string thecommand)
+{
     return stringcontained((char*)thecommand.c_str(), validCommands);
 }
 
@@ -1836,7 +1843,8 @@ void megacmd()
 class NullBuffer : public std::streambuf
 {
 public:
-    int overflow(int c) {
+    int overflow(int c)
+    {
         return c;
     }
 };

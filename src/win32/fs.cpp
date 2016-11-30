@@ -859,7 +859,8 @@ bool WinFileSystemAccess::isRegularFile(string *filename) //TODO: untested
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
 }
 
-string WinFileSystemAccess::getCurrentLocalPath(){ //TODO: untested
+string WinFileSystemAccess::getCurrentLocalPath()
+{ //TODO: untested
     char cCurrentPath[FILENAME_MAX];
     if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
     {
@@ -869,7 +870,8 @@ string WinFileSystemAccess::getCurrentLocalPath(){ //TODO: untested
     return string(cCurrentPath);
 }
 
-string WinFileSystemAccess::expansePath(string *path){ //TODO: untested
+string WinFileSystemAccess::expansePath(string *path)
+{ //TODO: untested
     char full[_MAX_PATH];
     if( _fullpath( full, path->c_str(), _MAX_PATH ) != NULL )
     {

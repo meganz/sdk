@@ -48,21 +48,25 @@ public:
 
     void log(const char *time, int loglevel, const char *source, const char *message);
 
-    void setApiLoggerLevel(int apiLoggerLevel){
+    void setApiLoggerLevel(int apiLoggerLevel)
+    {
         this->apiLoggerLevel = apiLoggerLevel;
     }
 
-    void setCmdLoggerLevel(int cmdLoggerLevel){
+    void setCmdLoggerLevel(int cmdLoggerLevel)
+    {
         this->cmdLoggerLevel = cmdLoggerLevel;
     }
 
     int getMaxLogLevel();
 
-    int getApiLoggerLevel(){
+    int getApiLoggerLevel()
+    {
         return this->apiLoggerLevel;
     }
 
-    int getCmdLoggerLevel(){
+    int getCmdLoggerLevel()
+    {
         return this->cmdLoggerLevel;
     }
 };

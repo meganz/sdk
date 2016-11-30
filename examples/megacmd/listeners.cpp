@@ -28,7 +28,10 @@
 #include <readline/readline.h>
 
 #ifdef ENABLE_CHAT
-void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*){}
+void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*)
+{
+
+}
 #endif
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
@@ -271,7 +274,8 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
     }
 }
 
-void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
+void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
+{
     if (!request)
     {
         LOG_err << " onRequestUpdate for undefined request ";
@@ -353,10 +357,16 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request){
     }
 }
 
-void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e){}
+void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e)
+{
+
+}
 
 
-MegaCmdListener::~MegaCmdListener(){}
+MegaCmdListener::~MegaCmdListener()
+{
+
+}
 
 MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
 {
@@ -468,11 +478,15 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
 }
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
-{}
+{
+
+}
 
 
 MegaCmdTransferListener::~MegaCmdTransferListener()
-{}
+{
+
+}
 
 MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener)
 {
@@ -481,7 +495,8 @@ MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferL
     percentFetchnodes = 0.0f;
 }
 
-bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size){
+bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)
+{
     return true;
 }
 

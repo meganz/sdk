@@ -31,7 +31,8 @@ map<uint64_t, ostream *> outstreams;
 map<uint64_t, int> threadLogLevel;
 map<uint64_t, int> threadoutCode;
 
-ostream &getCurrentOut(){
+ostream &getCurrentOut()
+{
     uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
@@ -43,7 +44,8 @@ ostream &getCurrentOut(){
     }
 }
 
-int getCurrentOutCode(){
+int getCurrentOutCode()
+{
     uint64_t currentThread = MegaThread::currentThreadId();
     if (threadoutCode.find(currentThread) == threadoutCode.end())
     {
@@ -56,7 +58,8 @@ int getCurrentOutCode(){
 }
 
 
-int getCurrentThreadLogLevel(){
+int getCurrentThreadLogLevel()
+{
     uint64_t currentThread = MegaThread::currentThreadId();
     if (threadLogLevel.find(currentThread) == threadLogLevel.end())
     {
@@ -68,15 +71,18 @@ int getCurrentThreadLogLevel(){
     }
 }
 
-void setCurrentThreadLogLevel(int level){
+void setCurrentThreadLogLevel(int level)
+{
     threadLogLevel[MegaThread::currentThreadId()] = level;
 }
 
-void setCurrentThreadOutStream(ostream *s){
+void setCurrentThreadOutStream(ostream *s)
+{
     outstreams[MegaThread::currentThreadId()] = s;
 }
 
-void setCurrentOutCode(int outCode){
+void setCurrentOutCode(int outCode)
+{
     threadoutCode[MegaThread::currentThreadId()] = outCode;
 }
 

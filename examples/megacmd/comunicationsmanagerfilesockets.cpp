@@ -29,7 +29,8 @@ int ComunicationsManagerFileSockets::get_next_outSocket_id()
     return count;
 }
 
-int ComunicationsManagerFileSockets::create_new_socket(int *sockId){
+int ComunicationsManagerFileSockets::create_new_socket(int *sockId)
+{
     int thesock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (thesock < 0)
@@ -80,13 +81,15 @@ int ComunicationsManagerFileSockets::create_new_socket(int *sockId){
 }
 
 
-ComunicationsManagerFileSockets::ComunicationsManagerFileSockets(){
+ComunicationsManagerFileSockets::ComunicationsManagerFileSockets()
+{
     count = 0;
     mtx = new MegaMutex();
     initialize();
 }
 
-int ComunicationsManagerFileSockets::initialize(){
+int ComunicationsManagerFileSockets::initialize()
+{
     mtx->init(false);
 
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
@@ -149,7 +152,8 @@ int ComunicationsManagerFileSockets::initialize(){
     return 0;
 }
 
-bool ComunicationsManagerFileSockets::receivedReadlineInput(int readline_fd){
+bool ComunicationsManagerFileSockets::receivedReadlineInput(int readline_fd)
+{
     return FD_ISSET(readline_fd, &fds);
 }
 
@@ -202,7 +206,8 @@ int ComunicationsManagerFileSockets::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode){
+void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+{
 
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPosixSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
@@ -237,7 +242,8 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, s
  * @brief getPetition
  * @return pointer to new CmdPetitionPosix. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
  */
-CmdPetition * ComunicationsManagerFileSockets::getPetition(){
+CmdPetition * ComunicationsManagerFileSockets::getPetition()
+{
     CmdPetitionPosixSockets *inf = new CmdPetitionPosixSockets();
 
     clilen = sizeof( cli_addr );
@@ -285,7 +291,8 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition(){
     return inf;
 }
 
-string ComunicationsManagerFileSockets::get_petition_details(CmdPetition *inf){
+string ComunicationsManagerFileSockets::get_petition_details(CmdPetition *inf)
+{
     ostringstream os;
     os << "socket output: " << ((CmdPetitionPosixSockets *)inf)->outSocket;
     return os.str();

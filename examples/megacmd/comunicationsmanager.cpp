@@ -21,16 +21,20 @@
 
 #include "comunicationsmanager.h"
 
-std::ostream &operator<<(std::ostream &os, const CmdPetition& p) {
+std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
+{
     return os << p.line;
 }
 
-ComunicationsManager::ComunicationsManager(){
+ComunicationsManager::ComunicationsManager()
+{
 }
 
 
 
-bool ComunicationsManager::receivedReadlineInput(int readline_fd){
+
+bool ComunicationsManager::receivedReadlineInput(int readline_fd)
+{
     return FD_ISSET(readline_fd, &fds);
 }
 
@@ -65,7 +69,8 @@ int ComunicationsManager::waitForPetition()
     return 0;
 }
 
-void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode){
+void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+{
     delete inf;
     return;
 }
@@ -74,12 +79,14 @@ void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostring
  * @brief getPetition
  * @return pointer to new CmdPetition. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
  */
-CmdPetition * ComunicationsManager::getPetition(){
+CmdPetition * ComunicationsManager::getPetition()
+{
     CmdPetition *inf = new CmdPetition();
     return inf;
 }
 
-string ComunicationsManager::get_petition_details(CmdPetition *inf){
+string ComunicationsManager::get_petition_details(CmdPetition *inf)
+{
     return "";
 }
 
