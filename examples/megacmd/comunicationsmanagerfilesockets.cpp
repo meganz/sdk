@@ -106,8 +106,6 @@ int ComunicationsManagerFileSockets::initialize()
     }
     delete fsAccess;
 
-//        sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-//        sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sockfd < 0)

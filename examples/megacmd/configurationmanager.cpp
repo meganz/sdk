@@ -266,9 +266,6 @@ void ConfigurationManager::loadConfiguration(bool debug)
             }
             fi.close();
         }
-
-
-       // loadsyncs();
     }
     else
     {

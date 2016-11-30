@@ -27,7 +27,6 @@
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
 #include "listeners.h"
-//#include "megaapi_impl.h" //to use such things as MegaThread. It might be interesting to move the typedefs to a separate .h file
 
 #include <iomanip>
 #include <string>
@@ -1322,26 +1321,6 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
                 }
             }
             delete inshares;
-
-//            if (details->getTransferMax())
-//            {
-//                OUTSTREAM << "\tTransfer completed: " << details->getTransferOwnUsed() << " of " << details->getTransferMax() << "("
-//                     << ( 100 * details->getTransferOwnUsed() / details->getTransferMax() ) << "%)" << endl;
-
-//            }
-
-//            OUTSTREAM << "\tTransfer history:\n";
-//            MegaTransferList *transferlist = api->getTransfers();
-//            if (transferlist)
-//            {
-//                for (int i=0;i<transferlist->size();i++)
-//                {
-//                    MegaTransfer * transfer = transferlist->get(i);
-//                    OUTSTREAM << "\t\t" << transfer->getTransferredBytes() << " OUTSTREAM of " << transfer->getTotalBytes() << " bytes downloaded up to "<< transfer->getUpdateTime() << endl;
-//                }
-//            }
-//            delete transferlist;
-
 
             OUTSTREAM << "\tPro level: " << details->getProLevel() << endl;
             if (details->getProLevel())
@@ -4421,7 +4400,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 OUTSTREAM << "\t (id: " << sid << ", creation: " << getReadableTime(cr->getCreationTime())
                           << ", modification: " << getReadableTime(cr->getModificationTime()) << ")";
-                //                                OUTSTREAM << ": " << cr->getSourceMessage();
 
                 delete[] sid;
                 OUTSTREAM << endl;

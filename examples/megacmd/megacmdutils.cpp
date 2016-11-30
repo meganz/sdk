@@ -31,14 +31,11 @@
 int * getNumFolderFiles(MegaNode *n, MegaApi *api)
 {
     int * nFolderFiles = new int[2]();
-//    MegaNodeList *totalnodes = api->getChildren(n,MegaApi::ORDER_DEFAULT_ASC); //sort folders first
     MegaNodeList *totalnodes = api->getChildren(n);
     for (int i = 0; i < totalnodes->size(); i++)
     {
         if (totalnodes->get(i)->getType() == MegaNode::TYPE_FILE)
         {
-//            nFolderFiles[1] = totalnodes->size()-i; //found first file
-//            break;
             nFolderFiles[1]++;
         }
         else
@@ -524,7 +521,7 @@ bool isPublicLink(string link)
 
 bool hasWildCards(string &what)
 {
-    return what.find('*') != string::npos || what.find('?') != string::npos; // || what.find('/')!=string::npos
+    return what.find('*') != string::npos || what.find('?') != string::npos;
 }
 
 std::string getReadableTime(const time_t rawtime)
@@ -532,7 +529,7 @@ std::string getReadableTime(const time_t rawtime)
     struct tm * dt;
     char buffer [40];
     dt = localtime(&rawtime);
-    strftime(buffer, sizeof( buffer ), "%a, %d %b %Y %T %z", dt); // Folloging RFC 2822 (as in date -R)
+    strftime(buffer, sizeof( buffer ), "%a, %d %b %Y %T %z", dt); // Following RFC 2822 (as in date -R)
     return std::string(buffer);
 }
 
@@ -812,22 +809,15 @@ bool patternMatches(const char *what, const char *pattern)
     }
 #endif
 
-    // If we reach at the end of both strings, we are done
     if (( *pattern == '\0' ) && ( *what == '\0' ))
     {
         return true;
     }
 
-    // Make sure that the characters after '*' are present
-    // in what string. This function assumes that the pattern
-    // string will not contain two consecutive '*'
     if (( *pattern == '*' ) && ( *( pattern + 1 ) != '\0' ) && ( *what == '\0' ))
     {
         return false;
     }
-
-    // If the pattern string contains '?', or current characters
-    // of both strings match
     if (( *pattern == '?' ) || ( *pattern == *what ))
     {
         if (*what == '\0')
@@ -837,9 +827,6 @@ bool patternMatches(const char *what, const char *pattern)
         return patternMatches(what + 1, pattern + 1);
     }
 
-    // If there is *, then there are two possibilities
-    // a) We consider current character of what string
-    // b) We ignore current character of what string.
     if (*pattern == '*')
     {
         return patternMatches(what, pattern + 1) || patternMatches(what + 1, pattern);

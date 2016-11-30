@@ -165,9 +165,9 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     }
 }
 
-////////////////////////////////////////
+////////////////////////////////////////////
 ///      MegaCmdMegaListener methods     ///
-////////////////////////////////////////
+////////////////////////////////////////////
 
 void MegaCmdMegaListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
@@ -267,9 +267,6 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
         }
 
         default:
-//            LOG_debug << "onRequestFinish of unregistered type of request: " << request->getType();
-// //            rl_message("");
-// //            clear_display();
             break;
     }
 }

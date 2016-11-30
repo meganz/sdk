@@ -20,7 +20,6 @@
  */
 
 #include "megacmd.h"
-//#include "mega.h"
 
 #include "megacmdexecuter.h"
 #include "megacmdutils.h"
@@ -100,17 +99,10 @@ vector<string> localpatterncommands(alocalpatterncommands, alocalpatterncommands
 string aemailpatterncommands [] = {"invite", "signup", "ipc", "users"};
 vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands + sizeof aemailpatterncommands / sizeof aemailpatterncommands[0]);
 
-
-//string avalidCommands [] = { "login", "begin", "signup", "confirm", "session", "mount", "ls", "cd", "log", "pwd", "lcd", "lpwd",
-//"import", "put", "put", "putq", "get", "get", "get", "getq", "pause", "getfa", "mkdir", "rm", "mv",
-//"cp", "sync", "export", "export", "share", "share", "invite", "ipc", "showpcr", "users", "getua",
-//"putua", "putbps", "killsession", "whoami", "passwd", "retry", "recon", "reload", "logout", "locallogout",
-//"symlink", "version", "debug", "chatf", "chatc", "chati", "chatr", "chatu", "chatga", "chatra", "quit",
-//"history" };
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
-                             "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc", "showpcr", "users",
-                             "putbps", "killsession", "whoami", "help",
-                             "passwd", "reload", "logout", "version", "quit", "history", "thumbnail", "preview", "find", "completion" };
+                             "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
+                             "showpcr", "users", "putbps", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
+                             "history", "thumbnail", "preview", "find", "completion" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -1253,7 +1245,6 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -c" << "\t" << "Creates remote folder destination in case of not existing." << endl;
     }
-//    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
     else if (!strcmp(command, "get"))
     {
         os << "Downloads a remote file/folder or a public link " << endl;
@@ -1264,8 +1255,6 @@ string getHelpStr(const char *command)
         os << "For folders, the entire contents (and the root folder itself) will be downloaded into the destination folder" << endl;
         os << "If the folder already exists, the contents will be merged with the downloaded one (preserving the existing files)" << endl;
     }
-//    if(!strcmp(command,"getq") ) return "getq [cancelslot]";
-//    if(!strcmp(command,"pause") ) return "pause [get|put] [hard] [status]";
     if (!strcmp(command, "attr"))
     {
         os << "Lists/updates node attributes" << endl;
@@ -1393,8 +1382,6 @@ string getHelpStr(const char *command)
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
     }
-//    if(!strcmp(command,"getua") ) return "getua attrname [email]";
-//    if(!strcmp(command,"putua") ) return "putua attrname [del|set string|load file]";
     else if (!strcmp(command, "putbps"))
     {
         os << "Sets upload limit" << endl;
@@ -1419,13 +1406,10 @@ string getHelpStr(const char *command)
     {
         os << "Modifies user password" << endl;
     }
-//    if(!strcmp(command,"retry") ) return "retry";
-//    if(!strcmp(command,"recon") ) return "recon";
     else if (!strcmp(command, "reload"))
     {
         os << "Forces a reload of the remote files of the user" << endl;
     }
-//    if(!strcmp(command,"symlink") ) return "symlink";
     else if (!strcmp(command, "version"))
     {
         os << "Prints MEGA SDK version" << endl;
@@ -1456,13 +1440,6 @@ string getHelpStr(const char *command)
     {
         os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
     }
-//    if(!strcmp(command,"chatf") ) return "chatf ";
-//    if(!strcmp(command,"chatc") ) return "chatc group [email ro|rw|full|op]*";
-//    if(!strcmp(command,"chati") ) return "chati chatid email ro|rw|full|op";
-//    if(!strcmp(command,"chatr") ) return "chatr chatid [email]";
-//    if(!strcmp(command,"chatu") ) return "chatu chatid";
-//    if(!strcmp(command,"chatga") ) return "chatga chatid nodehandle uid";
-//    if(!strcmp(command,"chatra") ) return "chatra chatid nodehandle uid";
     else if (!strcmp(command, "quit"))
     {
         os << "Quits" << endl;
