@@ -354,6 +354,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("s");
     }
+    else if ("put" == thecommand)
+    {
+        validParams->insert("c");
+    }
 }
 
 char* generic_completion(const char* text, int state, vector<string> validOptions)
@@ -936,7 +940,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "put"))
     {
-        return "put localfile [localfile2 localfile3 ...] [dstremotepath]";
+        return "put localfile [localfile2 localfile3 ...] [-c] [dstremotepath]";
     }
     if (!strcmp(command, "putq"))
     {
@@ -964,7 +968,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "mkdir"))
     {
-        return "mkdir remotepath";
+        return "mkdir [-p] remotepath";
     }
     if (!strcmp(command, "rm"))
     {
@@ -1230,6 +1234,9 @@ string getHelpStr(const char *command)
     else if (!strcmp(command, "put"))
     {
         os << "Uploads files/folders to a remote folder" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -c" << "\t" << "Creates remote folder destination in case of not existing." << endl;
     }
 //    if(!strcmp(command,"putq") ) return "putq [cancelslot]";
     else if (!strcmp(command, "get"))

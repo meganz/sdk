@@ -1746,6 +1746,102 @@ void MegaCmdExecuter::disableShare(MegaNode *n, string with)
     shareNode(n, with, MegaShare::ACCESS_UNKNOWN);
 }
 
+int MegaCmdExecuter::makedir(string remotepath, bool recursive, MegaNode *parentnode)
+{
+    MegaNode *currentnode;
+    if (parentnode)
+    {
+        currentnode = parentnode;
+    }
+    else
+    {
+        currentnode = api->getNodeByHandle(cwd);
+    }
+    if (currentnode)
+    {
+        string rest = remotepath;
+        while (rest.length())
+        {
+            bool lastleave = false;
+            size_t possep = rest.find_first_of("/");
+            if (possep == string::npos)
+            {
+                possep = rest.length();
+                lastleave = true;
+            }
+
+            string newfoldername = rest.substr(0, possep);
+            if (!rest.length())
+            {
+                break;
+            }
+            if (newfoldername.length())
+            {
+                MegaNode *existing_node = api->getChildNode(currentnode, newfoldername.c_str());
+                if (!existing_node)
+                {
+                    if (!recursive && !lastleave)
+                    {
+                        LOG_err << "Use -p to create folders recursively";
+                        if (currentnode != parentnode)
+                            delete currentnode;
+                        return MCMD_EARGS;
+                    }
+                    LOG_verbose << "Creating (sub)folder: " << newfoldername;
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->createFolder(newfoldername.c_str(), currentnode, megaCmdListener);
+                    actUponCreateFolder(megaCmdListener);
+                    delete megaCmdListener;
+                    MegaNode *prevcurrentNode = currentnode;
+                    currentnode = api->getChildNode(currentnode, newfoldername.c_str());
+                    if (prevcurrentNode != parentnode)
+                        delete prevcurrentNode;
+                    if (!currentnode)
+                    {
+                        LOG_err << "Couldn't get node for created subfolder: " << newfoldername;
+                        if (currentnode != parentnode)
+                            delete currentnode;
+                        return MCMD_INVALIDSTATE;
+                    }
+                }
+                else
+                {
+                    if (currentnode != parentnode)
+                        delete currentnode;
+                    currentnode = existing_node;
+                }
+
+                if (lastleave && existing_node)
+                {
+                    LOG_err << "Folder already exists: " << remotepath;
+                    if (currentnode != parentnode)
+                        delete currentnode;
+                    return MCMD_INVALIDSTATE;
+                }
+            }
+
+            //string rest = rest.substr(possep+1,rest.length()-possep-1);
+            if (!lastleave)
+            {
+                rest = rest.substr(possep + 1, rest.length());
+            }
+            else
+            {
+                break;
+            }
+        }
+        if (currentnode != parentnode)
+            delete currentnode;
+    }
+    else
+    {
+        return MCMD_EARGS;
+    }
+    return MCMD_OK;
+
+}
+
+
 string MegaCmdExecuter::getCurrentPath(){
     string toret;
     MegaNode *ncwd = api->getNodeByHandle(cwd);
@@ -2564,8 +2660,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         path = words[2];
                         if (fsAccessCMD->isFolder(&path))
                         {
-                            if (! (path.find_last_of(fsAccessCMD->localseparator) == path.size()-fsAccessCMD->localseparator.size()) )
-                                path+=fsAccessCMD->localseparator;
+                            if (! (path.find_last_of("/") == path.size()-1) )
+                                path+="/";
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2638,8 +2734,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         path = words[2];
                         if (fsAccessCMD->isFolder(&path))
                         {
-                            if (! (path.find_last_of(fsAccessCMD->localseparator) == path.size()-fsAccessCMD->localseparator.size()) )
-                                path+=fsAccessCMD->localseparator;
+                            if (! (path.find_last_of("/") == path.size()-1) )
+                                path+="/";
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2685,8 +2781,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 path = words[2];
                                 if (fsAccessCMD->isFolder(&path))
                                 {
-                                    if (! (path.find_last_of(fsAccessCMD->localseparator) == path.size()-fsAccessCMD->localseparator.size()) )
-                                        path+=fsAccessCMD->localseparator;
+                                    if (! (path.find_last_of("/") == path.size()-1) )
+                                        path+="/";
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2725,8 +2821,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 path = words[2];
                                 if (fsAccessCMD->isFolder(&path))
                                 {
-                                    if (! (path.find_last_of(fsAccessCMD->localseparator) == path.size()-fsAccessCMD->localseparator.size()) )
-                                        path+=fsAccessCMD->localseparator;
+                                    if (! (path.find_last_of("/") == path.size()-1) )
+                                        path+="/";
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2767,7 +2863,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             string targetuser;
             string newname = "";
-            string localname;
             string destination = "";
 
             MegaNode *n = NULL;
@@ -2776,6 +2871,20 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 destination = words[words.size() - 1];
                 n = nodebypath(destination.c_str(), &targetuser, &newname);
+
+                if (!n && getFlag(clflags,"c"))
+                {
+                    //TODO: create folder recursively
+                    // 1: get path (without last name)
+                    string destinationfolder(destination,0,destination.find_last_of("/"));
+                    newname=string(destination,destination.find_last_of("/")+1,destination.size());
+                    MegaNode *cwdNode = api->getNodeByHandle(cwd);
+                    makedir(destinationfolder,true,cwdNode);
+                    n = api->getNodeByPath(destinationfolder.c_str(),cwdNode);
+                    delete cwdNode;
+
+                }
+
             }
             else
             {
@@ -2809,7 +2918,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             else
             {
                 setCurrentOutCode(MCMD_NOTFOUND);
-                LOG_err << "Couln't find destination folder: " << destination;
+                LOG_err << "Couln't find destination folder: " << destination << ". Use -c to create folder structure";
             }
         }
         else
@@ -3516,84 +3625,27 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "mkdir")
     {
+        int globalstatus = MCMD_OK;
+        if (words.size()<2)
+        {
+            globalstatus = MCMD_EARGS;
+        }
+        bool printusage = false;
         for (int i = 1; i < words.size(); i++)
         {
-            MegaNode *currentnode = api->getNodeByHandle(cwd);
-            if (currentnode)
+            int status = makedir(words[i],getFlag(clflags, "p"));
+            if (status != MCMD_OK)
             {
-                string rest = words[i];
-                while (rest.length())
-                {
-                    bool lastleave = false;
-                    size_t possep = rest.find_first_of("/");
-                    if (possep == string::npos)
-                    {
-                        possep = rest.length();
-                        lastleave = true;
-                    }
-
-                    string newfoldername = rest.substr(0, possep);
-                    if (!rest.length())
-                    {
-                        break;
-                    }
-                    if (newfoldername.length())
-                    {
-                        MegaNode *existing_node = api->getChildNode(currentnode, newfoldername.c_str());
-                        if (!existing_node)
-                        {
-                            if (!getFlag(clflags, "p") && !lastleave)
-                            {
-                                setCurrentOutCode(MCMD_EARGS);
-                                LOG_err << "Use -p to create folders recursively";
-                                delete currentnode;
-                                return;
-                            }
-                            LOG_verbose << "Creating (sub)folder: " << newfoldername;
-                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                            api->createFolder(newfoldername.c_str(), currentnode, megaCmdListener);
-                            actUponCreateFolder(megaCmdListener);
-                            delete megaCmdListener;
-                            MegaNode *prevcurrentNode = currentnode;
-                            currentnode = api->getChildNode(currentnode, newfoldername.c_str());
-                            delete prevcurrentNode;
-                            if (!currentnode)
-                            {
-                                LOG_err << "Couldn't get node for created subfolder: " << newfoldername;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            delete currentnode;
-                            currentnode = existing_node;
-                        }
-
-                        if (lastleave && existing_node)
-                        {
-                            setCurrentOutCode(MCMD_INVALIDSTATE);
-                            LOG_err << "Folder already exists: " << words[i];
-                        }
-                    }
-
-                    //string rest = rest.substr(possep+1,rest.length()-possep-1);
-                    if (!lastleave)
-                    {
-                        rest = rest.substr(possep + 1, rest.length());
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                delete currentnode;
+                globalstatus = status;
             }
-            else
-            {
-                setCurrentOutCode(MCMD_EARGS);
-                LOG_err << "      " << getUsageStr("mkdir");
-            }
+            if (status == MCMD_EARGS)
+                printusage = true;
+        }
+
+        setCurrentOutCode(globalstatus);
+        if (printusage)
+        {
+            LOG_err << "      " << getUsageStr("mkdir");
         }
 
         return;

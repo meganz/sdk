@@ -112,6 +112,7 @@ public:
     void confirm(string passwd, string email, string link);
     void confirmWithPassword(string passwd);
 
+    int makedir(string remotepath, bool recursive, MegaNode *parentnode = NULL);
 };
 
 #endif // MEGACMDEXECUTER_H
