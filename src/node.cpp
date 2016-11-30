@@ -1103,6 +1103,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     else
     {
         localname = *cfullpath;
+        sync->client->fsaccess->local2path(&localname, &name);
     }
 
     scanseqno = sync->scanseqno;
