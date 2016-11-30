@@ -80,7 +80,7 @@ public:
      */
     virtual string get_petition_details(CmdPetition *inf);
 
-    ~ComunicationsManager();
+    virtual ~ComunicationsManager();
 };
 
 #endif // COMUNICATIONSMANAGER_H

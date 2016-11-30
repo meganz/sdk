@@ -1384,6 +1384,7 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
                 MegaAccountSession * session = details->getSession(i);
                 if (session->isAlive())
                 {
+                    sdetails[0]='\0';
                     time_t ts = session->getCreationTimestamp();
                     strftime(timebuf,  sizeof timebuf, "%c", localtime(&ts));
                     ts = session->getMostRecentUsage();
@@ -1395,10 +1396,7 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
                     {
                         sprintf(sdetails, "\t* Current Session\n");
                     }
-                    else
-                    {
-                        sprintf(sdetails, "");
-                    }
+
                     char * userAgent = session->getUserAgent();
                     char * country = session->getCountry();
                     char * ip = session->getIP();
@@ -2186,7 +2184,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         if (words.size() > 1)
         {
-            for (int i = 1; i < words.size(); i++)
+            for (u_int i = 1; i < words.size(); i++)
             {
                 if (isRegExp(words[i]))
                 {
@@ -2494,7 +2492,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         bool humanreadable = getFlag(clflags, "h");
 
-        for (int i = 1; i < words.size(); i++)
+        for (u_int i = 1; i < words.size(); i++)
         {
             if (isRegExp(words[i]))
             {
@@ -3614,7 +3612,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             globalstatus = MCMD_EARGS;
         }
         bool printusage = false;
-        for (int i = 1; i < words.size(); i++)
+        for (u_int i = 1; i < words.size(); i++)
         {
             int status = makedir(words[i],getFlag(clflags, "p"));
             if (status != MCMD_OK)
