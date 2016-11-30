@@ -8891,7 +8891,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         }
         else
         {
-            LOG_debug << "Node skipped " << (*it)->nodehandle;
+            LOG_debug << "Node skipped " << (*it)->nodehandle << "  Name: " << (*it)->displayname();
         }
     }
 

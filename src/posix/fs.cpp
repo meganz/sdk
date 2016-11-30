@@ -468,9 +468,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
                                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {
+                                {                                    
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
+                                    LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
                                     lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                            lastlocalnode,
                                                                            lastname.c_str(),
@@ -500,6 +501,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                  || (insize > ignore->size()
                                   && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
                                 {
+                                    LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second, in->name,
                                                                         insize);
@@ -523,6 +525,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
              || (lastname.size() > ignore->size()
               && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
             {
+                LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
                                                        lastname.c_str(),
@@ -682,6 +685,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 if (paths[i])
                 {
+                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot.name << "   Path: " << paths[i];
                     pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
                                                    &pathsync[i]->localroot,
                                                    paths[i],

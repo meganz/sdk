@@ -2180,8 +2180,9 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     static int errors = 0;
     int ok = 0;
 
-    if(MegaClient::disablepkp || !request->protect)
+    if (MegaClient::disablepkp || !request->protect)
     {
+        LOG_debug << "Public key pinning disabled. General: " << MegaClient::disablepkp << " Request:" << request->protect;
         return 1;
     }
 
@@ -2199,6 +2200,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
                 if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
                 {
+                    LOG_debug << "SSL public key OK";
                     ok = 1;
                 }
             }
@@ -2236,6 +2238,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
                                                  (char *)request->sslfakeissuer.data(),
                                                  request->sslfakeissuer.size());
             request->sslfakeissuer.resize(len > 0 ? len : 0);
+            LOG_debug << "Fake certificate issuer: " << request->sslfakeissuer;
         }
     }
     else
