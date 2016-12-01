@@ -3487,13 +3487,13 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
         totalDownloadedBytes += numBytes;
         while (downloadBytes.size())
         {
-            dstime deltaTime = currentTime - downloadTimes[0];
-            if (deltaTime <= 50)
+            dstime deltaTime = currentTime - downloadTimes.front();
+            if (deltaTime <= HttpIO::SPEED_MEAN_INTERVAL_DS)
             {
                 break;
             }
 
-            downloadPartialBytes -= downloadBytes[0];
+            downloadPartialBytes -= downloadBytes.front();
             downloadBytes.erase(downloadBytes.begin());
             downloadTimes.erase(downloadTimes.begin());
         }
@@ -3501,7 +3501,7 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
         downloadBytes.push_back(numBytes);
         downloadTimes.push_back(currentTime);
         downloadPartialBytes += numBytes;
-        downloadSpeed = (downloadPartialBytes * 10) / 50;
+        downloadSpeed = (downloadPartialBytes * 10) / HttpIO::SPEED_MEAN_INTERVAL_DS;
         speed = downloadSpeed;
     }
     else
@@ -3509,13 +3509,13 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
         totalUploadedBytes += numBytes;
         while (uploadBytes.size())
         {
-            dstime deltaTime = currentTime - uploadTimes[0];
-            if (deltaTime <= 50)
+            dstime deltaTime = currentTime - uploadTimes.front();
+            if (deltaTime <= HttpIO::SPEED_MEAN_INTERVAL_DS)
             {
                 break;
             }
 
-            uploadPartialBytes -= uploadBytes[0];
+            uploadPartialBytes -= uploadBytes.front();
             uploadBytes.erase(uploadBytes.begin());
             uploadTimes.erase(uploadTimes.begin());
         }
@@ -3523,7 +3523,7 @@ long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
         uploadBytes.push_back(numBytes);
         uploadTimes.push_back(currentTime);
         uploadPartialBytes += numBytes;
-        uploadSpeed = (uploadPartialBytes * 10) / 50;
+        uploadSpeed = (uploadPartialBytes * 10) / HttpIO::SPEED_MEAN_INTERVAL_DS;
         speed = uploadSpeed;
     }
     return speed;
