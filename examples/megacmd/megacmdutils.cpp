@@ -861,18 +861,27 @@ int toInteger(string what, int failValue)
     return (int)l;
 }
 
-string joinStrings(const vector<string>& vec, const char* delim)
+string joinStrings(const vector<string>& vec, const char* delim, bool quoted)
 {
     stringstream res;
-    copy(vec.begin(), vec.end(), ostream_iterator<string>(res, delim));
-
+    if (!quoted)
+    {
+        copy(vec.begin(), vec.end(), ostream_iterator<string>(res, delim));
+    }
+    else
+    {
+        for(vector<string>::const_iterator i = vec.begin(); i != vec.end(); ++i)
+        {
+            res << "\"" << *i << "\"" << delim;
+        }
+    }
     if (vec.size()>1)
     {
         string toret = res.str();
         return toret.substr(0,toret.size()-strlen(delim));
     }
-
     return res.str();
+
 }
 
 int getFlag(map<string, int> *flags, const char * optname)

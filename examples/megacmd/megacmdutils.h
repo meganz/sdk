@@ -113,7 +113,7 @@ bool patternMatches(const char *what, const char *pattern);
 
 int toInteger(string what, int failValue = -1);
 
-string joinStrings(const vector<string>& vec, const char* delim = " ");
+string joinStrings(const vector<string>& vec, const char* delim = " ", bool quoted=true);
 
 /* Flags and Options */
 int getFlag(map<string, int> *flags, const char * optname);

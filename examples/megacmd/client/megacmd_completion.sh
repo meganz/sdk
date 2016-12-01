@@ -24,7 +24,10 @@ _megacmd()
 			fi
 		lasta=$a
 	done
-
+        if [[ "$linetoexec" == *" " ]]
+        then
+            linetoexec="$linetoexec\"\""
+        fi
 	opts="$(mega-exec completion ${linetoexec/#mega-/} 2>/dev/null)"
 	if [ $? -ne 0 ]; then
 		return $?

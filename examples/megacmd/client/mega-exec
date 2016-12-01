@@ -31,6 +31,10 @@ def parseArgs(argsin):
 	for i in range(1,len(argsin)):
 		if " " in argsin[i]:
 			argsin[i]='"'+argsin[i]+'"'
+                        
+	for i in range(1,len(argsin)):
+		if "" == argsin[i]:
+			argsin[i]='"'+argsin[i]+'"'
 
 	return argsin;
 
