@@ -175,17 +175,17 @@ void ConfigurationManager::saveSyncs(map<string, sync_struct *> *syncsmap)
 void ConfigurationManager::unloadConfiguration()
 {
     map<string, sync_struct *>::iterator itr;
-    for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); itr++)
+    for (itr = configuredSyncs.begin(); itr != configuredSyncs.end(); )
     {
         sync_struct *thesync = ((sync_struct*)( *itr ).second );
-        configuredSyncs.erase(itr);
+        configuredSyncs.erase(itr++);
         delete thesync;
     }
 
-    for (itr = loadedSyncs.begin(); itr != loadedSyncs.end(); itr++)
+    for (itr = loadedSyncs.begin(); itr != loadedSyncs.end(); )
     {
         sync_struct *thesync = ((sync_struct*)( *itr ).second );
-        loadedSyncs.erase(itr);
+        loadedSyncs.erase(itr++);
         delete thesync;
     }
 }

@@ -1550,7 +1550,7 @@ void executecommand(char* ptr)
 }
 
 
-static void process_line(char* l)
+static bool process_line(char* l)
 {
     switch (prompt)
     {
@@ -1630,12 +1630,13 @@ static void process_line(char* l)
             if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
             {
                 //                store_line(NULL);
-                exit(0);
+                return true; // exit
             }
             executecommand(l);
             break;
         }
     }
+    return false; //Do not exit
 }
 
 void * doProcessLine(void *pointer)
@@ -1649,7 +1650,7 @@ void * doProcessLine(void *pointer)
 
     LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
-    process_line(inf->getLine());
+    doExit = process_line(inf->getLine());
 
     LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
@@ -1680,6 +1681,10 @@ void delete_finished_threads()
 
 void finalize()
 {
+    static bool alreadyfinalized = false;
+    if (alreadyfinalized)
+        return;
+    alreadyfinalized = true;
     LOG_info << "closing application ...";
     delete_finished_threads();
     delete cm;
@@ -1708,6 +1713,7 @@ void finalize()
     LOG_debug << "resources have been cleaned ...";
     delete loggerCMD;
     ConfigurationManager::unloadConfiguration();
+
 }
 
 // main loop
@@ -1759,7 +1765,7 @@ void megacmd()
                         rl_callback_read_char();
                         if (doExit)
                         {
-                            exit(0);
+                            return;
                         }
                     }
                     else if (cm->receivedPetition())
@@ -1806,13 +1812,13 @@ void megacmd()
         if (line)
         {
             // execute user command
-            process_line(line);
+            doExit = doExit || process_line(line);
             free(line);
             line = NULL;
         }
         if (doExit)
         {
-            exit(0);
+            return;
         }
     }
 }
@@ -1927,4 +1933,5 @@ int main(int argc, char* argv[])
     }
 
     megacmd();
+    finalize();
 }

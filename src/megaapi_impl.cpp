@@ -1317,7 +1317,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setNumRetry(transfer->getNumRetry());
     this->setMaxRetries(transfer->getMaxRetries());
     this->setTime(transfer->getTime());
-    this->setStartTime(transfer->getStartTime());
+    this->startTime = transfer->getStartTime();
     this->setTransferredBytes(transfer->getTransferredBytes());
     this->setTotalBytes(transfer->getTotalBytes());
     this->setFileName(transfer->getFileName());
@@ -3657,6 +3657,17 @@ MegaApiImpl::~MegaApiImpl()
     delete request; // delete here since onRequestFinish() is never called
     delete gfxAccess;
     delete fsAccess;
+
+#ifdef ENABLE_SYNC
+    map<int, MegaSyncPrivate *>::iterator itr;
+    for (itr = syncMap.begin(); itr != syncMap.end(); )
+    {
+        MegaSyncPrivate *thesync = ((MegaSyncPrivate *)( *itr ).second );
+        syncMap.erase(itr++);
+        delete thesync;
+    }
+#endif
+
 //    delete httpio;  do not delete since it could crash
 }
 
