@@ -688,11 +688,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = ms;
         }
-
-        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
-        {
-            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
-        }
     }
 
     if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
@@ -736,11 +731,12 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = ms;
         }
+    }
 
-        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
-        {
-            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
-        }
+    if ((curltimeoutms < 0 || curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+            && (downloadSpeed || uploadSpeed))
+    {
+        curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
     }
 
     if (curltimeoutms >= 0)
