@@ -2130,7 +2130,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (n)
             {
                 string pathToShow = getDisplayPath(rNpath, n);
-                dumpNode(n, 3, 1, pathToShow.c_str());
+                if (getFlag(clflags,"l"))
+                {
+                    dumpNode(n, 3, 1, pathToShow.c_str());
+                }
+                else
+                {
+                    OUTSTREAM << pathToShow << endl;
+
+                }
                 //notice: some nodes may be dumped twice
 
                 delete n;

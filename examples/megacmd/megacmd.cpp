@@ -301,6 +301,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("find" == thecommand)
     {
         validOptValues->insert("pattern");
+        validOptValues->insert("l");
     }
     else if ("mkdir" == thecommand)
     {
@@ -833,6 +834,7 @@ string getListOfCompletionValues(vector<string> words)
         {
             completionValues+=newval;
         }
+        free(newval);
 
         state++;
     }
@@ -1110,7 +1112,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "find"))
     {
-        return "find [remotepath] [--pattern=PATTERN]";
+        return "find [remotepath] [-l] [--pattern=PATTERN]";
     }
     return "command not found";
 }
@@ -1435,6 +1437,8 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " --pattern=PATTERN" << "\t" << "Pattern to match";
         os << " (" << getsupportedregexps() << ") " << endl;
+        os << " -l" << "\t" << "Prints file info" << endl;
+
     }
     if(!strcmp(command,"debug") )
     {
