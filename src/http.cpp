@@ -208,7 +208,7 @@ Proxy *HttpIO::getautoproxy()
             {
                 wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
 
-                if (*character == '/')
+                if (*character == '/' || *character == '=')
                 {
                     proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
                     break;
