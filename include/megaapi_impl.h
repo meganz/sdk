@@ -1678,13 +1678,13 @@ protected:
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
 
-        vector<m_time_t> downloadTimes;
-        vector<int64_t> downloadBytes;
+        list<m_time_t> downloadTimes;
+        list<int64_t> downloadBytes;
         int64_t downloadPartialBytes;
         int64_t downloadSpeed;
 
-        vector<m_time_t> uploadTimes;
-        vector<int64_t> uploadBytes;
+        list<m_time_t> uploadTimes;
+        list<int64_t> uploadBytes;
         int64_t uploadPartialBytes;
         int64_t uploadSpeed;
 

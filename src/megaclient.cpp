@@ -8919,6 +8919,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             {
                 // folder/file clash: do nothing (rather than attempting to
                 // second-guess the user)
+                LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
             }
             else if (ll->type == FILENODE)
@@ -8934,6 +8935,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (ll->mtime > rit->second->mtime)
                 {
                     // local version is newer
+                    LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                     nchildren.erase(rit);
                 }
                 else if (ll->mtime == rit->second->mtime
@@ -8944,7 +8946,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     if (ll->size < rit->second->size)
                     {
                         LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
-                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                                 << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                 << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
                     else
                     {
@@ -9309,7 +9312,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             if (ll->type != rit->second->type)
             {
                 insync = false;
-                LOG_warn << "Type changed: " << localname;
+                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
@@ -9320,7 +9323,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     // skip if remote file is newer
                     if (ll->mtime < rit->second->mtime)
                     {
-                        LOG_debug << "LocalNode is older: " << ll->name;
+                        LOG_debug << "LocalNode is older: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                         continue;
                     }                           
 
@@ -9329,7 +9332,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         if (ll->size < rit->second->size)
                         {
                             LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
-                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                                     << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
 
                             continue;
                         }

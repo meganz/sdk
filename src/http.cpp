@@ -23,13 +23,14 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
-#define SPEED_MEAN_INTERVAL_DS 50
-
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
 #endif
 
 namespace mega {
+
+// interval to calculate the mean speed (ds)
+const int HttpIO::SPEED_MEAN_INTERVAL_DS = 10;
 
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
@@ -125,13 +126,13 @@ void HttpIO::updatedownloadspeed(m_off_t size)
     dstime currentTime = Waiter::ds;
     while (downloadBytes.size())
     {
-        dstime deltaTime = currentTime - downloadTimes[0];
+        dstime deltaTime = currentTime - downloadTimes.front();
         if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
 
-        downloadPartialBytes -= downloadBytes[0];
+        downloadPartialBytes -= downloadBytes.front();
         downloadBytes.erase(downloadBytes.begin());
         downloadTimes.erase(downloadTimes.begin());
     }
@@ -151,13 +152,13 @@ void HttpIO::updateuploadspeed(m_off_t size)
     dstime currentTime = Waiter::ds;
     while (uploadBytes.size())
     {
-        dstime deltaTime = currentTime - uploadTimes[0];
+        dstime deltaTime = currentTime - uploadTimes.front();
         if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
 
-        uploadPartialBytes -= uploadBytes[0];
+        uploadPartialBytes -= uploadBytes.front();
         uploadBytes.erase(uploadBytes.begin());
         uploadTimes.erase(uploadTimes.begin());
     }
@@ -207,7 +208,7 @@ Proxy *HttpIO::getautoproxy()
             {
                 wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
 
-                if (*character == '/')
+                if (*character == '/' || *character == '=')
                 {
                     proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
                     break;

@@ -688,11 +688,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = ms;
         }
-
-        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
-        {
-            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
-        }
     }
 
     if (!maxuploadspeed || maxuploadspeed > uploadSpeed)
@@ -736,11 +731,12 @@ void CurlHttpIO::addevents(Waiter* w, int)
         {
             curltimeoutms = ms;
         }
+    }
 
-        if (curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
-        {
-            curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
-        }
+    if ((curltimeoutms < 0 || curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
+            && (downloadSpeed || uploadSpeed))
+    {
+        curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
     }
 
     if (curltimeoutms >= 0)
@@ -1601,7 +1597,7 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
 
-    LOG_debug << "Setting proxy" << proxyurl;
+    LOG_debug << "Setting proxy: " << proxyurl;
 
     if (!crackurl(&proxyurl, &proxyscheme, &proxyhost, &proxyport))
     {
@@ -1757,13 +1753,13 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
                     }
                     else
                     {
-                        if(req->in.size() < 2048)
+                        if (req->in.size() < 10240)
                         {
                             LOG_debug << "Received: " << req->in.c_str();
                         }
                         else
                         {
-                            LOG_debug << "Received: " << req->in.substr(0,2048).c_str();
+                            LOG_debug << "Received: " << req->in.substr(0, 5116).c_str() << " [...] " << req->in.substr(req->in.size() - 5116, string::npos).c_str();
                         }
                     }
                 }
