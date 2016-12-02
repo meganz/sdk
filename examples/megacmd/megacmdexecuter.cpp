@@ -1422,7 +1422,7 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
 
             if (alive_sessions)
             {
-                OUTSTREAM << details->getNumSessions() << " active sessions opened" << endl;
+                OUTSTREAM << alive_sessions << " active sessions opened" << endl;
             }
             delete details;
         }
@@ -3060,6 +3060,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 LOG_err << "Could not find invitation " << shandle;
             }
         }
+        else
+        {
+            setCurrentOutCode(MCMD_EARGS);
+            LOG_err << "      " << getUsageStr("ipc");
+            return;
+        }
         return;
     }
 #ifdef ENABLE_SYNC
@@ -3947,9 +3953,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                 api->inviteContact(email.c_str(), message.c_str(), action, megaCmdListener);
                 megaCmdListener->wait();
-                if (checkNoErrors(megaCmdListener->getError(), "(re)invite user"))
+                if (checkNoErrors(megaCmdListener->getError(), action==MegaContactRequest::INVITE_ACTION_DELETE?"remove invitation":"(re)invite user"))
                 {
-                    OUTSTREAM << "Invitation sent to user: " << email << endl;
+                    OUTSTREAM << "Invitation to user: " << email << " " << (action==MegaContactRequest::INVITE_ACTION_DELETE?"removed":"sent") << endl;
                 }
                 else if (megaCmdListener->getError()->getErrorCode() == MegaError::API_EACCESS)
                 {

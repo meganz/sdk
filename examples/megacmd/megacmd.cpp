@@ -75,7 +75,7 @@ bool loginInAtStartup = false;
 
 string validGlobalParameters[] = {"v", "help"};
 
-string alocalremotepatterncommands [] = {"put", "sync"};
+string alocalremotepatterncommands [] = {"sync"};
 vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
 
 string aremotepatterncommands[] = {"export", "find"};
@@ -685,6 +685,17 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
             return remotepaths_completion;
         }
     }
+    else if (thecommand == "put")
+    {
+        if (currentparameter == 1)
+        {
+            return local_completion;
+        }
+        else
+        {
+            return remotepaths_completion;
+        }
+    }
     else if (stringcontained(thecommand.c_str(), remotepatterncommands))
     {
         if (currentparameter == 1)
@@ -806,6 +817,10 @@ string getListOfCompletionValues(vector<string> words)
 {
     string completionValues;
     rl_compentry_func_t * compfunction = getCompletionFunction(words);
+    if (compfunction == local_completion)
+    {
+        return "MEGACMD_USE_LOCAL_COMPLETION";
+    }
     int state=0;
     if (words.size()>1)
     while (true)
@@ -817,12 +832,15 @@ string getListOfCompletionValues(vector<string> words)
             newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
         }
         else
+        {
             newval = compfunction(lastword.c_str(), state);
+        }
 
         if (!newval) break;
         if (completionValues.size())
+        {
             completionValues+=" ";
-
+        }
 
         if (strstr(newval," "))
         {
@@ -1163,6 +1181,7 @@ string getHelpStr(const char *command)
     else if (!strcmp(command, "history"))
     {
         os << "Prints history of used commands" << endl;
+        os << "  Only commands used in interactive mode are registered" << endl;
     }
     else if (!strcmp(command, "confirm"))
     {
@@ -1347,33 +1366,36 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "invite"))
     {
-        os << "Invites/deletes a contact" << endl;
+        os << "Invites a contact / deletes an invitation" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -d" << "\t" << "Deletes contact" << endl;
+        os << " -d" << "\t" << "Deletes invitation" << endl;
         os << " -r" << "\t" << "Sends the invitation again" << endl;
         os << " --message=\"MESSAGE\"" << "\t" << "Sends inviting message" << endl;
         os << endl;
         os << "Use \"showpcr\" to browse invitations" << endl;
         os << "Use \"ipc\" to manage invitations received" << endl;
+        os << "Use \"users\" to see contacts" << endl;
     }
     if (!strcmp(command, "ipc"))
     {
-        os << "Manages contact invitations." << endl;
+        os << "Manages contact incomming invitations." << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -a" << "\t" << "Accepts invitation" << endl;
         os << " -d" << "\t" << "Rejects invitation" << endl;
         os << " -i" << "\t" << "Ignores invitation [WARNING: do not use unless you know what you are doing]" << endl;
         os << endl;
-        os << "Use \"invite\" to send invitations" << endl;
-        os << "Use \"showpcr\" to browse invitations" << endl;
+        os << "Use \"invite\" to send/remove invitations to other users" << endl;
+        os << "Use \"showpcr\" to browse incoming/outgoing invitations" << endl;
+        os << "Use \"users\" to see contacts" << endl;
     }
     if (!strcmp(command, "showpcr"))
     {
-        os << "Shows incoming and outcoming contact requests." << endl;
+        os << "Shows incoming and outgoing contact requests." << endl;
         os << endl;
         os << "Use \"ipc\" to manage invitations received" << endl;
+        os << "Use \"users\" to see contacts" << endl;
     }
     else if (!strcmp(command, "users"))
     {
@@ -1383,6 +1405,11 @@ string getHelpStr(const char *command)
         os << " -s" << "\t" << "Show shared folders" << endl;
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
+        os << endl;
+        os << "Use \"invite\" to send/remove invitations to other users" << endl;
+        os << "Use \"showpcr\" to browse incoming/outgoing invitations" << endl;
+        os << "Use \"ipc\" to manage invitations received" << endl;
+        os << "Use \"users\" to see contacts" << endl;
     }
     else if (!strcmp(command, "putbps"))
     {

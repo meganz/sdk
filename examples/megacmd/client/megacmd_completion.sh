@@ -1,3 +1,4 @@
+
 _megacmd()
 {
 	local cur opts
@@ -16,7 +17,7 @@ _megacmd()
 			then
 				linetoexec=$linetoexec" \""$(echo $a | sed 's#\\$#\\ #g' | sed 's#\\\ # #g')"\""
 			else
-				if [[ ${a} == '=' ]] || [[ ${lasta} == '=' ]]; then
+				if [[ ${a} == '=' ]] || [[ ${lasta} == '=' ]] || [[ ${a} == ':' ]] || [[ ${lasta} == ':' ]]; then
 					linetoexec=$linetoexec$a
 				else
 					linetoexec=$linetoexec" "$(echo $a | sed 's#\\$#\\ #g' | sed 's#\\\ # #g')
@@ -45,8 +46,12 @@ _megacmd()
 		fi
 	done
 	
+	if [[ $opts == "MEGACMD_USE_LOCAL_COMPLETION" ]]; then
+		COMPREPLY=()
+	fi
+	
 	return 0
 }
 for i in $(compgen -ca | grep mega-); do
-	complete -F _megacmd $i
+	IFS=" " complete -o default -F _megacmd $i
 done
