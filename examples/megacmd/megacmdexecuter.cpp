@@ -1510,7 +1510,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
 }
 
-void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, bool deletedSession, int timeout)
+void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, bool keptSession, int timeout)
 {
     if (!timeout)
     {
@@ -1533,7 +1533,7 @@ void MegaCmdExecuter::actUponLogout(SynchronousRequestListener *srl, bool delete
         session = NULL;
         mtxSyncMap.lock();
         ConfigurationManager::unloadConfiguration();
-        if (deletedSession)
+        if (!keptSession)
         {
             ConfigurationManager::saveSession("");
             ConfigurationManager::saveSyncs(&ConfigurationManager::loadedSyncs);
@@ -4268,19 +4268,28 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     {
         OUTSTREAM << "Logging off..." << endl;
         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-        bool deleteSession = getFlag(clflags, "delete-session");
-        if (deleteSession)
+        bool keepSession = getFlag(clflags, "keep-session");
+        char * dumpSession = NULL;
+
+        if (keepSession) //local logout
+        {
+            dumpSession = api->dumpSession();
+            api->localLogout(megaCmdListener);
+        }
+        else
         {
             api->logout(megaCmdListener);
         }
-        else //local logout
+        actUponLogout(megaCmdListener, keepSession);
+        if (keepSession)
         {
-            api->localLogout(megaCmdListener);
-        }
-        actUponLogout(megaCmdListener, deleteSession);
-        if (!deleteSession)
-        {
-            OUTSTREAM << "Session closed but not deleted. Warning: it will be restored the next time you execute the application. Execute \"logout --delete-session\" to delete the session permanently." << endl;
+            OUTSTREAM << "Session closed but not deleted. Warning: it will be restored the next time you execute the application. Execute \"logout\" to delete the session permanently." << endl;
+
+            if (dumpSession)
+            {
+                OUTSTREAM << "You can also login with the session id: " << dumpSession << endl;
+                delete []dumpSession;
+            }
         }
         delete megaCmdListener;
 

@@ -329,7 +329,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     }
     else if ("logout" == thecommand)
     {
-        validParams->insert("delete-session");
+        validParams->insert("keep-session");
     }
     else if ("attr" == thecommand)
     {
@@ -1070,7 +1070,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "logout"))
     {
-        return "logout [--delete-session]";
+        return "logout [--keep-session]";
     }
     if (!strcmp(command, "symlink"))
     {
@@ -1251,7 +1251,7 @@ string getHelpStr(const char *command)
         os << "Logs out" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " --delete-session" << "\t" << "Deletes the current session, cleaning all cached info." << endl;
+        os << " --keep-session" << "\t" << "Keeps the current session." << endl;
     }
     else if (!strcmp(command, "import"))
     {
@@ -1556,7 +1556,7 @@ void executecommand(char* ptr)
         LOG_err << "      " << getUsageStr(thecommand.c_str());
         return;
     }
-    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR + getFlag(&clflags, "v"));
+    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR + (getFlag(&clflags, "v")?(1+getFlag(&clflags, "v")):0));
 
     if (getFlag(&clflags, "help"))
     {
