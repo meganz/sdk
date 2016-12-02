@@ -743,7 +743,7 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
     while (( start_pos = str.find(from, start_pos)) != std::string::npos)
     {
         str.replace(start_pos, from.length(), to);
-        start_pos += from.length();
+        start_pos += to.length();
     }
 }
 
@@ -787,6 +787,14 @@ bool patternMatches(const char *what, const char *pattern)
 {
 #ifdef USE_PCRE
     pcrecpp::RE re(pattern);
+    if (re.error().length() > 0)
+    {
+        //In case the user supplied non-pcre regexp with * or ? in it.
+        string newpattern(pattern);
+        replaceAll(newpattern,"*",".*");
+        replaceAll(newpattern,"?",".");
+        re=pcrecpp::RE(newpattern);
+    }
 
     if (!re.error().length() > 0)
     {
