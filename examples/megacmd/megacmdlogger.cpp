@@ -44,6 +44,19 @@ ostream &getCurrentOut()
     }
 }
 
+bool interactiveThread()
+{
+    uint64_t currentThread = MegaThread::currentThreadId();
+    if (outstreams.find(currentThread) == outstreams.end())
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 int getCurrentOutCode()
 {
     uint64_t currentThread = MegaThread::currentThreadId();

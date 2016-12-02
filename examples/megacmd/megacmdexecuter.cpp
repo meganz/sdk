@@ -3313,7 +3313,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     else
                     {
                         login = words[1];
-                        setprompt(LOGINPASSWORD);
+                        if (interactiveThread())
+                        {
+                            setprompt(LOGINPASSWORD);
+                        }
+                        else
+                        {
+                            setCurrentOutCode(MCMD_EARGS);
+                            LOG_err << "Extra args required in non interactive mode. Usage: " << getUsageStr("login");
+                        }
                     }
                 }
                 else
@@ -3878,7 +3886,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             if (words.size() == 1)
             {
-                setprompt(OLDPASSWORD);
+                if (interactiveThread())
+                {
+                    setprompt(OLDPASSWORD);
+                }
+                else
+                {
+                    setCurrentOutCode(MCMD_EARGS);
+                    LOG_err << "Extra args required in non interactive mode. Usage: " << getUsageStr("passwd");
+                }
             }
             else if (words.size() > 2)
             {
@@ -4003,7 +4019,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 login = words[1];
                 name = getOption(cloptions, "name", email);
                 signingup = true;
-                setprompt(NEWPASSWORD);
+                if (interactiveThread())
+                {
+                    setprompt(NEWPASSWORD);
+                }
+                else
+                {
+                    setCurrentOutCode(MCMD_EARGS);
+                    LOG_err << "Extra args required in non interactive mode. Usage: " << getUsageStr("signup");
+                }
             }
         }
         else
@@ -4320,7 +4344,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         this->login = email;
                         this->link = link;
                         confirming = true;
-                        setprompt(LOGINPASSWORD);
+                        if (interactiveThread())
+                        {
+                            setprompt(LOGINPASSWORD);
+                        }
+                        else
+                        {
+                            setCurrentOutCode(MCMD_EARGS);
+                            LOG_err << "Extra args required in non interactive mode. Usage: " << getUsageStr("confirm");
+                        }
                     }
                 }
                 else

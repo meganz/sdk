@@ -1445,14 +1445,16 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "thumbnail"))
     {
-        os << "To download/upload the thumbnail of a file. If no -s is inidicated, it will download the thumbnail" << endl;
+        os << "To download/upload the thumbnail of a file." << endl;
+        os << " If no -s is inidicated, it will download the thumbnail." << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -s" << "\t" << "Sets the thumbnail to the specified file" << endl;
     }
     else if (!strcmp(command, "preview"))
     {
-        os << "To download/upload the preview of a file. If no -s is inidicated, it will download the preview" << endl;
+        os << "To download/upload the preview of a file." << endl;
+        os << " If no -s is inidicated, it will download the preview." << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -s" << "\t" << "Sets the preview to the specified file" << endl;
