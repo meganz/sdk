@@ -3539,10 +3539,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
-    downloadSpeed = 0;
-    uploadSpeed = 0;
-    uploadPartialBytes = 0;
-    downloadPartialBytes = 0;
 
 #ifdef HAVE_LIBUV
     httpServer = NULL;
