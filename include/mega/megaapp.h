@@ -160,7 +160,7 @@ struct MEGA_API MegaApp
 
     // pread result
     virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
-    virtual bool pread_data(byte*, m_off_t, m_off_t, void*) { return false; }
+    virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result
     virtual void reportevent_result(error) { }

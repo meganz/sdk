@@ -4636,7 +4636,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     }
 }
 
-bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
+bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* appdata)
 {
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);

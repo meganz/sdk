@@ -35,6 +35,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     starttime = 0;
     lastprogressreport = 0;
     progressreported = 0;
+    speed = meanSpeed = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -508,6 +509,8 @@ void TransferSlot::doio(MegaClient* client)
         if (p != progressreported)
         {
             m_off_t diff = p - progressreported;
+            speed = speedController.calculateSpeed(diff);
+            meanSpeed = speedController.getMeanSpeed();
             if (transfer->type == PUT)
             {
                 client->httpio->updateuploadspeed(diff);

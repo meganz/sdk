@@ -767,7 +767,12 @@ int MegaTransfer::getTag() const
 
 long long MegaTransfer::getSpeed() const
 {
-	return 0;
+    return 0;
+}
+
+long long MegaTransfer::getMeanSpeed() const
+{
+    return 0;
 }
 
 long long MegaTransfer::getDeltaSize() const
@@ -1769,6 +1774,11 @@ int MegaApi::getCurrentDownloadSpeed()
 int MegaApi::getCurrentUploadSpeed()
 {
     return pImpl->getCurrentUploadSpeed();
+}
+
+int MegaApi::getCurrentSpeed(int type)
+{
+    return pImpl->getCurrentSpeed(type);
 }
 
 int MegaApi::getDownloadMethod()

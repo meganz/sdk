@@ -30,7 +30,7 @@
 namespace mega {
 
 // interval to calculate the mean speed (ds)
-const int HttpIO::SPEED_MEAN_INTERVAL_DS = 10;
+const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
 
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
@@ -84,9 +84,7 @@ HttpIO::HttpIO()
     inetback = false;
     lastdata = NEVER;
     chunkedok = true;
-    downloadPartialBytes = 0;
     downloadSpeed = 0;
-    uploadPartialBytes = 0;
     uploadSpeed = 0;
 }
 
@@ -123,54 +121,12 @@ bool HttpIO::inetisback()
 
 void HttpIO::updatedownloadspeed(m_off_t size)
 {
-    dstime currentTime = Waiter::ds;
-    while (downloadBytes.size())
-    {
-        dstime deltaTime = currentTime - downloadTimes.front();
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
-        {
-            break;
-        }
-
-        downloadPartialBytes -= downloadBytes.front();
-        downloadBytes.erase(downloadBytes.begin());
-        downloadTimes.erase(downloadTimes.begin());
-    }
-
-    if (size)
-    {
-        downloadBytes.push_back(size);
-        downloadTimes.push_back(currentTime);
-        downloadPartialBytes += size;
-    }
-
-    downloadSpeed = (downloadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    downloadSpeed = downloadSpeedController.calculateSpeed(size);
 }
 
 void HttpIO::updateuploadspeed(m_off_t size)
 {
-    dstime currentTime = Waiter::ds;
-    while (uploadBytes.size())
-    {
-        dstime deltaTime = currentTime - uploadTimes.front();
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
-        {
-            break;
-        }
-
-        uploadPartialBytes -= uploadBytes.front();
-        uploadBytes.erase(uploadBytes.begin());
-        uploadTimes.erase(uploadTimes.begin());
-    }
-
-    if (size)
-    {
-        uploadBytes.push_back(size);
-        uploadTimes.push_back(currentTime);
-        uploadPartialBytes += size;
-    }
-
-    uploadSpeed = (uploadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    uploadSpeed = uploadSpeedController.calculateSpeed(size);
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -673,4 +629,61 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
 
     return 0;
 }
+
+SpeedController::SpeedController()
+{
+    partialBytes = 0;
+    meanSpeed = 0;
+    lastUpdate = 0;
+}
+
+m_off_t SpeedController::calculateSpeed(long long numBytes)
+{
+    dstime currentTime = Waiter::ds;
+    if (!numBytes && lastUpdate == currentTime)
+    {
+        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;;
+    }
+
+    while (transferBytes.size())
+    {
+        dstime deltaTime = currentTime - transferTimes.front();
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        partialBytes -= transferBytes.front();
+        transferBytes.erase(transferBytes.begin());
+        transferTimes.erase(transferTimes.begin());
+    }
+
+    if (numBytes)
+    {
+        transferBytes.push_back(numBytes);
+        transferTimes.push_back(currentTime);
+        partialBytes += numBytes;
+    }
+
+    m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    if ((currentTime == startTime) || (currentTime - lastUpdate) > 50)
+    {
+        meanSpeed = speed;
+        startTime = currentTime;
+    }
+    else
+    {
+        meanSpeed = (meanSpeed * (lastUpdate - startTime)
+                + speed * (currentTime - lastUpdate))
+                / (currentTime - startTime);
+    }
+    lastUpdate = currentTime;
+    return speed;
+}
+
+m_off_t SpeedController::getMeanSpeed()
+{
+    return meanSpeed;
+}
+
 } // namespace
