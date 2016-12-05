@@ -1756,12 +1756,12 @@ int MegaApi::getMaxUploadSpeed()
     return pImpl->getMaxUploadSpeed();
 }
 
-bool MegaApi::setMaxDownloadSpeed(int bpslimit)
+bool MegaApi::setMaxDownloadSpeed(long long bpslimit)
 {
     return pImpl->setMaxDownloadSpeed(bpslimit);
 }
 
-bool MegaApi::setMaxUploadSpeed(int bpslimit)
+bool MegaApi::setMaxUploadSpeed(long long bpslimit)
 {
     return pImpl->setMaxUploadSpeed(bpslimit);
 }

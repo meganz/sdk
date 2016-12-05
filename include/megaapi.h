@@ -6778,7 +6778,7 @@ class MegaApi
          * @param bpslimit Download speed in bytes per second
          * @return true if the network layer allows to control the download speed, otherwise false
          */
-        bool setMaxDownloadSpeed(int bpslimit);
+        bool setMaxDownloadSpeed(long long bpslimit);
 
         /**
          * @brief Set the maximum upload speed in bytes per second
@@ -6793,7 +6793,7 @@ class MegaApi
          * @param bpslimit Upload speed in bytes per second
          * @return true if the network layer allows to control the upload speed, otherwise false
          */
-        bool setMaxUploadSpeed(int bpslimit);
+        bool setMaxUploadSpeed(long long bpslimit);
 
         /**
          * @brief Get the maximum download speed in bytes per second
