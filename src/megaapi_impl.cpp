@@ -11320,6 +11320,7 @@ void MegaApiImpl::sendPendingTransfers()
                         transfer->setNodeHandle(previousNode->nodehandle);
                         transfer->setDeltaSize(fa->size);
                         transfer->setSpeed(0);
+                        transfer->setMeanSpeed(0);
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -11524,6 +11525,7 @@ void MegaApiImpl::sendPendingTransfers()
                             }
                             transfer->setDeltaSize(fa->size);
                             transfer->setSpeed(0);
+                            transfer->setMeanSpeed(0);
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);

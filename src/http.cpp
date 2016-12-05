@@ -32,6 +32,9 @@ namespace mega {
 // interval to calculate the mean speed (ds)
 const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
 
+// max time to calculate the mean speed
+const int SpeedController::SPEED_MAX_VALUES = 10000;
+
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
 
@@ -635,6 +638,7 @@ SpeedController::SpeedController()
     partialBytes = 0;
     meanSpeed = 0;
     lastUpdate = 0;
+    speedCounter = 0;
 }
 
 m_off_t SpeedController::calculateSpeed(long long numBytes)
@@ -666,16 +670,12 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
     }
 
     m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
-    if ((currentTime == startTime) || (currentTime - lastUpdate) > 50)
+    meanSpeed = meanSpeed * speedCounter + speed;
+    speedCounter++;
+    meanSpeed /= speedCounter;
+    if (speedCounter > SPEED_MAX_VALUES)
     {
-        meanSpeed = speed;
-        startTime = currentTime;
-    }
-    else
-    {
-        meanSpeed = (meanSpeed * (lastUpdate - startTime)
-                + speed * (currentTime - lastUpdate))
-                / (currentTime - startTime);
+        speedCounter = SPEED_MAX_VALUES;
     }
     lastUpdate = currentTime;
     return speed;

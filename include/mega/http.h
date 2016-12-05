@@ -87,6 +87,9 @@ public:
     // interval to calculate the mean speed (ds)
     static const int SPEED_MEAN_INTERVAL_DS;
 
+    // max values to calculate the mean speed
+    static const int SPEED_MAX_VALUES;
+
 protected:
     list<m_time_t> transferTimes;
     list<m_off_t> transferBytes;
@@ -94,7 +97,7 @@ protected:
 
     m_off_t meanSpeed;
     dstime lastUpdate;
-    dstime startTime;
+    int speedCounter;
 };
 
 // generic host HTTP I/O interface
