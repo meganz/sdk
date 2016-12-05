@@ -101,7 +101,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
-                             "showpcr", "users", "putbps", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
+                             "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
                              "history", "thumbnail", "preview", "find", "completion" };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
@@ -268,6 +268,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("rm" == thecommand)
     {
         validParams->insert("r");
+    }
+    else if ("speedlimit" == thecommand)
+    {
+        validParams->insert("u");
+        validParams->insert("d");
+        validParams->insert("h");
     }
     else if ("whoami" == thecommand)
     {
@@ -1040,9 +1046,9 @@ const char * getUsageStr(const char *command)
     {
         return "putua attrname [del|set string|load file]";
     }
-    if (!strcmp(command, "putbps"))
+    if (!strcmp(command, "speedlimit"))
     {
-        return "putbps [limit|auto|none]";
+        return "speedlimit [-u|-d] [-h] [NEWLIMIT]";
     }
     if (!strcmp(command, "killsession"))
     {
@@ -1225,6 +1231,10 @@ string getHelpStr(const char *command)
     {
         os << "Prints size used by files/folders" << endl;
         os << " remotepath can be a pattern (" << getsupportedregexps() << ") " << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -h" << "\t" << "Human readable" << endl;
+        os << endl;
     }
     else if (!strcmp(command, "pwd"))
     {
@@ -1411,9 +1421,16 @@ string getHelpStr(const char *command)
         os << "Use \"ipc\" to manage invitations received" << endl;
         os << "Use \"users\" to see contacts" << endl;
     }
-    else if (!strcmp(command, "putbps"))
+    else if (!strcmp(command, "speedlimit"))
     {
-        os << "Sets upload limit" << endl;
+        os << "Displays/modifies upload/download rate limits" << endl;
+        os << " NEWLIMIT stablish the new limit in B/s (0 = no limit)" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -d" << "\t" << "Download speed limit" << endl;
+        os << " -u" << "\t" << "Upload speed limit" << endl;
+        os << " -h" << "\t" << "Human readable" << endl;
+        os << endl;
     }
     else if (!strcmp(command, "killsession"))
     {
@@ -1690,6 +1707,10 @@ void * doProcessLine(void *pointer)
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
     semaphoreClients.release();
+    if (doExit)
+    {
+        exit(0);
+    }
     return NULL;
 }
 

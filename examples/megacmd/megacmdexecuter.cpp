@@ -3914,29 +3914,46 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         return;
     }
-    else if (words[0] == "putbps")
+    else if (words[0] == "speedlimit")
     {
-        int uploadLimit;
-
-        if (words.size() > 1)
+        if (words.size()>1)
         {
-            if (words[1] == "auto")
+            long long maxspeed = atol(words[1].c_str());
+            if (!getFlag(clflags, "u") && !getFlag(clflags, "d"))
             {
-                uploadLimit = -1;
+                api->setMaxDownloadSpeed(maxspeed);
+                api->setMaxUploadSpeed(maxspeed);
             }
-            else if (words[1] == "none")
+            else if (getFlag(clflags, "u"))
             {
-                uploadLimit = -1;
+                api->setMaxUploadSpeed(maxspeed);
             }
-            else
+            else if (getFlag(clflags, "d"))
             {
-                uploadLimit = atoi(words[1].c_str());
+                api->setMaxDownloadSpeed(maxspeed);
             }
-
-            LOG_debug << "Setting Upload limit to " << uploadLimit << " byte(s)/second";
-            api->setUploadLimit(uploadLimit);
         }
-        //TODO: after https://github.com/meganz/sdk/pull/316 redo this part and include outputting the value
+
+        bool hr = getFlag(clflags,"h");
+
+        if (!getFlag(clflags, "u") && !getFlag(clflags, "d"))
+        {
+            long long us = api->getMaxUploadSpeed();
+            long long ds = api->getMaxDownloadSpeed();
+            OUTSTREAM << "Upload speed limit = " << (us?sizeToText(us,false,hr):"unlimited") << ((us && hr)?"/s":(us?" B/s":""))  << endl;
+            OUTSTREAM << "Download speed limit = " << (ds?sizeToText(ds,false,hr):"unlimited") << ((ds && hr)?"/s":(us?" B/s":"")) << endl;
+        }
+        else if (getFlag(clflags, "u"))
+        {
+            long long us = api->getMaxUploadSpeed();
+            OUTSTREAM << "Upload speed limit = " << (us?sizeToText(us,false,hr):"unlimited") << ((us && hr)?"/s":(us?" B/s":"")) << endl;
+        }
+        else if (getFlag(clflags, "d"))
+        {
+            long long ds = api->getMaxDownloadSpeed();
+            OUTSTREAM << "Download speed limit = " << (ds?sizeToText(ds,false,hr):"unlimited") << ((ds && hr)?"/s":(ds?" B/s":"")) << endl;
+        }
+
 
         return;
     }
