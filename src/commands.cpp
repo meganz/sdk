@@ -4671,6 +4671,34 @@ void CommandChatSetTitle::procresult()
     }
 }
 
+CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
+{
+    this->client = client;
+    cmd("pu");
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatPresenceURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatpresenceurl_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        string url;
+        if (!client->json.storeobject(&url))
+        {
+            client->app->chatpresenceurl_result(NULL, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chatpresenceurl_result(&url, API_OK);
+        }
+    }
+}
+
 #endif
 
 

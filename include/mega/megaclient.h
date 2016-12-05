@@ -347,6 +347,9 @@ public:
 
     // set title of the chat
     void setChatTitle(handle chatid, const char *title = NULL);
+
+    // get the URL of the presence server
+    void getChatPresenceUrl();
 #endif
 
     // toggle global debug flag

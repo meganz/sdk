@@ -3303,6 +3303,10 @@ void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestList
     pImpl->setChatTitle(chatid, title, listener);
 }
 
+void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
+{
+    pImpl->getChatPresenceURL(listener);
+}
 #endif
 
 char* MegaApi::strdup(const char* buffer)
