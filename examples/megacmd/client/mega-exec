@@ -19,7 +19,7 @@ def parseArgs(argsin):
 				if (itochange is None): itochange = i;
 				totalRealArgs+=1
 	
-	if argsin[0] == "sync":
+	if argsin[0] in ["sync"]:
 		if (itochange is not None and totalRealArgs>=2):
 			argsin[itochange]=os.path.abspath(argsin[itochange])
 
@@ -29,8 +29,8 @@ def parseArgs(argsin):
 			if not argsin[i].startswith("-"):
 				argsin[i]=os.path.abspath(argsin[i])		
 
-	if argsin[0] in ["get"]:
-		#get first argument (local path) and append fullpath
+	if argsin[0] in ["get", "preview", "thumbnail"]:
+		#get second argument (local path) and append fullpath
 		for i in range(1,len(argsin)):
 			if not argsin[i].startswith("-"):
 				totalRealArgs+=1
