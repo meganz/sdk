@@ -3126,7 +3126,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         ConfigurationManager::loadedSyncs[megaCmdListener->getRequest()->getFile()] = thesync;
 
                         char * nodepath = api->getNodePath(n);
-                        OUTSTREAM << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << nodepath;
+                        LOG_info << "Added sync: " << megaCmdListener->getRequest()->getFile() << " to " << nodepath;
                         modifiedsyncs=true;
                         delete []nodepath;
                     }
@@ -3151,6 +3151,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             int id = toInteger(words[1].c_str());
             map<string, sync_struct *>::iterator itr;
             int i = 0;
+            bool foundsync = false;
             for (itr = ConfigurationManager::loadedSyncs.begin(); itr != ConfigurationManager::loadedSyncs.end(); i++)
             {
                 string key = ( *itr ).first;
@@ -3164,6 +3165,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                     if (( id == i ) || (( id == -1 ) && ( words[1] == thesync->localpath )))
                     {
+                        foundsync = true;
                         int nfiles = 0;
                         int nfolders = 0;
                         nfolders++; //add the share itself
@@ -3174,7 +3176,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                         if (getFlag(clflags, "s"))
                         {
-                            OUTSTREAM << "Stopping (disabling)/Resuming sync " << key << " to " << nodepath << endl;
+                            LOG_info << (thesync->active?"Stopping (disabling) ":"Resuming sync ") << key << ": " << nodepath;
                             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                             if (thesync->active)
                             {
@@ -3187,7 +3189,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                             megaCmdListener->wait();
 
-                            if (checkNoErrors(megaCmdListener->getError(), "stop/resume sync"))
+                            if (checkNoErrors(megaCmdListener->getError(), thesync->active?"Stopping (disabling)":"Resuming sync"))
                             {
                                 thesync->active = !thesync->active;
                                 if (thesync->active) //syncFolder
@@ -3214,7 +3216,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     ConfigurationManager::loadedSyncs.erase(itr++);
                                     erased = true;
                                     delete ( thesync );
-                                    OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+                                    LOG_info << "Removed sync " << key << " to " << nodepath;
                                     modifiedsyncs=true;
                                 }
                             }
@@ -3224,7 +3226,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 ConfigurationManager::loadedSyncs.erase(itr++);
                                 erased = true;
                                 delete ( thesync );
-                                OUTSTREAM << "Removed sync " << key << " to " << nodepath << endl;
+                                LOG_info << "Removed sync " << key << " to " << nodepath;
                                 modifiedsyncs=true;
                             }
                             delete megaCmdListener;
@@ -3253,6 +3255,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     ++itr;
                 }
+            }
+            if (!foundsync)
+            {
+                setCurrentOutCode(MCMD_NOTFOUND);
+                LOG_err << "Sync not found: " << words[1] << ". Please provide full path or valid ID";
             }
         }
         else if (words.size() == 1)

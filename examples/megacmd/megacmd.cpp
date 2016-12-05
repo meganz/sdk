@@ -75,8 +75,8 @@ bool loginInAtStartup = false;
 
 string validGlobalParameters[] = {"v", "help"};
 
-string alocalremotepatterncommands [] = {"sync"};
-vector<string> localremotepatterncommands(alocalremotepatterncommands, alocalremotepatterncommands + sizeof alocalremotepatterncommands / sizeof alocalremotepatterncommands[0]);
+string alocalremotefolderpatterncommands [] = {"sync"};
+vector<string> localremotefolderpatterncommands(alocalremotefolderpatterncommands, alocalremotefolderpatterncommands + sizeof alocalremotefolderpatterncommands / sizeof alocalremotefolderpatterncommands[0]);
 
 string aremotepatterncommands[] = {"export", "find"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
@@ -701,7 +701,7 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
     discardOptionsAndFlags(&words);
 
     int currentparameter = words.size() - 1;
-    if (stringcontained(thecommand.c_str(), localremotepatterncommands))
+    if (stringcontained(thecommand.c_str(), localremotefolderpatterncommands))
     {
         if (currentparameter == 1)
         {
@@ -709,7 +709,7 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         }
         if (currentparameter == 2)
         {
-            return remotepaths_completion;
+            return remotefolders_completion;
         }
     }
     else if (thecommand == "put")
@@ -1040,7 +1040,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "sync"))
     {
-        return "sync [localpath dstremotepath| [-ds] cancelslot]";
+        return "sync [localpath dstremotepath| [-ds] [ID|localpath]";
     }
     if (!strcmp(command, "export"))
     {
@@ -1368,7 +1368,7 @@ string getHelpStr(const char *command)
         os << endl;
         os << "If an ID is provided, it will list such synchronization with its state, unless an option is specified:" << endl;
         os << "-d" << " " << "ID|localpath" << "\t" << "deletes a synchronization" << endl;
-        os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) a synchronization" << endl;
+        os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) or resumes a synchronization" << endl;
     }
     else if (!strcmp(command, "export"))
     {
