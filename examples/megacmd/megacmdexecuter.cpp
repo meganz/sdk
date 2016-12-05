@@ -2878,15 +2878,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 if (!n && getFlag(clflags,"c"))
                 {
-                    //TODO: create folder recursively
-                    // 1: get path (without last name)
                     string destinationfolder(destination,0,destination.find_last_of("/"));
                     newname=string(destination,destination.find_last_of("/")+1,destination.size());
                     MegaNode *cwdNode = api->getNodeByHandle(cwd);
                     makedir(destinationfolder,true,cwdNode);
                     n = api->getNodeByPath(destinationfolder.c_str(),cwdNode);
                     delete cwdNode;
-
                 }
 
             }
