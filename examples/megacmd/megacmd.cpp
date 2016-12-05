@@ -265,6 +265,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("f");
     }
+    else if ("version" == thecommand)
+    {
+        validParams->insert("l");
+    }
     else if ("rm" == thecommand)
     {
         validParams->insert("r");
@@ -640,6 +644,23 @@ char* nodeattrs_completion(const char* text, int state)
     return generic_completion(text, state, validAttrs);
 }
 
+char* userattrs_completion(const char* text, int state)
+{
+    static vector<string> validAttrs;
+    if (state == 0)
+    {
+        validAttrs.clear();
+        validAttrs = cmdexecuter->getUserAttrs();
+    }
+
+    if (validAttrs.size() == 0)
+    {
+        return empty_completion(text, state);
+    }
+
+    return generic_completion(text, state, validAttrs);
+}
+
 void discardOptionsAndFlags(vector<string> *ws)
 {
     for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
@@ -778,6 +799,13 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
         if (currentparameter == 2)
         {
             return nodeattrs_completion;
+        }
+    }
+    else if (thecommand == "userattr")
+    {
+        if (currentparameter == 1)
+        {
+            return userattrs_completion;
         }
     }
     else if (thecommand == "log")
@@ -1084,7 +1112,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "version"))
     {
-        return "version";
+        return "version [-l]";
     }
     if (!strcmp(command, "debug"))
     {
@@ -1412,7 +1440,7 @@ string getHelpStr(const char *command)
         os << "List contacts" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -s" << "\t" << "Show shared folders" << endl;
+        os << " -s" << "\t" << "Show shared folders with listed contacts" << endl;
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
         os << endl;
@@ -1458,7 +1486,10 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "version"))
     {
-        os << "Prints MEGA SDK version" << endl;
+        os << "Prints MEGA versioning info" << endl;
+        os << endl;
+        os << "Options:" << endl;
+        os << " -l" << "\t" << "Show extended info: MEGA SDK version and features enabled" << endl;
     }
     else if (!strcmp(command, "thumbnail"))
     {

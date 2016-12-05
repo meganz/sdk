@@ -95,6 +95,7 @@ public:
     vector<string> listpaths(string askedPath = "", bool discardFiles = false);
     vector<string> getlistusers();
     vector<string> getNodeAttrs(string nodePath);
+    vector<string> getUserAttrs();
     vector<string> getsessions();
 
     void executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions);

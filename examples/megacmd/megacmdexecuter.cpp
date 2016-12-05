@@ -1941,6 +1941,16 @@ vector<string> MegaCmdExecuter::getNodeAttrs(string nodePath)
     return attrs;
 }
 
+vector<string> MegaCmdExecuter::getUserAttrs()
+{
+    vector<string> attrs;
+    for (int i=0;i < 10; i++)
+    {
+        attrs.push_back(getAttrStr(i) );
+    }
+    return attrs;
+}
+
 vector<string> MegaCmdExecuter::getsessions()
 {
     vector<string> sessions;
@@ -2000,10 +2010,15 @@ void MegaCmdExecuter::confirm(string passwd, string email, string link)
     MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
     api->confirmAccount(link.c_str(), passwd.c_str(), megaCmdListener2);
     megaCmdListener2->wait();
-    if (checkNoErrors(megaCmdListener2->getError(), "confirm account"))
+    if (megaCmdListener2->getError()->getErrorCode() == MegaError::API_ENOENT)
+    {
+        LOG_err << "Invalid password";
+    }
+    else if (checkNoErrors(megaCmdListener2->getError(), "confirm account"))
     {
         OUTSTREAM << "Account " << email << " confirmed succesfully. You can login with it now" << endl;
     }
+
     delete megaCmdListener2;
 }
 
@@ -3559,6 +3574,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "users")
     {
+        if (getFlag(clflags, "d") && ( words.size() <= 1 ))
+        {
+            setCurrentOutCode(MCMD_EARGS);
+            LOG_err << "Contact to delete not specified";
+            return;
+        }
         MegaUserList* usersList = api->getContacts();
         if (usersList)
         {
@@ -4411,45 +4432,53 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "version")
     {
-        OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
+        OUTSTREAM << "MEGA CMD version: " << 0 << "." << 0 << "." << 1 << endl;
+        if (getFlag(clflags,"l"))
+        {
+            OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
-        OUTSTREAM << "Features enabled:" << endl;
+            OUTSTREAM << "Features enabled:" << endl;
 
 #ifdef USE_CRYPTOPP
-        OUTSTREAM << "* CryptoPP" << endl;
+            OUTSTREAM << "* CryptoPP" << endl;
 #endif
 
 #ifdef USE_SQLITE
-        OUTSTREAM << "* SQLite" << endl;
+          OUTSTREAM << "* SQLite" << endl;
 #endif
 
 #ifdef USE_BDB
-        OUTSTREAM << "* Berkeley DB" << endl;
+            OUTSTREAM << "* Berkeley DB" << endl;
 #endif
 
 #ifdef USE_INOTIFY
-        OUTSTREAM << "* inotify" << endl;
+           OUTSTREAM << "* inotify" << endl;
 #endif
 
 #ifdef HAVE_FDOPENDIR
-        OUTSTREAM << "* fdopendir" << endl;
+           OUTSTREAM << "* fdopendir" << endl;
 #endif
 
 #ifdef HAVE_SENDFILE
-        OUTSTREAM << "* sendfile" << endl;
+            OUTSTREAM << "* sendfile" << endl;
 #endif
 
 #ifdef _LARGE_FILES
-        OUTSTREAM << "* _LARGE_FILES" << endl;
+           OUTSTREAM << "* _LARGE_FILES" << endl;
 #endif
 
 #ifdef USE_FREEIMAGE
-        OUTSTREAM << "* FreeImage" << endl;
+            OUTSTREAM << "* FreeImage" << endl;
+#endif
+
+#ifdef USE_PCRE
+            OUTSTREAM << "* PCRE" << endl;
 #endif
 
 #ifdef ENABLE_SYNC
-        OUTSTREAM << "* sync subsystem" << endl;
+           OUTSTREAM << "* sync subsystem" << endl;
 #endif
+        }
         return;
     }
     else if (words[0] == "showpcr")
