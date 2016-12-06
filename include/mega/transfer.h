@@ -98,6 +98,18 @@ struct MEGA_API Transfer : public FileFingerprint
     // previous wrong fingerprint
     FileFingerprint badfp;
 
+    // flag to know if prevmetamac is valid
+    bool prevmetamacvalid;
+
+    // previous wrong metamac
+    int64_t prevmetamac;
+
+    // flag to know if currentmetamac is valid
+    bool currentmetamacvalid;
+
+    // current wrong metamac
+    int64_t currentmetamac;
+
     // transfer state
     bool finished;
 

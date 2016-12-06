@@ -41,6 +41,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     tag = 0;
     slot = NULL;
     progresscompleted = 0;
+    prevmetamacvalid = false;
+    currentmetamacvalid = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -369,9 +371,10 @@ void Transfer::failed(error e, dstime timeleft)
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ((*it)->failed(e) && !defer)
+        if ((*it)->failed(e))
         {
             defer = true;
+            break;
         }
     }
 

@@ -647,10 +647,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     }
 
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-    char buf[256];
-
-    snprintf(buf, sizeof buf, "%s/%" PRIu64, tempurl, pos);
-    setreq(buf, REQ_BINARY);
 
     key->ctr_crypt((byte*)out->data(), size, pos, ctriv, mac, 1);
 
@@ -660,6 +656,47 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     // unpad for POSTing
     out->resize(size);
 
+
+    const char *data = out->data();
+    byte c[12];
+    memset(c, 0, 12);
+
+#ifndef ALLOW_UNALIGNED_MEMORY_ACCESS
+    for (int l = size; l--;)
+    {
+        c[l % 12] ^= data[l];
+    }
+#else
+    uint32_t *intdata = (uint32_t *)data;
+    uint32_t *intc = (uint32_t *)c;
+    int ll = size % 12;
+    int l = size / 12;
+    if (l)
+    {
+        l *= 3;
+        while (l)
+        {
+            l -= 3;
+            intc[0] ^= intdata[l];
+            intc[1] ^= intdata[l + 1];
+            intc[2] ^= intdata[l + 2];
+        }
+    }
+    if (ll)
+    {
+        data += (size - ll);
+        while (ll--)
+        {
+            c[ll] ^= data[ll];
+        }
+    }
+#endif
+
+    char crc[32];
+    char buf[256];
+    Base64::btoa(c, 12, crc);
+    snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
+    setreq(buf, REQ_BINARY);
     return true;
 }
 
