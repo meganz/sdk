@@ -49,8 +49,6 @@ const char* getSyncStateStr(int state);
 
 std::string visibilityToString(int visibility);
 
-const char* errorstring(int e);
-
 const char * getErrorCodeStr(mega::MegaError *e);
 
 const char * getLogLevelStr(int loglevel);

@@ -21,6 +21,8 @@
 
 #include "comunicationsmanagerfilesockets.h"
 
+using namespace mega;
+
 int ComunicationsManagerFileSockets::get_next_outSocket_id()
 {
     mtx->lock();

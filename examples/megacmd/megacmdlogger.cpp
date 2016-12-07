@@ -25,6 +25,7 @@
 
 #include <sys/types.h>
 using namespace std;
+using namespace mega;
 
 // different outstreams for every thread. to gather all the output data
 map<uint64_t, ostream *> outstreams;

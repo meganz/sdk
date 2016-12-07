@@ -21,6 +21,9 @@
 
 #include "comunicationsmanager.h"
 
+using namespace std;
+using namespace mega;
+
 std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
 {
     return os << p.line;

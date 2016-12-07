@@ -27,6 +27,8 @@
 #include <regex>
 #endif
 
+using namespace std;
+using namespace mega;
 
 int * getNumFolderFiles(MegaNode *n, MegaApi *api)
 {
@@ -259,89 +261,11 @@ string visibilityToString(int visibility)
     return "undefined visibility";
 }
 
-const char* errorstring(int e)
-{
-    switch (e)
-    {
-        case API_OK:
-            return "No error";
-
-        case API_EINTERNAL:
-            return "Internal error";
-
-        case API_EARGS:
-            return "Invalid argument";
-
-        case API_EAGAIN:
-            return "Request failed, retrying";
-
-        case API_ERATELIMIT:
-            return "Rate limit exceeded";
-
-        case API_EFAILED:
-            return "Transfer failed";
-
-        case API_ETOOMANY:
-            return "Too many concurrent connections or transfers";
-
-        case API_ERANGE:
-            return "Out of range";
-
-        case API_EEXPIRED:
-            return "Expired";
-
-        case API_ENOENT:
-            return "Not found";
-
-        case API_ECIRCULAR:
-            return "Circular linkage detected";
-
-        case API_EACCESS:
-            return "Access denied";
-
-        case API_EEXIST:
-            return "Already exists";
-
-        case API_EINCOMPLETE:
-            return "Incomplete";
-
-        case API_EKEY:
-            return "Invalid key/integrity check failed";
-
-        case API_ESID:
-            return "Bad session ID";
-
-        case API_EBLOCKED:
-            return "Blocked";
-
-        case API_EOVERQUOTA:
-            return "Over quota";
-
-        case API_ETEMPUNAVAIL:
-            return "Temporarily not available";
-
-        case API_ETOOMANYCONNECTIONS:
-            return "Connection overflow";
-
-        case API_EWRITE:
-            return "Write error";
-
-        case API_EREAD:
-            return "Read error";
-
-        case API_EAPPKEY:
-            return "Invalid application key";
-
-        default:
-            return "Unknown error";
-    }
-}
-
 const char * getErrorCodeStr(MegaError *e)
 {
     if (e)
     {
-        return errorstring(e->getErrorCode());
+        return MegaError::getErrorString(e->getErrorCode());
     }
     return "NullError";
 }

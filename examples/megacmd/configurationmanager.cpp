@@ -30,6 +30,8 @@
 #include <pwd.h>  //getpwuid_r
 #endif
 
+using namespace std;
+using namespace mega;
 
 bool is_file_exist(const char *fileName)
 {
