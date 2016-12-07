@@ -5,8 +5,6 @@ import socket, sys, struct, os
 localpathcommands=["lcd"]
 
 
-debug = False
-if (debug): from inspect import currentframe, getframeinfo
 
 def parseArgs(argsin):
 	itochange = None
@@ -64,50 +62,36 @@ def parseArgs(argsin):
 #sock.connect(('127.0.0.1',12347))
 
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-if (debug): print " at ",getframeinfo(currentframe()).lineno
 try:
 	suid=str(os.getuid())
 	sock.connect(('/tmp/megaCMD_'+suid+'/srv'))
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 
 	commandArgs=parseArgs(sys.argv[1:])
 
-	if (debug): print "sending: "," ".join(commandArgs)
 
 	sock.send(" ".join(commandArgs))
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 
 	data = sock.recv(100);
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	sockOutId, = struct.unpack('H', data[:2])
 
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	sock.close()
 
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	sockout =  socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-	if (debug): print "connecting to output socket: " + '/tmp/megaCMD_'+suid+'/srv_'+str(sockOutId)
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	sockout.connect(('/tmp/megaCMD_'+suid+'/srv_'+str(sockOutId)))
 
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	#outCode = sockout.recv(4); #get out code
 	outCode, = struct.unpack('i', sockout.recv(4))#get out code
 
 	data = sockout.recv(100);
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	commandOutput=""
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 	while (len(data)):
 	#	out, = struct.unpack('H', data[:2])
 		commandOutput+=data
 	#	print "data ("+str(len(data))+")= ",str(data)
 	#	print "trozo=",out
 		data = sockout.recv(100);
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 
 	sockout.close()
-	if (debug): print " at ",getframeinfo(currentframe()).lineno
 
 	if "" != commandOutput:
 		print commandOutput,
@@ -120,4 +104,3 @@ except Exception as ex:
 	sys.stderr.write("Unable to connect to service"+" "+str(ex)+"\n")
 	sys.stderr.write("Please ensure MegaCMD is running\n")
 	exit(1)
-
