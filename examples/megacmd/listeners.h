@@ -1,8 +1,8 @@
 /**
  * @file examples/megacmd/listeners.h
- * @brief mega::MegaCMD: Listeners
+ * @brief MegaCMD: Listeners
  *
- * (c) 2013-2016 by mega::Mega Limited, Auckland, New Zealand
+ * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
