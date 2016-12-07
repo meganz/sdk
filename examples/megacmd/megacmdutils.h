@@ -69,8 +69,6 @@ int getLinkType(std::string link);
 
 bool isPublicLink(std::string link);
 
-bool isRegularFile(std::string path);
-
 bool hasWildCards(std::string &what);
 
 

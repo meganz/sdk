@@ -1153,30 +1153,9 @@ bool PosixFileSystemAccess::pathExists(string *path)
     return ret == 0;
 }
 
-
-bool PosixFileSystemAccess::isRegularFile(string *path)
-{
-#ifdef USE_IOS
-     //TODO: untested
-    string absolutepath;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (path->size() && path->at(0) != '/')
-        {
-            absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
-        }
-    }
-#endif
-    struct stat path_stat;
-    stat(path->c_str(), &path_stat);
-    return S_ISREG(path_stat.st_mode);
-}
-
 string PosixFileSystemAccess::getCurrentLocalPath()
 {
-    char cCurrentPath[FILENAME_MAX];
+    char cCurrentPath[PATH_MAX];
     if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
     {
         return "";

@@ -97,7 +97,6 @@ public:
     bool getextension(string*, char*, int) const;
     bool isFolder(string *path);
     bool pathExists(string *path);
-    bool isRegularFile(string *path);
     string getCurrentLocalPath();
     string expansePath(string *path);
 

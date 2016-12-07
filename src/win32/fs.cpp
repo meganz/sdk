@@ -853,12 +853,6 @@ bool WinFileSystemAccess::pathExists(string *filename)
     return (dwAttrib != INVALID_FILE_ATTRIBUTES);
 }
 
-bool WinFileSystemAccess::isRegularFile(string *filename) //TODO: untested
-{
-    DWORD dwAttrib = GetFileAttributes((LPCWSTR)filename->c_str());
-    return (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) );
-}
-
 string WinFileSystemAccess::getCurrentLocalPath()
 { //TODO: untested
     char cCurrentPath[FILENAME_MAX];
