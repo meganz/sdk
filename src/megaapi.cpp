@@ -1019,6 +1019,10 @@ MegaRequestListener::~MegaRequestListener() {}
 
 SynchronousRequestListener::SynchronousRequestListener()
 {
+    listener = NULL;
+    megaApi = NULL;
+    megaRequest = NULL;
+    megaError = NULL;
     semaphore = new MegaSemaphore();
 }
 SynchronousRequestListener::~SynchronousRequestListener()
@@ -1099,33 +1103,25 @@ MegaTransferListener::~MegaTransferListener()
 
 SynchronousTransferListener::SynchronousTransferListener()
 {
+    listener = NULL;
+    megaApi = NULL;
+    megaTransfer = NULL;
+    megaError = NULL;
     semaphore = new MegaSemaphore();
 }
 SynchronousTransferListener::~SynchronousTransferListener()
 {
     delete semaphore;
-    if (megaTransfer)
-    {
-        delete megaTransfer;
-    }
-    if (megaError)
-    {
-        delete megaError;
-    }
+    delete megaTransfer;
+    delete megaError;
 }
 
 void SynchronousTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
     this->megaApi = api;
-    if (megaTransfer)
-    {
-        delete megaTransfer;               //in case of reused listener
-    }
+    delete megaTransfer;               //in case of reused listener
     this->megaTransfer = transfer->copy();
-    if (megaError)
-    {
-        delete megaError;            //in case of reused listener
-    }
+    delete megaError;            //in case of reused listener
     this->megaError = error->copy();
 
     doOnTransferFinish(api, transfer, error);

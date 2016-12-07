@@ -3480,11 +3480,10 @@ private:
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
 
 protected:
-    MegaRequestListener *listener = NULL;
-    MegaApi *megaApi = NULL;
-    MegaRequest *megaRequest = NULL;
-    MegaError *megaError = NULL;
-
+    MegaRequestListener *listener;
+    MegaApi *megaApi;
+    MegaRequest *megaRequest;
+    MegaError *megaError;
 public:
 
     SynchronousRequestListener();
@@ -3677,10 +3676,10 @@ private:
     void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
 
 protected:
-    MegaTransferListener *listener = NULL;
-    MegaApi *megaApi = NULL;
-    MegaTransfer *megaTransfer = NULL;
-    MegaError *megaError = NULL;
+    MegaTransferListener *listener;
+    MegaApi *megaApi;
+    MegaTransfer *megaTransfer;
+    MegaError *megaError;
 
 public:
     SynchronousTransferListener();
