@@ -24,8 +24,6 @@
 
 #include "megacmd.h"
 
-using namespace mega;
-
 class CmdPetition
 {
     public:
@@ -76,9 +74,9 @@ public:
 
     /**
      * @brief get_petition_details
-     * @return a string describing details of the petition
+     * @return a std::string describing details of the petition
      */
-    virtual string get_petition_details(CmdPetition *inf);
+    virtual std::string get_petition_details(CmdPetition *inf);
 
     virtual ~ComunicationsManager();
 };

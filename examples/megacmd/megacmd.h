@@ -24,12 +24,9 @@
 
 #include "megaapi_impl.h"
 
-using namespace std;
-using namespace mega;
-
 typedef struct sync_struct
 {
-    MegaHandle handle;
+    mega::MegaHandle handle;
     bool active;
     std::string localpath;
     long long fingerprint;
@@ -63,8 +60,8 @@ static const char* prompts[] =
 
 void changeprompt(const char *newprompt);
 
-MegaApi* getFreeApiFolder();
-void freeApiFolder(MegaApi *apiFolder);
+mega::MegaApi* getFreeApiFolder();
+void freeApiFolder(mega::MegaApi *apiFolder);
 
 const char * getUsageStr(const char *command);
 

@@ -6,8 +6,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-using namespace mega;
-
 class CmdPetitionPosixSockets: public CmdPetition
 {
 public:
@@ -29,7 +27,7 @@ private:
 
     // to get next socket id
     int count;
-    MegaMutex *mtx;
+    mega::MegaMutex *mtx;
 
     int get_next_outSocket_id();
 
@@ -69,7 +67,7 @@ public:
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
+    std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
 
     ~ComunicationsManagerFileSockets();
 };

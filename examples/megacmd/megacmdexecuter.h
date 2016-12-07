@@ -24,95 +24,93 @@
 
 #include "megacmdlogger.h"
 
-using namespace mega;
-
 class MegaCmdExecuter
 {
 private:
-    MegaApi *api;
-    handle cwd;
+    mega::MegaApi *api;
+    mega::handle cwd;
     char *session;
-    MegaFileSystemAccess *fsAccessCMD;
+    mega::MegaFileSystemAccess *fsAccessCMD;
     MegaCMDLogger *loggerCMD;
-    MegaMutex mtxSyncMap;
+    mega::MegaMutex mtxSyncMap;
 
     // login/signup e-mail address
-    string login;
+    std::string login;
 
     // signup name
-    string name;
+    std::string name;
 
     // link to confirm
-    string link;
+    std::string link;
 
-    void updateprompt(MegaApi *api, MegaHandle handle);
+    void updateprompt(mega::MegaApi *api, mega::MegaHandle handle);
 
 public:
     bool signingup = false;
     bool confirming = false;
 
-    MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD);
+    MegaCmdExecuter(mega::MegaApi *api, MegaCMDLogger *loggerCMD);
     ~MegaCmdExecuter();
 
     // nodes browsing
     void listtrees();
-    static bool includeIfIsExported(MegaApi* api, MegaNode * n, void *arg);
-    static bool includeIfIsShared(MegaApi* api, MegaNode * n, void *arg);
-    static bool includeIfIsPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
-    static bool includeIfIsSharedOrPendingOutShare(MegaApi* api, MegaNode * n, void *arg);
-    static bool includeIfMatchesPattern(MegaApi* api, MegaNode * n, void *arg);
-    bool processTree(MegaNode * n, bool(MegaApi *, MegaNode *, void *), void *( arg ));
-    MegaNode* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL);
-    void getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching);
-    MegaNode * getRootNodeByPath(const char *ptr, string* user = NULL);
-    vector <MegaNode*> * nodesbypath(const char* ptr, string* user = NULL, string* namepart = NULL);
-    void dumpNode(MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
-    void dumptree(MegaNode* n, int recurse, int extended_info, int depth = 0, string pathRelativeTo = "NULL");
-    MegaContactRequest * getPcrByContact(string contactEmail);
-    string getDisplayPath(string givenPath, MegaNode* n);
-    void dumpListOfExported(MegaNode* n, string givenPath);
-    void listnodeshares(MegaNode* n, string name);
-    void dumpListOfShared(MegaNode* n, string givenPath);
-    void dumpListOfAllShared(MegaNode* n, string givenPath);
-    void dumpListOfPendingShares(MegaNode* n, string givenPath);
-    string getCurrentPath();
+    static bool includeIfIsExported(mega::MegaApi* api, mega::MegaNode * n, void *arg);
+    static bool includeIfIsShared(mega::MegaApi* api, mega::MegaNode * n, void *arg);
+    static bool includeIfIsPendingOutShare(mega::MegaApi* api, mega::MegaNode * n, void *arg);
+    static bool includeIfIsSharedOrPendingOutShare(mega::MegaApi* api, mega::MegaNode * n, void *arg);
+    static bool includeIfMatchesPattern(mega::MegaApi* api, mega::MegaNode * n, void *arg);
+    bool processTree(mega::MegaNode * n, bool(mega::MegaApi *, mega::MegaNode *, void *), void *( arg ));
+    mega::MegaNode* nodebypath(const char* ptr, std::string* user = NULL, std::string* namepart = NULL);
+    void getNodesMatching(mega::MegaNode *parentNode, std::queue<std::string> pathParts, std::vector<mega::MegaNode *> *nodesMatching);
+    mega::MegaNode * getRootNodeByPath(const char *ptr, std::string* user = NULL);
+    std::vector <mega::MegaNode*> * nodesbypath(const char* ptr, std::string* user = NULL, std::string* namepart = NULL);
+    void dumpNode(mega::MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
+    void dumptree(mega::MegaNode* n, int recurse, int extended_info, int depth = 0, std::string pathRelativeTo = "NULL");
+    mega::MegaContactRequest * getPcrByContact(std::string contactEmail);
+    std::string getDisplayPath(std::string givenPath, mega::MegaNode* n);
+    void dumpListOfExported(mega::MegaNode* n, std::string givenPath);
+    void listnodeshares(mega::MegaNode* n, std::string name);
+    void dumpListOfShared(mega::MegaNode* n, std::string givenPath);
+    void dumpListOfAllShared(mega::MegaNode* n, std::string givenPath);
+    void dumpListOfPendingShares(mega::MegaNode* n, std::string givenPath);
+    std::string getCurrentPath();
 
     //acting
     void loginWithPassword(char *password);
     void changePassword(const char *oldpassword, const char *newpassword);
-    void actUponGetExtendedAccountDetails(SynchronousRequestListener *srl, int timeout = -1);
-    bool actUponFetchNodes(MegaApi * api, SynchronousRequestListener *srl, int timeout = -1);
-    void actUponLogin(SynchronousRequestListener *srl, int timeout = -1);
-    void actUponLogout(SynchronousRequestListener *srl, bool deletedSession, int timeout = 0);
-    int actUponCreateFolder(SynchronousRequestListener *srl, int timeout = 0);
-    void deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive);
-    void downloadNode(string localPath, MegaApi* api, MegaNode *node);
-    void uploadNode(string localPath, MegaApi* api, MegaNode *node, string newname);
-    void exportNode(MegaNode *n, int expireTime);
-    void disableExport(MegaNode *n);
-    void shareNode(MegaNode *n, string with, int level = MegaShare::ACCESS_READ);
-    void disableShare(MegaNode *n, string with);
-    vector<string> listpaths(string askedPath = "", bool discardFiles = false);
-    vector<string> getlistusers();
-    vector<string> getNodeAttrs(string nodePath);
-    vector<string> getUserAttrs();
-    vector<string> getsessions();
+    void actUponGetExtendedAccountDetails(mega::SynchronousRequestListener  *srl, int timeout = -1);
+    bool actUponFetchNodes(mega::MegaApi * api, mega::SynchronousRequestListener  *srl, int timeout = -1);
+    void actUponLogin(mega::SynchronousRequestListener  *srl, int timeout = -1);
+    void actUponLogout(mega::SynchronousRequestListener  *srl, bool deletedSession, int timeout = 0);
+    int actUponCreateFolder(mega::SynchronousRequestListener  *srl, int timeout = 0);
+    void deleteNode(mega::MegaNode *nodeToDelete, mega::MegaApi* api, int recursive);
+    void downloadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node);
+    void uploadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, std::string newname);
+    void exportNode(mega::MegaNode *n, int expireTime);
+    void disableExport(mega::MegaNode *n);
+    void shareNode(mega::MegaNode *n, std::string with, int level = mega::MegaShare::ACCESS_READ);
+    void disableShare(mega::MegaNode *n, std::string with);
+    std::vector<std::string> listpaths(std::string askedPath = "", bool discardFiles = false);
+    std::vector<std::string> getlistusers();
+    std::vector<std::string> getNodeAttrs(std::string nodePath);
+    std::vector<std::string> getUserAttrs();
+    std::vector<std::string> getsessions();
 
-    void executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions);
+    void executecommand(std::vector<std::string> words, std::map<std::string, int> *clflags, std::map<std::string, std::string> *cloptions);
 
-    bool checkNoErrors(MegaError *error, string message = "");
+    bool checkNoErrors(mega::MegaError *error, std::string message = "");
 
     //doomedtodie
-    void syncstat(Sync* sync);
-    const char* treestatename(treestate_t ts);
+    void syncstat(mega::Sync* sync);
+//    const char* treestatename(treestate_t ts);
     bool is_syncable(const char* name);
-    int loadfile(string* name, string* data);
-    void signup(string name, string passwd, string email);
-    void signupWithPassword(string passwd);
-    void confirm(string passwd, string email, string link);
-    void confirmWithPassword(string passwd);
+    int loadfile(std::string* name, std::string* data);
+    void signup(std::string name, std::string passwd, std::string email);
+    void signupWithPassword(std::string passwd);
+    void confirm(std::string passwd, std::string email, std::string link);
+    void confirmWithPassword(std::string passwd);
 
-    int makedir(string remotepath, bool recursive, MegaNode *parentnode = NULL);
+    int makedir(std::string remotepath, bool recursive, mega::MegaNode *parentnode = NULL);
 };
 
 #endif // MEGACMDEXECUTER_H

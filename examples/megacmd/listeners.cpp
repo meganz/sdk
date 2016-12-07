@@ -27,6 +27,8 @@
 #define PREFER_STDARG
 #include <readline/readline.h>
 
+using namespace mega;
+
 #ifdef ENABLE_CHAT
 void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*)
 {

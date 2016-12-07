@@ -4,8 +4,6 @@ import socket, sys, struct, os
 
 localpathcommands=["lcd"]
 
-
-
 def parseArgs(argsin):
 	itochange = None
 	totalRealArgs = 0
@@ -58,9 +56,6 @@ def parseArgs(argsin):
 
 	return argsin;
 
-#sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#sock.connect(('127.0.0.1',12347))
-
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
 	suid=str(os.getuid())
@@ -79,16 +74,12 @@ try:
 	sockout =  socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 	sockout.connect(('/tmp/megaCMD_'+suid+'/srv_'+str(sockOutId)))
 
-	#outCode = sockout.recv(4); #get out code
 	outCode, = struct.unpack('i', sockout.recv(4))#get out code
 
 	data = sockout.recv(100);
 	commandOutput=""
 	while (len(data)):
-	#	out, = struct.unpack('H', data[:2])
 		commandOutput+=data
-	#	print "data ("+str(len(data))+")= ",str(data)
-	#	print "trozo=",out
 		data = sockout.recv(100);
 
 	sockout.close()
@@ -96,8 +87,6 @@ try:
 	if "" != commandOutput:
 		print commandOutput,
 
-	#print "<"+str(commandOutput)+">",
-	#print repr(int(outCode))
 	if (outCode <0): exit(-outCode)
 	exit(outCode)
 except Exception as ex:

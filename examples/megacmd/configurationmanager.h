@@ -41,7 +41,7 @@ public:
     static void loadConfiguration(bool debug);
     static void loadsyncs();
 
-    static void saveSyncs(map<string, sync_struct *> *syncsmap);
+    static void saveSyncs(std::map<std::string, sync_struct *> *syncsmap);
 
     static void saveSession(const char*session);
     static std::string getConfigFolder();

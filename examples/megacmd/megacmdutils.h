@@ -1,8 +1,8 @@
 /**
  * @file examples/megacmd/megacmdutils.h
- * @brief MegaCMD: Auxiliary methods
+ * @brief mega::MegaCMD: Auxiliary methods
  *
- * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2016 by mega::Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -24,9 +24,7 @@
 
 #include "megacmd.h"
 
-using namespace mega;
-
-/* MegaNode info extracting*/
+/* mega::MegaNode info extracting*/
 /**
  * @brief getNumFolderFiles
  *
@@ -35,9 +33,9 @@ using namespace mega;
  * @param api
  * @return
  */
-int * getNumFolderFiles(MegaNode *, MegaApi *);
+int * getNumFolderFiles(mega::MegaNode *, mega::MegaApi *);
 
-string getUserInSharedNode(MegaNode *n, MegaApi *api);
+std::string getUserInSharedNode(mega::MegaNode *n, mega::MegaApi *api);
 
 
 /* code translation*/
@@ -49,11 +47,11 @@ const char* getAccessLevelStr(int level);
 
 const char* getSyncStateStr(int state);
 
-string visibilityToString(int visibility);
+std::string visibilityToString(int visibility);
 
 const char* errorstring(int e);
 
-const char * getErrorCodeStr(MegaError *e);
+const char * getErrorCodeStr(mega::MegaError *e);
 
 const char * getLogLevelStr(int loglevel);
 
@@ -67,24 +65,24 @@ int getShareLevelNum(const char* level);
 
 /* Files and folders */
 
-bool canWrite(string path);
+bool canWrite(std::string path);
 
-int getLinkType(string link);
+int getLinkType(std::string link);
 
-bool isPublicLink(string link);
+bool isPublicLink(std::string link);
 
-bool isRegularFile(string path);
+bool isRegularFile(std::string path);
 
-bool hasWildCards(string &what);
+bool hasWildCards(std::string &what);
 
 
 /* Time related */
 
 std::string getReadableTime(const time_t rawtime);
 
-time_t getTimeStampAfter(time_t initial, string timestring);
+time_t getTimeStampAfter(time_t initial, std::string timestring);
 
-time_t getTimeStampAfter(string timestring);
+time_t getTimeStampAfter(std::string timestring);
 
 
 /* Strings related */
@@ -95,9 +93,9 @@ std::string &ltrim(std::string &s, const char &c);
 // trim at the end
 std::string &rtrim(std::string &s, const char &c);
 
-vector<string> getlistOfWords(char *ptr);
+std::vector<std::string> getlistOfWords(char *ptr);
 
-bool stringcontained(const char * s, vector<string> list);
+bool stringcontained(const char * s, std::vector<std::string> list);
 
 char * dupstr(char* s);
 
@@ -105,26 +103,27 @@ bool replace(std::string& str, const std::string& from, const std::string& to);
 
 void replaceAll(std::string& str, const std::string& from, const std::string& to);
 
-bool isRegExp(string what);
+bool isRegExp(std::string what);
 
-string unquote(string what);
+std::string unquote(std::string what);
 
 bool patternMatches(const char *what, const char *pattern);
 
-int toInteger(string what, int failValue = -1);
+int toInteger(std::string what, int failValue = -1);
 
-string joinStrings(const vector<string>& vec, const char* delim = " ", bool quoted=true);
+std::string joinStrings(const std::vector<std::string>& vec, const char* delim = " ", bool quoted=true);
 
 /* Flags and Options */
-int getFlag(map<string, int> *flags, const char * optname);
+int getFlag(std::map<std::string, int> *flags, const char * optname);
 
-string getOption(map<string, string> *cloptions, const char * optname, string defaultValue = "");
+std::string getOption(std::map<std::string, std::string> *cloptions, const char * optname, std::string defaultValue = "");
 
-int getintOption(map<string, string> *cloptions, const char * optname, int defaultValue = 0);
+int getintOption(std::map<std::string, std::string> *cloptions, const char * optname, int defaultValue = 0);
 
-bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vector<string> *ws, set<string> vvalidOptions, bool global = false);
+bool setOptionsAndFlags(std::map<std::string, std::string> *opts, std::map<std::string, int> *flags, std::vector<std::string> *ws,
+                        std::set<std::string> vvalidOptions, bool global = false);
 
 /* Others */
-string sizeToText(long long totalSize, bool equalizeUnitsLength = true, bool humanreadable = true);
+std::string sizeToText(long long totalSize, bool equalizeUnitsLength = true, bool humanreadable = true);
 
 #endif // MEGACMDUTILS_H

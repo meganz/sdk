@@ -1,8 +1,8 @@
 /**
  * @file examples/megacmd/listeners.h
- * @brief MegaCMD: Listeners
+ * @brief mega::MegaCMD: Listeners
  *
- * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2016 by mega::Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,79 +25,75 @@
 #include "megacmd.h"
 #include "megacmdlogger.h"
 
-class MegaCmdListener : public SynchronousRequestListener
+class MegaCmdListener : public mega::SynchronousRequestListener
 {
 private:
     float percentFetchnodes;
 public:
-    MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
+    MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();
 
     //Request callbacks
-    virtual void onRequestStart(MegaApi* api, MegaRequest *request);
-    virtual void doOnRequestFinish(MegaApi* api, MegaRequest *request, MegaError* error);
-    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
-    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
+    virtual void onRequestStart(mega::MegaApi* api, mega::MegaRequest *request);
+    virtual void doOnRequestFinish(mega::MegaApi* api, mega::MegaRequest *request, mega::MegaError* error);
+    virtual void onRequestUpdate(mega::MegaApi* api, mega::MegaRequest *request);
+    virtual void onRequestTemporaryError(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError* e);
 
 protected:
-    //virtual void customEvent(QEvent * event);
-
-    MegaRequestListener *listener;
+    mega::MegaRequestListener *listener;
 };
 
 
-class MegaCmdTransferListener : public SynchronousTransferListener
+class MegaCmdTransferListener : public mega::SynchronousTransferListener
 {
 private:
     float percentFetchnodes;
 public:
-    MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener = NULL);
+    MegaCmdTransferListener(mega::MegaApi *megaApi, mega::MegaTransferListener *listener = NULL);
     virtual ~MegaCmdTransferListener();
 
     //Transfer callbacks
-    virtual void onTransferStart(MegaApi* api, MegaTransfer *transfer);
-    virtual void doOnTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    virtual void onTransferUpdate(MegaApi* api, MegaTransfer *transfer);
-    virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-    virtual bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferStart(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    virtual void doOnTransferFinish(mega::MegaApi* api, mega::MegaTransfer *transfer, mega::MegaError* e);
+    virtual void onTransferUpdate(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    virtual void onTransferTemporaryError(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError* e);
+    virtual bool onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size);
 
 protected:
-    //virtual void customEvent(QEvent * event);
-
-    MegaTransferListener *listener;
+    mega::MegaTransferListener *listener;
 };
 
-class MegaCmdGlobalListener : public MegaGlobalListener
+class MegaCmdGlobalListener : public mega::MegaGlobalListener
 {
 private:
     MegaCMDLogger *loggerCMD;
 
 public:
     MegaCmdGlobalListener(MegaCMDLogger *logger);
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    void onUsersUpdate(MegaApi* api, MegaUserList *users);
+    void onNodesUpdate(mega::MegaApi* api, mega::MegaNodeList *nodes);
+    void onUsersUpdate(mega::MegaApi* api, mega::MegaUserList *users);
 #ifdef ENABLE_CHAT
-    void onChatsUpdate(MegaApi*, MegaTextChatList*);
+    void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
 #endif
 };
 
-class MegaCmdMegaListener : public MegaListener
+class MegaCmdMegaListener : public mega::MegaListener
 {
 
 public:
-    MegaCmdMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
+    MegaCmdMegaListener(mega::MegaApi *megaApi, mega::MegaListener *parent=NULL);
     virtual ~MegaCmdMegaListener();
 
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+    virtual void onRequestFinish(mega::MegaApi* api, mega::MegaRequest *request, mega::MegaError* e);
 
 #ifdef ENABLE_CHAT
-    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
+    void onChatsUpdate(mega::MegaApi *api, mega::MegaTextChatList *chats);
 #endif
 
 
 protected:
-    MegaApi *megaApi;
-    MegaListener *listener;
+    mega::MegaApi *megaApi;
+    mega::MegaListener *listener;
 };
 
 
