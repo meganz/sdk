@@ -1009,8 +1009,15 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
 
     if (!r)
     {
-        LOG_err << "Error creating local directory: " << name->c_str() << " errno: " << errno;
         target_exists = errno == EEXIST;
+        if (target_exists)
+        {
+            LOG_debug << "Error creating local directory: " << name->c_str() << " errno: " << errno;
+        }
+        else
+        {
+            LOG_err << "Error creating local directory: " << name->c_str() << " errno: " << errno;
+        }
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
 
