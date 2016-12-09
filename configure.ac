@@ -1020,8 +1020,8 @@ AC_MSG_RESULT([$enable_examples])
 # MegaCMD
 AC_MSG_CHECKING([if building megacmd application])
 AC_ARG_ENABLE(megacmd,
-    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=no]]),
-    [], [enable_megacmd=no])
+    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
+    [], [enable_megacmd=yes])
 AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
 AC_MSG_RESULT([$enable_megacmd])
 

@@ -18,14 +18,16 @@ libreadline-dev libpcre++-dev libsodium-dev`
 
 ## Building
 
-For platforms with Autotools, the generic way to build and install it is:
+For platforms with Autotools, MegaCMD is included in the generic compilation. To build and install:
 
     sh autogen.sh
-    ./configure --enable-megacmd
+    ./configure
     make
     make install
     
 * You will need to run `make install` as root
+
+* To disable megacmd use `configure` with `--disable-megacmd`
 
 `Note`: if you use a prefix in configure, autocompletion from non-interactive usage won't work. You would need to `source /YOUR/PREFIX/etc/bash_completion.d/megacmd_completion.sh` (or link it from /etc/bash_completion.d)
 

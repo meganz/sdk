@@ -1917,6 +1917,58 @@ public:
     }
 };
 
+void printCenteredLine(string msj, int width, bool encapsulated = true)
+{
+    if (msj.size()>width)
+    {
+        width = msj.size();
+    }
+    if (encapsulated)
+        cout << "|";
+    for (uint i = 0; i < (width-msj.size())/2; i++)
+        cout << " ";
+    cout << msj;
+    for (uint i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+        cout << " ";
+    if (encapsulated)
+        cout << "|";
+    cout << endl;
+}
+
+void printWelcomeMsg()
+{
+    int width = 75;
+    cout << ".";
+    for (uint i = 0; i < width; i++)
+        cout << "=" ;
+    cout << ".";
+    cout << endl;
+    printCenteredLine(" __  __                   ____ __  __ ____  ",width);
+    printCenteredLine("|  \\/  | ___  __ _  __ _ / ___|  \\/  |  _ \\ ",width);
+    printCenteredLine("| |\\/| |/ _ \\/ _` |/ _` | |   | |\\/| | | | |",width);
+    printCenteredLine("| |  | |  __/ (_| | (_| | |___| |  | | |_| |",width);
+    printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
+    printCenteredLine("             |___/                          ",width);
+    cout << "|";
+    for (uint i = 0; i < width; i++)
+        cout << " " ;
+    cout << "|";
+    cout << endl;
+    printCenteredLine("Welcome to MegaCMD! A Command Line Interactive and Scriptable",width);
+    printCenteredLine("Application to interact with your MEGA account",width);
+    printCenteredLine("This is a BETA version, it might not be bug-free.",width);
+    printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
+    printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
+    printCenteredLine("have any suggestion concerning its functionalities.",width);
+
+    cout << "`";
+    for (uint i = 0; i < width; i++)
+        cout << "=" ;
+    cout << "´";
+    cout << endl;
+
+}
+
 int main(int argc, char* argv[])
 {
     NullBuffer null_buffer;
@@ -1924,6 +1976,7 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
+    printWelcomeMsg();
 
     loggerCMD = new MegaCMDLogger(&cout);
 
