@@ -1605,7 +1605,7 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node)
 void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname)
 {
     MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
-    LOG_debug << "Starting upload: " << path << " to : " << node->getName();
+    LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
     if (newname.size())
     {
         api->startUpload(path.c_str(), node, newname.c_str(), megaCmdTransferListener);
@@ -1615,7 +1615,12 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
         api->startUpload(path.c_str(), node, megaCmdTransferListener);
     }
     megaCmdTransferListener->wait();
-    if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
+    if (megaCmdTransferListener->getError()->getErrorCode() == API_EREAD)
+    {
+        setCurrentOutCode(MCMD_NOTFOUND);
+        LOG_err << "Could not find local path: " << path;
+    }
+    else if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
     {
         char * destinyPath = api->getNodePath(node);
         LOG_info << "Upload complete: " << path << " to " << destinyPath << newname;
@@ -2898,15 +2903,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     for (int i = 1; i < max(1, (int)words.size() - 1); i++)
                     {
-                        if (fsAccessCMD->pathExists(&words[i]))
-                        {
-                            uploadNode(words[i], api, n, newname);
-                        }
-                        else
-                        {
-                            setCurrentOutCode(MCMD_NOTFOUND);
-                            LOG_err << "Could not find local path " << words[i];
-                        }
+                        uploadNode(words[i], api, n, newname);
                     }
                 }
                 else

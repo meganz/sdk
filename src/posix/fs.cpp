@@ -1133,26 +1133,6 @@ bool PosixFileSystemAccess::isFolder(string *path)
     return S_ISDIR(path_stat.st_mode);
 }
 
-bool PosixFileSystemAccess::pathExists(string *path)
-{
-#ifdef USE_IOS
-     //TODO: untested
-    string absolutepath;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (path->size() && path->at(0) != '/')
-        {
-            absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
-        }
-    }
-#endif
-    struct stat path_stat;
-    int ret = stat(path->c_str(), &path_stat);
-    return ret == 0;
-}
-
 string PosixFileSystemAccess::getCurrentLocalPath()
 {
     char cCurrentPath[PATH_MAX];
