@@ -1333,7 +1333,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true) );
 
-    ASSERT_STREQ(message.data(), cr[0]->getSourceMessage()) << "Message sent is corrupted";
+    ASSERT_STREQ(message.data(), cr[0]->getSourceMessage()) << "Message sent is 
+        ";
     ASSERT_STREQ(email[0].data(), cr[0]->getSourceEmail()) << "Wrong source email";
     ASSERT_STREQ(email[1].data(), cr[0]->getTargetEmail()) << "Wrong target email";
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr[0]->getStatus()) << "Wrong contact request status";
@@ -1349,6 +1350,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
+    // There isn't message when a user invites the same user too many times, to avoid spamming
     if (cr[1]->getSourceMessage())
     {
         ASSERT_STREQ(message.data(), cr[1]->getSourceMessage()) << "Message received is corrupted";
