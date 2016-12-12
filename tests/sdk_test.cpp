@@ -1333,8 +1333,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true) );
 
-    ASSERT_STREQ(message.data(), cr[0]->getSourceMessage()) << "Message sent is 
-        ";
+    ASSERT_STREQ(message.data(), cr[0]->getSourceMessage()) << "Message sent is corrupted";
     ASSERT_STREQ(email[0].data(), cr[0]->getSourceEmail()) << "Wrong source email";
     ASSERT_STREQ(email[1].data(), cr[0]->getTargetEmail()) << "Wrong target email";
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr[0]->getStatus()) << "Wrong contact request status";
