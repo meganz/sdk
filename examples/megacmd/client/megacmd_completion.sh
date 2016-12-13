@@ -50,6 +50,11 @@ _megacmd()
 		COMPREPLY=()
 	fi
 	
+	if [[ $opts == "" ]]; then
+		COMPREPLY=""
+		compopt -o nospace
+	fi
+	
 	return 0
 }
 for i in $(compgen -ca | grep mega-); do
