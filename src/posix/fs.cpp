@@ -1123,7 +1123,7 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
     return false;
 }
 
-string PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
+bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 {
     ostringstream os;
     if (path->at(0) == '/')
