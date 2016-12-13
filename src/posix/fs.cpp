@@ -85,13 +85,16 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     }
 #endif
 
+    type = TYPE_UNKNOWN;
     if (!stat(localname.c_str(), &statbuf))
     {
         if (S_ISDIR(statbuf.st_mode))
         {
+            type = FOLDERNODE;
             return false;
         }
 
+        type = FILENODE;
         *size = statbuf.st_size;
         *mtime = statbuf.st_mtime;
 
@@ -1120,48 +1123,27 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
     return false;
 }
 
-bool PosixFileSystemAccess::isFolder(string *path)
-{
-#ifdef USE_IOS
-     //TODO: untested
-    string absolutepath;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (path->size() && path->at(0) != '/')
-        {
-            absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
-        }
-    }
-#endif
-    struct stat path_stat;
-    stat(path->c_str(), &path_stat);
-    return S_ISDIR(path_stat.st_mode);
-}
-
-string PosixFileSystemAccess::getCurrentLocalPath()
-{
-    char cCurrentPath[PATH_MAX];
-    if (!getcwd(cCurrentPath, sizeof( cCurrentPath )))
-    {
-        return "";
-    }
-
-    return string(cCurrentPath);
-}
-
-string PosixFileSystemAccess::expansePath(string *path)
+bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 {
     ostringstream os;
     if (path->at(0) == '/')
     {
-        return *path;
+        *absolutepath = *path;
+        return true;
     }
     else
     {
-        os << getCurrentLocalPath() << "/" << *path;
-        return os.str();
+        char cCurrentPath[PATH_MAX];
+        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
+        {
+            *absolutepath = *path;
+            return false;
+        }
+
+        *absolutepath = cCurrentPath;
+        absolutepath->append("/");
+        absolutepath->append(*path);
+        return true;
     }
 }
 

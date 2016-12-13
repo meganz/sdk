@@ -2596,8 +2596,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     if (words.size() > 2)
                     {
                         path = words[2];
-                        if (fsAccessCMD->isFolder(&path))
+                        string localpath;
+                        fsAccessCMD->path2local(&path, &localpath);
+                        FileAccess *fa = fsAccessCMD->newfileaccess();
+                        if (fa->isfolder(&localpath))
                         {
+                            delete fa;
                             path += "/";
                             if (!canWrite(path))
                             {
@@ -2618,18 +2622,23 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 fsAccessCMD->local2path(&firstpartlocal, &containingFolder);
                             }
 
-                            if (!fsAccessCMD->isFolder(&containingFolder))
+                            string localcontainingFolder;
+                            fsAccessCMD->path2local(&path, &localcontainingFolder);
+                            if (!fa->isfolder(&localcontainingFolder))
                             {
+                                delete fa;
                                 setCurrentOutCode(MCMD_INVALIDTYPE);
                                 LOG_err << containingFolder << " is not a valid Download Folder";
                                 return;
                             }
                             if (!canWrite(containingFolder))
                             {
+                                delete fa;
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
                                 LOG_err << "Write not allowed in " << containingFolder;
                                 return;
                             }
+                            delete fa;
                         }
                     }
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
@@ -2675,8 +2684,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     if (words.size() > 2)
                     {
                         path = words[2];
-                        if (fsAccessCMD->isFolder(&path))
+                        string localpath;
+                        fsAccessCMD->path2local(&path, &localpath);
+                        FileAccess *fa = fsAccessCMD->newfileaccess();
+                        if (fa->isfolder(&localpath))
                         {
+                            delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) )
                                 path+="/";
                             if (!canWrite(words[2]))
@@ -2688,6 +2701,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
+                            delete fa;
                             setCurrentOutCode(MCMD_INVALIDTYPE);
                             LOG_err << words[2] << " is not a valid Download Folder";
                             return;
@@ -2749,8 +2763,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     if (words.size() > 2)
                     {
                         path = words[2];
-                        if (fsAccessCMD->isFolder(&path))
+                        string localpath;
+                        fsAccessCMD->path2local(&path, &localpath);
+                        FileAccess *fa = fsAccessCMD->newfileaccess();
+                        if (fa->isfolder(&localpath))
                         {
+                            delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) )
                                 path+="/";
                             if (!canWrite(words[2]))
@@ -2762,6 +2780,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
+                            delete fa;
                             setCurrentOutCode(MCMD_INVALIDTYPE);
                             LOG_err << words[2] << " is not a valid Download Folder";
                             return;
@@ -2796,8 +2815,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             if (n->getType() == MegaNode::TYPE_FILE)
                             {
                                 path = words[2];
-                                if (fsAccessCMD->isFolder(&path))
+                                string localpath;
+                                fsAccessCMD->path2local(&path, &localpath);
+                                FileAccess *fa = fsAccessCMD->newfileaccess();
+                                if (fa->isfolder(&localpath))
                                 {
+                                    delete fa;
                                     if (! (path.find_last_of("/") == path.size()-1) )
                                         path+="/";
                                     if (!canWrite(words[2]))
@@ -2809,6 +2832,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                                 else
                                 {
+                                    delete fa;
                                     string localpath;
                                     fsAccessCMD->path2local(&path, &localpath);
                                     int lastpart = fsAccessCMD->lastpartlocal(&localpath);
@@ -2819,12 +2843,17 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                         fsAccessCMD->local2path(&firstpartlocal, &containingFolder);
                                     }
 
-                                    if (!fsAccessCMD->isFolder(&containingFolder))
+                                    string localcontainingFolder;
+                                    fsAccessCMD->path2local(&path, &localcontainingFolder);
+                                    FileAccess *fa = fsAccessCMD->newfileaccess();
+                                    if (!fa->isfolder(&localcontainingFolder))
                                     {
+                                        delete fa;
                                         setCurrentOutCode(MCMD_INVALIDTYPE);
                                         LOG_err << containingFolder << " is not a valid Download Folder";
                                         return;
                                     }
+                                    delete fa;
                                     if (!canWrite(containingFolder))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -2836,8 +2865,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             else
                             {
                                 path = words[2];
-                                if (fsAccessCMD->isFolder(&path))
+                                string localpath;
+                                fsAccessCMD->path2local(&path, &localpath);
+                                FileAccess *fa = fsAccessCMD->newfileaccess();
+                                if (fa->isfolder(&localpath))
                                 {
+                                    delete fa;
                                     if (! (path.find_last_of("/") == path.size()-1) )
                                         path+="/";
                                     if (!canWrite(words[2]))
@@ -2849,6 +2882,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                                 else
                                 {
+                                    delete fa;
                                     setCurrentOutCode(MCMD_INVALIDTYPE);
                                     LOG_err << words[2] << " is not a valid Download Folder";
                                     return;
@@ -3013,9 +3047,17 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "lpwd")
     {
-        string cCurrentPath = fsAccessCMD->getCurrentLocalPath();
+        string relativePath = ".";
+        string absolutePath = "Unknown";
+        string localRelativePath;
+        fsAccessCMD->path2local(&relativePath, &localRelativePath);
+        string localAbsolutePath;
+        if (fsAccessCMD->expanselocalpath(&localRelativePath, &localAbsolutePath))
+        {
+            fsAccessCMD->local2path(&localAbsolutePath, &absolutePath);
+        }
 
-        OUTSTREAM << cCurrentPath << endl;
+        OUTSTREAM << absolutePath << endl;
         return;
     }
     else if (words[0] == "ipc")
@@ -3098,7 +3140,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         mtxSyncMap.lock();
         if (words.size() == 3)
         {
-            string path = fsAccessCMD->expansePath(&words[1]);
+            string path;
+            string localrelativepath;
+            string localabsolutepath;
+            fsAccessCMD->path2local(&words[1], &localrelativepath);
+            fsAccessCMD->expanselocalpath(&localrelativepath, &localabsolutepath);
+            fsAccessCMD->local2path(&localabsolutepath, &path);
             MegaNode* n = nodebypath(words[2].c_str());
             if (n)
             {
