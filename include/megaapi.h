@@ -3476,7 +3476,6 @@ class SynchronousRequestListener : public MegaRequestListener
 {
 private:
     MegaSemaphore* semaphore;
-
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
 
 protected:
@@ -3484,8 +3483,8 @@ protected:
     MegaApi *megaApi;
     MegaRequest *megaRequest;
     MegaError *megaError;
-public:
 
+public:
     SynchronousRequestListener();
 
     /**
@@ -3527,7 +3526,6 @@ public:
      * @return returns 0 if the request had finished and a value different to 0 if timeout passed.
      */
     int trywait(int milliseconds);
-
 
     /**
      * @brief Get the MegaError object produced by the request.
@@ -3683,6 +3681,7 @@ protected:
 
 public:
     SynchronousTransferListener();
+
     /**
      * @brief This function is called when a transfer has finished
      *
@@ -3722,7 +3721,6 @@ public:
      * @return returns 0 if the transfer had finished and a value different to 0 if timeout passed.
      */
     int trywait(int milliseconds);
-
 
     /**
      * @brief Get the MegaError object produced by the transfer.
