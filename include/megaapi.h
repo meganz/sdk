@@ -3745,7 +3745,6 @@ public:
     MegaApi *getApi() const;
 
     virtual ~SynchronousTransferListener();
-
 };
 
 
