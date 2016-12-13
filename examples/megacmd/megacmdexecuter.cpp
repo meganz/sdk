@@ -1500,13 +1500,21 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
     else if (checkNoErrors(srl->getError(), "Login")) //login success:
     {
-        LOG_info << "Login correct ... " << srl->getRequest()->getEmail();
+        LOG_debug << "Login correct ... " << (srl->getRequest()->getEmail()?srl->getRequest()->getEmail():"");
         session = srl->getApi()->dumpSession();
         ConfigurationManager::saveSession(session);
         ConfigurationManager::loadsyncs();
         LOG_info << "Fetching nodes ... ";
         srl->getApi()->fetchNodes(srl);
         actUponFetchNodes(api, srl, timeout);
+        MegaUser *u = api->getMyUser();
+        if (u)
+        {
+            LOG_info << "Login complete as " << u->getEmail();
+            delete u;
+        }
+
+
     }
 }
 
