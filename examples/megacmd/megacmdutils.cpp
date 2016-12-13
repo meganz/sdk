@@ -674,7 +674,7 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 bool isRegExp(string what)
 {
 #ifdef USE_PCRE
-    if (( what == "." ) || ( what == ".." ))
+    if (( what == "." ) || ( what == ".." ) || ( what == "/" ))
     {
         return false;
     }
@@ -694,7 +694,7 @@ bool isRegExp(string what)
 string unquote(string what)
 {
 #ifdef USE_PCRE
-    if (( what == "." ) || ( what == ".." ))
+    if (( what == "." ) || ( what == ".." )  || ( what == "/" ))
     {
         return what;
     }

@@ -742,7 +742,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
 
                     bptr = ptr + 1;
 
-                    if (s.size())
+                    if (!c.size() || s.size())
                     {
                         c.push(s);
                     }
@@ -1859,7 +1859,7 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
         if (askedPath.find('/') != string::npos)
         {
             string cwpath = getCurrentPath();
-            if (askedPath.find_first_of(cwpath) == 0)
+            if (askedPath.find(cwpath) == string::npos)
             {
                 rNpath = "";
             }
@@ -2055,7 +2055,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (words[1].find('/') != string::npos)
             {
                 string cwpath = getCurrentPath();
-                if (words[1].find_first_of(cwpath) == 0)
+                if (words[1].find(cwpath) == string::npos)
                 {
                     rNpath = "";
                 }
@@ -2128,7 +2128,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (words[1].find('/') != string::npos)
             {
                 string cwpath = getCurrentPath();
-                if (words[1].find_first_of(cwpath) == 0)
+                if (words[1].find(cwpath) == string::npos)
                 {
                     rNpath = "";
                 }
@@ -4337,7 +4337,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "logout")
     {
-        OUTSTREAM << "Logging off..." << endl;
+        OUTSTREAM << "Logging out..." << endl;
         MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
         bool keepSession = getFlag(clflags, "keep-session");
         char * dumpSession = NULL;
@@ -4581,7 +4581,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "locallogout")
     {
-        OUTSTREAM << "Logging off locally..." << endl;
+        OUTSTREAM << "Logging out locally..." << endl;
         cwd = UNDEF;
         return;
     }

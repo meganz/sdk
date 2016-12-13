@@ -1166,6 +1166,10 @@ const char * getUsageStr(const char *command)
     {
         return "find [remotepath] [-l] [--pattern=PATTERN]";
     }
+    if (!strcmp(command, "help"))
+    {
+        return "help [-f]";
+    }
     return "command not found";
 }
 
