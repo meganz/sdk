@@ -1925,10 +1925,10 @@ void printCenteredLine(string msj, int width, bool encapsulated = true)
     }
     if (encapsulated)
         cout << "|";
-    for (uint i = 0; i < (width-msj.size())/2; i++)
+    for (u_int i = 0; i < (width-msj.size())/2; i++)
         cout << " ";
     cout << msj;
-    for (uint i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+    for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
         cout << " ";
     if (encapsulated)
         cout << "|";
@@ -1939,7 +1939,7 @@ void printWelcomeMsg()
 {
     int width = 75;
     cout << ".";
-    for (uint i = 0; i < width; i++)
+    for (u_int i = 0; i < width; i++)
         cout << "=" ;
     cout << ".";
     cout << endl;
@@ -1950,7 +1950,7 @@ void printWelcomeMsg()
     printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
     printCenteredLine("             |___/                          ",width);
     cout << "|";
-    for (uint i = 0; i < width; i++)
+    for (u_int i = 0; i < width; i++)
         cout << " " ;
     cout << "|";
     cout << endl;
@@ -1962,7 +1962,7 @@ void printWelcomeMsg()
     printCenteredLine("have any suggestion concerning its functionalities.",width);
 
     cout << "`";
-    for (uint i = 0; i < width; i++)
+    for (u_int i = 0; i < width; i++)
         cout << "=" ;
     cout << "´";
     cout << endl;
