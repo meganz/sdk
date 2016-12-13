@@ -60,6 +60,9 @@ struct MEGA_API FileAccess
     // open by name only
     bool fopen(string*);
 
+    // check if a local path is a folder
+    bool isfolder(string*);
+
     // update localname (only has an effect if operating in by-name mode)
     virtual void updatelocalname(string*) = 0;
 
@@ -218,6 +221,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // delete notification
     virtual void delnotify(LocalNode*) { }
+
+    // get the absolute path corresponding to a path
+    virtual bool expanselocalpath(string *path, string *absolutepath) = 0;
 
     // default permissions for new files
     int getdefaultfilepermissions() { return 0600; }
