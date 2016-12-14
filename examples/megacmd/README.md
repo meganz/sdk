@@ -3,7 +3,7 @@
 MegaCMD provides non UI access to MEGA services. It intends to offer all the functionality with your MEGA account via shell interaction. It features 2 modes of interaction: 
 
 - interactive. A shell to query your actions
-- scriptable. A way to execute commands from a shell/an script/another program.
+- scriptable. A way to execute commands from a shell/a script/another program.
 
 ## Requirements
 
