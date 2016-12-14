@@ -167,6 +167,8 @@
 %ignore mega::MegaTransfer::getListener;
 %ignore mega::MegaRequest::getListener;
 %ignore mega::MegaHashSignature;
+%ignore mega::SynchronousRequestListener;
+%ignore mega::SynchronousTransferListener;
 
 %newobject mega::MegaError::copy;
 %newobject mega::MegaRequest::copy;

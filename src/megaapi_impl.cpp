@@ -1317,7 +1317,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setNumRetry(transfer->getNumRetry());
     this->setMaxRetries(transfer->getMaxRetries());
     this->setTime(transfer->getTime());
-    this->setStartTime(transfer->getStartTime());
+    this->startTime = transfer->getStartTime();
     this->setTransferredBytes(transfer->getTransferredBytes());
     this->setTotalBytes(transfer->getTotalBytes());
     this->setFileName(transfer->getFileName());
@@ -9120,7 +9120,15 @@ void MegaApiImpl::copysession_result(string *session, error e)
 
 void MegaApiImpl::clearing()
 {
-
+#ifdef ENABLE_SYNC
+    map<int, MegaSyncPrivate *>::iterator it;
+    for (it = syncMap.begin(); it != syncMap.end(); )
+    {
+        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
+        syncMap.erase(it++);
+        delete sync;
+    }
+#endif
 }
 
 void MegaApiImpl::notify_retry(dstime dsdelta)

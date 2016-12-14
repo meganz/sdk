@@ -60,21 +60,21 @@ namespace mega
 {
 
 #ifdef USE_QT
-typedef QtThread MegaThread;
-typedef QtMutex MegaMutex;
-typedef QtSemaphore MegaSemaphore;
+class MegaThread : public QtThread {};
+class MegaMutex : public QtMutex {};
+class MegaSemaphore : public QtSemaphore {};
 #elif USE_PTHREAD
-typedef PosixThread MegaThread;
-typedef PosixMutex MegaMutex;
-typedef PosixSemaphore MegaSemaphore;
+class MegaThread : public PosixThread {};
+class MegaMutex : public PosixMutex {};
+class MegaSemaphore : public PosixSemaphore {};
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
-typedef Win32Thread MegaThread;
-typedef Win32Mutex MegaMutex;
-typedef Win32Semaphore MegaSemaphore;
+class MegaThread : public Win32Thread {};
+class MegaMutex : public Win32Mutex {};
+class MegaSemaphore : public Win32Semaphore {};
 #else
-typedef CppThread MegaThread;
-typedef CppMutex MegaMutex;
-typedef CppSemaphore MegaSemaphore;
+class MegaThread : public CppThread {};
+class MegaMutex : public CppMutex {};
+class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #ifdef USE_QT

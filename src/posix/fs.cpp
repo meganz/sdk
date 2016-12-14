@@ -85,13 +85,16 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     }
 #endif
 
+    type = TYPE_UNKNOWN;
     if (!stat(localname.c_str(), &statbuf))
     {
         if (S_ISDIR(statbuf.st_mode))
         {
+            type = FOLDERNODE;
             return false;
         }
 
+        type = FILENODE;
         *size = statbuf.st_size;
         *mtime = statbuf.st_mtime;
 
@@ -1013,8 +1016,15 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
 
     if (!r)
     {
-        LOG_err << "Error creating local directory: " << name->c_str() << " errno: " << errno;
         target_exists = errno == EEXIST;
+        if (target_exists)
+        {
+            LOG_debug << "Error creating local directory: " << name->c_str() << " errno: " << errno;
+        }
+        else
+        {
+            LOG_err << "Error creating local directory: " << name->c_str() << " errno: " << errno;
+        }
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
 
@@ -1115,6 +1125,30 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
     }
 
     return false;
+}
+
+bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
+{
+    ostringstream os;
+    if (path->at(0) == '/')
+    {
+        *absolutepath = *path;
+        return true;
+    }
+    else
+    {
+        char cCurrentPath[PATH_MAX];
+        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
+        {
+            *absolutepath = *path;
+            return false;
+        }
+
+        *absolutepath = cCurrentPath;
+        absolutepath->append("/");
+        absolutepath->append(*path);
+        return true;
+    }
 }
 
 void PosixFileSystemAccess::osversion(string* u) const

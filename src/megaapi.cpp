@@ -1016,6 +1016,75 @@ void MegaRequestListener::onRequestTemporaryError(MegaApi *, MegaRequest *, Mega
 { }
 MegaRequestListener::~MegaRequestListener() {}
 
+
+SynchronousRequestListener::SynchronousRequestListener()
+{
+    listener = NULL;
+    megaApi = NULL;
+    megaRequest = NULL;
+    megaError = NULL;
+    semaphore = new MegaSemaphore();
+}
+SynchronousRequestListener::~SynchronousRequestListener()
+{
+    delete semaphore;
+    if (megaRequest)
+    {
+        delete megaRequest;
+    }
+    if (megaError)
+    {
+        delete megaError;
+    }
+}
+
+void SynchronousRequestListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
+{
+    this->megaApi = api;
+    if (megaRequest)
+    {
+        delete megaRequest;              //in case of reused listener
+    }
+    this->megaRequest = request->copy();
+    if (megaError)
+    {
+        delete megaError;            //in case of reused listener
+    }
+    this->megaError = error->copy();
+
+    doOnRequestFinish(api, request, error);
+    semaphore->release();
+}
+
+void SynchronousRequestListener::doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
+{ }
+
+void SynchronousRequestListener::wait()
+{
+    semaphore->wait();
+}
+
+int SynchronousRequestListener::trywait(int milliseconds)
+{
+    return semaphore->timedwait(milliseconds);
+}
+
+MegaRequest *SynchronousRequestListener::getRequest() const
+{
+    return megaRequest;
+}
+
+MegaApi *SynchronousRequestListener::getApi() const
+{
+    return megaApi;
+}
+
+MegaError *SynchronousRequestListener::getError() const
+{
+    return megaError;
+}
+
+
 //Transfer callbacks
 void MegaTransferListener::onTransferStart(MegaApi *, MegaTransfer *)
 { }
@@ -1029,6 +1098,64 @@ void MegaTransferListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, M
 { }
 MegaTransferListener::~MegaTransferListener()
 { }
+
+
+
+SynchronousTransferListener::SynchronousTransferListener()
+{
+    listener = NULL;
+    megaApi = NULL;
+    megaTransfer = NULL;
+    megaError = NULL;
+    semaphore = new MegaSemaphore();
+}
+SynchronousTransferListener::~SynchronousTransferListener()
+{
+    delete semaphore;
+    delete megaTransfer;
+    delete megaError;
+}
+
+void SynchronousTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
+{
+    this->megaApi = api;
+    delete megaTransfer;               //in case of reused listener
+    this->megaTransfer = transfer->copy();
+    delete megaError;            //in case of reused listener
+    this->megaError = error->copy();
+
+    doOnTransferFinish(api, transfer, error);
+    semaphore->release();
+}
+
+void SynchronousTransferListener::doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
+{ }
+
+void SynchronousTransferListener::wait()
+{
+    semaphore->wait();
+}
+
+int SynchronousTransferListener::trywait(int milliseconds)
+{
+    return semaphore->timedwait(milliseconds);
+}
+
+MegaTransfer *SynchronousTransferListener::getTransfer() const
+{
+    return megaTransfer;
+}
+
+MegaApi *SynchronousTransferListener::getApi() const
+{
+    return megaApi;
+}
+
+MegaError *SynchronousTransferListener::getError() const
+{
+    return megaError;
+}
+
 
 //Global callbacks
 void MegaGlobalListener::onUsersUpdate(MegaApi *, MegaUserList *)
@@ -1196,6 +1323,11 @@ MegaHandle MegaApi::base32ToHandle(const char *base32Handle)
 uint64_t MegaApi::base64ToHandle(const char* base64Handle)
 {
     return MegaApiImpl::base64ToHandle(base64Handle);
+}
+
+uint64_t MegaApi::base64ToUserHandle(const char* base64Handle)
+{
+    return MegaApiImpl::base64ToUserHandle(base64Handle);
 }
 
 char *MegaApi::handleToBase64(MegaHandle handle)
