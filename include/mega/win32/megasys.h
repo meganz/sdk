@@ -66,6 +66,10 @@
 #include <memory.h>
 #include <time.h>
 
+#if defined(USE_PTHREAD) && defined (__MINGW32__)
+#include <sys/time.h>		
+#endif
+
 #include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
