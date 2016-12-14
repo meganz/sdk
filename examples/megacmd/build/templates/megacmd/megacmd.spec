@@ -73,10 +73,6 @@ It features 2 modes of interaction:
 %define with_zlib %{nil}
 %endif
 
-export DESKTOP_DESTDIR=$RPM_BUILD_ROOT/usr
-
-#./configure %{flag_cryptopp} -g %{flag_disablezlib}
-
 # Fedora uses system Crypto++ header files
 %if 0%{?fedora}
 rm -fr bindings/qt/3rdparty/include/cryptopp
@@ -87,7 +83,7 @@ rm -fr bindings/qt/3rdparty/include/cryptopp
 #build dependencies into folder deps
 mkdir deps
 bash -x ./contrib/build_sdk.sh %{flag_cryptopp} -o archives -f \
-  -g %{flag_disablezlib} -b -l -c -s -v -u -a -p deps/
+  -g %{flag_disablezlib} -b -l -c -s -u -a -p deps/
 
 ./configure --disable-shared --enable-static --disable-silent-rules \
   --disable-curl-checks %{with_cryptopp} --with-sodium=deps \

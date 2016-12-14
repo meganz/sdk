@@ -1,0 +1,7 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: megacmd
+Upstream-Contact: <support@mega.nz>
+Source: https://github.com/meganz/megacmd
+Files: *
+Copyright: 2013, Mega Limited
+License:
