@@ -66,18 +66,6 @@
 #include <memory.h>
 #include <time.h>
 
-#ifdef _MSC_VER
-    #include <direct.h>
-    #define getcwd _getcwd
-#else
-    #include <unistd.h>
-#endif
-
-#ifdef USE_PTHREAD
-#include <sys/time.h>
-#endif
-
-
 #include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
