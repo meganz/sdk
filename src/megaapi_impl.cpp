@@ -10055,14 +10055,21 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
     activeRequest = request;
     LOG_info << "Request (" << request->getRequestString() << ") starting";
-	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
-		(*it)->onRequestStart(api, request);
+    for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
+    {
+        (*it++)->onRequestStart(api, request);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onRequestStart(api, request);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onRequestStart(api, request);
+    }
 
 	MegaRequestListener* listener = request->getListener();
-	if(listener) listener->onRequestStart(api, request);
+    if(listener)
+    {
+        listener->onRequestStart(api, request);
+    }
 	activeRequest = NULL;
 }
 
@@ -10082,14 +10089,21 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
         LOG_info << "Request (" << request->getRequestString() << ") finished";
     }
 
-	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
-		(*it)->onRequestFinish(api, request, megaError);
+    for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
+    {
+        (*it++)->onRequestFinish(api, request, megaError);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onRequestFinish(api, request, megaError);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onRequestFinish(api, request, megaError);
+    }
 
 	MegaRequestListener* listener = request->getListener();
-	if(listener) listener->onRequestFinish(api, request, megaError);
+    if(listener)
+    {
+        listener->onRequestFinish(api, request, megaError);
+    }
 
     requestMap.erase(request->getTag());
 
@@ -10103,14 +10117,21 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 {
     activeRequest = request;
 
-    for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
-        (*it)->onRequestUpdate(api, request);
+    for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
+    {
+        (*it++)->onRequestUpdate(api, request);
+    }
 
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onRequestUpdate(api, request);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onRequestUpdate(api, request);
+    }
 
     MegaRequestListener* listener = request->getListener();
-    if(listener) listener->onRequestUpdate(api, request);
+    if(listener)
+    {
+        listener->onRequestUpdate(api, request);
+    }
 
     activeRequest = NULL;
 }
@@ -10123,14 +10144,21 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaE
 
     request->setNumRetry(request->getNumRetry() + 1);
 
-	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
-		(*it)->onRequestTemporaryError(api, request, megaError);
+    for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
+    {
+        (*it++)->onRequestTemporaryError(api, request, megaError);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onRequestTemporaryError(api, request, megaError);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onRequestTemporaryError(api, request, megaError);
+    }
 
 	MegaRequestListener* listener = request->getListener();
-	if(listener) listener->onRequestTemporaryError(api, request, megaError);
+    if(listener)
+    {
+        listener->onRequestTemporaryError(api, request, megaError);
+    }
 
 	activeRequest = NULL;
 	activeError = NULL;
@@ -10141,14 +10169,21 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
 
-	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
-		(*it)->onTransferStart(api, transfer);
+    for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
+    {
+        (*it++)->onTransferStart(api, transfer);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onTransferStart(api, transfer);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onTransferStart(api, transfer);
+    }
 
 	MegaTransferListener* listener = transfer->getListener();
-	if(listener) listener->onTransferStart(api, transfer);
+    if(listener)
+    {
+        listener->onTransferStart(api, transfer);
+    }
 
 	activeTransfer = NULL;
 }
@@ -10169,14 +10204,21 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
-	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
-		(*it)->onTransferFinish(api, transfer, megaError);
+    for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
+    {
+        (*it++)->onTransferFinish(api, transfer, megaError);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onTransferFinish(api, transfer, megaError);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onTransferFinish(api, transfer, megaError);
+    }
 
 	MegaTransferListener* listener = transfer->getListener();
-	if(listener) listener->onTransferFinish(api, transfer, megaError);
+    if(listener)
+    {
+        listener->onTransferFinish(api, transfer, megaError);
+    }
 
     transferMap.erase(transfer->getTag());
 
@@ -10194,14 +10236,21 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 
     transfer->setNumRetry(transfer->getNumRetry() + 1);
 
-	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
-		(*it)->onTransferTemporaryError(api, transfer, megaError);
+    for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
+    {
+        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onTransferTemporaryError(api, transfer, megaError);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+    }
 
 	MegaTransferListener* listener = transfer->getListener();
-	if(listener) listener->onTransferTemporaryError(api, transfer, megaError);
+    if(listener)
+    {
+        listener->onTransferTemporaryError(api, transfer, megaError);
+    }
 
 	activeTransfer = NULL;
 	activeError = NULL;
@@ -10217,14 +10266,21 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
 
-	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
-		(*it)->onTransferUpdate(api, transfer);
+    for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
+    {
+        (*it++)->onTransferUpdate(api, transfer);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onTransferUpdate(api, transfer);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onTransferUpdate(api, transfer);
+    }
 
 	MegaTransferListener* listener = transfer->getListener();
-	if(listener) listener->onTransferUpdate(api, transfer);
+    if(listener)
+    {
+        listener->onTransferUpdate(api, transfer);
+    }
 
 	activeTransfer = NULL;
 }
@@ -10247,13 +10303,13 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 {
 	activeUsers = users;
 
-	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
-        (*it)->onUsersUpdate(api, users);
+        (*it++)->onUsersUpdate(api, users);
     }
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it)->onUsersUpdate(api, users);
+        (*it++)->onUsersUpdate(api, users);
     }
 
     activeUsers = NULL;
@@ -10263,13 +10319,13 @@ void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
 {
     activeContactRequests = requests;
 
-    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
-        (*it)->onContactRequestsUpdate(api, requests);
+        (*it++)->onContactRequestsUpdate(api, requests);
     }
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it)->onContactRequestsUpdate(api, requests);
+        (*it++)->onContactRequestsUpdate(api, requests);
     }
 
     activeContactRequests = NULL;
@@ -10279,13 +10335,13 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 {
 	activeNodes = nodes;
 
-	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
-        (*it)->onNodesUpdate(api, nodes);
+        (*it++)->onNodesUpdate(api, nodes);
     }
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it)->onNodesUpdate(api, nodes);
+        (*it++)->onNodesUpdate(api, nodes);
     }
 
     activeNodes = NULL;
@@ -10293,33 +10349,41 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 
 void MegaApiImpl::fireOnAccountUpdate()
 {
-    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
-        (*it)->onAccountUpdate(api);
+        (*it++)->onAccountUpdate(api);
     }
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it)->onAccountUpdate(api);
+        (*it++)->onAccountUpdate(api);
     }
 }
 
 void MegaApiImpl::fireOnReloadNeeded()
 {
-	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
-		(*it)->onReloadNeeded(api);
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onReloadNeeded(api);
+    }
 
-	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-		(*it)->onReloadNeeded(api);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onReloadNeeded(api);
+    }
 }
 
 #ifdef ENABLE_SYNC
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onSyncStateChanged(api, sync);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncStateChanged(api, sync);
+    }
 
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ; it++)
-        (*it)->onSyncStateChanged(api, sync);
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncStateChanged(api, sync);
+    }
 
     MegaSyncListener* listener = sync->getListener();
     if(listener)
@@ -10330,11 +10394,15 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 {
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onSyncEvent(api, sync, event);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncEvent(api, sync, event);
+    }
 
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ; it++)
-        (*it)->onSyncEvent(api, sync, event);
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncEvent(api, sync, event);
+    }
 
     MegaSyncListener* listener = sync->getListener();
     if(listener)
@@ -10347,20 +10415,28 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 
 void MegaApiImpl::fireOnGlobalSyncStateChanged()
 {
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onGlobalSyncStateChanged(api);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onGlobalSyncStateChanged(api);
+    }
 
-    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
-        (*it)->onGlobalSyncStateChanged(api);
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onGlobalSyncStateChanged(api);
+    }
 }
 
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState)
 {
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onSyncFileStateChanged(api, sync, filePath, newState);
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncFileStateChanged(api, sync, filePath, newState);
+    }
 
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ; it++)
-        (*it)->onSyncFileStateChanged(api, sync, filePath, newState);
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncFileStateChanged(api, sync, filePath, newState);
+    }
 
     MegaSyncListener* listener = sync->getListener();
     if(listener)
@@ -10375,13 +10451,13 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *
 
 void MegaApiImpl::fireOnChatsUpdate(MegaTextChatList *chats)
 {
-    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
-        (*it)->onChatsUpdate(api, chats);
+        (*it++)->onChatsUpdate(api, chats);
     }
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it)->onChatsUpdate(api, chats);
+        (*it++)->onChatsUpdate(api, chats);
     }
 }
 
