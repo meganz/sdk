@@ -6,12 +6,14 @@ if BUILD_FUSE_EXAMPLE
 EXAMPLES += examples/linux/megafuse
 endif
 
+bin_PROGRAMS = 
+
 if BUILD_EXAMPLES
-bin_PROGRAMS = $(EXAMPLES)
+bin_PROGRAMS += $(EXAMPLES)
 endif
 
 if BUILD_MEGACMD
-bin_PROGRAMS = $(MEGACMD)
+bin_PROGRAMS += $(MEGACMD)
 endif
 
 # depends on libmega
