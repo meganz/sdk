@@ -913,6 +913,7 @@ void MegaClient::exec()
         {
             if ((*it)->failure)
             {
+                (*it)->lasterror = API_EFAILED;
                 (*it)->errorcount++;
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;

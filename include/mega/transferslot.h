@@ -55,6 +55,9 @@ struct MEGA_API TransferSlot
     // number of consecutive errors
     unsigned errorcount;
 
+    // last error
+    error lasterror;
+
     // file attribute string
     string fileattrstring;
 
