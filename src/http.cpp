@@ -41,6 +41,9 @@ const int HttpIO::REQUESTTIMEOUT = 1200;
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
 
+// size (in bytes) of the CRC of uploaded chunks
+const int HttpReqUL::CRCSIZE = 12;
+
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
 {
@@ -658,19 +661,13 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 
 
     const char *data = out->data();
-    byte c[12];
-    memset(c, 0, 12);
+    byte c[CRCSIZE];
+    memset(c, 0, CRCSIZE);
 
-#ifndef ALLOW_UNALIGNED_MEMORY_ACCESS
-    for (int l = size; l--;)
-    {
-        c[l % 12] ^= data[l];
-    }
-#else
     uint32_t *intdata = (uint32_t *)data;
     uint32_t *intc = (uint32_t *)c;
-    int ll = size % 12;
-    int l = size / 12;
+    int ll = size % CRCSIZE;
+    int l = size / CRCSIZE;
     if (l)
     {
         l *= 3;
@@ -690,11 +687,10 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
             c[ll] ^= data[ll];
         }
     }
-#endif
 
     char crc[32];
     char buf[256];
-    Base64::btoa(c, 12, crc);
+    Base64::btoa(c, CRCSIZE, crc);
     snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
     setreq(buf, REQ_BINARY);
     return true;

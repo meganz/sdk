@@ -323,13 +323,13 @@ bool File::failed(error e)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->currentmetamacvalid)
+        if (!transfer->hascurrentmetamac)
         {
             // several integrity check errors uploading chunks
             return transfer->failcount < 1;
         }
 
-        if (transfer->prevmetamacvalid && transfer->prevmetamac == transfer->currentmetamac)
+        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
         {
             // integrity check failed after download, two times with the same value
             return false;
@@ -337,8 +337,8 @@ bool File::failed(error e)
 
         // integrity check failed once, try again
         transfer->prevmetamac = transfer->currentmetamac;
-        transfer->prevmetamacvalid = true;
-        return true;
+        transfer->hasprevmetamac = true;
+        return transfer->failcount < 16;
     }
 
     return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16)

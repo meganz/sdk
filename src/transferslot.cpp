@@ -338,7 +338,7 @@ void TransferSlot::doio(MegaClient* client)
                                 if (transfer->progresscompleted)
                                 {
                                     transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                    transfer->currentmetamacvalid = true;
+                                    transfer->hascurrentmetamac = true;
                                 }
 
                                 // verify meta MAC
