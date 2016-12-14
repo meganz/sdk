@@ -860,10 +860,6 @@ MegaClient::~MegaClient()
     delete sctable;
     delete tctable;
     delete dbaccess;
-    for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
-    {
-        delete it->second;
-    }
 }
 
 // nonblocking state machine executing all operations currently in progress

@@ -3657,17 +3657,6 @@ MegaApiImpl::~MegaApiImpl()
     delete request; // delete here since onRequestFinish() is never called
     delete gfxAccess;
     delete fsAccess;
-
-#ifdef ENABLE_SYNC
-    map<int, MegaSyncPrivate *>::iterator itr;
-    for (itr = syncMap.begin(); itr != syncMap.end(); )
-    {
-        MegaSyncPrivate *thesync = ((MegaSyncPrivate *)( *itr ).second );
-        syncMap.erase(itr++);
-        delete thesync;
-    }
-#endif
-
 //    delete httpio;  do not delete since it could crash
 }
 
@@ -9131,7 +9120,15 @@ void MegaApiImpl::copysession_result(string *session, error e)
 
 void MegaApiImpl::clearing()
 {
-
+#ifdef ENABLE_SYNC
+    map<int, MegaSyncPrivate *>::iterator it;
+    for (it = syncMap.begin(); it != syncMap.end(); )
+    {
+        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
+        syncMap.erase(it++);
+        delete sync;
+    }
+#endif
 }
 
 void MegaApiImpl::notify_retry(dstime dsdelta)
