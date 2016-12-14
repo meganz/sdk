@@ -127,7 +127,7 @@ typedef bool utf8proc_bool;
 #    define UTF8PROC_DLLEXPORT
 #  endif
 #elif __GNUC__ >= 4
-#  define UTF8PROC_DLLEXPORT __attribute__ ((visibility("default")))
+#  define UTF8PROC_DLLEXPORT
 #else
 #  define UTF8PROC_DLLEXPORT
 #endif
