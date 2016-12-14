@@ -55,6 +55,10 @@ QtThread::~QtThread()
 
 }
 
+uint64_t QtThread::currentThreadId()
+{
+    return (uint64_t) QThread::currentThreadId();
+}
 
 //mutex
 QtMutex::QtMutex()

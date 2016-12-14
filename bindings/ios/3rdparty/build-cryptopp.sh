@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROJECT_NAME="cryptopp"
-CRYPTOPP_VERSION="562"
+CRYPTOPP_VERSION="565"
 
 UNIVERSAL_OUTPUTFOLDER="lib"
 BUILD_DIR="cryptopp"
@@ -14,7 +14,7 @@ set -e
 
 if [ ! -e "cryptopp${CRYPTOPP_VERSION}.zip" ]
 then
-curl -O "http://www.cryptopp.com/cryptopp${CRYPTOPP_VERSION}.zip"
+curl -LO "http://www.cryptopp.com/cryptopp${CRYPTOPP_VERSION}.zip"
 fi
 
 unzip cryptopp${CRYPTOPP_VERSION}.zip -d cryptopp

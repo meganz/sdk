@@ -43,7 +43,12 @@ struct MEGA_API TransferSlot
     // without data flow
     static const dstime XFERTIMEOUT = 600;
 
+    // max time without progress callbacks
+    static const dstime PROGRESSTIMEOUT = 10;
+
     m_off_t progressreported;
+
+    m_time_t lastprogressreport;
 
     dstime starttime, lastdata;
 

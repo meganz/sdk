@@ -208,14 +208,18 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *) { }
 #endif
 
-    // global transfer queue updates (separate signaling towards the queued objects)
+    // global transfer queue updates
+    virtual void file_added(File*) { }
+    virtual void file_removed(File*, error) { }
+    virtual void file_complete(File*) { }
+    virtual File* file_resume(string*, direction_t*) { return NULL; }
+
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
     virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
-    virtual void transfer_resume(string*) { }
 
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }

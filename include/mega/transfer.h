@@ -22,9 +22,8 @@
 #ifndef MEGA_TRANSFER_H
 #define MEGA_TRANSFER_H 1
 
-#include "node.h"
+#include "filefingerprint.h"
 #include "backofftimer.h"
-#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -108,6 +107,12 @@ struct MEGA_API Transfer : public FileFingerprint
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;
 
+    // priority of the transfer
+    uint64_t priority;
+
+    // state of the transfer
+    transferstate_t state;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
 
@@ -116,6 +121,44 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
+};
+
+class MEGA_API TransferList
+{
+public:
+    static const uint64_t PRIORITY_START = 0x0000800000000000;
+    static const uint64_t PRIORITY_STEP  = 0x0000000000010000;
+
+    TransferList();
+    void addtransfer(Transfer* transfer);
+    void removetransfer(Transfer *transfer);
+    void movetransfer(Transfer *transfer, Transfer *prevTransfer);
+    void movetransfer(Transfer *transfer, unsigned int position);
+    void movetransfer(Transfer *transfer, transfer_list::iterator dstit);
+    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit);
+    void movetofirst(Transfer *transfer);
+    void movetofirst(transfer_list::iterator it);
+    void movetolast(Transfer *transfer);
+    void movetolast(transfer_list::iterator it);
+    void moveup(Transfer *transfer);
+    void moveup(transfer_list::iterator it);
+    void movedown(Transfer *transfer);
+    void movedown(transfer_list::iterator it);
+    error pause(Transfer *transfer, bool enable);
+    transfer_list::iterator begin(direction_t direction);
+    transfer_list::iterator end(direction_t direction);
+    transfer_list::iterator iterator(Transfer *transfer);
+    Transfer *nexttransfer(direction_t direction);
+    Transfer *transferat(direction_t direction, unsigned int position);
+
+    transfer_list transfers[2];
+    MegaClient *client;
+    uint64_t currentpriority;
+
+private:
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit);
+    void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
+    bool isReady(Transfer *transfer);
 };
 
 struct MEGA_API DirectReadSlot
