@@ -716,8 +716,6 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)avatarColorForUser:(MEGAUser *)user {
-    if (user == nil) return nil;
-    
     const char *val = self.megaApi->getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
     if (!val) return nil;
     
@@ -728,7 +726,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
-    const char *val = self.megaApi->getUserAvatarColor([base64UserHandle UTF8String]);
+    const char *val = self.megaApi->getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
