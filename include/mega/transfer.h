@@ -24,6 +24,7 @@
 
 #include "filefingerprint.h"
 #include "backofftimer.h"
+#include "http.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -187,6 +188,9 @@ struct MEGA_API DirectReadSlot
     HttpReq* req;
 
     drs_list::iterator drs_it;
+    SpeedController speedController;
+    m_off_t speed;
+    m_off_t meanSpeed;
 
     bool doio();
 

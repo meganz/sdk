@@ -77,6 +77,29 @@ namespace mega {
                          "2403:9800:c020::43,122.56.56.216," \
                          "2405:f900:3e6a:1::103,103.244.183.5"
 
+class MEGA_API SpeedController
+{
+public:
+    SpeedController();
+    m_off_t calculateSpeed(long long numBytes = 0);
+    m_off_t getMeanSpeed();
+
+    // interval to calculate the mean speed (ds)
+    static const int SPEED_MEAN_INTERVAL_DS;
+
+    // max values to calculate the mean speed
+    static const int SPEED_MAX_VALUES;
+
+protected:
+    list<m_time_t> transferTimes;
+    list<m_off_t> transferBytes;
+    m_off_t partialBytes;
+
+    m_off_t meanSpeed;
+    dstime lastUpdate;
+    int speedCounter;
+};
+
 // generic host HTTP I/O interface
 struct MEGA_API HttpIO : public EventTrigger
 {
@@ -118,16 +141,12 @@ struct MEGA_API HttpIO : public EventTrigger
     dstime lastdata;
 
     // download speed
-    list<m_time_t> downloadTimes;
-    list<m_off_t> downloadBytes;
-    m_off_t downloadPartialBytes;
+    SpeedController downloadSpeedController;
     m_off_t downloadSpeed;
     void updatedownloadspeed(m_off_t size = 0);
 
     // upload speed
-    list<m_time_t> uploadTimes;
-    list<m_off_t> uploadBytes;
-    m_off_t uploadPartialBytes;
+    SpeedController uploadSpeedController;
     m_off_t uploadSpeed;
     void updateuploadspeed(m_off_t size = 0);
 
@@ -139,9 +158,6 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
-
-    // interval to calculate the mean speed (ds)
-    static const int SPEED_MEAN_INTERVAL_DS;
     
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;

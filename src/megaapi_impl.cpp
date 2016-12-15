@@ -1291,6 +1291,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->appData = NULL;
     this->state = STATE_NONE;
     this->priority = 0;
+    this->meanSpeed = 0;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -1322,6 +1323,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setTotalBytes(transfer->getTotalBytes());
     this->setFileName(transfer->getFileName());
     this->setSpeed(transfer->getSpeed());
+    this->setMeanSpeed(transfer->getMeanSpeed());
     this->setDeltaSize(transfer->getDeltaSize());
     this->setUpdateTime(transfer->getUpdateTime());
     this->setPublicNode(transfer->getPublicNode());
@@ -1356,7 +1358,12 @@ int MegaTransferPrivate::getTag() const
 
 long long MegaTransferPrivate::getSpeed() const
 {
-	return speed;
+    return speed;
+}
+
+long long MegaTransferPrivate::getMeanSpeed() const
+{
+    return meanSpeed;
 }
 
 long long MegaTransferPrivate::getDeltaSize() const
@@ -1724,7 +1731,12 @@ void MegaTransferPrivate::setTag(int tag)
 
 void MegaTransferPrivate::setSpeed(long long speed)
 {
-	this->speed = speed;
+    this->speed = speed;
+}
+
+void MegaTransferPrivate::setMeanSpeed(long long meanSpeed)
+{
+    this->meanSpeed = meanSpeed;
 }
 
 void MegaTransferPrivate::setDeltaSize(long long deltaSize)
@@ -3478,58 +3490,6 @@ void *MegaApiImpl::threadEntryPoint(void *param)
     return 0;
 }
 
-long long MegaApiImpl::integrateSpeed(long long numBytes, direction_t direction)
-{
-    long long speed = 0;
-    m_time_t currentTime = Waiter::ds;
-
-    if (direction == GET)
-    {
-        totalDownloadedBytes += numBytes;
-        while (downloadBytes.size())
-        {
-            dstime deltaTime = currentTime - downloadTimes.front();
-            if (deltaTime <= HttpIO::SPEED_MEAN_INTERVAL_DS)
-            {
-                break;
-            }
-
-            downloadPartialBytes -= downloadBytes.front();
-            downloadBytes.erase(downloadBytes.begin());
-            downloadTimes.erase(downloadTimes.begin());
-        }
-
-        downloadBytes.push_back(numBytes);
-        downloadTimes.push_back(currentTime);
-        downloadPartialBytes += numBytes;
-        downloadSpeed = (downloadPartialBytes * 10) / HttpIO::SPEED_MEAN_INTERVAL_DS;
-        speed = downloadSpeed;
-    }
-    else
-    {
-        totalUploadedBytes += numBytes;
-        while (uploadBytes.size())
-        {
-            dstime deltaTime = currentTime - uploadTimes.front();
-            if (deltaTime <= HttpIO::SPEED_MEAN_INTERVAL_DS)
-            {
-                break;
-            }
-
-            uploadPartialBytes -= uploadBytes.front();
-            uploadBytes.erase(uploadBytes.begin());
-            uploadTimes.erase(uploadTimes.begin());
-        }
-
-        uploadBytes.push_back(numBytes);
-        uploadTimes.push_back(currentTime);
-        uploadPartialBytes += numBytes;
-        uploadSpeed = (uploadPartialBytes * 10) / HttpIO::SPEED_MEAN_INTERVAL_DS;
-        speed = uploadSpeed;
-    }
-    return speed;
-}
-
 MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 {
     map<int, MegaTransferPrivate *>::iterator it = transferMap.find(tag);
@@ -3580,10 +3540,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
-    downloadSpeed = 0;
-    uploadSpeed = 0;
-    uploadPartialBytes = 0;
-    downloadPartialBytes = 0;
 
 #ifdef HAVE_LIBUV
     httpServer = NULL;
@@ -5356,6 +5312,19 @@ int MegaApiImpl::getCurrentDownloadSpeed()
 int MegaApiImpl::getCurrentUploadSpeed()
 {
     return httpio->uploadSpeed;
+}
+
+int MegaApiImpl::getCurrentSpeed(int type)
+{
+    switch (type)
+    {
+    case MegaTransfer::TYPE_DOWNLOAD:
+        return httpio->downloadSpeed;
+    case MegaTransfer::TYPE_UPLOAD:
+        return httpio->uploadSpeed;
+    default:
+        return 0;
+    }
 }
 
 int MegaApiImpl::getDownloadMethod()
@@ -7720,6 +7689,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
     transfer->setLastBytes(NULL);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
@@ -7749,20 +7719,18 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     }
 }
 
-bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
+bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, m_off_t meanSpeed, void* param)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
     dstime currentTime = Waiter::ds;
-    m_off_t deltaSize = len;
-    long long speed = integrateSpeed(deltaSize, GET);
-
     transfer->setStartTime(currentTime);
     transfer->setState(MegaTransfer::STATE_ACTIVE);
     transfer->setUpdateTime(currentTime);
-    transfer->setDeltaSize(deltaSize);
+    transfer->setDeltaSize(len);
     transfer->setLastBytes((char *)buffer);
     transfer->setTransferredBytes(transfer->getTransferredBytes() + len);
     transfer->setSpeed(speed);
+    transfer->setMeanSpeed(meanSpeed);
 
     bool end = (transfer->getTransferredBytes() == transfer->getTotalBytes());
     fireOnTransferUpdate(transfer);
@@ -9263,14 +9231,6 @@ void MegaApiImpl::logout_result(error e)
         excludedNames.clear();
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
-        uploadSpeed = 0;
-        downloadSpeed = 0;
-        downloadTimes.clear();
-        downloadBytes.clear();
-        uploadTimes.clear();
-        uploadBytes.clear();
-        uploadPartialBytes = 0;
-        downloadPartialBytes = 0;
 
         fireOnRequestFinish(request, MegaError(preverror));
         return;
@@ -10499,27 +10459,17 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     {
         m_off_t prevTransferredBytes = transfer->getTransferredBytes();
         m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
-        if (tr->tag == transfer->getTag())
-        {
-            integrateSpeed(deltaSize, tr->type);
-        }
-
         transfer->setStartTime(currentTime);
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
-        if (tr->type == GET)
-        {
-            transfer->setSpeed(downloadSpeed);
-        }
-        else
-        {
-            transfer->setSpeed(uploadSpeed);
-        }
+        transfer->setSpeed(tr->slot->speed);
+        transfer->setMeanSpeed(tr->slot->meanSpeed);
     }
     else
     {
         transfer->setDeltaSize(0);
         transfer->setSpeed(0);
+        transfer->setMeanSpeed(0);
     }
 
     transfer->setState(tr->state);
@@ -10532,24 +10482,13 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 {
     dstime currentTime = Waiter::ds;
     m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-    if (tr->tag == transfer->getTag())
-    {
-        integrateSpeed(deltaSize, tr->type);
-    }
-
     transfer->setStartTime(currentTime);
     transfer->setUpdateTime(currentTime);
     transfer->setTransferredBytes(tr->size);
     transfer->setPriority(tr->priority);
     transfer->setDeltaSize(deltaSize);
-    if (tr->type == GET)
-    {
-        transfer->setSpeed(downloadSpeed);
-    }
-    else
-    {
-        transfer->setSpeed(uploadSpeed);
-    }
+    transfer->setSpeed(tr->slot ? tr->slot->speed : 0);
+    transfer->setMeanSpeed(tr->slot ? tr->slot->meanSpeed : 0);
 
     if (tr->type == GET)
     {
@@ -10576,6 +10515,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
@@ -11485,6 +11425,7 @@ void MegaApiImpl::sendPendingTransfers()
                         transfer->setNodeHandle(previousNode->nodehandle);
                         transfer->setDeltaSize(fa->size);
                         transfer->setSpeed(0);
+                        transfer->setMeanSpeed(0);
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -11689,6 +11630,7 @@ void MegaApiImpl::sendPendingTransfers()
                             }
                             transfer->setDeltaSize(fa->size);
                             transfer->setSpeed(0);
+                            transfer->setMeanSpeed(0);
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -15298,6 +15240,7 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
     transfer->setUpdateTime(Waiter::ds);
     transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
 }
 
@@ -15308,12 +15251,8 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     transfer->setPriority(t->getPriority());
     transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
     transfer->setUpdateTime(Waiter::ds);
-
-    if(t->getSpeed())
-    {
-        transfer->setSpeed(t->getSpeed());
-    }
-
+    transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
     checkCompletion();
 }
@@ -15515,6 +15454,7 @@ void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
     transfer->setUpdateTime(Waiter::ds);
     transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
 }
 
@@ -15525,12 +15465,8 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
     transfer->setPriority(t->getPriority());
     transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
     transfer->setUpdateTime(Waiter::ds);
-
-    if (t->getSpeed())
-    {
-        transfer->setSpeed(t->getSpeed());
-    }
-
+    transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
     if (e->getErrorCode())
     {

@@ -767,7 +767,12 @@ int MegaTransfer::getTag() const
 
 long long MegaTransfer::getSpeed() const
 {
-	return 0;
+    return 0;
+}
+
+long long MegaTransfer::getMeanSpeed() const
+{
+    return 0;
 }
 
 long long MegaTransfer::getDeltaSize() const
@@ -1883,12 +1888,12 @@ int MegaApi::getMaxUploadSpeed()
     return pImpl->getMaxUploadSpeed();
 }
 
-bool MegaApi::setMaxDownloadSpeed(int bpslimit)
+bool MegaApi::setMaxDownloadSpeed(long long bpslimit)
 {
     return pImpl->setMaxDownloadSpeed(bpslimit);
 }
 
-bool MegaApi::setMaxUploadSpeed(int bpslimit)
+bool MegaApi::setMaxUploadSpeed(long long bpslimit)
 {
     return pImpl->setMaxUploadSpeed(bpslimit);
 }
@@ -1901,6 +1906,11 @@ int MegaApi::getCurrentDownloadSpeed()
 int MegaApi::getCurrentUploadSpeed()
 {
     return pImpl->getCurrentUploadSpeed();
+}
+
+int MegaApi::getCurrentSpeed(int type)
+{
+    return pImpl->getCurrentSpeed(type);
 }
 
 int MegaApi::getDownloadMethod()

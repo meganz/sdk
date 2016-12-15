@@ -422,6 +422,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 		void setSlot(int id);
 		void setTag(int tag);
 		void setSpeed(long long speed);
+        void setMeanSpeed(long long meanSpeed);
 		void setDeltaSize(long long deltaSize);
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
@@ -454,6 +455,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual int64_t getTime() const;
 		virtual int getTag() const;
 		virtual long long getSpeed() const;
+        virtual long long getMeanSpeed() const;
 		virtual long long getDeltaSize() const;
         virtual int64_t getUpdateTime() const;
         virtual MegaNode *getPublicNode() const;
@@ -494,6 +496,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         long long transferredBytes;
         long long totalBytes;
         long long speed;
+        long long meanSpeed;
         long long deltaSize;
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
@@ -1430,6 +1433,7 @@ class MegaApiImpl : public MegaApp
         int getMaxUploadSpeed();
         int getCurrentDownloadSpeed();
         int getCurrentUploadSpeed();
+        int getCurrentSpeed(int type);
         int getDownloadMethod();
         int getUploadMethod();
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
@@ -1643,7 +1647,6 @@ protected:
         static void *threadEntryPoint(void *param);
         static ExternalLogger *externalLogger;
 
-        long long integrateSpeed(long long numBytes, direction_t direction);
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
         void fireOnRequestStart(MegaRequestPrivate *request);
@@ -1698,16 +1701,6 @@ protected:
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
-
-        list<m_time_t> downloadTimes;
-        list<int64_t> downloadBytes;
-        int64_t downloadPartialBytes;
-        int64_t downloadSpeed;
-
-        list<m_time_t> uploadTimes;
-        list<int64_t> uploadBytes;
-        int64_t uploadPartialBytes;
-        int64_t uploadSpeed;
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
@@ -1854,7 +1847,7 @@ protected:
         virtual void transfer_update(Transfer*);
 
         virtual dstime pread_failure(error, int, void*, dstime);
-        virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
+        virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
         virtual void sessions_killed(handle sessionid, error e);

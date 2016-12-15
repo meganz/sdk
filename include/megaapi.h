@@ -2615,12 +2615,18 @@ class MegaTransfer
 		virtual int getTag() const;
 
 		/**
-		 * @brief Returns the average speed of this transfer
-		 * @return Average speed of this transfer
+         * @brief Returns the current speed of this transfer
+         * @return Current speed of this transfer
 		 */
 		virtual long long getSpeed() const;
 
-		/**
+        /**
+         * @brief Returns the average speed of this transfer
+         * @return Average speed of this transfer
+         */
+        virtual long long getMeanSpeed() const;
+
+        /**
 		 * @brief Returns the number of bytes transferred since the previous callback
 		 * @return Number of bytes transferred since the previous callback
 		 * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
@@ -6970,7 +6976,7 @@ class MegaApi
          * @param bpslimit Download speed in bytes per second
          * @return true if the network layer allows to control the download speed, otherwise false
          */
-        bool setMaxDownloadSpeed(int bpslimit);
+        bool setMaxDownloadSpeed(long long bpslimit);
 
         /**
          * @brief Set the maximum upload speed in bytes per second
@@ -6985,7 +6991,7 @@ class MegaApi
          * @param bpslimit Upload speed in bytes per second
          * @return true if the network layer allows to control the upload speed, otherwise false
          */
-        bool setMaxUploadSpeed(int bpslimit);
+        bool setMaxUploadSpeed(long long bpslimit);
 
         /**
          * @brief Get the maximum download speed in bytes per second
@@ -7016,6 +7022,14 @@ class MegaApi
          * @return Download speed in bytes per second
          */
         int getCurrentUploadSpeed();
+
+        /**
+         * @brief Return the current transfer speed
+         * @param type Type of transfer to get the speed.
+         * Valid values are MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
+         * @return Transfer speed for the transfer type, or 0 if the parameter is invalid
+         */
+        int getCurrentSpeed(int type);
 
         /**
          * @brief Get the active transfer method for downloads
@@ -7131,12 +7145,12 @@ class MegaApi
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)
          *
-         * If the parameter isn't MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * If the parameter isn't MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * this function returns an empty list.
          *
          * You take the ownership of the returned value
          *
-         * @param type MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * @param type MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * @return List with transfers of the desired type
          */
         MegaTransferList *getTransfers(int type);
