@@ -913,6 +913,7 @@ void MegaClient::exec()
         {
             if ((*it)->failure)
             {
+                (*it)->lasterror = API_EFAILED;
                 (*it)->errorcount++;
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;
@@ -6529,6 +6530,7 @@ PendingContactRequest* MegaClient::findpcr(handle p)
 
 void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
 {
+    delete pcrindex[id];
     pcrindex[id] = pcr;
 }
 
@@ -8473,6 +8475,11 @@ void MegaClient::purgenodesusersabortsc()
 
     assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
 #endif
+
+    for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
+    {
+        delete it->second;
+    }
 
     pcrindex.clear();
 
@@ -10518,6 +10525,11 @@ void MegaClient::truncateChat(handle chatid, handle messageid)
 void MegaClient::setChatTitle(handle chatid, const char *title)
 {
     reqs.add(new CommandChatSetTitle(this, chatid, title));
+}
+
+void MegaClient::getChatPresenceUrl()
+{
+    reqs.add(new CommandChatPresenceURL(this));
 }
 
 #endif

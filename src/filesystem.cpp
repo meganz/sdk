@@ -174,6 +174,12 @@ bool FileAccess::fopen(string* name)
     return sysstat(&mtime, &size);
 }
 
+bool FileAccess::isfolder(string *name)
+{
+    fopen(name);
+    return (type == FOLDERNODE);
+}
+
 // check if size and mtime are unchanged, then open for reading
 bool FileAccess::openf()
 {

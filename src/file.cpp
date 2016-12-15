@@ -321,8 +321,28 @@ void File::terminated()
 // failuresup to 16 times, except I/O errors (6 times)
 bool File::failed(error e)
 {
-    return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
-            !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
+    if (e == API_EKEY)
+    {
+        if (!transfer->hascurrentmetamac)
+        {
+            // several integrity check errors uploading chunks
+            return transfer->failcount < 1;
+        }
+
+        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
+        {
+            // integrity check failed after download, two times with the same value
+            return false;
+        }
+
+        // integrity check failed once, try again
+        transfer->prevmetamac = transfer->currentmetamac;
+        transfer->hasprevmetamac = true;
+        return transfer->failcount < 16;
+    }
+
+    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16)
+            && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
 void File::displayname(string* dname)
@@ -435,17 +455,19 @@ void SyncFileGet::prepare()
 
 bool SyncFileGet::failed(error e)
 {
+    bool retry = File::failed(e);
+
     if (n->parent && n->parent->localnode)
     {
         n->parent->localnode->treestate(TREESTATE_PENDING);
 
-        if (e == API_EBLOCKED)
+        if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
             n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
         }
     }
 
-    return File::failed(e);
+    return retry;
 }
 
 void SyncFileGet::progress()

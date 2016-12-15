@@ -160,7 +160,7 @@ struct MEGA_API MegaApp
 
     // pread result
     virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
-    virtual bool pread_data(byte*, m_off_t, m_off_t, void*) { return false; }
+    virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result
     virtual void reportevent_result(error) { }
@@ -204,6 +204,7 @@ struct MEGA_API MegaApp
     virtual void chatupdatepermissions_result(error) { }
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
+    virtual void chatpresenceurl_result(string*, error) { }
 
     virtual void chats_updated(textchat_map *) { }
 #endif

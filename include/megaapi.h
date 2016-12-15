@@ -71,6 +71,8 @@ class MegaShareList;
 class MegaTransferList;
 class MegaApi;
 
+class MegaSemaphore;
+
 /**
  * @brief Interface to provide an external GFX processor
  *
@@ -1810,7 +1812,7 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL
         };
 
         virtual ~MegaRequest();
@@ -1929,7 +1931,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
-         * - MegaRequest::getLink - Returns the user-specific URL for the chat
+         * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
+         * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -2612,12 +2615,18 @@ class MegaTransfer
 		virtual int getTag() const;
 
 		/**
-		 * @brief Returns the average speed of this transfer
-		 * @return Average speed of this transfer
+         * @brief Returns the current speed of this transfer
+         * @return Current speed of this transfer
 		 */
 		virtual long long getSpeed() const;
 
-		/**
+        /**
+         * @brief Returns the average speed of this transfer
+         * @return Average speed of this transfer
+         */
+        virtual long long getMeanSpeed() const;
+
+        /**
 		 * @brief Returns the number of bytes transferred since the previous callback
 		 * @return Number of bytes transferred since the previous callback
 		 * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
@@ -3458,6 +3467,97 @@ class MegaRequestListener
 };
 
 /**
+ * @brief This class extendes the functionality of MegaRequestListener
+ * allowing a synchronous behaviour
+ * It can be used the same way as a MegaRequestListener by overriding doOnRequestFinish
+ * instead of onRequestFinish. This function will be called
+ * when onRequestFinish is called by the SDK.
+ *
+ * For a synchronous usage, a client for this listener may wait() until the request is finished and doOnRequestFinish is completed.
+ * Alternatively a trywait function is included which waits for an ammount of time or until the request is finished.
+ * Then it can gather the MegaError and MegaRequest objects to process the outcome of the request.
+ *
+ * @see MegaRequestListener
+ */
+class SynchronousRequestListener : public MegaRequestListener
+{
+private:
+    MegaSemaphore* semaphore;
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
+
+protected:
+    MegaRequestListener *listener;
+    MegaApi *megaApi;
+    MegaRequest *megaRequest;
+    MegaError *megaError;
+
+public:
+    SynchronousRequestListener();
+
+    /**
+     * @brief This function is called when a request has finished
+     *
+     * There won't be more callbacks about this request.
+     * The last parameter provides the result of the request. If the request finished without problems,
+     * the error code will be API_OK
+     *
+     * The SDK retains the ownership of the request and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the request
+     * @param request Information about the request
+     * @param error Error information
+     */
+    virtual void doOnRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error);
+
+    /**
+     * @brief Wait untill the request is finished. This means that the request has been processed and
+     * doOnRequestFinish is completed.
+     * After successfully waiting for the request to be finished, the caller can use getError() and getRequest()
+     * to gather the output and errors produced by the request. Thus, implementing the callback doOnRequestFinish
+     * is not required and the processing can be coded more linearly.
+     *
+     */
+    void wait();
+
+    /**
+     * @brief Waits untill either the request is finished or the provided time is passed.
+     *
+     * After successfully waiting for the request to be finished, the caller can use getError() and getRequest()
+     * to gather the output and errors produced by the request. Thus, implementing the callback doOnRequestFinish
+     * is not required and the processing can be coded more linearly.
+     * @param milliseconds Max number of milliseconds to wait.
+     * @return returns 0 if the request had finished and a value different to 0 if timeout passed.
+     */
+    int trywait(int milliseconds);
+
+    /**
+     * @brief Get the MegaError object produced by the request.
+     * The RequestListener retains the ownership of the object and will delete upon its destruction
+     * @return the error
+     */
+    MegaError *getError() const;
+
+    /**
+     * @brief Get the MegaRequest object produced by the request.
+     * The RequestListener retains the ownership of the object and will delete upon its destruction
+     * @return the request
+     */
+    MegaRequest *getRequest() const;
+
+    /**
+     * @brief Getter for the MegaApi object that started the request.
+     * @return the MegaApi object that started the request.
+     */
+    MegaApi *getApi() const;
+
+    virtual ~SynchronousRequestListener();
+};
+
+/**
  * @brief Interface to receive information about transfers
  *
  * All transfers allows to pass a pointer to an implementation of this interface in the last parameter.
@@ -3559,6 +3659,100 @@ class MegaTransferListener
          */
         virtual bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
 };
+
+
+/**
+ * @brief This class extendes the functionality of MegaTransferListener
+ * allowing a synchronous behaviour
+ * It can be used the same way as a MegaTransferListener by overriding doOnTransferFinish
+ * instead of onTransferFinish. This function will be called
+ * when onTransferFinish is called by the SDK.
+ *
+ * For a synchronous usage, a client for this listener may wait() until the transfer is finished and doOnTransferFinish is completed.
+ * Alternatively a trywait function is included which waits for an ammount of time or until the transfer is finished.
+ * Then it can gather the MegaError and MegaTransfer objects to process the outcome of the transfer.
+ *
+ * @see MegaTransferListener
+ */
+class SynchronousTransferListener : public MegaTransferListener
+{
+private:
+    MegaSemaphore* semaphore;
+    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+
+protected:
+    MegaTransferListener *listener;
+    MegaApi *megaApi;
+    MegaTransfer *megaTransfer;
+    MegaError *megaError;
+
+public:
+    SynchronousTransferListener();
+
+    /**
+     * @brief This function is called when a transfer has finished
+     *
+     * There won't be more callbacks about this transfer.
+     * The last parameter provides the result of the transfer. If the transfer finished without problems,
+     * the error code will be API_OK
+     *
+     * The SDK retains the ownership of the transfer and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the transfer
+     * @param transfer Information about the transfer
+     * @param error Error information
+     */
+    virtual void doOnTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error);
+
+    /**
+     * @brief Wait untill the transfer is finished. This means that the transfer has been processed and
+     * doOnTransferFinish is completed.
+     * After successfully waiting for the transfer to be finished, the caller can use getError() and getTransfer()
+     * to gather the output and errors produced by the transfer. Thus, implementing the callback doOnTransferFinish
+     * is not required and the processing can be coded more linearly.
+     *
+     */
+    void wait();
+
+    /**
+     * @brief Waits untill either the transfer is finished or the provided time is passed.
+     *
+     * After successfully waiting for the transfer to be finished, the caller can use getError() and getTransfer()
+     * to gather the output and errors produced by the transfer. Thus, implementing the callback doOnTransferFinish
+     * is not required and the processing can be coded more linearly.
+     * @param milliseconds Max number of milliseconds to wait.
+     * @return returns 0 if the transfer had finished and a value different to 0 if timeout passed.
+     */
+    int trywait(int milliseconds);
+
+    /**
+     * @brief Get the MegaError object produced by the transfer.
+     * The TransferListener retains the ownership of the object and will delete upon its destruction
+     * @return the error
+     */
+    MegaError *getError() const;
+
+    /**
+     * @brief Get the MegaTransfer object produced by the transfer.
+     * The TransferListener retains the ownership of the object and will delete upon its destruction
+     * @return the transfer
+     */
+    MegaTransfer *getTransfer() const;
+
+    /**
+     * @brief Getter for the MegaApi object that started the transfer.
+     * @return the MegaApi object that started the transfer.
+     */
+    MegaApi *getApi() const;
+
+    virtual ~SynchronousTransferListener();
+};
+
+
 
 /**
  * @brief Interface to get information about global events
@@ -4358,6 +4552,16 @@ class MegaApi
         static MegaHandle base64ToHandle(const char* base64Handle);
 
         /**
+         * @brief Converts a Base64-encoded user handle to a MegaHandle
+         *
+         * You can revert this operation using MegaApi::userHandleToBase64
+         *
+         * @param base64Handle Base64-encoded node handle
+         * @return Node handle
+         */
+        static MegaHandle base64ToUserHandle(const char* base64Handle);
+
+        /**
          * @brief Converts the handle of a node to a Base64-encoded string
          *
          * You take the ownership of the returned value
@@ -4372,7 +4576,7 @@ class MegaApi
          * @brief Converts a MegaHandle to a Base64-encoded string
          *
          * You take the ownership of the returned value
-         * You can revert this operation using MegaApi::base64ToHandle
+         * You can revert this operation using MegaApi::base64ToUserHandle
          *
          * @param User handle to be converted
          * @return Base64-encoded user handle
@@ -6772,7 +6976,7 @@ class MegaApi
          * @param bpslimit Download speed in bytes per second
          * @return true if the network layer allows to control the download speed, otherwise false
          */
-        bool setMaxDownloadSpeed(int bpslimit);
+        bool setMaxDownloadSpeed(long long bpslimit);
 
         /**
          * @brief Set the maximum upload speed in bytes per second
@@ -6787,7 +6991,7 @@ class MegaApi
          * @param bpslimit Upload speed in bytes per second
          * @return true if the network layer allows to control the upload speed, otherwise false
          */
-        bool setMaxUploadSpeed(int bpslimit);
+        bool setMaxUploadSpeed(long long bpslimit);
 
         /**
          * @brief Get the maximum download speed in bytes per second
@@ -6818,6 +7022,14 @@ class MegaApi
          * @return Download speed in bytes per second
          */
         int getCurrentUploadSpeed();
+
+        /**
+         * @brief Return the current transfer speed
+         * @param type Type of transfer to get the speed.
+         * Valid values are MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
+         * @return Transfer speed for the transfer type, or 0 if the parameter is invalid
+         */
+        int getCurrentSpeed(int type);
 
         /**
          * @brief Get the active transfer method for downloads
@@ -6933,12 +7145,12 @@ class MegaApi
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)
          *
-         * If the parameter isn't MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * If the parameter isn't MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * this function returns an empty list.
          *
          * You take the ownership of the returned value
          *
-         * @param type MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * @param type MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * @return List with transfers of the desired type
          */
         MegaTransferList *getTransfers(int type);
@@ -8931,6 +9143,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current URL to connect to the presence server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_PRESENCE_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat presence server
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatPresenceURL(MegaRequestListener *listener = NULL);
 #endif
 
 private:

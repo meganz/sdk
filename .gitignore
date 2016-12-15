@@ -84,4 +84,10 @@ megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
+
 /third_party/Makefile
+/examples/mega-cmd
+/contrib/QtCreator/MEGAcmd/MEGAcmd.pro.user
+/contrib/QtCreator/MEGAcmd/MEGAcmd
+/contrib/QtCreator/MEGAcmd/Makefile
+/contrib/QtCreator/MEGAcmd/moc_*.cpp
