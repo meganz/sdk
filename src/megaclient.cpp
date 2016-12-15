@@ -10302,6 +10302,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
             TransferSlot *slot = *it++;
             if (slot->transfer->type == d)
             {
+                slot->transfer->state = TRANSFERSTATE_QUEUED;
                 slot->transfer->bt.arm();
                 slot->transfer->cachedtempurl = slot->tempurl;
                 delete slot;
