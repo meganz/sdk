@@ -679,7 +679,7 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
     dstime currentTime = Waiter::ds;
     if (numBytes <= 0 && lastUpdate == currentTime)
     {
-        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;;
+        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
     }
 
     while (transferBytes.size())
