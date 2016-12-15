@@ -2637,6 +2637,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_MOVE_TRANSFER: return "MOVE_TRANSFER";
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
+        case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
     }
     return "UNKNOWN";
 }
@@ -6497,6 +6498,13 @@ void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, MegaRequest
     requestQueue.push(request);
     waiter->notify();
 }
+
+void MegaApiImpl::getChatPresenceURL(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_PRESENCE_URL, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -8197,7 +8205,20 @@ void MegaApiImpl::chatsettitle_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::chatpresenceurl_result(string *url, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_PRESENCE_URL)) return;
 
+    if (!e)
+    {
+        request->setLink(url->c_str());
+    }
+
+    fireOnRequestFinish(request, megaError);
+}
 
 void MegaApiImpl::chats_updated(textchat_map *chats)
 {
@@ -13793,6 +13814,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->setChatTitle(chatid, title);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_PRESENCE_URL:
+        {
+            client->getChatPresenceUrl();
             break;
         }
 #endif

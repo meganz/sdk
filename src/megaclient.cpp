@@ -10527,6 +10527,11 @@ void MegaClient::setChatTitle(handle chatid, const char *title)
     reqs.add(new CommandChatSetTitle(this, chatid, title));
 }
 
+void MegaClient::getChatPresenceUrl()
+{
+    reqs.add(new CommandChatPresenceURL(this));
+}
+
 #endif
 
 } // namespace

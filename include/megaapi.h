@@ -1812,7 +1812,7 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL
         };
 
         virtual ~MegaRequest();
@@ -1931,7 +1931,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
-         * - MegaRequest::getLink - Returns the user-specific URL for the chat
+         * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
+         * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -9128,6 +9129,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current URL to connect to the presence server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_PRESENCE_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat presence server
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatPresenceURL(MegaRequestListener *listener = NULL);
 #endif
 
 private:

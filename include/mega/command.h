@@ -792,6 +792,16 @@ public:
     CommandChatSetTitle(MegaClient*, handle, const char *);
 };
 
+class MEGA_API CommandChatPresenceURL : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatPresenceURL(MegaClient*);
+};
+
 #endif
 
 
