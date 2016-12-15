@@ -92,6 +92,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
+    type = TYPE_UNKNOWN;
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
@@ -101,10 +102,12 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
+        type = FOLDERNODE;
         retry = false;
         return false;
     }
 
+    type = FILENODE;
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
     *size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
 
@@ -231,7 +234,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
             do {
                 filename -= sizeof(wchar_t);
                 filenamesize += sizeof(wchar_t);
-                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t));
+                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t)) || !memcmp(L"/", filename, sizeof(wchar_t)) || !memcmp(L":", filename, sizeof(wchar_t));
             } while (filename > name->data() && !separatorfound);
 
             if (filenamesize > sizeof(wchar_t) || !separatorfound)
@@ -803,7 +806,9 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
-        if (((wchar_t*)name->data())[i] == '\\' || ((wchar_t*)name->data())[i] == ':')
+        if (((wchar_t*)name->data())[i] == '\\'
+                || ((wchar_t*)name->data())[i] == '/'
+                || ((wchar_t*)name->data())[i] == ':')
         {
             return (i + 1) * sizeof(wchar_t);
         }
@@ -849,6 +854,43 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 	}
 
 	return false;
+}
+
+bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
+{
+    string localpath = *path;
+    localpath.append("", 1);
+    if (!PathIsRelativeW((LPCWSTR)localpath.data()))
+    {
+        *absolutepath = *path;
+        if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
+        {
+            absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
+        }
+        return true;
+    }
+
+    int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
+    if (len <= 0)
+    {
+        *absolutepath = *path;
+        return false;
+    }
+
+    absolutepath->resize(len * sizeof(wchar_t));
+    int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutepath->data(), NULL);
+    if (newlen <= 0 || newlen >= len)
+    {
+        *absolutepath = *path;
+        return false;
+    }
+
+    if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
+    {
+        absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
+    }
+    absolutepath->resize(absolutepath->size() - 2);
+    return true;
 }
 
 void WinFileSystemAccess::osversion(string* u) const

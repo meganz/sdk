@@ -60,21 +60,41 @@ namespace mega
 {
 
 #ifdef USE_QT
-typedef QtThread MegaThread;
-typedef QtMutex MegaMutex;
-typedef QtSemaphore MegaSemaphore;
+class MegaThread : public QtThread {};
+class MegaMutex : public QtMutex
+{
+public:
+    MegaMutex() : QtMutex() { }
+    MegaMutex(bool recursive) : QtMutex(recursive) { }
+};
+class MegaSemaphore : public QtSemaphore {};
 #elif USE_PTHREAD
-typedef PosixThread MegaThread;
-typedef PosixMutex MegaMutex;
-typedef PosixSemaphore MegaSemaphore;
+class MegaThread : public PosixThread {};
+class MegaMutex : public PosixMutex
+{
+public:
+    MegaMutex() : PosixMutex() { }
+    MegaMutex(bool recursive) : PosixMutex(recursive) { }
+};
+class MegaSemaphore : public PosixSemaphore {};
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
-typedef Win32Thread MegaThread;
-typedef Win32Mutex MegaMutex;
-typedef Win32Semaphore MegaSemaphore;
+class MegaThread : public Win32Thread {};
+class MegaMutex : public Win32Mutex
+{
+public:
+    MegaMutex() : Win32Mutex() { }
+    MegaMutex(bool recursive) : Win32Mutex(recursive) { }
+};
+class MegaSemaphore : public Win32Semaphore {};
 #else
-typedef CppThread MegaThread;
-typedef CppMutex MegaMutex;
-typedef CppSemaphore MegaSemaphore;
+class MegaThread : public CppThread {};
+class MegaMutex : public CppMutex
+{
+public:
+    MegaMutex() : CppMutex() { }
+    MegaMutex(bool recursive) : CppMutex(recursive) { }
+};
+class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #ifdef USE_QT
@@ -1607,6 +1627,7 @@ class MegaApiImpl : public MegaApp
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+        void getChatPresenceURL(MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1855,6 +1876,7 @@ protected:
         virtual void chatupdatepermissions_result(error);
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
+        virtual void chatpresenceurl_result(string*, error);
 
         virtual void chats_updated(textchat_map *);
 #endif

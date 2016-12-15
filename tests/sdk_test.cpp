@@ -1349,6 +1349,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
+    // There isn't message when a user invites the same user too many times, to avoid spamming
     if (cr[1]->getSourceMessage())
     {
         ASSERT_STREQ(message.data(), cr[1]->getSourceMessage()) << "Message received is corrupted";
