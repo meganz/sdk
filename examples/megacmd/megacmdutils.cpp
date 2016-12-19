@@ -679,6 +679,21 @@ bool isRegExp(string what)
         return false;
     }
 
+    while (true){
+        if (what.find("./") == 0)
+        {
+            what=what.substr(2);
+        }
+        else if(what.find("../") == 0)
+        {
+            what=what.substr(3);
+        }
+        else
+        {
+            break;
+        }
+    }
+
     string s = pcrecpp::RE::QuoteMeta(what);
     string ns = s;
     replaceAll(ns, "\\\\\\", "\\");
@@ -698,10 +713,28 @@ string unquote(string what)
     {
         return what;
     }
+    string pref="";
+    while (true){
+        if (what.find("./") == 0)
+        {
+            what=what.substr(2);
+            pref+="./";
+        }
+        else if(what.find("../") == 0)
+        {
+            what=what.substr(3);
+            pref+="../";
+        }
+        else
+        {
+            break;
+        }
+    }
+
     string s = pcrecpp::RE::QuoteMeta(what.c_str());
     string ns = s;
     replaceAll(ns, "\\\\\\", "\\");
-    return ns;
+    return pref+ns;
 
 #endif
     return what;

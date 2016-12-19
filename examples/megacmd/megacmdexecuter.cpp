@@ -476,7 +476,22 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
 
     if (currentPart == ".")
     {
-        getNodesMatching(parentNode, pathParts, nodesMatching);
+        //ignore this part
+        return getNodesMatching(parentNode, pathParts, nodesMatching);
+    }
+    if (currentPart == "..")
+    {
+        if (parentNode->getParentHandle())
+        {
+            parentNode = api->getNodeByHandle(parentNode->getParentHandle());
+            return getNodesMatching(parentNode, pathParts, nodesMatching);
+            delete parentNode;
+        }
+        else
+        {
+            return; //trying to access beyond root node
+        }
+
     }
 
     MegaNodeList* children = api->getChildren(parentNode);
@@ -694,7 +709,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
     string s;
     int l = 0;
     const char* bptr = ptr;
-    int remote = 0;
+    int remote = 0; //shared
     MegaNode* n;
 
     // split path by / or :
@@ -821,7 +836,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user,
         }
         delete usersList;
     }
-    else //local
+    else // mine
     {
         // path starting with /
         if (( c.size() > 1 ) && !c.front().size())
@@ -1091,14 +1106,56 @@ string MegaCmdExecuter::getDisplayPath(string givenPath, MegaNode* n)
 
     string pathRelativeTo = "NULL";
     string cwpath = getCurrentPath();
+    string toret="";
 
-    if (givenPath.find('/') == 0)
+
+    if (givenPath.find('/') == 0 )
     {
         pathRelativeTo = "";
     }
+    else if(givenPath.find("../") == 0 || givenPath.find("./") == 0 )
+    {
+        pathRelativeTo = "";
+        MegaNode *n = api->getNodeByHandle(cwd);
+        while(true)
+        {
+            if(givenPath.find("./") == 0)
+            {
+                givenPath=givenPath.substr(2);
+                toret+="./";
+                if (n)
+                {
+                    char *npath = api->getNodePath(n);
+                    pathRelativeTo = string(npath);
+                    delete []npath;
+                }
+                return toret;
+
+            }
+            else if(givenPath.find("../") == 0)
+            {
+                givenPath=givenPath.substr(3);
+                toret+="../";
+                MegaNode *aux = n;
+                n=api->getNodeByHandle(n->getParentHandle());
+                delete aux;
+                if (n)
+                {
+                    char *npath = api->getNodePath(n);
+                    pathRelativeTo = string(npath);
+                    delete []npath;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+        delete n;
+    }
     else
     {
-        if (cwpath == "/")
+        if (cwpath == "/") //TODO: //bin /X:share ...
         {
             pathRelativeTo = cwpath;
         }
@@ -1128,7 +1185,7 @@ string MegaCmdExecuter::getDisplayPath(string givenPath, MegaNode* n)
         pathToShow = pathToNode;
     }
 
-    string toret(pathToShow);
+    toret+=pathToShow;
     delete []pathToNode;
     return toret;
 }
@@ -1855,20 +1912,6 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
     vector<string> paths;
     if ((int)askedPath.size())
     {
-        string rNpath = "NULL";
-        if (askedPath.find('/') != string::npos)
-        {
-            string cwpath = getCurrentPath();
-            if (askedPath.find(cwpath) == string::npos)
-            {
-                rNpath = "";
-            }
-            else
-            {
-                rNpath = cwpath;
-            }
-        }
-
         if (isRegExp(askedPath))
         {
             vector<MegaNode *> *nodesToList = nodesbypath(askedPath.c_str());
@@ -4601,7 +4644,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             // Kill all sessions (except current)
             thesession = "all";
-            thehandle = mega::INVALID_HANDLE;
+            thehandle = INVALID_HANDLE;
         }
         else if (words.size() > 1)
         {
