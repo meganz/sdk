@@ -1777,9 +1777,9 @@ void MegaApi::localLogout(MegaRequestListener *listener)
     pImpl->localLogout(listener);
 }
 
-bool MegaApi::removeCache(const char *sid)
+void MegaApi::invalidateCache()
 {
-    return pImpl->removeDB(sid);
+    pImpl->invalidateCache();
 }
 
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)

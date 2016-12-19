@@ -3594,6 +3594,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 		userAgent = "";
 	}
 
+    nocache = false;
+
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -4683,6 +4685,20 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 {
+    if (nocache)
+    {
+        client->opensctable();
+
+        if (client->sctable)
+        {
+            client->sctable->remove();
+            delete client->sctable;
+            client->sctable = NULL;
+        }
+
+        nocache = false;
+    }
+
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
 	requestQueue.push(request);
     waiter->notify();
@@ -4907,31 +4923,11 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::removeDB(const char *sid)
+void MegaApiImpl::invalidateCache()
 {
-    bool ret = false;
-    if (sid)
-    {
-        sdkMutex.lock();
-
-        string currentsid = client->sid;
-        client->sid = sid;
-
-        client->opensctable();
-        if (client->sctable)
-        {
-            client->sctable->remove();
-            delete client->sctable;
-            client->sctable = NULL;
-            ret = true;
-        }
-
-        client->sid = currentsid;
-
-        sdkMutex.unlock();
-    }
-
-    return ret;
+    sdkMutex.lock();
+    nocache = true;
+    sdkMutex.unlock();
 }
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
