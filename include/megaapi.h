@@ -6301,6 +6301,14 @@ class MegaApi
         void localLogout(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Removes the corresponding cache of a session
+         *
+         * @param sid Session key previously dumped with MegaApi::dumpSession
+         * @return True if the DB was removed, false if cache not found.
+         */
+        bool removeCache(const char *sid);
+
+        /**
          * @brief Submit feedback about the app
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK

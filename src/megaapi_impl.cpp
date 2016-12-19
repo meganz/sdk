@@ -4907,6 +4907,33 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
     waiter->notify();
 }
 
+bool MegaApiImpl::removeDB(const char *sid)
+{
+    bool ret = false;
+    if (sid)
+    {
+        sdkMutex.lock();
+
+        string currentsid = client->sid;
+        client->sid = sid;
+
+        client->opensctable();
+        if (client->sctable)
+        {
+            client->sctable->remove();
+            delete client->sctable;
+            client->sctable = NULL;
+            ret = true;
+        }
+
+        client->sid = currentsid;
+
+        sdkMutex.unlock();
+    }
+
+    return ret;
+}
+
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
