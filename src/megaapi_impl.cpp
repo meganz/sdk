@@ -4685,22 +4685,6 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 {
-    if (nocache)
-    {
-        client->opensctable();
-
-        if (client->sctable)
-        {
-            client->sctable->remove();
-            delete client->sctable;
-            client->sctable = NULL;
-
-            client->cachedscsn = UNDEF;
-        }
-
-        nocache = false;
-    }
-
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
 	requestQueue.push(request);
     waiter->notify();
@@ -12193,6 +12177,22 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_FETCH_NODES:
 		{
+            if (nocache)
+            {
+                client->opensctable();
+
+                if (client->sctable)
+                {
+                    client->sctable->remove();
+                    delete client->sctable;
+                    client->sctable = NULL;
+
+                    client->cachedscsn = UNDEF;
+                }
+
+                nocache = false;
+            }
+
 			client->fetchnodes();
 			break;
 		}
