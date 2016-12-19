@@ -2650,6 +2650,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
+        case TYPE_GET_USER_EMAIL: return "TYPE_GET_USER_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -4607,6 +4608,14 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
 
     request->setMegaStringMap(value);
     request->setParamType(type);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
+    request->setNodeHandle(handle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9685,6 +9694,27 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
 void MegaApiImpl::delua_result(error)
 {
 }
+
+void MegaApiImpl::getuseremail_result(string *email, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
+    {
+        return;
+    }
+
+    if(e == API_OK && email)
+    {
+        request->setEmail(email->c_str());
+    }
+
+    fireOnRequestFinish(request, e);
+    return;
+}
 #endif
 
 // user attribute update notification
@@ -12425,6 +12455,22 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
 		}
+        case MegaRequest::TYPE_GET_USER_EMAIL:
+        {
+            handle uh = request->getNodeHandle();
+            if (uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            uid[11] = 0;
+
+            client->getUserEmail(uid);
+            break;
+        }
         case MegaRequest::TYPE_SET_ATTR_FILE:
         {
             const char* srcFilePath = request->getFile();

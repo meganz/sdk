@@ -1364,6 +1364,7 @@ class MegaApiImpl : public MegaApp
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
+        void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
@@ -1827,6 +1828,8 @@ protected:
 #ifdef DEBUG
         virtual void delua_result(error);
 #endif
+
+        virtual void getuseremail_result(string *, error);
 
         // file node export result
         virtual void exportnode_result(error);

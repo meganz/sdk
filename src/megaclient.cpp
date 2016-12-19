@@ -6978,6 +6978,11 @@ void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
     }
 }
 
+void MegaClient::getUserEmail(const char *uid)
+{
+    reqs.add(new CommandGetUserEmail(this, uid));
+}
+
 #ifdef DEBUG
 void MegaClient::delua(const char *an)
 {
