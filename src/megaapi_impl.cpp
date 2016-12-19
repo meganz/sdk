@@ -4694,6 +4694,8 @@ void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
             client->sctable->remove();
             delete client->sctable;
             client->sctable = NULL;
+
+            client->cachedscsn = UNDEF;
         }
 
         nocache = false;
