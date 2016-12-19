@@ -9694,6 +9694,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
 void MegaApiImpl::delua_result(error)
 {
 }
+#endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
 {
@@ -9715,7 +9716,6 @@ void MegaApiImpl::getuseremail_result(string *email, error e)
     fireOnRequestFinish(request, e);
     return;
 }
-#endif
 
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
