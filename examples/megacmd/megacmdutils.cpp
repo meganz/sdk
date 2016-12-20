@@ -606,13 +606,16 @@ vector<string> getlistOfWords(char *ptr)
         {
             wptr = ptr;
 
-            while ((unsigned char)*ptr > ' ')
+            char *prev = ptr;
+            //while ((unsigned char)*ptr > ' ')
+            while ((*ptr != '\0') && !(*ptr ==' ' && *prev !='\\'))
             {
                 if (*ptr == '"')
                 {
                     while (*++ptr != '"' && *ptr != '\0')
                     { }
                 }
+                prev=ptr;
                 ptr++;
             }
 
@@ -688,11 +691,26 @@ bool isRegExp(string what)
         {
             what=what.substr(3);
         }
+        else if(what.size()>=3 && (what.find("/..") == what.size()-3))
+        {
+            what=what.substr(0,what.size()-3);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
         else
         {
             break;
         }
     }
+    replaceAll(what, "/../", "/");
+    replaceAll(what, "/./", "/");
+    replaceAll(what, "/", "");
 
     string s = pcrecpp::RE::QuoteMeta(what);
     string ns = s;
@@ -734,6 +752,10 @@ string unquote(string what)
     string s = pcrecpp::RE::QuoteMeta(what.c_str());
     string ns = s;
     replaceAll(ns, "\\\\\\", "\\");
+
+    replaceAll(ns, "\\/\\.\\.\\/", "/../");
+    replaceAll(ns, "\\/\\.\\/", "/./");
+
     return pref+ns;
 
 #endif

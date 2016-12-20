@@ -371,11 +371,66 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     }
 }
 
+//TODO: ref
+string escape(string orig)
+{
+    string toret;
+    if (orig.size()){
+        for (u_int i=0;i<orig.size();i++)
+        {
+            if ( orig.at(i) == ' ')
+            {
+                toret+="\\ ";
+            }
+            else
+            {
+                toret+=orig.at(i);
+            }
+
+        }
+    }
+    return toret;
+}
+
+//TODO: ref
+string unescape(string orig)
+{
+    string toret;
+    if (orig.size()){
+        for (u_int i=0;i<orig.size();i++)
+        {
+            if ( orig.at(i) == '\\' && (orig.size()>(i+1)) && (orig.at(i+1) == ' '))
+            {
+                continue;
+            }
+            toret+=orig.at(i);
+        }
+    }
+    return toret;
+}
+
+char* empty_completion(const char* text, int state)
+{
+    // we offer 2 different options so that it doesn't complete (no space is inserted)
+    if (state == 0)
+    {
+        return strdup(" ");
+    }
+    if (state == 1)
+    {
+        return strdup(text);
+    }
+    return NULL;
+}
+
 char* generic_completion(const char* text, int state, vector<string> validOptions)
 {
     static size_t list_index, len;
     string name;
-
+    if (!validOptions.size()) // no matches
+    {
+        return empty_completion(text,state); //dont fall back to filenames
+    }
     if (!state)
     {
         list_index = 0;
@@ -384,6 +439,10 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
+        if (!rl_completion_quote_character) {
+            name = escape(name);
+        }
+
         list_index++;
 
         if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
@@ -408,20 +467,6 @@ char* commands_completion(const char* text, int state)
 char* local_completion(const char* text, int state)
 {
     return((char*)NULL );  //matches will be NULL: readline will use local completion
-}
-
-char* empty_completion(const char* text, int state)
-{
-    // we offer 2 different options so that it doesn't complete (no space is inserted)
-    if (state == 0)
-    {
-        return strdup(" ");
-    }
-    if (state == 1)
-    {
-        return strdup(text);
-    }
-    return NULL;
 }
 
 void addGlobalFlags(set<string> *setvalidparams)
@@ -544,6 +589,15 @@ char * flags_value_completion(const char*text, int state)
     return toret;
 }
 
+//TODO: use ref
+string unescapeifRequired(string what)
+{
+    if (!rl_completion_quote_character) {
+        what = unescape(what);
+    }
+    return what;
+}
+
 char* remotepaths_completion(const char* text, int state)
 {
     static vector<string> validpaths;
@@ -557,6 +611,9 @@ char* remotepaths_completion(const char* text, int state)
 #endif
         wildtext += "*";
 
+        if (!rl_completion_quote_character) {
+            wildtext = unescape(wildtext);
+        }
         validpaths = cmdexecuter->listpaths(wildtext);
     }
     return generic_completion(text, state, validpaths);
@@ -820,6 +877,8 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
 
 static char** getCompletionMatches(const char * text, int start, int end)
 {
+    rl_filename_quoting_desired = 1;
+
     char **matches;
 
     matches = (char**)NULL;
@@ -834,6 +893,7 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
+
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
@@ -1973,6 +2033,16 @@ void printWelcomeMsg()
 
 }
 
+int quote_detector(char *line, int index)
+{
+    return (
+        index > 0 &&
+        line[index - 1] == '\\' &&
+        !quote_detector(line, index - 1)
+    );
+}
+
+
 int main(int argc, char* argv[])
 {
     NullBuffer null_buffer;
@@ -2059,6 +2129,12 @@ int main(int argc, char* argv[])
     atexit(finalize);
 
     rl_attempted_completion_function = getCompletionMatches;
+    rl_completer_quote_characters = "\"'";
+    rl_filename_quote_characters  = " ";
+    rl_completer_word_break_characters = " ";
+
+
+    rl_char_is_quoted_p = &quote_detector;
 
     rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
     // so that we can use rl_message or rl_resize_terminal safely before ever

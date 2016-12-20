@@ -65,6 +65,9 @@ void freeApiFolder(mega::MegaApi *apiFolder);
 
 const char * getUsageStr(const char *command);
 
+std::string unescapeifRequired(std::string what);
+
+
 void setprompt(prompttype p);
 
 void printHistory();

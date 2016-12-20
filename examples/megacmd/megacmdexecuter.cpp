@@ -432,7 +432,7 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
                     if (!nn) //NOT FOUND
                     {
                         // mv command target? return name part of not found
-                        if (namepart && ( l == (int)c.size() - 1 )) //if this is the last part, we will pass that one, so that a mv command know the name to give the the new node
+                        if (namepart && ( l == (int)c.size() - 1 )) //if this is the last part, we will pass that one, so that a mv command know the name to give the new node
                         {
                             *namepart = c[l];
                             return n;
@@ -455,6 +455,296 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
     }
 
     return n;
+}
+
+/**
+ * @brief MegaCmdExecuter::getPathsMatching Gets paths of nodes matching a pattern given its path parts and a parent node
+ *
+ * @param parentNode node for reference for relative paths
+ * @param pathParts path pattern (separated in strings)
+ * @param pathsMatching for the returned paths
+ * @param pathPrefix prefix to append to paths
+ */
+void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathParts, vector<string> *pathsMatching, string pathPrefix)
+{
+    if (!pathParts.size())
+    {
+        return;
+    }
+
+    string currentPart = pathParts.front();
+    pathParts.pop_front();
+
+    if (currentPart == ".")
+    {
+        //ignore this part
+        return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"./");
+    }
+    if (currentPart == "..")
+    {
+        if (parentNode->getParentHandle())
+        {
+            parentNode = api->getNodeByHandle(parentNode->getParentHandle());
+            return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"../");
+            delete parentNode;
+        }
+        else
+        {
+            return; //trying to access beyond root node
+        }
+    }
+
+    MegaNodeList* children = api->getChildren(parentNode);
+    if (children)
+    {
+        for (int i = 0; i < children->size(); i++)
+        {
+            MegaNode *childNode = children->get(i);
+            if (patternMatches(childNode->getName(), currentPart.c_str()))
+            {
+                if (pathParts.size() == 0) //last leave
+                {
+                    pathsMatching->push_back(pathPrefix+childNode->getName());
+                }
+                else
+                {
+                    getPathsMatching(childNode, pathParts, pathsMatching,pathPrefix+childNode->getName()+"/");
+                }
+            }
+        }
+
+        delete children;
+    }
+}
+
+/**
+ * @brief MegaCmdExecuter::nodesPathsbypath returns paths of nodes that match a determined by path pattern
+ * path naming conventions:
+ * path is relative to cwd
+ * /path is relative to ROOT
+ * //in is in INBOX
+ * //bin is in RUBBISH
+ * X: is user X's INBOX
+ * X:SHARE is share SHARE from user X
+ * : and / filename components, as well as the \, must be escaped by \.
+ * (correct UTF-8 encoding is assumed)
+ *
+ * You take the ownership of the returned value
+ * @param ptr
+ * @param user
+ * @param namepart
+ * @return
+ */
+vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* user, string* namepart)
+{
+    vector<string> *pathsMatching = new vector<string> ();
+    deque<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = ptr;
+    int remote = 0; //shared
+    MegaNode* n;
+    bool isrelative = false;
+
+    // split path by / or :
+    do
+    {
+        if (!l)
+        {
+            if (*ptr >= 0)
+            {
+                if (*ptr == '\\')
+                {
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ++ptr;
+
+                    if (*bptr == 0)
+                    {
+                        c.push_back(s);
+                        break;
+                    }
+
+                    ptr++;
+                    continue;
+                }
+
+                if (( *ptr == '/' ) || ( *ptr == ':' ) || !*ptr)
+                {
+                    if (*ptr == ':')
+                    {
+                        if (c.size())
+                        {
+                            return pathsMatching;
+                        }
+
+                        remote = 1;
+                    }
+
+                    if (ptr > bptr)
+                    {
+                        s.append(bptr, ptr - bptr);
+                    }
+
+                    bptr = ptr + 1;
+
+                    c.push_back(s);
+
+                    s.erase();
+                }
+            }
+            else if (( *ptr & 0xf0 ) == 0xe0)
+            {
+                l = 1;
+            }
+            else if (( *ptr & 0xf8 ) == 0xf0)
+            {
+                l = 2;
+            }
+            else if (( *ptr & 0xfc ) == 0xf8)
+            {
+                l = 3;
+            }
+            else if (( *ptr & 0xfe ) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    }
+    while (*ptr++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - record username/email and return NULL
+        if (( c.size() == 2 ) && !c.back().size())
+        {
+            if (user)
+            {
+                *user = c.front();
+            }
+
+            return NULL;
+        }
+
+        MegaUserList * usersList = api->getContacts();
+        MegaUser *u = NULL;
+        for (int i = 0; i < usersList->size(); i++)
+        {
+            if (usersList->get(i)->getEmail() == c.front())
+            {
+                u = usersList->get(i);
+                c.pop_front();
+                break;
+            }
+        }
+
+        if (u)
+        {
+            MegaNodeList* inshares = api->getInShares(u);
+            for (int i = 0; i < inshares->size(); i++)
+            {
+                if (inshares->get(i)->getName() == c.front())
+                {
+                    n = inshares->get(i)->copy();
+                    c.pop_front();
+                    break;
+                }
+            }
+
+            delete inshares;
+        }
+        delete usersList;
+    }
+    else // mine
+    {
+
+        // path starting with /
+        if (( c.size() > 1 ) && !c.front().size())
+        {
+            c.pop_front();
+            // path starting with //
+            if (( c.size() > 1 ) && !c.front().size())
+            {
+                c.pop_front();
+                if (c.front() == "in")
+                {
+                    n = api->getInboxNode();
+                    c.pop_front();
+                }
+                else if (c.front() == "bin")
+                {
+                    n = api->getRubbishNode();
+                    c.pop_front();
+                }
+                else
+                {
+                    if (c.size()==1) //last leave
+                    {
+                        string currentPart = c.front();
+                        if (patternMatches("bin", currentPart.c_str()))
+                        {
+                            pathsMatching->push_back("//bin");
+                        }
+                        if (patternMatches("in", currentPart.c_str()))
+                        {
+                            pathsMatching->push_back("//in");
+                        }
+                        //shares?
+                    }
+                    return pathsMatching;
+                }
+            }
+            else
+            {
+                n = api->getRootNode();
+            }
+        }
+        else
+        {
+            n = api->getNodeByHandle(cwd);
+            isrelative=true;
+        }
+    }
+
+    string pathPrefix;
+    if ((n) && !isrelative) //is root and not relative
+    {
+        char * nodepath = api->getNodePath(n);
+        pathPrefix=nodepath;
+        if (pathPrefix.size() && pathPrefix.at(pathPrefix.size()-1)!='/')
+            pathPrefix+="/";
+        delete []nodepath;
+    }
+    if (n)
+    {
+        while (c.size())
+        {
+            if (!c.back().size())
+            {
+                c.pop_back();
+            }
+            else
+            {
+                break;
+            }
+        }
+        getPathsMatching(n, c, pathsMatching,pathPrefix);
+        delete n;
+    }
+
+    return pathsMatching;
 }
 
 /**
@@ -699,10 +989,9 @@ MegaNode * MegaCmdExecuter::getRootNodeByPath(const char *ptr, string* user)
  * (correct UTF-8 encoding is assumed)
  * @param ptr
  * @param user
- * @param namepart
  * @return List of MegaNode*.  You take the ownership of those MegaNode*
  */
-vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user, string* namepart)
+vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
 {
     vector<MegaNode *> *nodesMatching = new vector<MegaNode *> ();
     queue<string> c;
@@ -1027,7 +1316,6 @@ void MegaCmdExecuter::dumptree(MegaNode* n, int recurse, int extended_info, int 
             else
             {
                 char * nodepath = api->getNodePath(n);
-
 
                 char *pathToShow = NULL;
                 if (pathRelativeTo != "")
@@ -1908,49 +2196,45 @@ string MegaCmdExecuter::getCurrentPath()
 
 vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
 {
-    MegaNode *n;
     vector<string> paths;
     if ((int)askedPath.size())
     {
-        if (isRegExp(askedPath))
+        vector<string> *pathsToList = nodesPathsbypath(askedPath.c_str());
+        if (pathsToList)
         {
-            vector<MegaNode *> *nodesToList = nodesbypath(askedPath.c_str());
-            if (nodesToList)
+            for (std::vector< string >::iterator it = pathsToList->begin(); it != pathsToList->end(); ++it)
             {
-                for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
+                string nodepath= *it;
+                MegaNode *ncwd = api->getNodeByHandle(cwd);
+                if (ncwd)
                 {
-                    MegaNode * n = *it;
+                    MegaNode * n = api->getNodeByPath(nodepath.c_str(),ncwd);
                     if (n)
                     {
-                        string pathToShow = getDisplayPath(askedPath, n);
                         if (n->getType() != MegaNode::TYPE_FILE)
                         {
-                            pathToShow += "/";
+                            nodepath += "/";
                         }
                         if (!( discardFiles && ( n->getType() == MegaNode::TYPE_FILE )))
                         {
-                            paths.push_back(pathToShow);
+                            paths.push_back(nodepath);
                         }
 
                         delete n;
                     }
+                    else
+                    {
+                        //TODO: log unexpected
+                    }
+                    delete ncwd;
                 }
-
-                nodesToList->clear();
-                delete nodesToList;
+                else
+                {
+                    //TODO: log unexpected
+                }
             }
-        }
-        else
-        {
-            askedPath = unquote(askedPath);
-
-            n = nodebypath(askedPath.c_str());
-            if (n)
-            {
-                string pathToShow = getDisplayPath(askedPath, n);
-//                dumptree(n, recursive, extended_info, 1,rNpath);
-                delete n;
-            }
+            pathsToList->clear();
+            delete pathsToList;
         }
     }
 
@@ -2094,6 +2378,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if ((int)words.size() > 1)
         {
+             words[1] = unescapeifRequired(words[1]);
+
             string rNpath = "NULL";
             if (words[1].find('/') != string::npos)
             {
@@ -2110,34 +2396,53 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             if (isRegExp(words[1]))
             {
-                vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
-                if (nodesToList)
+                vector<string> *pathsToList = nodesPathsbypath(words[1].c_str());
+                if (pathsToList && pathsToList->size())
                 {
-                    for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
+                    for (std::vector< string >::iterator it = pathsToList->begin(); it != pathsToList->end(); ++it)
                     {
-                        MegaNode * n = *it;
-                        if (n)
+                        string nodepath= *it;
+                        MegaNode *ncwd = api->getNodeByHandle(cwd);
+                        if (ncwd)
                         {
-                            if (!n->getType() == MegaNode::TYPE_FILE)
+                            MegaNode * n = api->getNodeByPath(nodepath.c_str(),ncwd);
+                            if (n)
                             {
-                                OUTSTREAM << getDisplayPath(rNpath, n) << ": " << endl;
+                                if (!n->getType() == MegaNode::TYPE_FILE)
+                                {
+                                    OUTSTREAM << nodepath << ": " << endl;
+                                }
+                                dumptree(n, recursive, extended_info, 0, rNpath);
+                                if (( !n->getType() == MegaNode::TYPE_FILE ) && (( it + 1 ) != pathsToList->end()))
+                                {
+                                    OUTSTREAM << endl;
+                                }
+                                delete n;
                             }
-                            dumptree(n, recursive, extended_info, 0, rNpath);
-                            if (( !n->getType() == MegaNode::TYPE_FILE ) && (( it + 1 ) != nodesToList->end()))
+                            else
                             {
-                                OUTSTREAM << endl;
+                                LOG_warn << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
                             }
-                            delete n;
+                            delete ncwd;
+                        }
+                        else
+                        {
+                            setCurrentOutCode(MCMD_INVALIDSTATE);
+                            LOG_err << "Couldn't find woking folder (it might been deleted)";
                         }
                     }
-
-                    nodesToList->clear();
-                    delete nodesToList;
+                    pathsToList->clear();
+                    delete pathsToList;
+                }
+                else
+                {
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << "Couldn't find " << words[1];
                 }
             }
             else
             {
-                words[1] = unquote(words[1]);
+//                words[1] = unquote(words[1]);
                 n = nodebypath(words[1].c_str());
                 if (n)
                 {
