@@ -477,6 +477,11 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
 
     if (currentPart == ".")
     {
+         if (!pathParts.size())
+         {
+             pathsMatching->push_back(pathPrefix+".");
+         }
+
         //ignore this part
         return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"./");
     }
@@ -484,6 +489,11 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
     {
         if (parentNode->getParentHandle())
         {
+            if (!pathParts.size())
+            {
+                pathsMatching->push_back(pathPrefix+"..");
+            }
+
             parentNode = api->getNodeByHandle(parentNode->getParentHandle());
             return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"../");
             delete parentNode;

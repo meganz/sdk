@@ -398,6 +398,7 @@ char* empty_completion(const char* text, int state)
 char* generic_completion(const char* text, int state, vector<string> validOptions)
 {
     static size_t list_index, len;
+    static bool foundone;
     string name;
     if (!validOptions.size()) // no matches
     {
@@ -406,6 +407,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     if (!state)
     {
         list_index = 0;
+        foundone = false;
         len = strlen(text);
     }
     while (list_index < validOptions.size())
@@ -423,9 +425,14 @@ char* generic_completion(const char* text, int state, vector<string> validOption
             {
                 rl_completion_suppress_append = 1;
             }
-
+            foundone = true;
             return dupstr((char*)name.c_str());
         }
+    }
+
+    if (!foundone)
+    {
+        return empty_completion(text,state); //dont fall back to filenames
     }
 
     return((char*)NULL );
@@ -538,21 +545,32 @@ char * flags_value_completion(const char*text, int state)
             {
                 if (currentFlag.find("--level=") == 0)
                 {
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READ));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READWRITE));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_FULL));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_OWNER));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    string prefix = strncmp(text, "--level=", strlen("--level="))?"":"--level=";
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READ));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READWRITE));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_FULL));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_OWNER));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
                 }
                 if (currentFlag.find("--with=") == 0)
                 {
                     validValues = cmdexecuter->getlistusers();
+                    string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
+                    for (u_int i=0;i<validValues.size();i++)
+                    {
+                        validValues.at(i)=prefix+validValues.at(i);
+                    }
                 }
             }
             if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
             {
                 validValues = cmdexecuter->getlistusers();
+                string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
+                for (u_int i=0;i<validValues.size();i++)
+                {
+                    validValues.at(i)=prefix+validValues.at(i);
+                }
             }
         }
     }
@@ -1972,6 +1990,7 @@ void printCenteredLine(string msj, int width, bool encapsulated = true)
 void printWelcomeMsg()
 {
     int width = 75;
+    cout << endl;
     cout << ".";
     for (u_int i = 0; i < width; i++)
         cout << "=" ;
