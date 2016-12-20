@@ -602,6 +602,31 @@ vector<string> getlistOfWords(char *ptr)
                 }
             }
         }
+        else if (*ptr == '\'') // quoted arg / regular arg
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '\'' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '\'' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
         else
         {
             wptr = ptr;

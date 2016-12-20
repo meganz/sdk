@@ -439,7 +439,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        if (!rl_completion_quote_character) {
+        if (!rl_completion_quote_character && strlen(text) && !text[0]=='\"' && !text[0]=='\'') {
             name = escape(name);
         }
 
