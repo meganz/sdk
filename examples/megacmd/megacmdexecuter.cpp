@@ -2491,22 +2491,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "find")
     {
-        string rNpath = "";
 
         if (words.size() > 1)
         {
-            if (words[1].find('/') != string::npos)
-            {
-                string cwpath = getCurrentPath();
-                if (words[1].find(cwpath) == string::npos)
-                {
-                    rNpath = "";
-                }
-                else
-                {
-                    rNpath = cwpath;
-                }
-            }
             n = nodebypath(words[1].c_str());
         }
         else
@@ -2527,7 +2514,18 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             MegaNode * n = *it;
             if (n)
             {
-                string pathToShow = getDisplayPath(rNpath, n);
+                string pathToShow;
+
+                if ( words.size() > 1 && ( (words[1].find("/") == 0) || (words[1].find("..") != string::npos)) )
+                {
+                    char * nodepath = api->getNodePath(n);
+                    pathToShow = string(nodepath);
+                    delete [] nodepath;
+                }
+                else
+                {
+                    pathToShow = getDisplayPath("", n);
+                }
                 if (getFlag(clflags,"l"))
                 {
                     dumpNode(n, 3, 1, pathToShow.c_str());
@@ -2535,7 +2533,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 else
                 {
                     OUTSTREAM << pathToShow << endl;
-
                 }
                 //notice: some nodes may be dumped twice
 
