@@ -500,15 +500,27 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
         for (int i = 0; i < children->size(); i++)
         {
             MegaNode *childNode = children->get(i);
-            if (patternMatches(childNode->getName(), currentPart.c_str()))
+            // get childname from its path: alternative: childNode->getName()
+            char *childNodePath = api->getNodePath(childNode);
+            char *aux;
+            aux = childNodePath+strlen(childNodePath);
+            while (aux>childNodePath){
+                if (*aux=='/' && *(aux-1) != '\\')  break;
+                aux--;
+            }
+            if (*aux=='/') aux++;
+            string childname(aux);
+            delete []childNodePath;
+
+            if (patternMatches(childname.c_str(), currentPart.c_str()))
             {
                 if (pathParts.size() == 0) //last leave
                 {
-                    pathsMatching->push_back(pathPrefix+childNode->getName());
+                    pathsMatching->push_back(pathPrefix+childname);
                 }
                 else
                 {
-                    getPathsMatching(childNode, pathParts, pathsMatching,pathPrefix+childNode->getName()+"/");
+                    getPathsMatching(childNode, pathParts, pathsMatching,pathPrefix+childname+"/");
                 }
             }
         }
@@ -2224,7 +2236,7 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
                     }
                     else
                     {
-                        LOG_warn << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
+                        LOG_debug << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
                     }
                     delete ncwd;
                 }
@@ -2422,7 +2434,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
                             else
                             {
-                                LOG_warn << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
+                                LOG_debug << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
                             }
                             delete ncwd;
                         }
@@ -2443,7 +2455,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-//                words[1] = unquote(words[1]);
                 n = nodebypath(words[1].c_str());
                 if (n)
                 {
@@ -2571,6 +2582,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             for (u_int i = 1; i < words.size(); i++)
             {
+                unescapeifRequired(words[i]);
                 if (isRegExp(words[i]))
                 {
                     vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
@@ -2589,7 +2601,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    words[i] = unquote(words[i]);
                     MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                     if (nodeToDelete)
                     {
@@ -2879,6 +2890,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         for (u_int i = 1; i < words.size(); i++)
         {
+            unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str());
@@ -2903,7 +2915,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                words[i] = unquote(words[i]);
                 if (!( n = nodebypath(words[i].c_str())))
                 {
                     setCurrentOutCode(MCMD_NOTFOUND);
@@ -3107,6 +3118,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else //remote file
             {
+                unescapeifRequired(words[1]);
+
                 if (isRegExp(words[1]))
                 {
                     if (words.size() > 2)
@@ -3155,7 +3168,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    words[1] = unquote(words[1]);
                     MegaNode *n = nodebypath(words[1].c_str());
                     if (n)
                     {
@@ -3831,6 +3843,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         for (int i = 1; i < (int)words.size(); i++)
         {
+            unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
@@ -3911,7 +3924,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else // non-regexp
             {
-                words[i] = unquote(words[i]);
                 MegaNode *n = nodebypath(words[i].c_str());
                 if (n)
                 {
@@ -4062,13 +4074,103 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         bool printusage = false;
         for (u_int i = 1; i < words.size(); i++)
         {
-            int status = makedir(words[i],getFlag(clflags, "p"));
-            if (status != MCMD_OK)
+            unescapeifRequired(words[i]);
+            //git first existing node in the asked path:
+            MegaNode *baseNode;
+
+            string rest = words[i];
+            if (rest.find("//bin/") == 0)
             {
-                globalstatus = status;
+                baseNode = api->getRubbishNode();
+                rest = rest.substr(6);
+            }//elseif //in/
+            else if(rest.find("/") == 0)
+            {
+                baseNode = api->getRootNode();
+                rest = rest.substr(1);
             }
-            if (status == MCMD_EARGS)
-                printusage = true;
+            else
+            {
+                baseNode = api->getNodeByHandle(cwd);
+            }
+
+            while (baseNode && rest.length())
+            {
+                bool lastleave = false;
+                size_t possep = rest.find_first_of("/");
+                if (possep == string::npos)
+                {
+                    possep = rest.length();
+                    lastleave = true;
+                    break;
+                }
+
+                string next = rest.substr(0, possep);
+                if (next == ".")
+                {
+                    continue;
+                }
+                else if(next == "..")
+                {
+                    MegaNode *aux = baseNode;
+                    baseNode = api->getNodeByHandle(baseNode->getParentHandle());
+
+                    if (aux!=baseNode) // let's be paranoid
+                    {
+                        delete aux;
+                    }
+                }
+                else
+                {
+                    MegaNodeList *children = api->getChildren(baseNode);
+                    if (children)
+                    {
+                        bool found;
+                        for (int i = 0; i < children->size(); i++)
+                        {
+                            MegaNode *child = children->get(i);
+                            if (next == child->getName())
+                            {
+                                MegaNode *aux = baseNode;
+                                baseNode = child->copy();
+                                found = true;
+                                if (aux!=baseNode) // let's be paranoid
+                                {
+                                    delete aux;
+                                }
+                                break;
+                            }
+                        }
+                        delete children;
+                        if (!found)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                rest = rest.substr(possep + 1);
+            }
+            if (baseNode)
+            {
+                int status = makedir(rest,getFlag(clflags, "p"),baseNode);
+                if (status != MCMD_OK)
+                {
+                    globalstatus = status;
+                }
+                if (status == MCMD_EARGS)
+                {
+                    printusage = true;
+                }
+                delete baseNode;
+            }
+            else
+            {
+                setCurrentOutCode(MCMD_INVALIDSTATE);
+                LOG_err << "Folder navigation failed";
+                return;
+            }
+
         }
 
         setCurrentOutCode(globalstatus);
@@ -4525,6 +4627,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         for (int i = 1; i < (int)words.size(); i++)
         {
+            unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
                 vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
@@ -4569,7 +4672,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                words[i] = unquote(words[i]);
                 MegaNode *n = nodebypath(words[i].c_str());
                 if (n)
                 {
