@@ -2224,13 +2224,14 @@ vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
                     }
                     else
                     {
-                        //TODO: log unexpected
+                        LOG_warn << "Unexpected: matching path has no associated node: " << nodepath << ". Could have been deleted in the process";
                     }
                     delete ncwd;
                 }
                 else
                 {
-                    //TODO: log unexpected
+                    setCurrentOutCode(MCMD_INVALIDSTATE);
+                    LOG_err << "Couldn't find woking folder (it might been deleted)";
                 }
             }
             pathsToList->clear();
@@ -2378,7 +2379,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if ((int)words.size() > 1)
         {
-             words[1] = unescapeifRequired(words[1]);
+             unescapeifRequired(words[1]);
 
             string rNpath = "NULL";
             if (words[1].find('/') != string::npos)

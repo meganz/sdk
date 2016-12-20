@@ -371,42 +371,14 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     }
 }
 
-//TODO: ref
-string escape(string orig)
+void escapeEspace(string &orig)
 {
-    string toret;
-    if (orig.size()){
-        for (u_int i=0;i<orig.size();i++)
-        {
-            if ( orig.at(i) == ' ')
-            {
-                toret+="\\ ";
-            }
-            else
-            {
-                toret+=orig.at(i);
-            }
-
-        }
-    }
-    return toret;
+    replaceAll(orig," ", "\\ ");
 }
 
-//TODO: ref
-string unescape(string orig)
+void unescapeEspace(string &orig)
 {
-    string toret;
-    if (orig.size()){
-        for (u_int i=0;i<orig.size();i++)
-        {
-            if ( orig.at(i) == '\\' && (orig.size()>(i+1)) && (orig.at(i+1) == ' '))
-            {
-                continue;
-            }
-            toret+=orig.at(i);
-        }
-    }
-    return toret;
+    replaceAll(orig,"\\ ", " ");
 }
 
 char* empty_completion(const char* text, int state)
@@ -439,8 +411,8 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        if (!rl_completion_quote_character && strlen(text) && !text[0]=='\"' && !text[0]=='\'') {
-            name = escape(name);
+        if (!rl_completion_quote_character && interactiveThread()) {
+            escapeEspace(name);
         }
 
         list_index++;
@@ -589,13 +561,11 @@ char * flags_value_completion(const char*text, int state)
     return toret;
 }
 
-//TODO: use ref
-string unescapeifRequired(string what)
+void unescapeifRequired(string &what)
 {
-    if (!rl_completion_quote_character) {
-        what = unescape(what);
+    if (!rl_completion_quote_character && interactiveThread() ) {
+        return unescapeEspace(what);
     }
-    return what;
 }
 
 char* remotepaths_completion(const char* text, int state)
@@ -612,7 +582,7 @@ char* remotepaths_completion(const char* text, int state)
         wildtext += "*";
 
         if (!rl_completion_quote_character) {
-            wildtext = unescape(wildtext);
+            unescapeEspace(wildtext);
         }
         validpaths = cmdexecuter->listpaths(wildtext);
     }
