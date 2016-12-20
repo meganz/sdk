@@ -409,10 +409,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->logout();
 }
 
+- (void)invalidateCache {
+    self.megaApi->invalidateCache();
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
-
 
 - (void)fetchNodes {
     self.megaApi->fetchNodes();
