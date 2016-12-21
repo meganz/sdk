@@ -55,7 +55,7 @@ public:
     int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1, bool checkAccess = true);
 
     // FIXME: read dynamically from API server
-    typedef enum { THUMBNAIL120X120, PREVIEW1000x1000 } meta_t;
+    typedef enum { THUMBNAIL120X120, AVATAR250X250, PREVIEW1000x1000 } meta_t;
 
     // generate and save a fa to a file
     bool savefa(string*, meta_t, string*);
