@@ -3613,7 +3613,12 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
-    delete request; // delete here since onRequestFinish() is never called
+
+    requestMap.erase(request->getTag());
+    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
+    {
+        delete it->second;
+    }
 
     for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
     {
@@ -3627,6 +3632,8 @@ MegaApiImpl::~MegaApiImpl()
 #ifndef DONT_RELEASE_HTTPIO
     delete httpio;
 #endif
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 int MegaApiImpl::isLoggedIn()
