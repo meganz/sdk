@@ -1998,12 +1998,13 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
     HttpReq *req = (HttpReq*)target;
-    if (size * nmemb > 2)
+    int len = size * nmemb;
+    if (len > 2)
     {
-        LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
+        LOG_verbose << "Header: " << string((const char *)ptr, len - 2);
     }
 
-    if (!memcmp(ptr, "HTTP/", 5))
+    if (len > 5 && !memcmp(ptr, "HTTP/", 5))
     {
         if (req->contentlength >= 0)
         {
@@ -2016,24 +2017,24 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 
         return size * nmemb;
     }
-    else if (!memcmp(ptr, "Content-Length:", 15))
+    else if (len > 15 && !memcmp(ptr, "Content-Length:", 15))
     {
         if (req->contentlength < 0)
         {
             req->setcontentlength(atol((char*)ptr + 15));
         }
     }
-    else if (!memcmp(ptr, "Original-Content-Length:", 24))
+    else if (len > 24 && !memcmp(ptr, "Original-Content-Length:", 24))
     {
         req->setcontentlength(atol((char*)ptr + 24));
     }
-    else if (!memcmp(ptr, "X-MEGA-Time-Left:", 17))
+    else if (len > 17 && !memcmp(ptr, "X-MEGA-Time-Left:", 17))
     {
         req->timeleft = atol((char*)ptr + 17);
     }
     else
     {
-        return size * nmemb;
+        return len;
     }
 
     if (req->httpio)
@@ -2042,7 +2043,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
         req->lastdata = Waiter::ds;
     }
 
-    return size * nmemb;
+    return len;
 }
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
