@@ -194,11 +194,18 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if (n->outshares)
                 {
                     // outgoing share to user u deleted
-                    if (n->outshares->erase(s->peer) && notify)
+                    share_map::iterator shareit = n->outshares->find(s->peer);
+                    if (shareit != n->outshares->end())
                     {
+                        Share *delshare = shareit->second;
+                        n->outshares->erase(shareit);
                         found = true;
-                        n->changed.outshares = true;
-                        notifynode(n);
+                        if (notify)
+                        {
+                            n->changed.outshares = true;
+                            notifynode(n);
+                        }
+                        delete delshare;
                     }
 
                     if (!n->outshares->size())
@@ -210,11 +217,18 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if (n->pendingshares && !found && s->pending)
                 {
                     // delete the pending share
-                    if (n->pendingshares->erase(s->pending) && notify)
+                    share_map::iterator shareit = n->pendingshares->find(s->pending);
+                    if (shareit != n->pendingshares->end())
                     {
+                        Share *delshare = shareit->second;
+                        n->pendingshares->erase(shareit);
                         found = true;
-                        n->changed.pendingshares = true;
-                        notifynode(n);
+                        if (notify)
+                        {
+                            n->changed.pendingshares = true;
+                            notifynode(n);
+                        }
+                        delete delshare;
                     }
 
                     if (!n->pendingshares->size())
