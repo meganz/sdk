@@ -278,10 +278,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                             {
                                 // This is currently a pending share that needs to be upgraded to a full share
                                 // erase from pending shares & delete the pending share list if needed
-                                if (n->pendingshares->erase(s->pending) && notify)
+                                if (n->pendingshares->erase(s->pending))
                                 {
-                                    n->changed.pendingshares = true;
-                                    notifynode(n);
+                                    if (notify)
+                                    {
+                                        n->changed.pendingshares = true;
+                                        notifynode(n);
+                                    }
+                                    delete *sharep;
                                 }
                                 if (!n->pendingshares->size())
                                 {
