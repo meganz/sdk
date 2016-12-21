@@ -7651,14 +7651,17 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         return NULL;
     }
 
-    MegaFile *file;
+    MegaFile *file = NULL;
     *type = (direction_t)MemAccess::get<char>(d->data());
     switch (*type)
     {
     case GET:
+    {
         file = MegaFileGet::unserialize(d);
         break;
+    }
     case PUT:
+    {
         file = MegaFilePut::unserialize(d);
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
@@ -7680,6 +7683,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
             }
         }
         delete nodes;
+        break;
+    }
+    default:
         break;
     }
 
