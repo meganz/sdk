@@ -3616,7 +3616,11 @@ MegaApiImpl::~MegaApiImpl()
     delete request; // delete here since onRequestFinish() is never called
     delete gfxAccess;
     delete fsAccess;
-//    delete httpio;  do not delete since it could crash
+    delete waiter;
+
+#ifndef DONT_RELEASE_HTTPIO
+    delete httpio;
+#endif
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -4362,11 +4366,6 @@ void MegaApiImpl::loop()
 
     sdkMutex.lock();
     delete client;
-
-	//It doesn't seem fully safe to delete those objects :-/
-    // delete httpio;
-    // delete waiter;
-    // delete fsAccess;
     sdkMutex.unlock();
 }
 

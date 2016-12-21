@@ -43,6 +43,11 @@ WinWaiter::WinWaiter()
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
+WinWaiter::~WinWaiter()
+{
+    CloseHandle(externalEvent);
+}
+
 // update monotonously increasing timestamp in deciseconds
 // FIXME: restore thread safety for applications using multiple MegaClient objects
 void Waiter::bumpds()
