@@ -469,6 +469,7 @@ CurlHttpIO::~CurlHttpIO()
     curl_multi_cleanup(curlmapi);
     curl_multi_cleanup(curlmdownload);
     curl_multi_cleanup(curlmupload);
+    curl_share_cleanup(curlsh);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     for (unsigned int i = 0; i < aressockets.size(); i++)
@@ -488,6 +489,9 @@ CurlHttpIO::~CurlHttpIO()
     ares_library_cleanup();
     curl_global_cleanup();
     curlMutex.unlock();
+
+    curl_slist_free_all(contenttypejson);
+    curl_slist_free_all(contenttypebinary);
 }
 
 void CurlHttpIO::setuseragent(string* u)
