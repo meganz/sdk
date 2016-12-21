@@ -3614,6 +3614,12 @@ MegaApiImpl::~MegaApiImpl()
     waiter->notify();
     thread.join();
     delete request; // delete here since onRequestFinish() is never called
+
+    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        delete it->second;
+    }
+
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
