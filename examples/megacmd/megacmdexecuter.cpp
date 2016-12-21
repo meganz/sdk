@@ -2017,7 +2017,7 @@ void MegaCmdExecuter::exportNode(MegaNode *n, int expireTime)
         if (nexported)
         {
             char *nodepath = api->getNodePath(nexported);
-            OUTSTREAM << "Exported " << nodepath << " : " << nexported->getPublicLink();
+            OUTSTREAM << "Exported " << nodepath << ": " << nexported->getPublicLink();
             if (nexported->getExpirationTime())
             {
                 OUTSTREAM << " expires at " << getReadableTime(nexported->getExpirationTime());

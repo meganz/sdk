@@ -2044,7 +2044,7 @@ int main(int argc, char* argv[])
     loggerCMD = new MegaCMDLogger(&cout);
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_WARNING);
 
     if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
     {
