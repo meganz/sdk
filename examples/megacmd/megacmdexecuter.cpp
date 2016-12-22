@@ -4103,12 +4103,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             while (baseNode && rest.length())
             {
-                bool lastleave = false;
                 size_t possep = rest.find_first_of("/");
                 if (possep == string::npos)
                 {
                     possep = rest.length();
-                    lastleave = true;
                     break;
                 }
 

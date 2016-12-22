@@ -129,6 +129,8 @@ MegaMutex mutexHistory;
 
 map<int, string> threadline;
 
+void printWelcomeMsg();
+
 string getCurrentThreadLine()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
@@ -1969,7 +1971,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, int width, bool encapsulated = true)
+void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1989,7 +1991,15 @@ void printCenteredLine(string msj, int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    int width = 75;
+    u_int width = 75;
+    int rows = 1, cols = width;
+    rl_get_screen_size(&rows, &cols);
+
+    if (cols)
+    {
+        width = cols-2;
+    }
+
     cout << endl;
     cout << ".";
     for (u_int i = 0; i < width; i++)
@@ -2039,7 +2049,6 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
-    printWelcomeMsg();
 
     loggerCMD = new MegaCMDLogger(&cout);
 
@@ -2128,6 +2137,8 @@ int main(int argc, char* argv[])
     rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
     // so that we can use rl_message or rl_resize_terminal safely before ever
     // prompting anything.
+
+    printWelcomeMsg();
 
     if (!ConfigurationManager::session.empty())
     {
