@@ -225,7 +225,7 @@ public:
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // retrieve the email address of a user
-    void getUserEmail(const char *uid = NULL);
+    void getUserEmail(const char *uid);
 
 #ifdef DEBUG
     // queue a user attribute removal

@@ -2688,8 +2688,6 @@ void CommandDelUA::procresult()
 
 #endif
 
-
-
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
     cmd("uge");
@@ -2714,7 +2712,6 @@ void CommandGetUserEmail::procresult()
     {
         return client->app->getuseremail_result(&email, API_OK);
     }
-
 }
 
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)

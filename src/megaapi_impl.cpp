@@ -2650,7 +2650,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
-        case TYPE_GET_USER_EMAIL: return "TYPE_GET_USER_EMAIL";
+        case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -9698,17 +9698,17 @@ void MegaApiImpl::delua_result(error)
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
 {
-    if(requestMap.find(client->restag) == requestMap.end())
+    if (requestMap.find(client->restag) == requestMap.end())
     {
         return;
     }
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
     {
         return;
     }
 
-    if(e == API_OK && email)
+    if (e == API_OK && email)
     {
         request->setEmail(email->c_str());
     }
