@@ -283,29 +283,32 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                             // Pending share
                             if (!n->pendingshares)
                             {
-                                n->pendingshares = new share_map;
+                                n->pendingshares = new share_map();
                             }
 
-                            sharep = &((*n->pendingshares)[s->pending]);
-
-                            if (*sharep && s->upgrade_pending_to_full)
+                            if (s->upgrade_pending_to_full)
                             {
-                                // This is currently a pending share that needs to be upgraded to a full share
-                                // erase from pending shares & delete the pending share list if needed
-                                if (n->pendingshares->erase(s->pending))
+                                share_map::iterator shareit = n->pendingshares->find(s->pending);
+                                if (shareit != n->pendingshares->end())
                                 {
+                                    // This is currently a pending share that needs to be upgraded to a full share
+                                    // erase from pending shares & delete the pending share list if needed
+                                    Share *delshare = shareit->second;
+                                    n->pendingshares->erase(shareit);
                                     if (notify)
                                     {
                                         n->changed.pendingshares = true;
                                         notifynode(n);
                                     }
-                                    delete *sharep;
+                                    delete delshare;
                                 }
+
                                 if (!n->pendingshares->size())
                                 {
                                     delete n->pendingshares;
                                     n->pendingshares = NULL;
                                 }
+
                                 // clear this so we can fall through to below and have it re-create the share in
                                 // the outshares list
                                 s->pending = UNDEF;
@@ -317,6 +320,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                                 }
 
                                 sharep = &((*n->outshares)[s->peer]);
+                            }
+                            else
+                            {
+                                sharep = &((*n->pendingshares)[s->pending]);
                             }
                         }
                         else
