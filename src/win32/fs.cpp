@@ -264,9 +264,19 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         // ignore symlinks - they would otherwise be treated as moves
         // also, ignore some other obscure filesystem object categories
         if (!added && skipattributes(fad.dwFileAttributes))
-        {
-            LOG_debug << "Skipped file " << fad.dwFileAttributes;
+        {            
             name->resize(name->size() - 1);
+            if (SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                string excluded;
+                excluded.resize((name->size() + 1) * 4 / sizeof(wchar_t));
+                excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)name->data(),
+                                                 name->size() / sizeof(wchar_t),
+                                                 (char*)excluded.data(),
+                                                 excluded.size() + 1,
+                                                 NULL, NULL));
+                LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
+            }
             retry = false;
             return false;
         }
@@ -432,12 +442,20 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
 
-    // resize to actual result
-    local->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-                                                         path->c_str(),
-                                                         -1,
-                                                         (wchar_t*)local->data(),
-                                                         local->size() / sizeof(wchar_t) + 1) - 1));
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+                                  path->c_str(),
+                                  -1,
+                                  (wchar_t*)local->data(),
+                                  local->size() / sizeof(wchar_t) + 1);
+    if (len)
+    {
+        // resize to actual result
+        local->resize(sizeof(wchar_t) * (len - 1));
+    }
+    else
+    {
+        local->clear();
+    }
 }
 
 // convert Windows Unicode to UTF-8
@@ -842,6 +860,17 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 {
     string localpath = *path;
     localpath.append("", 1);
+
+#ifdef WINDOWS_PHONE
+    wchar_t full[_MAX_PATH];
+    if (_wfullpath(full, (wchar_t *)localpath.data(), _MAX_PATH))
+    {
+        absolutepath->assign((char *)full, wcslen(full) * sizeof(wchar_t));
+        return true;
+    }
+    *absolutepath = *path;
+    return false;
+#else
     if (!PathIsRelativeW((LPCWSTR)localpath.data()))
     {
         *absolutepath = *path;
@@ -873,6 +902,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
+#endif
 }
 
 void WinFileSystemAccess::osversion(string* u) const
@@ -1003,8 +1033,33 @@ void WinDirNotify::process(DWORD dwBytes)
               || (fni->FileNameLength > ignore.size()
                && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
             {
+                if (SimpleLogger::logCurrentLevel >= logDebug)
+                {
+                    string local, path;
+                    local.assign((char*)fni->FileName, fni->FileNameLength);
+                    path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                    path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                     local.size() / sizeof(wchar_t),
+                                                     (char*)path.data(),
+                                                     path.size() + 1,
+                                                     NULL, NULL));
+                    LOG_debug << "Filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                }
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
+            else if (SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                string local, path;
+                local.assign((char*)fni->FileName, fni->FileNameLength);
+                path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                 local.size() / sizeof(wchar_t),
+                                                 (char*)path.data(),
+                                                 path.size() + 1,
+                                                 NULL, NULL));
+                LOG_debug << "Skipped filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+            }
+
 
             if (!fni->NextEntryOffset)
             {
@@ -1240,6 +1295,24 @@ bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/
 
             ffdvalid = false;
             return true;
+        }
+        else
+        {
+            if (ffdvalid && SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                if (*ffd.cFileName != '.' && (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2])))
+                {
+                    string local, excluded;
+                    local.assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
+                    excluded.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                    excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                     local.size() / sizeof(wchar_t),
+                                                     (char*)excluded.data(),
+                                                     excluded.size() + 1,
+                                                     NULL, NULL));
+                    LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
+                }
+            }
         }
 
         if (!(ffdvalid = FindNextFileW(hFind, &ffd) != 0))

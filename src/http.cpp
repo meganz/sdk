@@ -23,13 +23,17 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
-#define SPEED_MEAN_INTERVAL_DS 50
-
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
 #endif
 
 namespace mega {
+
+// interval to calculate the mean speed (ds)
+const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
+
+// max time to calculate the mean speed
+const int SpeedController::SPEED_MAX_VALUES = 10000;
 
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
@@ -39,6 +43,9 @@ const int HttpIO::REQUESTTIMEOUT = 1200;
 
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
+
+// size (in bytes) of the CRC of uploaded chunks
+const int HttpReqUL::CRCSIZE = 12;
 
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
@@ -83,9 +90,7 @@ HttpIO::HttpIO()
     inetback = false;
     lastdata = NEVER;
     chunkedok = true;
-    downloadPartialBytes = 0;
     downloadSpeed = 0;
-    uploadPartialBytes = 0;
     uploadSpeed = 0;
 }
 
@@ -122,54 +127,12 @@ bool HttpIO::inetisback()
 
 void HttpIO::updatedownloadspeed(m_off_t size)
 {
-    dstime currentTime = Waiter::ds;
-    while (downloadBytes.size())
-    {
-        dstime deltaTime = currentTime - downloadTimes[0];
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
-        {
-            break;
-        }
-
-        downloadPartialBytes -= downloadBytes[0];
-        downloadBytes.erase(downloadBytes.begin());
-        downloadTimes.erase(downloadTimes.begin());
-    }
-
-    if (size)
-    {
-        downloadBytes.push_back(size);
-        downloadTimes.push_back(currentTime);
-        downloadPartialBytes += size;
-    }
-
-    downloadSpeed = (downloadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    downloadSpeed = downloadSpeedController.calculateSpeed(size);
 }
 
 void HttpIO::updateuploadspeed(m_off_t size)
 {
-    dstime currentTime = Waiter::ds;
-    while (uploadBytes.size())
-    {
-        dstime deltaTime = currentTime - uploadTimes[0];
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
-        {
-            break;
-        }
-
-        uploadPartialBytes -= uploadBytes[0];
-        uploadBytes.erase(uploadBytes.begin());
-        uploadTimes.erase(uploadTimes.begin());
-    }
-
-    if (size)
-    {
-        uploadBytes.push_back(size);
-        uploadTimes.push_back(currentTime);
-        uploadPartialBytes += size;
-    }
-
-    uploadSpeed = (uploadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    uploadSpeed = uploadSpeedController.calculateSpeed(size);
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -207,7 +170,7 @@ Proxy *HttpIO::getautoproxy()
             {
                 wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
 
-                if (*character == '/')
+                if (*character == '/' || *character == '=')
                 {
                     proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
                     break;
@@ -646,10 +609,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     }
 
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-    char buf[256];
-
-    snprintf(buf, sizeof buf, "%s/%" PRIu64, tempurl, pos);
-    setreq(buf, REQ_BINARY);
 
     key->ctr_crypt((byte*)out->data(), size, pos, ctriv, mac, 1);
 
@@ -659,6 +618,40 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     // unpad for POSTing
     out->resize(size);
 
+
+    const char *data = out->data();
+    byte c[CRCSIZE];
+    memset(c, 0, CRCSIZE);
+
+    uint32_t *intdata = (uint32_t *)data;
+    uint32_t *intc = (uint32_t *)c;
+    int ll = size % CRCSIZE;
+    int l = size / CRCSIZE;
+    if (l)
+    {
+        l *= 3;
+        while (l)
+        {
+            l -= 3;
+            intc[0] ^= intdata[l];
+            intc[1] ^= intdata[l + 1];
+            intc[2] ^= intdata[l + 2];
+        }
+    }
+    if (ll)
+    {
+        data += (size - ll);
+        while (ll--)
+        {
+            c[ll] ^= data[ll];
+        }
+    }
+
+    char crc[32];
+    char buf[256];
+    Base64::btoa(c, CRCSIZE, crc);
+    snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
+    setreq(buf, REQ_BINARY);
     return true;
 }
 
@@ -672,4 +665,58 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
 
     return 0;
 }
+
+SpeedController::SpeedController()
+{
+    partialBytes = 0;
+    meanSpeed = 0;
+    lastUpdate = 0;
+    speedCounter = 0;
+}
+
+m_off_t SpeedController::calculateSpeed(long long numBytes)
+{
+    dstime currentTime = Waiter::ds;
+    if (numBytes <= 0 && lastUpdate == currentTime)
+    {
+        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    }
+
+    while (transferBytes.size())
+    {
+        dstime deltaTime = currentTime - transferTimes.front();
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        partialBytes -= transferBytes.front();
+        transferBytes.erase(transferBytes.begin());
+        transferTimes.erase(transferTimes.begin());
+    }
+
+    if (numBytes > 0)
+    {
+        transferBytes.push_back(numBytes);
+        transferTimes.push_back(currentTime);
+        partialBytes += numBytes;
+    }
+
+    m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    meanSpeed = meanSpeed * speedCounter + speed;
+    speedCounter++;
+    meanSpeed /= speedCounter;
+    if (speedCounter > SPEED_MAX_VALUES)
+    {
+        speedCounter = SPEED_MAX_VALUES;
+    }
+    lastUpdate = currentTime;
+    return speed;
+}
+
+m_off_t SpeedController::getMeanSpeed()
+{
+    return meanSpeed;
+}
+
 } // namespace

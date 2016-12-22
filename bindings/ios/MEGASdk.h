@@ -602,6 +602,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (void)logout;
 
+/**
+ * @brief Invalidate the existing cache and create a fresh one
+ */
+- (void)invalidateCache;
+
 #pragma mark - Create account and confirm account Requests
 
 /**
@@ -1852,6 +1857,43 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
 
 /**
+ * @brief Get the avatar of any user in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the avatar of any user in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ */
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
+
+/**
  * @brief Get the default color for the avatar.
  *
  * This color should be used only when the user doesn't have an avatar.
@@ -1862,6 +1904,18 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * If the user is not found, this function always returns the same color.
  */
 - (NSString *)avatarColorForUser:(MEGAUser *)user;
+
+/**
+ * @brief Get the default color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar.
+ *
+ * @param base64UserHandle User handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
+- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.

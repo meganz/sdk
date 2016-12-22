@@ -52,8 +52,14 @@ struct MEGA_API TransferSlot
 
     dstime starttime, lastdata;
 
+    SpeedController speedController;
+    m_off_t speed, meanSpeed;
+
     // number of consecutive errors
     unsigned errorcount;
+
+    // last error
+    error lasterror;
 
     // file attribute string
     string fileattrstring;

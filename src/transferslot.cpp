@@ -35,9 +35,11 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     starttime = 0;
     lastprogressreport = 0;
     progressreported = 0;
+    speed = meanSpeed = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
+    lasterror = API_OK;
 
     failure = false;
     retrying = false;
@@ -217,7 +219,7 @@ void TransferSlot::doio(MegaClient* client)
 
     if (errorcount > 4)
     {
-        return transfer->failed(API_EFAILED);
+        return transfer->failed(lasterror);
     }
 
     for (int i = connections; i--; )
@@ -233,17 +235,12 @@ void TransferSlot::doio(MegaClient* client)
                 case REQ_SUCCESS:
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = time(NULL);
-                    transfer->progresscompleted += reqs[i]->size;
 
                     LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
-                              << " Completed: " << transfer->progresscompleted << " of " << transfer->size;
+                              << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size;
 
                     if (transfer->type == PUT)
                     {
-                        errorcount = 0;
-                        transfer->failcount = 0;
-                        transfer->chunkmacs[reqs[i]->pos].finished = true;
-
                         // completed put transfers are signalled through the
                         // return of the upload token
                         if (reqs[i]->in.size())
@@ -271,6 +268,10 @@ void TransferSlot::doio(MegaClient* client)
 
                                 if (tokenOK)
                                 {
+                                    errorcount = 0;
+                                    transfer->failcount = 0;
+                                    transfer->chunkmacs[reqs[i]->pos].finished = true;
+                                    transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
@@ -295,11 +296,23 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
-                            LOG_debug << "Invalid upload token: " << reqs[i]->in;
+                            LOG_debug << "Error uploading chunk: " << reqs[i]->in;
+                            error e = (error)atoi(reqs[i]->in.c_str());
+                            if (e == API_EKEY)
+                            {
+                                LOG_warn << "Integrity check failed";
+                                lasterror = e;
+                                errorcount++;
+                                reqs[i]->status = REQ_PREPARED;
+                                break;
+                            }
 
                             // fail with returned error
-                            return transfer->failed((error)atoi(reqs[i]->in.c_str()));
+                            return transfer->failed(e);
                         }
+
+                        transfer->chunkmacs[reqs[i]->pos].finished = true;
+                        transfer->progresscompleted += reqs[i]->size;
 
                         if (transfer->progresscompleted == transfer->size)
                         {
@@ -310,21 +323,31 @@ void TransferSlot::doio(MegaClient* client)
 
                             return transfer->failed(API_EINTERNAL);
                         }
+
+                        errorcount = 0;
+                        transfer->failcount = 0;
                     }
                     else
                     {
                         if (reqs[i]->size == reqs[i]->bufpos)
                         {
-                            errorcount = 0;
-                            transfer->failcount = 0;
-
                             reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
+                            transfer->progresscompleted += reqs[i]->size;
 
                             if (transfer->progresscompleted == transfer->size)
                             {
-                                // verify meta MAC
-                                if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
+                                if (transfer->progresscompleted)
                                 {
+                                    transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+                                    transfer->hascurrentmetamac = true;
+                                }
+
+                                // verify meta MAC
+                                if (!transfer->progresscompleted
+                                        || (transfer->currentmetamac == transfer->metamac))
+                                {
+                                    errorcount = 0;
+                                    transfer->failcount = 0;
                                     client->transfercacheadd(transfer);
 
                                     if (transfer->progresscompleted != progressreported)
@@ -339,16 +362,18 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                                 else
                                 {
-                                    LOG_warn << "MAC verification failed";
+                                    LOG_warn << "MAC verification failed";                                    
                                     transfer->chunkmacs.clear();
                                     return transfer->failed(API_EKEY);
                                 }
                             }
+                            errorcount = 0;
+                            transfer->failcount = 0;
                         }
                         else
                         {
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
-                            transfer->progresscompleted -= reqs[i]->size;
+                            lasterror = API_EREAD;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
@@ -508,6 +533,8 @@ void TransferSlot::doio(MegaClient* client)
         if (p != progressreported)
         {
             m_off_t diff = p - progressreported;
+            speed = speedController.calculateSpeed(diff);
+            meanSpeed = speedController.getMeanSpeed();
             if (transfer->type == PUT)
             {
                 client->httpio->updateuploadspeed(diff);

@@ -1812,7 +1812,7 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL
         };
 
         virtual ~MegaRequest();
@@ -1931,7 +1931,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
-         * - MegaRequest::getLink - Returns the user-specific URL for the chat
+         * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
+         * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -2614,12 +2615,18 @@ class MegaTransfer
 		virtual int getTag() const;
 
 		/**
-		 * @brief Returns the average speed of this transfer
-		 * @return Average speed of this transfer
+         * @brief Returns the current speed of this transfer
+         * @return Current speed of this transfer
 		 */
 		virtual long long getSpeed() const;
 
-		/**
+        /**
+         * @brief Returns the average speed of this transfer
+         * @return Average speed of this transfer
+         */
+        virtual long long getMeanSpeed() const;
+
+        /**
 		 * @brief Returns the number of bytes transferred since the previous callback
 		 * @return Number of bytes transferred since the previous callback
 		 * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
@@ -6294,6 +6301,11 @@ class MegaApi
         void localLogout(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Invalidate the existing cache and create a fresh one
+         */
+        void invalidateCache();
+
+        /**
          * @brief Submit feedback about the app
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
@@ -6969,7 +6981,7 @@ class MegaApi
          * @param bpslimit Download speed in bytes per second
          * @return true if the network layer allows to control the download speed, otherwise false
          */
-        bool setMaxDownloadSpeed(int bpslimit);
+        bool setMaxDownloadSpeed(long long bpslimit);
 
         /**
          * @brief Set the maximum upload speed in bytes per second
@@ -6984,7 +6996,7 @@ class MegaApi
          * @param bpslimit Upload speed in bytes per second
          * @return true if the network layer allows to control the upload speed, otherwise false
          */
-        bool setMaxUploadSpeed(int bpslimit);
+        bool setMaxUploadSpeed(long long bpslimit);
 
         /**
          * @brief Get the maximum download speed in bytes per second
@@ -7015,6 +7027,14 @@ class MegaApi
          * @return Download speed in bytes per second
          */
         int getCurrentUploadSpeed();
+
+        /**
+         * @brief Return the current transfer speed
+         * @param type Type of transfer to get the speed.
+         * Valid values are MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
+         * @return Transfer speed for the transfer type, or 0 if the parameter is invalid
+         */
+        int getCurrentSpeed(int type);
 
         /**
          * @brief Get the active transfer method for downloads
@@ -7130,12 +7150,12 @@ class MegaApi
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)
          *
-         * If the parameter isn't MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * If the parameter isn't MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * this function returns an empty list.
          *
          * You take the ownership of the returned value
          *
-         * @param type MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * @param type MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
          * @return List with transfers of the desired type
          */
         MegaTransferList *getTransfers(int type);
@@ -8459,18 +8479,33 @@ class MegaApi
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
+         *
+         * If the conversion fails, the size of the string will be 0
+         * If the input string is empty, the size of the result will be also 0
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 and the size of the output is zero
+         *
 		 * @param utf16data UTF16 buffer
 		 * @param utf16size Size of the UTF16 buffer (in characters)
 		 * @param utf8string Pointer to a string that will be filled with UTF8 characters
-		 * If the conversion fails, the size of the string will be 0
 		 */
         static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
 
         /**
          * @brief Convert an UTF8 string to UTF16 (Windows only)
+         *
+         * The converted string will always be a valid UTF16 string. It will have a trailing null byte
+         * added to the string, that along with the null character of the string itself forms a valid
+         * UTF16 string terminator character. Thus, it's valid to pass utf16string->data() to any function
+         * accepting a UTF16 string.
+         *
+         * If the conversion fails, the size of the string will be 1 (null character)
+         * If the input string is empty, the size of the result will be also 1 (null character)
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 (or NULL) and the size of the output is zero
+         *
          * @param utf8data NULL-terminated UTF8 character array
          * @param utf16string Pointer to a string that will be filled with UTF16 characters
-         * If the conversion fails, the size of the string will be 0
          */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
@@ -9113,6 +9148,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current URL to connect to the presence server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_PRESENCE_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat presence server
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatPresenceURL(MegaRequestListener *listener = NULL);
 #endif
 
 private:

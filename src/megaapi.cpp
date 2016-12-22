@@ -767,7 +767,12 @@ int MegaTransfer::getTag() const
 
 long long MegaTransfer::getSpeed() const
 {
-	return 0;
+    return 0;
+}
+
+long long MegaTransfer::getMeanSpeed() const
+{
+    return 0;
 }
 
 long long MegaTransfer::getDeltaSize() const
@@ -1772,6 +1777,11 @@ void MegaApi::localLogout(MegaRequestListener *listener)
     pImpl->localLogout(listener);
 }
 
+void MegaApi::invalidateCache()
+{
+    pImpl->invalidateCache();
+}
+
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, listener);
@@ -1883,12 +1893,12 @@ int MegaApi::getMaxUploadSpeed()
     return pImpl->getMaxUploadSpeed();
 }
 
-bool MegaApi::setMaxDownloadSpeed(int bpslimit)
+bool MegaApi::setMaxDownloadSpeed(long long bpslimit)
 {
     return pImpl->setMaxDownloadSpeed(bpslimit);
 }
 
-bool MegaApi::setMaxUploadSpeed(int bpslimit)
+bool MegaApi::setMaxUploadSpeed(long long bpslimit)
 {
     return pImpl->setMaxUploadSpeed(bpslimit);
 }
@@ -1901,6 +1911,11 @@ int MegaApi::getCurrentDownloadSpeed()
 int MegaApi::getCurrentUploadSpeed()
 {
     return pImpl->getCurrentUploadSpeed();
+}
+
+int MegaApi::getCurrentSpeed(int type)
+{
+    return pImpl->getCurrentSpeed(type);
 }
 
 int MegaApi::getDownloadMethod()
@@ -3435,6 +3450,10 @@ void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestList
     pImpl->setChatTitle(chatid, title, listener);
 }
 
+void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
+{
+    pImpl->getChatPresenceURL(listener);
+}
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -3472,6 +3491,7 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     if(!utf8data)
     {
         utf16string->clear();
+        utf16string->append("", 1);
         return;
     }
 
@@ -3481,11 +3501,16 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     utf16string->resize(size * sizeof(wchar_t));
 
     // resize to actual result
-    utf16string->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-        utf8data,
-        size,
-        (wchar_t*)utf16string->data(),
-                                                               utf16string->size())));
+    utf16string->resize(sizeof(wchar_t) * MultiByteToWideChar(CP_UTF8, 0, utf8data, size, (wchar_t*)utf16string->data(),
+                                                              utf16string->size() / sizeof(wchar_t) + 1));
+    if (utf16string->size())
+    {
+        utf16string->resize(utf16string->size() - 1);
+    }
+    else
+    {
+        utf16string->append("", 1);
+    }
 }
 
 #endif

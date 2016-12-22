@@ -41,6 +41,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     tag = 0;
     slot = NULL;
     progresscompleted = 0;
+    hasprevmetamac = false;
+    hascurrentmetamac = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -369,9 +371,10 @@ void Transfer::failed(error e, dstime timeleft)
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ((*it)->failed(e) && !defer)
+        if ((*it)->failed(e))
         {
             defer = true;
+            break;
         }
     }
 
@@ -1057,7 +1060,9 @@ bool DirectReadSlot::doio()
                 req->lastdata = Waiter::ds;
             }
 
-            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
+            speed = speedController.calculateSpeed(t);
+            meanSpeed = speedController.getMeanSpeed();
+            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;
                 dr->drn->partiallen += t;
@@ -1197,6 +1202,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     dr = cdr;
 
     pos = dr->offset + dr->progress;
+
+    speed = meanSpeed = 0;
 
     req = new HttpReq(true);
 
