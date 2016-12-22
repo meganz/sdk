@@ -33,7 +33,6 @@
 
 namespace mega {
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
 struct MEGA_API SockInfo
 {
     enum
@@ -46,9 +45,10 @@ struct MEGA_API SockInfo
     SockInfo();
     int fd;
     int mode;
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     HANDLE handle;
-};
 #endif
+};
 
 struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
@@ -85,7 +85,6 @@ protected:
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
     static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
@@ -93,7 +92,6 @@ protected:
     static int api_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
-#endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     static MUTEX_CLASS **sslMutexes;
@@ -134,10 +132,11 @@ protected:
     // upload speed limit
     m_off_t maxuploadspeed;
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    void addaresevents(WinWaiter *waiter);
-    void addcurlevents(WinWaiter *waiter, direction_t d);
+    void addaresevents(Waiter *waiter);
+    void addcurlevents(Waiter *waiter, direction_t d);
+    void closearesevents();
     void closecurlevents(direction_t d);
+    void processaresevents();
     void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
     std::map<int, SockInfo> curlapisockets;
@@ -146,7 +145,7 @@ protected:
     m_time_t curlapitimeoutreset;
     m_time_t curldownloadtimeoutreset;
     m_time_t curluploadtimeoutreset;
-#endif
+    m_time_t arestimeout;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
