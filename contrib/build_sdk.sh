@@ -57,7 +57,7 @@ on_exit_ok() {
     elif [ $download_only -eq 1 ]; then
         echo "Successfully downloaded MEGA SDK dependencies!"
     elif [ $only_build_dependencies -eq 1]; then
-		echo "Successfully built MEGA SDK dependencies!"
+        echo "Successfully built MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
     fi
@@ -119,35 +119,35 @@ package_download() {
         rm -f $file || true
     fi
 
-	# use packages previously downloaded in /tmp/megasdkbuild folder
-	# if not present download from URL specified
-	# if wget fail, try curl
-	mkdir -p /tmp/megasdkbuild/
-	
-#	cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
+    # use packages previously downloaded in /tmp/megasdkbuild folder
+    # if not present download from URL specified
+    # if wget fail, try curl
+    mkdir -p /tmp/megasdkbuild/
+    
+#    cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-	cp /tmp/megasdkbuild/$3 $file || \
-	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-	curl -k $url > $file || exit 1
-	
-	echo "Checking MD5SUM for $file"
-	if ! echo $md5sum \*$file | md5sum -c - ; then
-		echo "Downloading $3 again"
-		#rm /tmp/megasdkbuild/$3
-		rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
-		wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-		curl -k $url > $file || exit 1
-		
-		echo "Checking (again) MD5SUM for $file"
-		if ! echo $md5sum \*$file | md5sum -c - ; then
-			echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
-			md5sum $file
-			exit 1
-		fi
-	fi
-	
-	#copy to tmp download folder for next constructions
-	cp $file /tmp/megasdkbuild/$3
+    cp /tmp/megasdkbuild/$3 $file || \
+    wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+    curl -k $url > $file || exit 1
+    
+    echo "Checking MD5SUM for $file"
+    if ! echo $md5sum \*$file | md5sum -c - ; then
+        echo "Downloading $3 again"
+        #rm /tmp/megasdkbuild/$3
+        rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
+        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        curl -k $url > $file || exit 1
+        
+        echo "Checking (again) MD5SUM for $file"
+        if ! echo $md5sum \*$file | md5sum -c - ; then
+            echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
+            md5sum $file
+            exit 1
+        fi
+    fi
+    
+    #copy to tmp download folder for next constructions
+    cp $file /tmp/megasdkbuild/$3
 }
 
 package_extract() {
@@ -777,9 +777,9 @@ build_sdk() {
         echo "Building MEGA SDK"
         make clean
         if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        	make -j9 || exit 1
+            make -j9 || exit 1
         else
-        	make
+            make
         fi
         make install
     fi
@@ -983,10 +983,10 @@ main() {
         sodium_pkg $build_dir $install_dir
     fi
 
-	if [ $disable_zlib -eq 0 ]; then
-		zlib_pkg $build_dir $install_dir
-	fi
-	
+    if [ $disable_zlib -eq 0 ]; then
+        zlib_pkg $build_dir $install_dir
+    fi
+    
     sqlite_pkg $build_dir $install_dir
     
     if [ $enable_cares -eq 1 ]; then
