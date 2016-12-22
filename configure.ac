@@ -1111,7 +1111,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
+if test "x$enable_examples" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
