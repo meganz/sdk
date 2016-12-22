@@ -146,6 +146,9 @@ protected:
     m_time_t curldownloadtimeoutreset;
     m_time_t curluploadtimeoutreset;
     m_time_t arestimeout;
+    int numapiconnections;
+    int numdownloadconnections;
+    int numuploadconnections;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);

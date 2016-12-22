@@ -140,6 +140,9 @@ CurlHttpIO::CurlHttpIO()
     curlmapi = curl_multi_init();
     curlmdownload = curl_multi_init();
     curlmupload = curl_multi_init();
+    numapiconnections = 0;
+    numdownloadconnections = 0;
+    numuploadconnections = 0;
 
     struct ares_options options;
     options.tries = 2;
@@ -620,6 +623,14 @@ void CurlHttpIO::disconnect()
     curl_multi_cleanup(curlmapi);
     curl_multi_cleanup(curlmdownload);
     curl_multi_cleanup(curlmupload);
+
+    if (numapiconnections || numdownloadconnections || numuploadconnections)
+    {
+        LOG_err << "Disconnecting without cancelling all requests first";
+        numapiconnections = 0;
+        numdownloadconnections = 0;
+        numuploadconnections = 0;
+    }
 
     closearesevents();
     closecurlevents(API);
@@ -1255,11 +1266,23 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             }
         }
 
-        curl_multi_add_handle((req->type == REQ_JSON) ? httpio->curlmapi
-                                                      : ((data ? len
-                                                               : req->out->size()) ? httpio->curlmupload
-                                                                                   : httpio->curlmdownload), curl);
-
+        CURLM *multihandle;
+        if (req->type == REQ_JSON)
+        {
+            multihandle = httpio->curlmapi;
+            httpio->numapiconnections++;
+        }
+        else if (data ? len : req->out->size())
+        {
+            multihandle = httpio->curlmupload;
+            httpio->numuploadconnections++;
+        }
+        else
+        {
+            multihandle = httpio->curlmdownload;
+            httpio->numdownloadconnections++;
+        }
+        curl_multi_add_handle(multihandle, curl);
         httpctx->curl = curl;
     }
     else
@@ -1675,10 +1698,24 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         if (httpctx->curl)
         {
-            curl_multi_remove_handle((req->type == REQ_JSON) ? curlmapi
-                                                             : ((httpctx->data ? httpctx->len
-                                                                               : req->out->size()) ? curlmupload
-                                                                                                   : curlmdownload), httpctx->curl);
+            CURLM *multihandle;
+            if (req->type == REQ_JSON)
+            {
+                multihandle = curlmapi;
+                numapiconnections--;
+            }
+            else if (httpctx->data ? httpctx->len : req->out->size())
+            {
+                multihandle = curlmupload;
+                numuploadconnections--;
+            }
+            else
+            {
+                multihandle = curlmdownload;
+                numdownloadconnections--;
+            }
+
+            curl_multi_remove_handle(multihandle, httpctx->curl);
             curl_easy_cleanup(httpctx->curl);
             curl_slist_free_all(httpctx->headers);
         }
@@ -1848,6 +1885,18 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
                         // for IPv6 errors, try IPv4 before sending an error to the engine
                         if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
                         {
+                            if (curlm == curlmapi)
+                            {
+                                numapiconnections--;
+                            }
+                            else if (curlm == curlmdownload)
+                            {
+                                numdownloadconnections--;
+                            }
+                            else if (curlm == curlmupload)
+                            {
+                                numuploadconnections--;
+                            }
                             curl_multi_remove_handle(curlm, msg->easy_handle);
                             curl_easy_cleanup(msg->easy_handle);
                             curl_slist_free_all(httpctx->headers);
@@ -1880,6 +1929,18 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
             req = NULL;
         }
 
+        if (curlm == curlmapi)
+        {
+            numapiconnections--;
+        }
+        else if (curlm == curlmdownload)
+        {
+            numdownloadconnections--;
+        }
+        else if (curlm == curlmupload)
+        {
+            numuploadconnections--;
+        }
         curl_multi_remove_handle(curlm, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
 
