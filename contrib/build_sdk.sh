@@ -33,6 +33,7 @@ disable_freeimage=0
 disable_ssl=0
 disable_zlib=0
 download_only=0
+only_build_dependencies=0
 enable_megaapi=0
 make_opts=""
 config_opts=""
@@ -55,6 +56,8 @@ on_exit_ok() {
         echo "Successfully configured MEGA SDK!"
     elif [ $download_only -eq 1 ]; then
         echo "Successfully downloaded MEGA SDK dependencies!"
+    elif [ $only_build_dependencies -eq 1]; then
+		echo "Successfully built MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
     fi
@@ -825,7 +828,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdefglm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefglm:no:p:rstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -834,6 +837,10 @@ main() {
             a)
                 echo "* Enabling MegaApi"
                 enable_megaapi=1
+                ;;
+             b)
+                only_build_dependencies=1
+                echo "* Building dependencies only."
                 ;;
             c)
                 echo "* Configure only"
@@ -1008,7 +1015,7 @@ main() {
        fi
     fi
 
-    if [ $download_only -eq 0 ]; then
+    if [ $download_only -eq 0 ] && [ $only_build_dependencies -eq 0 ]; then
         cd $cwd
     
         #fix libtool bug (prepends some '=' to certain paths)    
