@@ -6427,7 +6427,7 @@ void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle u
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -6442,7 +6442,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -8798,7 +8798,7 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
                 break;
             case OPCA_ADD:
                 char buffer[12];
-                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
                 LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
                 break;
         }
@@ -12465,7 +12465,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->getUserEmail(uid);
@@ -13685,7 +13685,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->inviteToChat(chatid, uid, access, title);
@@ -13706,7 +13706,7 @@ void MegaApiImpl::sendPendingRequests()
             if (uh != INVALID_HANDLE)
             {
                 char uid[12];
-                Base64::btoa((byte*)&uh, sizeof uh, uid);
+                Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
                 uid[11] = 0;
 
                 client->removeFromChat(chatid, uid);
@@ -13772,7 +13772,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->updateChatPermissions(chatid, uid, access);

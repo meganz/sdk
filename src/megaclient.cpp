@@ -6412,7 +6412,7 @@ User* MegaClient::finduser(handle uh, int add)
         u = &users[++userid];
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
 
         uhindex[uh] = userid;
@@ -6480,7 +6480,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u->userhandle = uh;
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
     }
 }

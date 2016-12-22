@@ -4375,7 +4375,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
 
         handle uh = itupl->first;
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         uid[11] = 0;
 
         privilege_t priv = itupl->second;
