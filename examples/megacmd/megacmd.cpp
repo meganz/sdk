@@ -2120,7 +2120,7 @@ int main(int argc, char* argv[])
     rl_attempted_completion_function = getCompletionMatches;
     rl_completer_quote_characters = "\"'";
     rl_filename_quote_characters  = " ";
-    rl_completer_word_break_characters = " ";
+    rl_completer_word_break_characters = (char *)" ";
 
 
     rl_char_is_quoted_p = &quote_detector;
