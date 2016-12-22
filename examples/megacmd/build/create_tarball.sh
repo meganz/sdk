@@ -65,7 +65,7 @@ sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/PKGBUILD > megac
 echo "Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" > megacmd/debian.copyright
 echo "Upstream-Name: megacmd" >> megacmd/debian.copyright
 echo "Upstream-Contact: <support@mega.nz>" >> megacmd/debian.copyright
-echo "Source: https://github.com/meganz/megacmd" >> megacmd/debian.copyright
+echo "Source: https://github.com/meganz/sdk" >> megacmd/debian.copyright
 echo "Files: *" >> megacmd/debian.copyright
 echo "Copyright: 2013, Mega Limited" >> megacmd/debian.copyright
 echo -n "License:" >> megacmd/debian.copyright # Some software (e.g: gnome-software) would only recognized these licenses: http://spdx.org/licenses/
