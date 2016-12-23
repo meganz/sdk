@@ -11,13 +11,17 @@ sh build-libuv.sh
 sh build-libsodium.sh
 
 # MEGAchat deps
-if [ "$1" == "--enable-chat"]; then
-sh build-expat.sh
+if [ "$1" == "--enable-chat" ]; then
 sh build-libevent2.sh
+
+# WebRTC deps
+if [ "$2" == "--enable-webrtc" ]; then
+sh build-expat.sh
 sh build-libws.sh
 sh build-webrtc.sh
+fi
 
-sh build-megachat.sh
+sh build-megachat.sh $2
 fi
 
 echo "Done."
