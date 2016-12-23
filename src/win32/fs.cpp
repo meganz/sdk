@@ -860,6 +860,17 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 {
     string localpath = *path;
     localpath.append("", 1);
+
+#ifdef WINDOWS_PHONE
+    wchar_t full[_MAX_PATH];
+    if (_wfullpath(full, (wchar_t *)localpath.data(), _MAX_PATH))
+    {
+        absolutepath->assign((char *)full, wcslen(full) * sizeof(wchar_t));
+        return true;
+    }
+    *absolutepath = *path;
+    return false;
+#else
     if (!PathIsRelativeW((LPCWSTR)localpath.data()))
     {
         *absolutepath = *path;
@@ -891,6 +902,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
+#endif
 }
 
 void WinFileSystemAccess::osversion(string* u) const

@@ -1394,6 +1394,7 @@ class MegaApiImpl : public MegaApp
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void localLogout(MegaRequestListener *listener = NULL);
+        void invalidateCache();
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
@@ -1687,6 +1688,7 @@ protected:
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
+        bool nocache;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

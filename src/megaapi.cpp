@@ -1777,6 +1777,11 @@ void MegaApi::localLogout(MegaRequestListener *listener)
     pImpl->localLogout(listener);
 }
 
+void MegaApi::invalidateCache()
+{
+    pImpl->invalidateCache();
+}
+
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, listener);

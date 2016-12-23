@@ -3595,6 +3595,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 		userAgent = "";
 	}
 
+    nocache = false;
+
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -4906,6 +4908,13 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
     request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::invalidateCache()
+{
+    sdkMutex.lock();
+    nocache = true;
+    sdkMutex.unlock();
 }
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
@@ -12193,6 +12202,22 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_FETCH_NODES:
 		{
+            if (nocache)
+            {
+                client->opensctable();
+
+                if (client->sctable)
+                {
+                    client->sctable->remove();
+                    delete client->sctable;
+                    client->sctable = NULL;
+
+                    client->cachedscsn = UNDEF;
+                }
+
+                nocache = false;
+            }
+
 			client->fetchnodes();
 			break;
 		}

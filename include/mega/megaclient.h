@@ -469,9 +469,6 @@ private:
 
     // a TransferSlot chunk failed
     bool chunkfailed;
-
-    // open/create state cache database table
-    void opensctable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
@@ -585,6 +582,9 @@ public:
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+
+    // open/create state cache database table
+    void opensctable();
 
     // initialize/update state cache referenced sctable
     void initsc();

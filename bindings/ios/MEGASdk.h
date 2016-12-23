@@ -602,6 +602,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 - (void)logout;
 
+/**
+ * @brief Invalidate the existing cache and create a fresh one
+ */
+- (void)invalidateCache;
+
 #pragma mark - Create account and confirm account Requests
 
 /**

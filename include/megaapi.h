@@ -6301,6 +6301,11 @@ class MegaApi
         void localLogout(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Invalidate the existing cache and create a fresh one
+         */
+        void invalidateCache();
+
+        /**
          * @brief Submit feedback about the app
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
