@@ -13,11 +13,11 @@ sh build-libsodium.sh
 # MEGAchat deps
 if [ "$1" == "--enable-chat" ]; then
 sh build-libevent2.sh
+sh build-libws.sh
 
 # WebRTC deps
 if [ "$2" == "--enable-webrtc" ]; then
 sh build-expat.sh
-sh build-libws.sh
 sh build-webrtc.sh
 fi
 
