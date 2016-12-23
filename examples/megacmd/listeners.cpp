@@ -231,6 +231,8 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
         {
             map<string, sync_struct *>::iterator itr;
             int i = 0;
+#ifdef ENABLE_SYNC
+
             for (itr = ConfigurationManager::configuredSyncs.begin(); itr != ConfigurationManager::configuredSyncs.end(); ++itr, i++)
             {
                 sync_struct *oldsync = ((sync_struct*)( *itr ).second );
@@ -239,7 +241,6 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
 
                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
                 MegaNode * node = api->getNodeByHandle(thesync->handle);
-
                 api->resumeSync(thesync->localpath.c_str(), node, thesync->fingerprint, megaCmdListener);
                 megaCmdListener->wait();
                 if (megaCmdListener->getError() && ( megaCmdListener->getError()->getErrorCode() == MegaError::API_OK ))
@@ -264,6 +265,7 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                 delete megaCmdListener;
                 delete node;
             }
+#endif
 
             break;
         }
