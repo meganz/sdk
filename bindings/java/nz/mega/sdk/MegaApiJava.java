@@ -3044,6 +3044,13 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Invalidate the existing cache and create a fresh one
+     */
+    public void invalidateCache(){
+        megaApi.invalidateCache();
+    }
+
+    /**
      * Submit feedback about the app.
      * <p>
      * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
