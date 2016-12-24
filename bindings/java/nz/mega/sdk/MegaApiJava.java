@@ -4968,6 +4968,38 @@ public class MegaApiJava {
     public boolean isOnline() {
     	return megaApi.isOnline();
     }
+
+    /**
+     * Register a token for push notifications
+     *
+     * This function attach a token to the current session, which is intended to get push notifications
+     * on mobile platforms like Android and iOS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getText - Returns the token provided.
+     * - MegaRequest::getNumber - Returns the device type provided.
+     *
+     * @param deviceType Integer id for the provider. 1 for Android, 2 for iOS
+     * @param token Character array representing the token to be registered.
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void registerPushNotifications(int deviceType, String token, MegaRequestListenerInterface listener) {
+        megaApi.registerPushNotifications(deviceType, token, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Register a token for push notifications
+     *
+     * This function attach a token to the current session, which is intended to get push notifications
+     * on mobile platforms like Android and iOS.
+     *
+     * @param deviceType Integer id for the provider. 1 for Android, 2 for iOS
+     * @param token Character array representing the token to be registered.
+     */
+    public void registerPushNotifications(int deviceType, String token) {
+        megaApi.registerPushNotifications(deviceType, token);
+    }
     
 
     /****************************************************************************************************/
