@@ -42,6 +42,7 @@ public:
     void notify();
 
     WinWaiter();
+    ~WinWaiter();
 
 
 protected:

@@ -3614,10 +3614,27 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
-    delete request; // delete here since onRequestFinish() is never called
+
+    requestMap.erase(request->getTag());
+    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
+    {
+        delete it->second;
+    }
+
+    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        delete it->second;
+    }
+
     delete gfxAccess;
     delete fsAccess;
-//    delete httpio;  do not delete since it could crash
+    delete waiter;
+
+#ifndef DONT_RELEASE_HTTPIO
+    delete httpio;
+#endif
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -4363,11 +4380,6 @@ void MegaApiImpl::loop()
 
     sdkMutex.lock();
     delete client;
-
-	//It doesn't seem fully safe to delete those objects :-/
-    // delete httpio;
-    // delete waiter;
-    // delete fsAccess;
     sdkMutex.unlock();
 }
 
@@ -7661,14 +7673,17 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         return NULL;
     }
 
-    MegaFile *file;
+    MegaFile *file = NULL;
     *type = (direction_t)MemAccess::get<char>(d->data());
     switch (*type)
     {
     case GET:
+    {
         file = MegaFileGet::unserialize(d);
         break;
+    }
     case PUT:
+    {
         file = MegaFilePut::unserialize(d);
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
@@ -7690,6 +7705,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
             }
         }
         delete nodes;
+        break;
+    }
+    default:
         break;
     }
 
