@@ -1812,7 +1812,8 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL,
+            TYPE_GET_USER_EMAIL
         };
 
         virtual ~MegaRequest();
@@ -5754,6 +5755,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the email address of any user in MEGA.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_EMAIL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the user (the provided one as parameter)
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Returns the email address
+         *
+         * @param handle Handle of the user to get the attribute.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail

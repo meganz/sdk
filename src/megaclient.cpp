@@ -6412,7 +6412,7 @@ User* MegaClient::finduser(handle uh, int add)
         u = &users[++userid];
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
 
         uhindex[uh] = userid;
@@ -6480,7 +6480,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u->userhandle = uh;
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
     }
 }
@@ -6976,6 +6976,11 @@ void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
     {
         reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
     }
+}
+
+void MegaClient::getUserEmail(const char *uid)
+{
+    reqs.add(new CommandGetUserEmail(this, uid));
 }
 
 #ifdef DEBUG

@@ -2688,6 +2688,32 @@ void CommandDelUA::procresult()
 
 #endif
 
+CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
+{
+    cmd("uge");
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandGetUserEmail::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getuseremail_result(NULL, (error)client->json.getint());
+    }
+
+    string email;
+    if (!client->json.storeobject(&email))
+    {
+        return client->app->getuseremail_result(NULL, API_EINTERNAL);
+    }
+    else
+    {
+        return client->app->getuseremail_result(&email, API_OK);
+    }
+}
+
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 {
@@ -4349,7 +4375,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
 
         handle uh = itupl->first;
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         uid[11] = 0;
 
         privilege_t priv = itupl->second;

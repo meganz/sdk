@@ -219,7 +219,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
@@ -259,7 +259,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
