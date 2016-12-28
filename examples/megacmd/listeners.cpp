@@ -38,6 +38,7 @@ void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*)
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
+    static bool initial = true;
     if (users)
     {
         if (users->size() == 1)
@@ -53,7 +54,7 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
     {
         MegaUserList *users = api->getContacts();
 
-        if (users)
+        if (users && users->size())
         {
             if (users->size() == 1)
             {
@@ -63,6 +64,14 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
             {
                 LOG_info << users->size() << " users received or updated";
             }
+
+            // force reshow display for a first clean prompt
+            if (initial && loggerCMD->getCmdLoggerLevel()>=MegaApi::LOG_LEVEL_INFO)
+            {
+                rl_forced_update_display();
+            }
+            initial = false;
+
             delete users;
         }
     }
