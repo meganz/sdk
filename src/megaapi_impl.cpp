@@ -1229,8 +1229,8 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
         delete [] user;
         user = MegaApi::strdup(share->pcr->isoutgoing ? share->pcr->targetemail.c_str() : share->pcr->originatoremail.c_str());
     }
-	this->access = share->access;
-	this->ts = share->ts;
+    this->access = share->access;
+    this->ts = share->ts;
 }
 
 MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
