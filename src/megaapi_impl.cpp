@@ -1224,6 +1224,11 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
+    if ((!user || !*user) && share->pcr)
+    {
+        delete [] user;
+        user = MegaApi::strdup(share->pcr->isoutgoing ? share->pcr->targetemail.c_str() : share->pcr->originatoremail.c_str());
+    }
 	this->access = share->access;
 	this->ts = share->ts;
 }
