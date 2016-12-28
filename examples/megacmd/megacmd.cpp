@@ -102,7 +102,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion" };
+                             "history", "thumbnail", "preview", "find", "completion", "clear"};
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -1220,6 +1220,10 @@ const char * getUsageStr(const char *command)
     {
         return "help [-f]";
     }
+    if (!strcmp(command, "clear"))
+    {
+        return "clear";
+    }
     return "command not found";
 }
 
@@ -1258,6 +1262,10 @@ string getHelpStr(const char *command)
         os << " --name=\"Your Name\"" << "\t" << "Name to register. e.g. \"John Smith\"" << endl;
         os << endl;
         os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
+    }
+    else if (!strcmp(command, "clear"))
+    {
+        os << "Clear screen" << endl;
     }
     else if (!strcmp(command, "help"))
     {
@@ -1681,6 +1689,11 @@ void executecommand(char* ptr)
         return;
     }
 
+    if ( thecommand == "clear" )
+    {
+        rl_clear_screen(0,0);
+        return;
+    }
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
@@ -2041,14 +2054,12 @@ int quote_detector(char *line, int index)
     );
 }
 
-
 int main(int argc, char* argv[])
 {
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
-
 
     loggerCMD = new MegaCMDLogger(&cout);
 
