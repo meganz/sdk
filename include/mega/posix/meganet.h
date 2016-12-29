@@ -149,6 +149,12 @@ protected:
     int numapiconnections;
     int numdownloadconnections;
     int numuploadconnections;
+    bool aredownloadspaused;
+    bool areuploadspaused;
+    m_off_t partialdownloaddata;
+    m_off_t partialuploaddata;
+    set<CURL *>pauseddownloads;
+    set<CURL *>pauseduploads;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);

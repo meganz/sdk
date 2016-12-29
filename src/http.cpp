@@ -30,7 +30,7 @@
 namespace mega {
 
 // interval to calculate the mean speed (ds)
-const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
+const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
 
 // max time to calculate the mean speed
 const int SpeedController::SPEED_MAX_VALUES = 10000;
