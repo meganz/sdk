@@ -2066,7 +2066,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
     if (httpio->maxuploadspeed)
     {
-        bool isApi = (req->type != REQ_JSON);
+        bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
             long maxbytes = (httpio->maxuploadspeed - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialuploaddata;
@@ -2101,7 +2101,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         {
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             bool isUpload = httpctx->data ? httpctx->len : req->out->size();
-            bool isApi = (req->type != REQ_JSON);
+            bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
                 if ((httpio->downloadSpeed + 10 * (httpio->partialdownloaddata + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxdownloadspeed)
