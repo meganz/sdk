@@ -6070,7 +6070,8 @@ bool MegaClient::readusers(JSON* j)
 
 error MegaClient::folderaccess(const char *folderlink)
 {
-    // structure of public folder links: https://mega.nz/#F!<handle>!<key>
+    // structure of public folder links:
+    // https://mega.nz/#F!<folder-handle>[!<key>][!<subfolder-handle>]
 
     const char* ptr;
     if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr)>=11)))
@@ -6081,7 +6082,7 @@ error MegaClient::folderaccess(const char *folderlink)
     const char *f = ptr + 3;
     ptr += 11;
 
-    if (*ptr == '\0')    // no key provided, link is incomplete
+    if (*ptr == '\0' || strlen(ptr) <= 22)    // no key provided, link is incomplete
     {
         return API_EINCOMPLETE;
     }
@@ -6091,6 +6092,18 @@ error MegaClient::folderaccess(const char *folderlink)
     }
 
     const char *k = ptr + 1;
+    ptr += 1 + 22;
+
+    const char *subf = ptr + 1;
+    if (*subf != '\0')  // there is subfolder-handle
+    {
+        handle subh = 0;
+        if (*subf != '!' || strlen(subf) != 8 ||
+            (Base64::atob(subf, (byte*)&subh, NODEHANDLE) != NODEHANDLE))
+        {
+            return API_EARGS;
+        }
+    }
 
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
