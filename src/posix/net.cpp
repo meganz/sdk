@@ -1181,7 +1181,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
-        curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024L);
+
+        if (httpio->maxdownloadspeed && httpio->maxdownloadspeed <= 100 * 1024)
+        {
+            curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
+        }
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
