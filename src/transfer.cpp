@@ -1062,6 +1062,7 @@ bool DirectReadSlot::doio()
 
             speed = speedController.calculateSpeed(t);
             meanSpeed = speedController.getMeanSpeed();
+            dr->drn->client->httpio->updatedownloadspeed(t);
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;

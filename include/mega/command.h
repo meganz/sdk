@@ -90,8 +90,12 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     handle th;
     fatype type;
     string* data;
+    m_off_t progressreported;
 
     void procresult();
+
+    // progress information
+    virtual m_off_t transferred(MegaClient*);
 
     HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
     ~HttpReqCommandPutFA();

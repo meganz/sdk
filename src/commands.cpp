@@ -41,6 +41,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
         arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
     }
 
+    progressreported = 0;
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
 
@@ -124,6 +125,8 @@ void HttpReqCommandPutFA::procresult()
                     {
                         LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
+                        progressreported = 0;
+                        HttpReq::type = REQ_BINARY;
                         post(client, data->data(), data->size());
                     }
                     return;
@@ -137,6 +140,16 @@ void HttpReqCommandPutFA::procresult()
             }
         }
     }
+}
+
+m_off_t HttpReqCommandPutFA::transferred(MegaClient *client)
+{
+    if (httpiohandle)
+    {
+        return client->httpio->postpos(httpiohandle);
+    }
+
+    return 0;
 }
 
 CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)

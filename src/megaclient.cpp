@@ -965,6 +965,12 @@ void MegaClient::exec()
             while (curfa != activefa.end())
             {
                 HttpReqCommandPutFA* fa = *curfa;
+                m_off_t p = fa->transferred(this);
+                if (fa->progressreported < p)
+                {
+                    httpio->updateuploadspeed(p - fa->progressreported);
+                    fa->progressreported = p;
+                }
 
                 switch (fa->status)
                 {
