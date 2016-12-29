@@ -1158,26 +1158,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         return;
     }
 
-
     CURL* curl;
-
     if ((curl = curl_easy_init()))
     {
         curl_easy_setopt(curl, CURLOPT_POST, 1);
         curl_easy_setopt(curl, CURLOPT_URL, httpctx->posturl.c_str());
-        
-        if (req->chunked)
-        {
-            curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
-            curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);                     
-            curl_slist_append(httpctx->headers, "Transfer-Encoding: chunked");
-        }
-        else
-        {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
-        }
-
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
+        curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
@@ -1194,7 +1182,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
         curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024L);
-
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
@@ -1479,10 +1466,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->ares_pending = 0;
-
-    req->outbuf.append(req->chunkedout);
-    req->chunkedout.clear();
-
     req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
@@ -2049,45 +2032,34 @@ void CurlHttpIO::drop_pending_requests()
     }
 }
 
-// unpause potentially paused connection after more data was added to req->chunkedout, calling read_data() again
-void CurlHttpIO::sendchunked(HttpReq* req)
-{
-    if (req->httpiohandle)
-    {
-        CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-
-        if (httpctx->curl)
-        {
-            req->out->append(req->chunkedout);
-            req->chunkedout.clear();
-
-            curl_easy_pause(httpctx->curl, CURLPAUSE_CONT);
-        }
-    }
-}
-
 size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 {
-    if (!((HttpReq*)source)->out)
+    const char *buf;
+    size_t totalsize;
+    HttpReq *req = (HttpReq*)source;
+    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+    size_t len = size * nmemb;
+
+    if (httpctx->data)
     {
-        return 0;
+        buf = httpctx->data;
+        totalsize = httpctx->len;
+    }
+    else
+    {
+        buf = req->out->data();
+        totalsize = req->out->size();
     }
 
-    size_t nread = ((HttpReq*)source)->out->size();
-    
-    if (nread > (size * nmemb))
+    buf += req->outpos;
+    size_t nread = totalsize - req->outpos;
+    if (nread > len)
     {
-        nread = size * nmemb;
+        nread = len;
     }
     
-    if (!nread)
-    {
-        return CURL_READFUNC_PAUSE;
-    }
-    
-    memcpy(ptr, ((HttpReq*)source)->out->data(), nread);
-    ((HttpReq*)source)->out->erase(0, nread);
-    
+    memcpy(ptr, buf, nread);
+    req->outpos += nread;
     return nread;
 }
 
@@ -2098,11 +2070,6 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     if (httpio)
     {
-        if (req->chunked)
-        {
-            httpio->statechange = true;
-        }
-
         if (httpio->maxdownloadspeed)
         {
             if ((httpio->downloadSpeed + 10 * (httpio->partialdownloaddata + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxdownloadspeed)

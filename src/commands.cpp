@@ -139,7 +139,7 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
 {
     part = p;
 
@@ -149,11 +149,6 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunke
     if (client->usehttps)
     {
         arg("ssl", 2);
-    }
-
-    if (chunked)
-    {
-        arg("r", 1);
     }
 }
 

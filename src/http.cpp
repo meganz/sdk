@@ -89,7 +89,6 @@ HttpIO::HttpIO()
     noinetds = 0;
     inetback = false;
     lastdata = NEVER;
-    chunkedok = true;
     downloadSpeed = 0;
     uploadSpeed = 0;
 }
@@ -310,12 +309,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
-bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
 }
 
-bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxuploadspeed(m_off_t)
 {
     return false;
 }
@@ -341,29 +340,13 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 
     httpio = client->httpio;
     bufpos = 0;
+    outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
-}
-
-// attempt to send chunked data, remove from out
-void HttpReq::postchunked(MegaClient* client)
-{
-    if (!chunked)
-    {
-        chunked = true;
-        post(client);
-    }
-    else
-    {
-        if (httpio)
-        {
-            httpio->sendchunked(this);
-        }
-    }
 }
 
 void HttpReq::disconnect()
@@ -374,8 +357,6 @@ void HttpReq::disconnect()
         httpio = NULL;
         init();
     }
-
-    chunked = false;
 }
 
 HttpReq::HttpReq(bool b)
@@ -386,7 +367,6 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
-    chunked = false;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -414,6 +394,7 @@ void HttpReq::init()
     contentlength = 0;
     timeleft = -1;
     lastdata = NEVER;
+    outpos = 0;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)

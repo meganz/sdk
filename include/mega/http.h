@@ -112,9 +112,6 @@ struct MEGA_API HttpIO : public EventTrigger
     // cancel request
     virtual void cancel(HttpReq*) = 0;
 
-    // send queued chunked data
-    virtual void sendchunked(HttpReq*) = 0;
-
     // real-time POST progress information
     virtual m_off_t postpos(void*) = 0;
 
@@ -132,10 +129,6 @@ struct MEGA_API HttpIO : public EventTrigger
     bool inetback;
     void inetstatus(bool);
     bool inetisback();
-
-    // is HTTP chunked transfer encoding supported?
-    // (WinHTTP on XP does not)
-    bool chunkedok;
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
@@ -196,7 +189,6 @@ struct MEGA_API HttpReq
 
     string posturl;
 
-    bool chunked;
     bool protect;
 
     bool sslcheckfailed;
@@ -205,9 +197,9 @@ struct MEGA_API HttpReq
     string* out;
     string in;
     size_t inpurge;
+    size_t outpos;
 
     string outbuf;
-    string chunkedout;
 
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;
@@ -230,7 +222,6 @@ struct MEGA_API HttpReq
 
     // post request to the network
     void post(MegaClient*, const char* = NULL, unsigned = 0);
-    void postchunked(MegaClient*);
 
     // store chunk of incoming data with optional purging
     void put(void*, unsigned, bool = false);
