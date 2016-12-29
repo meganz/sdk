@@ -530,8 +530,11 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
 
     int dummy = 0;
+    bool isapipaused = false;
     std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
-    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end();)
+    bool *paused = (d == API) ? &isapipaused : ((d == GET) ? &aredownloadspaused : &areuploadspaused);
+
+    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); !(*paused) && it != socketmap.end();)
     {
         SockInfo &info = (it++)->second;
         if (!info.mode)
