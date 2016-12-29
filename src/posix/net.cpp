@@ -2039,6 +2039,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     HttpReq *req = (HttpReq*)source;
     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
     size_t len = size * nmemb;
+    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
 
     if (httpctx->data)
     {
@@ -2056,6 +2057,23 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     if (nread > len)
     {
         nread = len;
+    }
+
+    if (httpio->maxuploadspeed)
+    {
+        long maxbytes = (httpio->maxuploadspeed - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialuploaddata;
+        if (maxbytes <= 0)
+        {
+            httpio->pauseduploads.insert(httpctx->curl);
+            httpio->areuploadspaused = true;
+            return CURL_READFUNC_PAUSE;
+        }
+
+        if (nread > (size_t)maxbytes)
+        {
+            nread = maxbytes;
+        }
+        httpio->partialuploaddata += nread;
     }
     
     memcpy(ptr, buf, nread);
