@@ -2059,21 +2059,30 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         nread = len;
     }
 
-    if (httpio->maxuploadspeed && req->type != REQ_JSON)
+    if (!nread)
     {
-        long maxbytes = (httpio->maxuploadspeed - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialuploaddata;
-        if (maxbytes <= 0)
-        {
-            httpio->pauseduploads.insert(httpctx->curl);
-            httpio->areuploadspaused = true;
-            return CURL_READFUNC_PAUSE;
-        }
+        return 0;
+    }
 
-        if (nread > (size_t)maxbytes)
+    if (httpio->maxuploadspeed)
+    {
+        bool isApi = (req->type != REQ_JSON);
+        if (!isApi)
         {
-            nread = maxbytes;
+            long maxbytes = (httpio->maxuploadspeed - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialuploaddata;
+            if (maxbytes <= 0)
+            {
+                httpio->pauseduploads.insert(httpctx->curl);
+                httpio->areuploadspaused = true;
+                return CURL_READFUNC_PAUSE;
+            }
+
+            if (nread > (size_t)maxbytes)
+            {
+                nread = maxbytes;
+            }
+            httpio->partialuploaddata += nread;
         }
-        httpio->partialuploaddata += nread;
     }
     
     memcpy(ptr, buf, nread);
@@ -2088,16 +2097,22 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     if (httpio)
     {
-        if (httpio->maxdownloadspeed && req->type != REQ_JSON)
+        if (httpio->maxdownloadspeed)
         {
-            if ((httpio->downloadSpeed + 10 * (httpio->partialdownloaddata + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxdownloadspeed)
+            CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+            bool isUpload = httpctx->data ? httpctx->len : req->out->size();
+            bool isApi = (req->type != REQ_JSON);
+            if (!isApi && !isUpload)
             {
-                CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-                httpio->pauseddownloads.insert(httpctx->curl);
-                httpio->aredownloadspaused = true;
-                return CURL_WRITEFUNC_PAUSE;
+                if ((httpio->downloadSpeed + 10 * (httpio->partialdownloaddata + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxdownloadspeed)
+                {
+                    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+                    httpio->pauseddownloads.insert(httpctx->curl);
+                    httpio->aredownloadspaused = true;
+                    return CURL_WRITEFUNC_PAUSE;
+                }
+                httpio->partialdownloaddata += len;
             }
-            httpio->partialdownloaddata += len;
         }
 
         if (len)
