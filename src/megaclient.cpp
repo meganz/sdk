@@ -6098,7 +6098,7 @@ error MegaClient::folderaccess(const char *folderlink)
     if (*subf != '\0')  // there is subfolder-handle
     {
         handle subh = 0;
-        if (*subf != '!' || strlen(subf) != 8 ||
+        if (*ptr != '!' || strlen(subf) != 8 ||
             (Base64::atob(subf, (byte*)&subh, NODEHANDLE) != NODEHANDLE))
         {
             return API_EARGS;
