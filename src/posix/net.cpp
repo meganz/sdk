@@ -531,10 +531,30 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
     int dummy = 0;
     bool isapipaused = false;
-    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
-    bool *paused = (d == API) ? &isapipaused : ((d == GET) ? &aredownloadspaused : &areuploadspaused);
+    std::map<int, SockInfo> *socketmap;
+    m_time_t *timeout;
+    bool *paused;
 
-    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); !(*paused) && it != socketmap.end();)
+    if (d == API)
+    {
+        socketmap = &curlapisockets;
+        timeout = &curlapitimeoutreset;
+        paused = &isapipaused;
+    }
+    else if (d == GET)
+    {
+        socketmap = &curldownloadsockets;
+        timeout = &curldownloadtimeoutreset;
+        paused = &aredownloadspaused;
+    }
+    else
+    {
+        socketmap = &curluploadsockets;
+        timeout = &curluploadtimeoutreset;
+        paused = &areuploadspaused;
+    }
+
+    for (std::map<int, SockInfo>::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
     {
         SockInfo &info = (it++)->second;
         if (!info.mode)
@@ -569,11 +589,10 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
     }
 
-    m_time_t *ptimeout =  (d == API) ? &curlapitimeoutreset : ((d == GET) ? &curldownloadtimeoutreset : &curluploadtimeoutreset);
-    m_time_t value = *ptimeout;
+    m_time_t value = *timeout;
     if (value >= 0 && value < Waiter::ds)
     {
-        *ptimeout = -1;
+        *timeout = -1;
         LOG_debug << "Disabling cURL timeout";
         curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload), CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
