@@ -2232,6 +2232,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         if (handle != WSA_INVALID_EVENT)
         {
             WSACloseEvent (handle);
+            socketmap[s].handle = WSA_INVALID_EVENT;
         }
 #endif
         socketmap[s].mode = 0;
