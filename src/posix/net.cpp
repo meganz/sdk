@@ -208,7 +208,7 @@ bool CurlHttpIO::ipv6available()
     {
         ipv6_works = curlipv6;
 #ifdef _WIN32
-		closesocket(s);
+        closesocket(s);
 #else
         close(s);
 #endif
@@ -566,17 +566,17 @@ void CurlHttpIO::processcurlevents(direction_t d)
             curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload),
                                      info.fd,
                                      ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
-                                   | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
+                                     | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
                                      &dummy);
         }
 #else
         if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
         {
             curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload),
-                                 info.fd,
-                                 (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
-                               | (((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
-                                 &dummy);
+                                     info.fd,
+                                     (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
+                                     | (((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
+                                     &dummy);
         }
 #endif
     }
@@ -857,14 +857,13 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     LOG_verbose << "c-ares info received (proxy)";
 
     httpctx->ares_pending--;
-
     if (!httpctx->ares_pending)
     {
         httpio->proxyinflight--;
     }
 
     if (!httpio->proxyhost.size() // the proxy was disabled during the name resolution.
-     || httpio->proxyip.size())   // or we already have the correct ip
+            || httpio->proxyip.size())   // or we already have the correct ip
     {
         if (!httpctx->ares_pending)
         {
@@ -888,9 +887,9 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     // IPv6 takes precedence over IPv4
     // discard the IP if it's IPv6 and IPv6 isn't available
     if (status == ARES_SUCCESS && host && host->h_addr_list[0]
-     && httpio->proxyhost == httpctx->hostname
-     && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
-     && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
+            && httpio->proxyhost == httpctx->hostname
+            && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
+            && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
     {
         LOG_verbose << "Received a valid IP for the proxy";
 
@@ -1023,7 +1022,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     }
 
     if (!req) // the request was cancelled
-    {        
+    {
         if (!httpctx->ares_pending)
         {
             LOG_debug << "Request cancelled";
@@ -1041,7 +1040,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
     // check for fatal errors
     if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
-     || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
+            || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
     {
         if(!httpio->proxyinflight)
         {
@@ -1502,7 +1501,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
-     || !(validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port))) // invalid request
+            || !(validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port))) // invalid request
     {
         if(validrequest)
         {
@@ -1810,7 +1809,6 @@ bool CurlHttpIO::doio()
         result |= multidoio(curlmdownload);
     }
 
-
     partialuploaddata = 0;
     if (areuploadspaused)
     {
@@ -1880,9 +1878,9 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
-                            && (req->contentlength < 0
-                             || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
-                             ? REQ_SUCCESS : REQ_FAILURE;
+                               && (req->contentlength < 0
+                                   || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
+                        ? REQ_SUCCESS : REQ_FAILURE;
 
                 if (req->status == REQ_SUCCESS)
                 {
@@ -1909,7 +1907,7 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
             statechange = true;
 
             if (req->status == REQ_FAILURE && !req->httpstatus)
-            {                
+            {
                 CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                 if (httpctx)
                 {
@@ -2036,7 +2034,6 @@ void CurlHttpIO::send_pending_requests()
     while (pendingrequests.size())
     {
         CurlHttpContext* httpctx = pendingrequests.front();
-
         if (httpctx->req)
         {
             send_request(httpctx);
@@ -2055,7 +2052,6 @@ void CurlHttpIO::drop_pending_requests()
     while (pendingrequests.size())
     {
         CurlHttpContext* httpctx = pendingrequests.front();
-
         if (httpctx->req)
         {
             httpctx->req->status = REQ_FAILURE;
@@ -2229,10 +2225,10 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         LOG_debug << "Removing socket " << s;
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        HANDLE handle = socketmap[s].handle;    
+        HANDLE handle = socketmap[s].handle;
         if (handle != WSA_INVALID_EVENT)
         {
-            WSACloseEvent (handle);
+            WSACloseEvent(handle);
             socketmap[s].handle = WSA_INVALID_EVENT;
         }
 #endif
@@ -2248,7 +2244,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         std::map<int, SockInfo>::iterator it = socketmap.find(s);
         if (it != socketmap.end() && it->second.handle != WSA_INVALID_EVENT)
         {
-             WSACloseEvent (it->second.handle);
+            WSACloseEvent (it->second.handle);
         }
         info.handle = WSA_INVALID_EVENT;
 #endif
@@ -2346,7 +2342,6 @@ int CurlHttpIO::upload_timer_callback(CURLM *, long timeout_ms, void *userp)
 CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 {
     SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, req);
-
     return CURLE_OK;
 }
 
@@ -2368,12 +2363,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
     {
         if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS1 - 1
-         && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
+                && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
         {
             BN_bn2bin(evp->pkey.rsa->n, buf);
 
             if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
-                (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
+                    (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 
