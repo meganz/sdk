@@ -142,6 +142,7 @@ protected:
     std::map<int, SockInfo> curlapisockets;
     std::map<int, SockInfo> curldownloadsockets;
     std::map<int, SockInfo> curluploadsockets;
+    bool curlsocketsprocessed;
     m_time_t curlapitimeoutreset;
     m_time_t curldownloadtimeoutreset;
     m_time_t curluploadtimeoutreset;

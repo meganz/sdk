@@ -143,6 +143,7 @@ CurlHttpIO::CurlHttpIO()
     numapiconnections = 0;
     numdownloadconnections = 0;
     numuploadconnections = 0;
+    curlsocketsprocessed = true;
 
     struct ares_options options;
     options.tries = 2;
@@ -312,17 +313,8 @@ void CurlHttpIO::filterDNSservers()
 
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    for (unsigned int i = 0; i < aressockets.size(); i++)
-    {
-        if (aressockets[i].handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent(aressockets[i].handle);
-        }
-    }
-#endif
+    closearesevents();
 
-    aressockets.clear();
     ares_socket_t socks[ARES_GETSOCK_MAXNUM];
     int bitmask = ares_getsock(ares, socks, ARES_GETSOCK_MAXNUM);
     for (int i = 0; i < ARES_GETSOCK_MAXNUM; i++)
@@ -515,7 +507,7 @@ void CurlHttpIO::processaresevents()
 #endif
     }
 
-    if (arestimeout >= 0 && arestimeout < Waiter::ds)
+    if (arestimeout >= 0 && arestimeout <= Waiter::ds)
     {
         arestimeout = -1;
         ares_process_fd(ares, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
@@ -590,7 +582,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     }
 
     m_time_t value = *timeout;
-    if (value >= 0 && value < Waiter::ds)
+    if (value >= 0 && value <= Waiter::ds)
     {
         *timeout = -1;
         LOG_debug << "Disabling cURL timeout";
@@ -833,6 +825,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = timeoutds;
         }
     }
+    curlsocketsprocessed = false;
 
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -1779,8 +1772,15 @@ bool CurlHttpIO::doio()
     statechange = false;
 
     processaresevents();
+    closearesevents();
+
     result = statechange;
     statechange = false;
+
+    if (curlsocketsprocessed)
+    {
+        return result;
+    }
 
     processcurlevents(API);
     result |= multidoio(curlmapi);
@@ -1836,6 +1836,7 @@ bool CurlHttpIO::doio()
         result |= multidoio(curlmupload);
     }
 
+    curlsocketsprocessed = true;
     return result;
 }
 
