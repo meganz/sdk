@@ -515,7 +515,7 @@ void CurlHttpIO::processaresevents()
 #endif
     }
 
-    if (arestimeout >= 0 && arestimeout <= Waiter::ds)
+    if (arestimeout >= 0 && arestimeout < Waiter::ds)
     {
         arestimeout = -1;
         ares_process_fd(ares, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
@@ -595,6 +595,19 @@ void CurlHttpIO::processcurlevents(direction_t d)
         *timeout = -1;
         LOG_debug << "Disabling cURL timeout";
         curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload), CURL_SOCKET_TIMEOUT, 0, &dummy);
+    }
+
+    for (std::map<int, SockInfo>::iterator it = socketmap->begin(); it != socketmap->end();)
+    {
+        SockInfo &info = it->second;
+        if (!info.mode)
+        {
+            socketmap->erase(it++);
+        }
+        else
+        {
+            it++;
+        }
     }
 }
 
@@ -2221,7 +2234,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
             WSACloseEvent (handle);
         }
 #endif
-        socketmap.erase(s);
+        socketmap[s].mode = 0;
     }
     else
     {
@@ -2230,6 +2243,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.fd = s;
         info.mode = what;
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        std::map<int, SockInfo>::iterator it = socketmap.find(s);
+        if (it != socketmap.end() && it->second.handle != WSA_INVALID_EVENT)
+        {
+             WSACloseEvent (it->second.handle);
+        }
         info.handle = WSA_INVALID_EVENT;
 #endif
         socketmap[s] = info;
