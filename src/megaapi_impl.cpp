@@ -1224,8 +1224,13 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
-	this->access = share->access;
-	this->ts = share->ts;
+    if ((!user || !*user) && share->pcr)
+    {
+        delete [] user;
+        user = MegaApi::strdup(share->pcr->isoutgoing ? share->pcr->targetemail.c_str() : share->pcr->originatoremail.c_str());
+    }
+    this->access = share->access;
+    this->ts = share->ts;
 }
 
 MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
@@ -2650,6 +2655,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
+        case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -4625,6 +4631,14 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     waiter->notify();
 }
 
+void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
@@ -6439,7 +6453,7 @@ void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle u
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -6454,7 +6468,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -8816,7 +8830,7 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
                 break;
             case OPCA_ADD:
                 char buffer[12];
-                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
                 LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
                 break;
         }
@@ -9713,6 +9727,27 @@ void MegaApiImpl::delua_result(error)
 {
 }
 #endif
+
+void MegaApiImpl::getuseremail_result(string *email, error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
+    {
+        return;
+    }
+
+    if (e == API_OK && email)
+    {
+        request->setEmail(email->c_str());
+    }
+
+    fireOnRequestFinish(request, e);
+    return;
+}
 
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
@@ -12468,6 +12503,22 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
 		}
+        case MegaRequest::TYPE_GET_USER_EMAIL:
+        {
+            handle uh = request->getNodeHandle();
+            if (uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+            uid[11] = 0;
+
+            client->getUserEmail(uid);
+            break;
+        }
         case MegaRequest::TYPE_SET_ATTR_FILE:
         {
             const char* srcFilePath = request->getFile();
@@ -13682,7 +13733,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->inviteToChat(chatid, uid, access, title);
@@ -13703,7 +13754,7 @@ void MegaApiImpl::sendPendingRequests()
             if (uh != INVALID_HANDLE)
             {
                 char uid[12];
-                Base64::btoa((byte*)&uh, sizeof uh, uid);
+                Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
                 uid[11] = 0;
 
                 client->removeFromChat(chatid, uid);
@@ -13769,7 +13820,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->updateChatPermissions(chatid, uid, access);

@@ -2397,8 +2397,6 @@ bool MegaClient::dispatch(direction_t d)
                         nexttransfer->key.setkey(k, FILENODE);
                         nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                         nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
-
-                        // FIXME: re-add support for partial transfers
                         break;
                     }
                 }
@@ -6443,7 +6441,7 @@ User* MegaClient::finduser(handle uh, int add)
         u = &users[++userid];
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
 
         uhindex[uh] = userid;
@@ -6511,7 +6509,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u->userhandle = uh;
 
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         u->uid.assign(uid, 11);
     }
 }
@@ -7007,6 +7005,11 @@ void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
     {
         reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
     }
+}
+
+void MegaClient::getUserEmail(const char *uid)
+{
+    reqs.add(new CommandGetUserEmail(this, uid));
 }
 
 #ifdef DEBUG
@@ -7946,18 +7949,38 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
 void MegaClient::closetc(bool remove)
 {
+    bool purgeOrphanTransfers = statecurrent;
+
+#ifdef ENABLE_SYNC
+    if (purgeOrphanTransfers && !remove)
+    {
+        if (!syncsup)
+        {
+            purgeOrphanTransfers = false;
+        }
+        else
+        {
+            for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            {
+                if ((*it)->state != SYNC_ACTIVE)
+                {
+                    purgeOrphanTransfers = false;
+                    break;
+                }
+            }
+        }
+    }
+#endif
+
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            m_time_t t = time(NULL) - transfer->lastaccesstime;
-
-            if (remove || (transfer->type == PUT && t >= 86400)
-                    || (t >= 864000))
+            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 86400))
             {
-                // remove not resumed transfers from the cache
+                LOG_warn << "Purging orphan transfer";
                 transfer->finished = true;
             }
 
@@ -8791,10 +8814,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 
             if (sync->scan(rootpath, fa))
             {
-                #ifdef ENABLE_SYNC
-                    syncsup = false;
-                #endif
-
+                syncsup = false;
                 e = API_OK;
                 sync->initializing = false;
             }
@@ -10179,39 +10199,62 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";
-                Transfer *transfer = it->second;
-                FileAccess* fa = fsaccess->newfileaccess();
-                if ((fa->fopen(&transfer->localfilename)
-                        && ((d == GET) ||
-                            (d == PUT && (time(NULL) - transfer->lastaccesstime) < 86400
-                                      && !transfer->genfingerprint(fa))))
-                     || (d == GET && !transfer->progresscompleted))
+                t = it->second;
+                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 86400))
                 {
-                    if (!transfer->pos)
-                    {
-                        // to prevent HTTP 403 errors
-                        transfer->cachedtempurl.clear();
-                    }
-                    LOG_debug << "Resuming transfer";
-                    t = transfer;
+                    LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
+                    t->cachedtempurl.clear();
                 }
-                else
+
+                FileAccess* fa = fsaccess->newfileaccess();
+                if (!fa->fopen(&t->localfilename))
                 {
-                    if (d == GET)
+                    if (d == PUT)
                     {
-                        LOG_warn << "Temporary file not found";
+                        LOG_warn << "Local file not found";
+                        // the transfer will be retried to ensure that the file
+                        // is not just just temporarily blocked
                     }
                     else
                     {
-                        LOG_debug << "Cached upload too old or local file changed";
+                        if (t->progresscompleted)
+                        {
+                            LOG_warn << "Temporary file not found";
+                            t->chunkmacs.clear();
+                            t->progresscompleted = 0;
+                            t->pos = 0;
+                        }
                     }
-
-                    transfer->finished = true;
-                    delete transfer;
                 }
-
+                else
+                {
+                    if (d == PUT)
+                    {
+                        if (t->genfingerprint(fa))
+                        {
+                            LOG_warn << "The local file has been modified";
+                            t->cachedtempurl.clear();
+                            t->chunkmacs.clear();
+                            t->progresscompleted = 0;
+                            delete [] t->ultoken;
+                            t->ultoken = NULL;
+                            t->pos = 0;
+                        }
+                    }
+                    else
+                    {
+                        if (t->progresscompleted > fa->size)
+                        {
+                            LOG_warn << "Truncated temporary file";
+                            t->chunkmacs.clear();
+                            t->progresscompleted = 0;
+                            t->pos = 0;
+                        }
+                    }
+                }
                 delete fa;
                 cachedtransfers[d].erase(it);
+                LOG_debug << "Transfer resumed";
             }
 
             if (!t)
@@ -10333,6 +10376,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
             TransferSlot *slot = *it++;
             if (slot->transfer->type == d)
             {
+                slot->transfer->state = TRANSFERSTATE_QUEUED;
                 slot->transfer->bt.arm();
                 slot->transfer->cachedtempurl = slot->tempurl;
                 delete slot;

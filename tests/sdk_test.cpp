@@ -219,7 +219,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
@@ -259,7 +259,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
@@ -1939,7 +1939,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Remove a peer from the chat ---
 
-    chatUpdated[0] = false;
+    chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;
     megaApi[0]->removeFromChat(chatid, h);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]) )
@@ -1947,7 +1947,7 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Removal of chat peer failed (error: " << lastError[0] << ")";
     int numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
     ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&chatUpdated[0]) )   // at the target side (auxiliar account)
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
 
 

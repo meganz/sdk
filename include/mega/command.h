@@ -255,6 +255,14 @@ public:
 };
 #endif
 
+class MEGA_API CommandGetUserEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandGetUserEmail(MegaClient*, const char *uid);
+};
+
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
 {
