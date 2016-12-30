@@ -665,21 +665,20 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 
     while (transferBytes.size())
     {
-        dstime deltaTime = currentTime - transferTimes.front();
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        map<dstime, m_off_t>::iterator it = transferBytes.begin();
+        dstime deltaTime = currentTime - it->first;
+        if (deltaTime < SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
 
-        partialBytes -= transferBytes.front();
-        transferBytes.erase(transferBytes.begin());
-        transferTimes.erase(transferTimes.begin());
+        partialBytes -= it->second;
+        transferBytes.erase(it);
     }
 
     if (numBytes > 0)
     {
-        transferBytes.push_back(numBytes);
-        transferTimes.push_back(currentTime);
+        transferBytes[currentTime] += numBytes;
         partialBytes += numBytes;
     }
 

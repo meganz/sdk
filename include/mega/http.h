@@ -91,8 +91,7 @@ public:
     static const int SPEED_MAX_VALUES;
 
 protected:
-    list<m_time_t> transferTimes;
-    list<m_off_t> transferBytes;
+    map<dstime, m_off_t> transferBytes;
     m_off_t partialBytes;
 
     m_off_t meanSpeed;
