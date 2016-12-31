@@ -5688,7 +5688,36 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 	transfer->setEndPos(startPos + size - 1);
 	transfer->setMaxRetries(maxRetries);
 	transferQueue.push(transfer);
-	waiter->notify();
+    waiter->notify();
+}
+
+void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    MegaTransferPrivate *t = dynamic_cast<MegaTransferPrivate*>(transfer);
+    if (!t || (t->getType() != MegaTransfer::TYPE_DOWNLOAD && t->getType() != MegaTransfer::TYPE_UPLOAD))
+    {
+        return;
+    }
+
+    int type = t->getType();
+    if (type == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        MegaNode *node = t->getPublicMegaNode();
+        if (!node)
+        {
+            node = getNodeByHandle(t->getNodeHandle());
+        }
+        this->startDownload(node, t->getPath(), t->getStartPos(), t->getEndPos(),
+                            0, t->getAppData(), listener);
+        delete node;
+    }
+    else
+    {
+        MegaNode *parent = getNodeByHandle(t->getParentHandle());
+        startUpload(t->getPath(), parent, t->getFileName(), t->getTime(), 0,
+                          t->getAppData(), t->isSourceFileTemporary(), listener);
+        delete parent;
+    }
 }
 
 #ifdef ENABLE_SYNC
