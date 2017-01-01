@@ -38,6 +38,136 @@
 
 namespace mega {
 
+class MEGA_API FetchNodesStats
+{
+public:
+    enum {
+        MODE_DB = 0,
+        MODE_API = 1,
+        MODE_NONE = 2
+    };
+
+    enum {
+        TYPE_ACCOUNT = 0,
+        TYPE_FOLDER = 1,
+        TYPE_NONE = 2
+    };
+
+    FetchNodesStats();
+    void init();
+    void toJsonArray(string *json);
+
+    //////////////////
+    // General info //
+    //////////////////
+    int mode; // DB = 0, API = 1
+    int type; // Account = 0, Folder = 1
+    dstime startTime; // startup time (ds)
+
+    /**
+     * \brief Number of nodes in the cached filesystem
+     *
+     * From DB: number on nodes in the local database
+     * From API: number of nodes in the response to the fetchnodes command
+     */
+    long long nodesCached;
+
+    /**
+     * @brief Number of nodes in the current filesystem, after the reception of action packets
+     */
+    long long nodesCurrent;
+
+    /**
+     * @brief Number of action packets to complete the cached filesystem
+     *
+     * From DB: Number of action packets to complete the local cache
+     * From API: Number of action packets to complete the server-side cache
+     */
+    int actionPackets;
+
+    ////////////
+    // Errors //
+    ////////////
+
+    /**
+     * @brief Number of error -3 or -4 received during the process (including cs and sc requests)
+     */
+    int eagains;
+
+    /**
+     * @brief Number of HTTP 500 errors received during the process (including cs and sc requests)
+     */
+    int e500s;
+
+    /**
+     * @brief Number of other errors received during the process (including cs and sc requests)
+     *
+     * The most common source of these errors are connectivity problems (no Internet, timeouts...)
+     */
+    int otherErrors;
+
+    ////////////////////////////////////////////////////////////////////
+    // Time elapsed until different steps since the startup time (ds) //
+    ////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Time until the first byte read
+     *
+     * From DB: time until the first record read from the database
+     * From API: time until the first byte read in response to the fetchnodes command (errors excluded)
+     */
+    dstime timeToFirstByte;
+
+    /**
+     * @brief Time until the last byte read
+     *
+     * From DB: time until the last record is read from the database
+     * From API: time until the whole response to the fetchnodes command has been received
+     */
+    dstime timeToLastByte;
+
+    /**
+     * @brief Time until the cached filesystem is ready
+     *
+     * From DB: time until the database has been read and processed
+     * From API: time until the fetchnodes command is processed
+     */
+    dstime timeToCached;
+
+    /**
+     * @brief Time until the filesystem is ready to be used
+     *
+     * From DB: this time is the same as timeToCached
+     * From API: time until action packets have been processed
+     * It's needed to wait until the reception of action packets due to
+     * server-side caches.
+     */
+    dstime timeToResult;
+
+    /**
+     * @brief Time until synchronizations have been resumed
+     *
+     * This involves the load of the local cache and the scan of known
+     * files. Files that weren't cached are scanned later.
+     */
+    dstime timeToSyncsResumed;
+
+    /**
+     * @brief Time until the filesystem is current
+     *
+     * From DB: time until action packets have been processed
+     * From API: this time is the same as timeToResult
+     */
+    dstime timeToCurrent;
+
+    /**
+     * @brief Time until the resumption of transfers has finished
+     *
+     * The resumption of transfers is done after the filesystem is current
+     */
+    dstime timeToTransfersResumed;
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -129,6 +259,9 @@ public:
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
+
+    // fetchnodes stats
+    FetchNodesStats fnstats;
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
