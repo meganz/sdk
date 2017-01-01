@@ -2873,6 +2873,7 @@ bool MegaClient::procsc()
     char test[] = "},{\"a\":\"t\",\"i\":\"";
     char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool stop = false;
+    bool newnodes = false;
 #endif
     Node* dn = NULL;
 
@@ -3022,11 +3023,18 @@ bool MegaClient::procsc()
                                 mergenewshares(1);
 
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes && stop)
+                                if (!fetchingnodes)
                                 {
-                                    // run syncdown() before continuing
-                                    applykeys();
-                                    return false;
+                                    if (stop)
+                                    {
+                                        // run syncdown() before continuing
+                                        applykeys();
+                                        return false;
+                                    }
+                                    else
+                                    {
+                                        newnodes = true;
+                                    }
                                 }
 #endif
                                 break;
@@ -3137,6 +3145,15 @@ bool MegaClient::procsc()
             {
                 jsonsc.leavearray();
                 insca = false;
+
+#ifdef ENABLE_SYNC
+                if (!fetchingnodes && newnodes)
+                {
+                    newnodes = false;
+                    applykeys();
+                    return false;
+                }
+#endif
             }
         }
     }
@@ -4700,10 +4717,9 @@ void MegaClient::notifypurge(void)
              && (*it)->localroot.node->changed.removed)
             {
                 delsync(*it);
+                syncadded = true;
             }
         }
-
-        syncadded = true;
 #endif
         applykeys();
 
