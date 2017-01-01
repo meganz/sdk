@@ -2996,11 +2996,9 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes && jsonsc.pos[1] != ']') // there are more packets
-                                {
-                                    applykeys();
-                                    return false;
-                                }
+                                // run syncdown() before continuing
+                                applykeys();
+                                return false;
 #endif
                                 break;
 
@@ -3026,14 +3024,9 @@ bool MegaClient::procsc()
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes && stop)
                                 {
-                                    stop = false;
-
-                                    if (jsonsc.pos[1] != ']') // there are more packets
-                                    {
-                                        // run syncdown() before continuing
-                                        applykeys();
-                                        return false;
-                                    }
+                                    // run syncdown() before continuing
+                                    applykeys();
+                                    return false;
                                 }
 #endif
                                 break;
@@ -3059,12 +3052,9 @@ bool MegaClient::procsc()
                                     }
                                 }
 
-                                if (jsonsc.pos[1] != ']') // there are more packets
-                                {
-                                    // run syncdown() to process the deletion before continuing
-                                    applykeys();
-                                    return false;
-                                }
+                                // run syncdown() to process the deletion before continuing
+                                applykeys();
+                                return false;
 #endif
                                 break;
 
@@ -3147,14 +3137,6 @@ bool MegaClient::procsc()
             {
                 jsonsc.leavearray();
                 insca = false;
-
-#ifdef ENABLE_SYNC
-                if (!fetchingnodes)
-                {
-                    applykeys();
-                    return false;
-                }
-#endif
             }
         }
     }
