@@ -1740,7 +1740,7 @@ void MegaClient::exec()
                         {
                             localpath = (*it)->localroot.localname;
 
-                            if ((*it)->state == SYNC_ACTIVE && !syncscanstate)
+                            if ((*it)->state == SYNC_ACTIVE && !totalpending)
                             {
                                 if (!syncdown(&(*it)->localroot, &localpath, true))
                                 {
