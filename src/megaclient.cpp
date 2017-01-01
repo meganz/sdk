@@ -9852,7 +9852,10 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 
     syncadding--;
 
-    syncactivity = true;
+    if (e)
+    {
+        syncactivity = true;
+    }
 }
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
