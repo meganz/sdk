@@ -8245,10 +8245,13 @@ void MegaApiImpl::chats_updated(textchat_map *chats)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
+    if(syncMap.find(sync->tag) == syncMap.end()) return;
+    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+    megaSync->setState(newstate);
     LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
     client->abortbackoff(false);
 
-    if(newstate == SYNC_FAILED)
+    if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
 
@@ -8262,10 +8265,6 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
         requestMap[nextTag]=request;
         fireOnRequestFinish(request, MegaError(sync->errorcode));
     }
-
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-    megaSync->setState(newstate);
 
     fireOnSyncStateChanged(megaSync);
 }

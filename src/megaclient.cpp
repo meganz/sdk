@@ -8772,8 +8772,10 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             }
             else
             {
+                LOG_err << "Initial scan failed";
+                sync->changestate(SYNC_FAILED);
                 delete sync;
-                e = API_ENOENT;
+                e = API_EFAILED;
             }
 
             syncactivity = true;
