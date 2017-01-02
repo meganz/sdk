@@ -23,6 +23,7 @@
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
@@ -143,15 +144,40 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 
     failed = true;
     error = false;
+    sync = NULL;
 }
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
 {
+    string path;
+    path.assign(localpath, len);
+    if (sync && !sync->initializing)
+    {
+        LocalNode *ll = sync->localnodebypath(l, &path);
+        if (ll && ll->isvalid)
+        {
+            LOG_debug << "LocalNode for notification detected";
+            string tmppath;
+            ll->getlocalpath(&tmppath);
+            FileAccess *fa = sync->client->fsaccess->newfileaccess();
+            if (fa->fopen(&tmppath, false, false)
+                    && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
+                    && (ll->type != FILENODE
+                        || (ll->mtime == fa->mtime && ll->size == fa->size)))
+            {
+                LOG_debug << "Self filesystem notification skipped";
+                delete fa;
+                return;
+            }
+            delete fa;
+        }
+    }
+
     notifyq[q].resize(notifyq[q].size() + 1);
     notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
     notifyq[q].back().localnode = l;
-    notifyq[q].back().path.assign(localpath, len);
+    notifyq[q].back().path = path;
 }
 
 // default: no fingerprint

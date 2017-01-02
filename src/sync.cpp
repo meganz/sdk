@@ -68,6 +68,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         // FIXME: pass last segment of localdebris
         dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
+    dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
     if (cfsfp)

@@ -137,6 +137,8 @@ struct MEGA_API DirNotify
     // ignore this
     string ignore;
 
+    Sync *sync;
+
     DirNotify(string*, string*);
     virtual ~DirNotify() {}
 };
