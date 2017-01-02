@@ -762,6 +762,8 @@ public:
     // scan required flag
     bool syncdownrequired;
 
+    bool syncuprequired;
+
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 

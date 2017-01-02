@@ -730,6 +730,7 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
+    syncuprequired = false;
 
     if (syncscanstate)
     {
@@ -1542,6 +1543,7 @@ void MegaClient::exec()
             {
                 syncsup = true;
                 syncactivity = true;
+                syncdownrequired = true;
             }
         }
 
@@ -1574,6 +1576,7 @@ void MegaClient::exec()
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
             {
+                bool prevpending = false;
                 unsigned totalpending = 0;
                 dstime nds = NEVER;
 
@@ -1598,6 +1601,11 @@ void MegaClient::exec()
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
                                 {
+                                    if (q == DirNotify::DIREVENTS)
+                                    {
+                                        prevpending = true;
+                                    }
+
                                     dstime dsretry;
 
                                     syncops = true;
@@ -1627,6 +1635,7 @@ void MegaClient::exec()
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
                                         if (!syncadding)
                                         {
+                                            LOG_debug << "Running syncup to create missing folders";
                                             syncup(&sync->localroot, &nds);
                                             sync->cachenodes();
                                         }
@@ -1714,8 +1723,10 @@ void MegaClient::exec()
                     }
                 }
 
-                bool success = true;
-                string localpath;
+                if (prevpending && !totalpending)
+                {
+                    syncdownrequired = true;
+                }
 
                 notifypurge();
 
@@ -1736,48 +1747,6 @@ void MegaClient::exec()
                             (*it)->errorcode = API_ENOENT;
                             (*it)->changestate(SYNC_FAILED);
                         }
-                        else
-                        {
-                            localpath = (*it)->localroot.localname;
-
-                            if ((*it)->state == SYNC_ACTIVE && !totalpending)
-                            {
-                                if (!syncdown(&(*it)->localroot, &localpath, true))
-                                {
-                                    // a local filesystem item was locked - schedule periodic retry
-                                    // and force a full rescan afterwards as the local item may
-                                    // be subject to changes that are notified with obsolete paths
-                                    success = false;
-                                    (*it)->dirnotify->error = true;
-                                }
-
-                                (*it)->cachenodes();                            
-                            }
-                        }
-                    }
-
-                    // notify the app if a lock is being retried
-                    if (success)
-                    {
-                        syncdownretry = false;
-
-                        if (syncfsopsfailed)
-                        {
-                            syncfsopsfailed = false;
-                            blockedfile.clear();
-                            app->syncupdate_local_lockretry(false);
-                        }
-                    }
-                    else
-                    {
-                        if (!syncfsopsfailed)
-                        {
-                            syncfsopsfailed = true;
-                            app->syncupdate_local_lockretry(true);
-                        }
-
-                        syncdownretry = true;
-                        syncdownbt.backoff(50);
                     }
 
                     // perform aggregate ops that require all scanqs to be fully processed
@@ -1825,9 +1794,10 @@ void MegaClient::exec()
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                                  && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                                  && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size()
-                                 && !syncadding)
+                                 && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    syncup(&(*it)->localroot, &nds);
+                                    LOG_debug << "Running syncup on demand";
+                                    syncuprequired = !syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
                                 }
                             }
@@ -1836,6 +1806,7 @@ void MegaClient::exec()
                             {
                                 syncnaglebt.backoff(nds - Waiter::ds);
                                 syncnagleretry = true;
+                                syncuprequired = true;
                             }
 
                             // delete files that were overwritten by folders in syncup()
@@ -1946,6 +1917,7 @@ void MegaClient::exec()
                         string localpath = (*it)->localroot.localname;
                         if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                         {
+                            LOG_debug << "Running syncdown on demand";
                             if (!syncdown(&(*it)->localroot, &localpath, true))
                             {
                                 // a local filesystem item was locked - schedule periodic retry
@@ -1963,6 +1935,7 @@ void MegaClient::exec()
                 // notify the app if a lock is being retried
                 if (success)
                 {
+                    syncuprequired = true;
                     syncdownretry = false;
                     syncactivity = true;
 
@@ -9851,11 +9824,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
     delete[] nn;
 
     syncadding--;
-
-    if (e)
-    {
-        syncactivity = true;
-    }
+    syncactivity = true;
 }
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
