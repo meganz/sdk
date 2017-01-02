@@ -155,7 +155,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     if (sync && !sync->initializing)
     {
         LocalNode *ll = sync->localnodebypath(l, &path);
-        if (ll && ll->isvalid)
+        if (ll)
         {
             LOG_debug << "LocalNode for notification detected";
             string tmppath;
