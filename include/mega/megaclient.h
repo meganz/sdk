@@ -180,7 +180,6 @@ public:
 #ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
-    bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;

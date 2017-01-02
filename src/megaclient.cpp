@@ -721,7 +721,6 @@ void MegaClient::init()
 #ifdef ENABLE_SYNC
     syncactivity = false;
     syncops = false;
-    syncadded = false;
     syncdebrisadding = false;
     syncscanfailed = false;
     syncfslockretry = false;
@@ -1730,12 +1729,6 @@ void MegaClient::exec()
 
                 notifypurge();
 
-                if (syncadded)
-                {
-                    syncadded = false;
-                    syncops = true;
-                }
-
                 if (!syncadding && (syncactivity || syncops))
                 {
                     for (it = syncs.begin(); it != syncs.end(); it++)
@@ -1784,7 +1777,7 @@ void MegaClient::exec()
                         if (!syncfsopsfailed)
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncadded << syncfslockretry << synccreate.size();
+                                        << syncfslockretry << synccreate.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -3122,7 +3115,6 @@ bool MegaClient::procsc()
 #ifdef ENABLE_SYNC
                 if (!fetchingnodes && newnodes)
                 {
-                    newnodes = false;
                     applykeys();
                     return false;
                 }
@@ -4690,7 +4682,7 @@ void MegaClient::notifypurge(void)
              && (*it)->localroot.node->changed.removed)
             {
                 delsync(*it);
-                syncadded = true;
+                syncactivity = true;
             }
         }
 #endif
@@ -8784,7 +8776,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 e = API_ENOENT;
             }
 
-            syncadded = true;
+            syncactivity = true;
         }
         else
         {
