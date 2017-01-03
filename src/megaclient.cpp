@@ -1240,24 +1240,21 @@ void MegaClient::exec()
                         {
                             if (fetchingnodes)
                             {
-                                fnstats.eagains++;
+                                fnstats.eAgainCount++;
                             }
                         }
 
                     // fall through
                     case REQ_FAILURE:
-                        if (fetchingnodes)
+                        if (fetchingnodes && pendingcs->httpstatus != 200)
                         {
-                            if (pendingcs->httpstatus != 200)
+                            if (pendingcs->httpstatus == 500)
                             {
-                                if (pendingcs->httpstatus == 500)
-                                {
-                                    fnstats.e500s++;
-                                }
-                                else
-                                {
-                                    fnstats.otherErrors++;
-                                }
+                                fnstats.e500Count++;
+                            }
+                            else
+                            {
+                                fnstats.eOthersCount++;
                             }
                         }
 
@@ -1379,24 +1376,21 @@ void MegaClient::exec()
                             {
                                 if (!statecurrent)
                                 {
-                                    fnstats.eagains++;
+                                    fnstats.eAgainCount++;
                                 }
                             }
                         }
                         // fall through
                     case REQ_FAILURE:
-                        if (pendingsc && !statecurrent)
+                        if (pendingsc && !statecurrent && pendingsc->httpstatus != 200)
                         {
-                            if (pendingsc->httpstatus != 200)
+                            if (pendingsc->httpstatus == 500)
                             {
-                                if (pendingsc->httpstatus == 500)
-                                {
-                                    fnstats.e500s++;
-                                }
-                                else
-                                {
-                                    fnstats.otherErrors++;
-                                }
+                                fnstats.e500Count++;
+                            }
+                            else
+                            {
+                                fnstats.eOthersCount++;
                             }
                         }
 
@@ -7960,14 +7954,12 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    while (sctable->next(&id, &data, &key))
-    {
-        if (fnstats.timeToFirstByte == NEVER)
-        {
-            WAIT_CLASS::bumpds();
-            fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
-        }
+    bool hasNext = sctable->next(&id, &data, &key);
+    WAIT_CLASS::bumpds();
+    fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
+    while (hasNext)
+    {
         switch (id & 15)
         {
             case CACHEDSCSN:
@@ -8012,6 +8004,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     return false;
                 }
         }
+        hasNext = sctable->next(&id, &data, &key);
     }
 
     WAIT_CLASS::bumpds();
@@ -10732,9 +10725,9 @@ void FetchNodesStats::init()
     nodesCurrent = 0;
     actionPackets = 0;
 
-    eagains = 0;
-    e500s = 0;
-    otherErrors = 0;
+    eAgainCount = 0;
+    e500Count = 0;
+    eOthersCount = 0;
 
     startTime = Waiter::ds;
     timeToFirstByte = NEVER;
@@ -10756,7 +10749,7 @@ void FetchNodesStats::toJsonArray(string *json)
     ostringstream oss;
     oss << "[" << mode << "," << type << ","
         << nodesCached << "," << nodesCurrent << "," << actionPackets << ","
-        << eagains << "," << e500s << "," << otherErrors << ","
+        << eAgainCount << "," << e500Count << "," << eOthersCount << ","
         << timeToFirstByte << "," << timeToLastByte << ","
         << timeToCached << "," << timeToResult << ","
         << timeToSyncsResumed << "," << timeToCurrent << ","

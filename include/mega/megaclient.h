@@ -92,19 +92,19 @@ public:
     /**
      * @brief Number of error -3 or -4 received during the process (including cs and sc requests)
      */
-    int eagains;
+    int eAgainCount;
 
     /**
      * @brief Number of HTTP 500 errors received during the process (including cs and sc requests)
      */
-    int e500s;
+    int e500Count;
 
     /**
      * @brief Number of other errors received during the process (including cs and sc requests)
      *
      * The most common source of these errors are connectivity problems (no Internet, timeouts...)
      */
-    int otherErrors;
+    int eOthersCount;
 
     ////////////////////////////////////////////////////////////////////
     // Time elapsed until different steps since the startup time (ds) //
