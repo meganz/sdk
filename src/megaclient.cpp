@@ -3001,6 +3001,14 @@ bool MegaClient::procsc()
                         WAIT_CLASS::bumpds();
                         fnstats.timeToTransfersResumed = Waiter::ds - fnstats.startTime;
 
+                        string report;
+                        fnstats.toJsonArray(&report);
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99426, report.c_str());
+                        reqtag = creqtag;
+
                         // NULL vector: "notify all elements"
                         app->nodes_updated(NULL, nodes.size());
                         app->users_updated(NULL, users.size());
