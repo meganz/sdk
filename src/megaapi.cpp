@@ -2023,6 +2023,11 @@ void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
     pImpl->cancelTransfer(t, listener);
 }
 
+void MegaApi::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->retryTransfer(transfer, listener);
+}
+
 void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)
 {
     pImpl->moveTransferUp(transfer ? transfer->getTag() : 0, listener);

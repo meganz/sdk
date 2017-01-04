@@ -6551,6 +6551,23 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Retry a transfer
+         *
+         * This function allows to start a transfer based on a MegaTransfer object. It can be used,
+         * for example, to retry transfers that finished with an error. To do it, you can retain the
+         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+         * and use it later with this function.
+         *
+         * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
+         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
+         * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * @param transfer Transfer to be retried
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
+
+        /**
          * @brief Move a transfer one position up in the transfer queue
          *
          * If the transfer is successfully moved, onTransferUpdate will be called
