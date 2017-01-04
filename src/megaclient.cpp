@@ -2493,11 +2493,7 @@ bool MegaClient::dispatch(direction_t d)
                     for (chunkmac_map::iterator it = nexttransfer->chunkmacs.begin();
                          it != nexttransfer->chunkmacs.end(); it++)
                     {
-                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-                        if (chunkceil > nexttransfer->size)
-                        {
-                            chunkceil = nexttransfer->size;
-                        }
+                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, nexttransfer->size);
 
                         if (nexttransfer->pos == it->first && it->second.finished)
                         {

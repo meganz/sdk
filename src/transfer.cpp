@@ -320,11 +320,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-        if (chunkceil > t->size)
-        {
-            chunkceil = t->size;
-        }
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
 
         if (t->pos == it->first && it->second.finished)
         {
