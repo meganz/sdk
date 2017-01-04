@@ -1324,6 +1324,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    // if there were too many invitations within a short period of time, the invitation can be rejected by
+    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
 
     // --- Check the sent contact request ---
