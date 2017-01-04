@@ -3672,6 +3672,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
 // purge and rebuild node/user tree
 void CommandFetchNodes::procresult()
 {
+    WAIT_CLASS::bumpds();
+    client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+
     client->purgenodesusersabortsc();
 
     if (client->json.isnumeric())
@@ -3767,6 +3770,9 @@ void CommandFetchNodes::procresult()
                 client->initsc();
                 client->fetchnodestag = tag;
 
+                WAIT_CLASS::bumpds();
+                client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
+                client->fnstats.nodesCached = client->nodes.size();
                 return;
             }
             default:
