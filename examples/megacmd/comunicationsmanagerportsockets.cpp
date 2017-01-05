@@ -1,5 +1,5 @@
 /**
- * @file examples/megacmd/comunicationsmanagerfilesockets.cpp
+ * @file examples/megacmd/comunicationsmanagerportsockets.cpp
  * @brief MegaCMD: Communications manager
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
@@ -19,11 +19,11 @@
  * program.
  */
 
-#include "comunicationsmanagerfilesockets.h"
+#include "comunicationsmanagerportsockets.h"
 
 using namespace mega;
 
-int ComunicationsManagerFileSockets::get_next_outSocket_id()
+int ComunicationsManagerPortSockets::get_next_outSocket_id()
 {
     mtx->lock();
     ++count;
@@ -31,30 +31,30 @@ int ComunicationsManagerFileSockets::get_next_outSocket_id()
     return count;
 }
 
-int ComunicationsManagerFileSockets::create_new_socket(int *sockId)
+int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 {
-    int thesock = socket(AF_UNIX, SOCK_STREAM, 0);
+    int thesock = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 
     if (thesock < 0)
     {
         LOG_fatal << "ERROR opening socket";
     }
 
-    char socket_path[60];
-    *sockId = get_next_outSocket_id();
-    bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
-    sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), *sockId);
+    int portno=MEGACMDINITIALPORTNUMBER;
 
-    struct sockaddr_un addr;
-    socklen_t saddrlen = sizeof( addr );
+    *sockId = get_next_outSocket_id();
+    portno += *sockId;
+
+    struct sockaddr_in addr;
 
     memset(&addr, 0, sizeof( addr ));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+    addr.sin_port = htons(portno);
 
-    unlink(socket_path);
+    socklen_t saddrlength = sizeof( addr );
 
-    if (bind(thesock, (struct sockaddr*)&addr, saddrlen))
+    if (bind(thesock, (struct sockaddr*)&addr, saddrlength))
     {
         if (errno == EADDRINUSE)
         {
@@ -83,90 +83,75 @@ int ComunicationsManagerFileSockets::create_new_socket(int *sockId)
 }
 
 
-ComunicationsManagerFileSockets::ComunicationsManagerFileSockets()
+ComunicationsManagerPortSockets::ComunicationsManagerPortSockets()
 {
     count = 0;
     mtx = new MegaMutex();
     initialize();
 }
 
-int ComunicationsManagerFileSockets::initialize()
+int ComunicationsManagerPortSockets::initialize()
 {
     mtx->init(false);
 
-    MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-    char csocketsFolder[19]; // enough to hold all numbers up to 64-bits
-    sprintf(csocketsFolder, "/tmp/megaCMD_%d", getuid());
-    string socketsFolder = csocketsFolder;
-
-    fsAccess->setdefaultfolderpermissions(0700);
-    fsAccess->rmdirlocal(&socketsFolder);
-    LOG_debug << "CREATING sockets folder: " << socketsFolder << "!!!";
-    if (!fsAccess->mkdirlocal(&socketsFolder, false))
-    {
-        LOG_fatal << "ERROR CREATING sockets folder: " << socketsFolder << ": " << errno;
-    }
-    delete fsAccess;
-
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 
     if (sockfd < 0)
     {
         LOG_fatal << "ERROR opening socket";
     }
 
-    struct sockaddr_un addr;
-    socklen_t saddrlen = sizeof( addr );
+    int portno=MEGACMDINITIALPORTNUMBER;
+
+    struct sockaddr_in addr;
+
     memset(&addr, 0, sizeof( addr ));
-    addr.sun_family = AF_UNIX;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+    addr.sin_port = htons(portno);
 
-    char socketPath[60];
-    bzero(socketPath, sizeof( socketPath ) * sizeof( *socketPath ));
-    sprintf(socketPath, "/tmp/megaCMD_%d/srv", getuid());
+    socklen_t saddrlength = sizeof( addr );
 
-    strncpy(addr.sun_path, socketPath, sizeof( addr.sun_path ) - 1);
-
-    unlink(socketPath);
-
-    if (bind(sockfd, (struct sockaddr*)&addr, saddrlen))
+    if (bind(sockfd, (struct sockaddr*)&addr, saddrlength))
     {
         if (errno == EADDRINUSE)
         {
-            LOG_warn << "ERROR on binding socket: " << socketPath << ": Already in use.";
+            LOG_fatal << "ERROR on binding socket at port: " << portno << ": Already in use.";
         }
         else
         {
-            LOG_fatal << "ERROR on binding socket: " << socketPath << ": " << errno;
-            sockfd = -1;
+            LOG_fatal << "ERROR on binding socket at port: " << portno << ": " << errno;
         }
+        sockfd = -1;
+
     }
     else
     {
         int returned = listen(sockfd, 150);
         if (returned)
         {
-            LOG_fatal << "ERROR on listen socket initializing communications manager: " << socketPath << ": " << errno;
+            LOG_fatal << "ERROR on listen socket initializing communications manager  at port: " << portno << ": " << errno;
             return errno;
         }
     }
     return 0;
 }
 
-bool ComunicationsManagerFileSockets::receivedReadlineInput(int readline_fd)
+bool ComunicationsManagerPortSockets::receivedReadlineInput(int readline_fd)
 {
     return FD_ISSET(readline_fd, &fds);
 }
 
-bool ComunicationsManagerFileSockets::receivedPetition()
+bool ComunicationsManagerPortSockets::receivedPetition()
 {
     return FD_ISSET(sockfd, &fds);
 }
 
-int ComunicationsManagerFileSockets::waitForPetitionOrReadlineInput(int readline_fd)
+int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline_fd)
 {
     FD_ZERO(&fds);
     FD_SET(readline_fd, &fds);
-    if (sockfd)
+    if (sockfd > 0)
     {
         FD_SET(sockfd, &fds);
     }
@@ -183,7 +168,7 @@ int ComunicationsManagerFileSockets::waitForPetitionOrReadlineInput(int readline
 }
 
 
-int ComunicationsManagerFileSockets::waitForPetition()
+int ComunicationsManagerPortSockets::waitForPetition()
 {
     FD_ZERO(&fds);
     if (sockfd)
@@ -206,16 +191,15 @@ int ComunicationsManagerFileSockets::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
 {
-
-    LOG_verbose << "Output to write in socket " << ((CmdPetitionPosixSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
+    LOG_verbose << "Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
-    int connectedsocket = accept(((CmdPetitionPosixSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    int connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
     if (connectedsocket == -1)
     {
-        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPosixSockets *)inf)->outSocket << " error: " << errno;
+        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
         delete inf;
         return;
     }
@@ -234,7 +218,7 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, s
         LOG_err << "ERROR writing to socket: " << errno;
     }
     close(connectedsocket);
-    close(((CmdPetitionPosixSockets *)inf)->outSocket);
+    close(((CmdPetitionPortSockets *)inf)->outSocket);
     delete inf;
 }
 
@@ -242,9 +226,9 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, s
  * @brief getPetition
  * @return pointer to new CmdPetitionPosix. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
  */
-CmdPetition * ComunicationsManagerFileSockets::getPetition()
+CmdPetition * ComunicationsManagerPortSockets::getPetition()
 {
-    CmdPetitionPosixSockets *inf = new CmdPetitionPosixSockets();
+    CmdPetitionPortSockets *inf = new CmdPetitionPortSockets();
 
     clilen = sizeof( cli_addr );
 
@@ -291,15 +275,15 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     return inf;
 }
 
-string ComunicationsManagerFileSockets::get_petition_details(CmdPetition *inf)
+string ComunicationsManagerPortSockets::get_petition_details(CmdPetition *inf)
 {
     ostringstream os;
-    os << "socket output: " << ((CmdPetitionPosixSockets *)inf)->outSocket;
+    os << "socket output: " << ((CmdPetitionPortSockets *)inf)->outSocket;
     return os.str();
 }
 
 
-ComunicationsManagerFileSockets::~ComunicationsManagerFileSockets()
+ComunicationsManagerPortSockets::~ComunicationsManagerPortSockets()
 {
     delete mtx;
 }

@@ -1,20 +1,22 @@
-#ifndef COMUNICATIONSMANAGERFILESOCKETS_H
-#define COMUNICATIONSMANAGERFILESOCKETS_H
+#ifndef COMUNICATIONSMANAGERPORTSOCKETS_H
+#define COMUNICATIONSMANAGERPORTSOCKETS_H
 
 #include "comunicationsmanager.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
 
-class CmdPetitionPosixSockets: public CmdPetition
+#define MEGACMDINITIALPORTNUMBER 12300
+
+class CmdPetitionPortSockets: public CmdPetition
 {
 public:
     int outSocket;
 };
 
-std::ostream &operator<<(std::ostream &os, CmdPetitionPosixSockets &p);
+std::ostream &operator<<(std::ostream &os, CmdPetitionPortSockets &p);
 
-class ComunicationsManagerFileSockets : public ComunicationsManager
+class ComunicationsManagerPortSockets : public ComunicationsManager
 {
 private:
     fd_set fds;
@@ -39,7 +41,7 @@ private:
     int create_new_socket(int *sockId);
 
 public:
-    ComunicationsManagerFileSockets();
+    ComunicationsManagerPortSockets();
 
     int initialize();
 
@@ -69,7 +71,7 @@ public:
      */
     std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
 
-    ~ComunicationsManagerFileSockets();
+    ~ComunicationsManagerPortSockets();
 };
 
 

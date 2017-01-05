@@ -49,6 +49,10 @@ HEADERS += ../../../examples/megacmd/megacmd.h \
     ../../../examples/megacmd/comunicationsmanager.h \
     ../../../examples/megacmd/megacmdutils.h
 
+
+    SOURCES +=../../../examples/megacmd/comunicationsmanagerportsockets.cpp
+    HEADERS +=../../../examples/megacmd/comunicationsmanagerportsockets.h
+
 win32 {
     LIBS += -lshell32
 }

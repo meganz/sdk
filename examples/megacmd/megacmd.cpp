@@ -38,7 +38,8 @@
 
 
 #ifdef _WIN32
-#define COMUNICATIONMANAGER ComunicationsManager
+#include "comunicationsmanagerportsockets.h"
+#define COMUNICATIONMANAGER ComunicationsManagerPortSockets
 #else
 #include "comunicationsmanagerfilesockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerFileSockets
