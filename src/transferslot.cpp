@@ -71,7 +71,7 @@ TransferSlot::~TransferSlot()
             && transfer->progresscompleted != transfer->size)
     {
         m_off_t p = 0;
-        bool cachetransfer = false;
+        bool cachetransfer = false; // need to save in cache
         for (int i = 0; i < connections; i++)
         {
             if (fa && reqs[i] && reqs[i]->status == REQ_INFLIGHT
@@ -83,8 +83,8 @@ TransferSlot::~TransferSlot()
 
                 byte *bufstart = reqs[i]->buf;
                 m_off_t buflen = bufpos;
-                m_off_t startpos = dlpos;
-                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);
+                m_off_t startpos = dlpos;   // in the file
+                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);  // in the file
                 m_off_t finalpos = startpos + buflen;
 
                 while (endpos <= finalpos)
@@ -517,39 +517,39 @@ void TransferSlot::doio(MegaClient* client)
                 {
                     if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
                     {
-                        m_off_t maxChunkSize = (transfer->size - transfer->progresscompleted) / connections / 2;
-                        if (maxChunkSize > MAX_DOWNLOAD_CHUNK_SIZE)
+                        m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
+                        if (maxReqSize > MAX_DOWNLOAD_REQ_SIZE)
                         {
-                            maxChunkSize = MAX_DOWNLOAD_CHUNK_SIZE;
+                            maxReqSize = MAX_DOWNLOAD_REQ_SIZE;
                         }
 
-                        if (maxChunkSize > 0x100000)
+                        if (maxReqSize > 0x100000)
                         {
                             m_off_t val = 0x100000;
-                            while (val <= maxChunkSize)
+                            while (val <= maxReqSize)
                             {
                                 val <<= 1;
                             }
-                            maxChunkSize = val >> 1;
-                            maxChunkSize -= 0x100000;
+                            maxReqSize = val >> 1;
+                            maxReqSize -= 0x100000;
                         }
                         else
                         {
-                            maxChunkSize = 0;
+                            maxReqSize = 0;
                         }
 
                         chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
-                        m_off_t chunkSize = npos - transfer->pos;
+                        m_off_t reqSize = npos - transfer->pos;
                         while (npos < transfer->size
-                               && chunkSize <= maxChunkSize
+                               && reqSize <= maxReqSize
                                && (it == transfer->chunkmacs.end()
                                    || (!it->second.finished && !it->second.offset)))
                         {
                             npos = ChunkedHash::chunkceil(npos, transfer->size);
-                            chunkSize = npos - transfer->pos;
+                            reqSize = npos - transfer->pos;
                             it = transfer->chunkmacs.find(npos);
                         }
-                        LOG_debug << "Downloading chunk of size " << chunkSize;
+                        LOG_debug << "Downloading chunk of size " << reqSize;
                     }
 
                     if (!reqs[i])

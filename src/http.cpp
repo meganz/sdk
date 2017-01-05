@@ -586,15 +586,15 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
         }
     }
 
-    byte *bufstart = buf + skip;
-    m_off_t buflen = bufpos - skip - prune;
-    m_off_t bufpos = dlpos + skip;
+    byte *chunkstart = buf + skip;
+    m_off_t chunklen = bufpos - skip - prune;
+    m_off_t chunkpos = dlpos + skip;
 
-    ChunkMAC &chunkmac = (*macs)[ChunkedHash::chunkfloor(bufpos)];
-    key->ctr_crypt(bufstart, buflen, bufpos, ctriv, chunkmac.mac, 0,
+    ChunkMAC &chunkmac = (*macs)[ChunkedHash::chunkfloor(chunkpos)];
+    key->ctr_crypt(chunkstart, chunklen, chunkpos, ctriv, chunkmac.mac, 0,
             !chunkmac.finished && !chunkmac.offset);
 
-    fa->fwrite(bufstart, buflen, bufpos);
+    fa->fwrite(chunkstart, chunklen, chunkpos);
 
     chunkmac.finished = true;
     chunkmac.offset = 0;

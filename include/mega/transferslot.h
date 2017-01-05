@@ -48,9 +48,9 @@ struct MEGA_API TransferSlot
 
     // max time without progress callbacks
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
-    static const m_off_t MAX_DOWNLOAD_CHUNK_SIZE = 2097152;
+    static const m_off_t MAX_DOWNLOAD_REQ_SIZE = 2097152;
 #else
-    static const m_off_t MAX_DOWNLOAD_CHUNK_SIZE = 16777216;
+    static const m_off_t MAX_DOWNLOAD_REQ_SIZE = 16777216;
 #endif
 
     m_off_t progressreported;
