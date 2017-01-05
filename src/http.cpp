@@ -557,10 +557,6 @@ bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*k
 void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
                          uint64_t ctriv, m_off_t startpos, m_off_t endpos)
 {
-    ChunkMAC &chunkmac = (*macs)[pos];
-    key->ctr_crypt(buf, bufpos, dlpos, ctriv, chunkmac.mac, 0,
-            !chunkmac.finished && !chunkmac.offset);
-
     unsigned skip;
     unsigned prune;
 
@@ -590,7 +586,15 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
         }
     }
 
-    fa->fwrite(buf + skip, bufpos - skip - prune, dlpos + skip);
+    byte *chunkstart = buf + skip;
+    m_off_t chunklen = bufpos - skip - prune;
+    m_off_t chunkpos = dlpos + skip;
+
+    ChunkMAC &chunkmac = (*macs)[ChunkedHash::chunkfloor(chunkpos)];
+    key->ctr_crypt(chunkstart, chunklen, chunkpos, ctriv, chunkmac.mac, 0,
+            !chunkmac.finished && !chunkmac.offset);
+
+    fa->fwrite(chunkstart, chunklen, chunkpos);
 
     chunkmac.finished = true;
     chunkmac.offset = 0;
