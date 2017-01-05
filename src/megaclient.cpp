@@ -10291,7 +10291,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 {
     if (num > 0)
     {
-        if (num > MegaClient::MAX_NUM_CONNECTIONS)
+         if ((unsigned int) num > MegaClient::MAX_NUM_CONNECTIONS)
         {
             num = MegaClient::MAX_NUM_CONNECTIONS;
         }

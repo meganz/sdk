@@ -1818,9 +1818,8 @@ void delete_finished_threads()
 {
     for (std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end(); )
     {
-        /* std::cout << *it; ... */
-        MegaThread *mt = (MegaThread*)*it;
 #ifdef USE_QT
+        MegaThread *mt = (MegaThread*)*it;
         if (mt->isFinished())
         {
             delete mt;

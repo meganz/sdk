@@ -791,7 +791,7 @@ bool patternMatches(const char *what, const char *pattern)
 {
 #ifdef USE_PCRE
     pcrecpp::RE re(pattern);
-    if (re.error().length() > 0)
+    if (re.error().length())
     {
         //In case the user supplied non-pcre regexp with * or ? in it.
         string newpattern(pattern);
@@ -800,7 +800,7 @@ bool patternMatches(const char *what, const char *pattern)
         re=pcrecpp::RE(newpattern);
     }
 
-    if (!re.error().length() > 0)
+    if (!re.error().length())
     {
         bool toret = re.FullMatch(what);
 
