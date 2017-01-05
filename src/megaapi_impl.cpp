@@ -6591,7 +6591,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     sdkMutex.lock();
     vector<Node*> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
-    if (!user || user->show != VISIBLE)
+    if (!user)
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -6627,13 +6627,8 @@ MegaNodeList* MegaApiImpl::getInShares()
     vector<Node*> vNodes;
     for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
-        User *user = &(it->second);
-        if (user->show != VISIBLE)
-        {
-            continue;
-        }
-
         Node *n;
+        User *user = &(it->second);
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -6657,14 +6652,8 @@ MegaShareList* MegaApiImpl::getInSharesList()
 
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
-        User *user = &(it->second);
-        if (user->show != VISIBLE)
-        {
-            continue;
-        }
-
         Node *n;
-
+        User *user = &(it->second);
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -6734,7 +6723,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE))
+        if (share->user)
         {
             vShares.push_back(share);
             vHandles.push_back(node->nodehandle);
@@ -14434,7 +14423,7 @@ bool OutShareProcessor::processNode(Node *node)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE)) // public links have no user
+        if (share->user) // public links have no user
         {
             shares.push_back(share);
             handles.push_back(node->nodehandle);
