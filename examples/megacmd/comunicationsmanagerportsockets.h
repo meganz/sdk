@@ -4,8 +4,11 @@
 #include "comunicationsmanager.h"
 
 #include <sys/types.h>
+#ifdef _WIN32
+#include <WinSock2.h>
+#else
 #include <sys/socket.h>
-
+#endif
 #define MEGACMDINITIALPORTNUMBER 12300
 
 class CmdPetitionPortSockets: public CmdPetition
@@ -23,6 +26,9 @@ private:
 
     // sockets and asociated variables
     int sockfd, newsockfd;
+#ifdef _WIN32
+    HANDLE sockfd_event_handle;
+#endif
     socklen_t clilen;
     char buffer[1024];
     struct sockaddr_in serv_addr, cli_addr;

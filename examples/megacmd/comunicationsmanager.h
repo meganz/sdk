@@ -51,6 +51,7 @@ private:
     fd_set fds;
 
 public:
+    bool interactive;
     ComunicationsManager();
 
     virtual bool receivedReadlineInput(int readline_fd);

@@ -2120,8 +2120,12 @@ int main(int argc, char* argv[])
 #endif
     cm = new COMUNICATIONMANAGER();
 
+#if _WIN32
+    if (( argc > 1 ) && !( strcmp(argv[1], "--interactive")))
+    {
+        cm->interactive=true;
+    }
 
-#ifdef _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
      {
         LOG_debug << "Control handler set";
