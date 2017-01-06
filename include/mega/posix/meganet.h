@@ -45,7 +45,7 @@ struct MEGA_API SockInfo
     SockInfo();
     int fd;
     int mode;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     HANDLE handle;
 #endif
 };

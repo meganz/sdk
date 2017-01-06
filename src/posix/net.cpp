@@ -322,14 +322,14 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
     {
         SockInfo info;
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         long events = 0;
 #endif
         if(ARES_GETSOCK_READABLE(bitmask, i))
         {
             info.fd = socks[i];
             info.mode |= SockInfo::READ;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
             events |= FD_READ;
 #endif
         }
@@ -338,7 +338,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
         {
             info.fd = socks[i];
             info.mode |= SockInfo::WRITE;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
             events |= FD_WRITE;
 #endif
         }
@@ -348,7 +348,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
             break;
         }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         info.handle = WSACreateEvent();
         if (info.handle == WSA_INVALID_EVENT)
         {
@@ -391,7 +391,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
             continue;
         }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         long events = 0;
         if (info.handle == WSA_INVALID_EVENT)
         {
@@ -406,7 +406,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
         if (info.mode & SockInfo::READ)
         {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
             events |= FD_READ;
 #else
             FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
@@ -416,7 +416,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
         if (info.mode & SockInfo::WRITE)
         {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
             events |= FD_WRITE;
 #else
             FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
@@ -424,7 +424,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 #endif
         }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if (WSAEventSelect(info.fd, info.handle, events))
         {
             LOG_err << "Error associating curl handle " << info.fd << ": " << GetLastError();
@@ -440,7 +440,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
 void CurlHttpIO::closearesevents()
 {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     for (unsigned int i = 0; i < aressockets.size(); i++)
     {
         if (aressockets[i].handle != WSA_INVALID_EVENT)
@@ -455,7 +455,7 @@ void CurlHttpIO::closearesevents()
 void CurlHttpIO::closecurlevents(direction_t d)
 {
     std::map<int, SockInfo> &socketmap = curlsockets[d];
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
         SockInfo &info = it->second;
@@ -470,7 +470,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 
 void CurlHttpIO::processaresevents()
 {
-#if !(defined(_WIN32) && !defined(WINDOWS_PHONE))
+#ifndef _WIN32
     fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
     fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -483,7 +483,7 @@ void CurlHttpIO::processaresevents()
             continue;
         }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if (info.handle == WSA_INVALID_EVENT)
         {
             continue;
@@ -515,7 +515,7 @@ void CurlHttpIO::processaresevents()
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
-#if !(defined(_WIN32) && !defined(WINDOWS_PHONE))
+#ifndef _WIN32
     fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
     fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -533,7 +533,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
             continue;
         }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if (info.handle == WSA_INVALID_EVENT)
         {
             continue;
@@ -2106,7 +2106,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     {
         LOG_debug << "Removing socket " << s;
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         HANDLE handle = socketmap[s].handle;
         if (handle != WSA_INVALID_EVENT)
         {
@@ -2122,7 +2122,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         SockInfo info;
         info.fd = s;
         info.mode = what;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         std::map<int, SockInfo>::iterator it = socketmap.find(s);
         if (it != socketmap.end() && it->second.handle != WSA_INVALID_EVENT)
         {
@@ -2284,7 +2284,7 @@ SockInfo::SockInfo()
 {
     fd = -1;
     mode = NONE;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     handle = WSA_INVALID_EVENT;
 #endif
 }
