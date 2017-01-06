@@ -2,7 +2,7 @@
  * @file posix/net.cpp
  * @brief POSIX network access layer (using cURL + c-ares)
  *
- * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -102,8 +102,8 @@ CurlHttpIO::CurlHttpIO()
     dnsok = false;
     reset = false;
     statechange = false;
-    maxdownloadspeed = 0;
-    maxuploadspeed = 0;
+    maxspeed[GET] = 0;
+    maxspeed[PUT] = 0;
 
     WAIT_CLASS::bumpds();
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
@@ -137,12 +137,12 @@ CurlHttpIO::CurlHttpIO()
     ares_library_init(ARES_LIB_INIT_ALL);
     curlMutex.unlock();
 
-    curlmapi = curl_multi_init();
-    curlmdownload = curl_multi_init();
-    curlmupload = curl_multi_init();
-    numapiconnections = 0;
-    numdownloadconnections = 0;
-    numuploadconnections = 0;
+    curlm[API] = curl_multi_init();
+    curlm[GET] = curl_multi_init();
+    curlm[PUT] = curl_multi_init();
+    numconnections[API] = 0;
+    numconnections[GET] = 0;
+    numconnections[PUT] = 0;
     curlsocketsprocessed = true;
 
     struct ares_options options;
@@ -151,25 +151,26 @@ CurlHttpIO::CurlHttpIO()
     arestimeout = -1;
     filterDNSservers();
 
-    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETFUNCTION, api_socket_callback);
-    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmapi, CURLMOPT_TIMERFUNCTION, api_timer_callback);
-    curl_multi_setopt(curlmapi, CURLMOPT_TIMERDATA, this);
-    curlapitimeoutreset = -1;
+    curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
+    curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[API], CURLMOPT_TIMERFUNCTION, api_timer_callback);
+    curl_multi_setopt(curlm[API], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[API] = -1;
+    arerequestspaused[API] = false;
 
-    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
-    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
-    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERDATA, this);
-    curldownloadtimeoutreset = -1;
-    aredownloadspaused = false;
+    curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETFUNCTION, download_socket_callback);
+    curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
+    curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[GET] = -1;
+    arerequestspaused[GET] = false;
 
-    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
-    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmupload, CURLMOPT_TIMERFUNCTION, upload_timer_callback);
-    curl_multi_setopt(curlmupload, CURLMOPT_TIMERDATA, this);
-    curluploadtimeoutreset = -1;
-    areuploadspaused = false;
+    curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[PUT] = -1;
+    arerequestspaused[PUT] = false;
 
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
@@ -381,8 +382,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
-    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
-
+    std::map<int, SockInfo> &socketmap = curlsockets[d];
     for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
         SockInfo &info = it->second;
@@ -449,13 +449,12 @@ void CurlHttpIO::closearesevents()
         }
     }
 #endif
-
     aressockets.clear();
 }
 
 void CurlHttpIO::closecurlevents(direction_t d)
 {
-    std::map<int, SockInfo> &socketmap = (d == API) ? curlapisockets : ((d == GET) ? curldownloadsockets : curluploadsockets);
+    std::map<int, SockInfo> &socketmap = curlsockets[d];
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
@@ -522,29 +521,9 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
 
     int dummy = 0;
-    bool isapipaused = false;
-    std::map<int, SockInfo> *socketmap;
-    m_time_t *timeout;
-    bool *paused;
-
-    if (d == API)
-    {
-        socketmap = &curlapisockets;
-        timeout = &curlapitimeoutreset;
-        paused = &isapipaused;
-    }
-    else if (d == GET)
-    {
-        socketmap = &curldownloadsockets;
-        timeout = &curldownloadtimeoutreset;
-        paused = &aredownloadspaused;
-    }
-    else
-    {
-        socketmap = &curluploadsockets;
-        timeout = &curluploadtimeoutreset;
-        paused = &areuploadspaused;
-    }
+    std::map<int, SockInfo> *socketmap = &curlsockets[d];
+    m_time_t *timeout = &curltimeoutreset[d];
+    bool *paused = &arerequestspaused[d];
 
     for (std::map<int, SockInfo>::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
     {
@@ -563,8 +542,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
         {
             WSAResetEvent(info.handle);
-            curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload),
-                                     info.fd,
+            curl_multi_socket_action(curlm[d], info.fd,
                                      ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
                                      | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
                                      &dummy);
@@ -572,8 +550,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #else
         if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
         {
-            curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload),
-                                     info.fd,
+            curl_multi_socket_action(curlm[d], info.fd,
                                      (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
                                      | (((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
                                      &dummy);
@@ -586,7 +563,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     {
         *timeout = -1;
         LOG_debug << "Disabling cURL timeout";
-        curl_multi_socket_action((d == API) ? curlmapi : ((d == GET) ? curlmdownload : curlmupload), CURL_SOCKET_TIMEOUT, 0, &dummy);
+        curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
     for (std::map<int, SockInfo>::iterator it = socketmap->begin(); it != socketmap->end();)
@@ -606,9 +583,9 @@ void CurlHttpIO::processcurlevents(direction_t d)
 CurlHttpIO::~CurlHttpIO()
 {
     ares_destroy(ares);
-    curl_multi_cleanup(curlmapi);
-    curl_multi_cleanup(curlmdownload);
-    curl_multi_cleanup(curlmupload);
+    curl_multi_cleanup(curlm[API]);
+    curl_multi_cleanup(curlm[GET]);
+    curl_multi_cleanup(curlm[PUT]);
     curl_share_cleanup(curlsh);
 
     closearesevents();
@@ -647,18 +624,19 @@ void CurlHttpIO::setdnsservers(const char* servers)
 void CurlHttpIO::disconnect()
 {
     LOG_debug << "Reinitializing the network layer";
+    assert(!numconnections[API] && !numconnections[GET] && !numconnections[PUT]);
 
     ares_destroy(ares);
-    curl_multi_cleanup(curlmapi);
-    curl_multi_cleanup(curlmdownload);
-    curl_multi_cleanup(curlmupload);
+    curl_multi_cleanup(curlm[API]);
+    curl_multi_cleanup(curlm[GET]);
+    curl_multi_cleanup(curlm[PUT]);
 
-    if (numapiconnections || numdownloadconnections || numuploadconnections)
+    if (numconnections[API] || numconnections[GET] || numconnections[PUT])
     {
         LOG_err << "Disconnecting without cancelling all requests first";
-        numapiconnections = 0;
-        numdownloadconnections = 0;
-        numuploadconnections = 0;
+        numconnections[API] = 0;
+        numconnections[GET] = 0;
+        numconnections[PUT] = 0;
     }
 
     closearesevents();
@@ -669,31 +647,34 @@ void CurlHttpIO::disconnect()
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
     dnscache.clear();
 
-    curlmapi = curl_multi_init();
-    curlmdownload = curl_multi_init();
-    curlmupload = curl_multi_init();
+    curlm[API] = curl_multi_init();
+    curlm[GET] = curl_multi_init();
+    curlm[PUT] = curl_multi_init();
     struct ares_options options;
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
 
-    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETFUNCTION, api_socket_callback);
-    curl_multi_setopt(curlmapi, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmapi, CURLMOPT_TIMERFUNCTION, api_timer_callback);
-    curl_multi_setopt(curlmapi, CURLMOPT_TIMERDATA, this);
-    curlapitimeoutreset = -1;
+    curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
+    curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[API], CURLMOPT_TIMERFUNCTION, api_timer_callback);
+    curl_multi_setopt(curlm[API], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[API] = -1;
+    arerequestspaused[API] = false;
 
-    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETFUNCTION, download_socket_callback);
-    curl_multi_setopt(curlmdownload, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERFUNCTION, download_timer_callback);
-    curl_multi_setopt(curlmdownload, CURLMOPT_TIMERDATA, this);
-    curldownloadtimeoutreset = -1;
+    curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETFUNCTION, download_socket_callback);
+    curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
+    curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[GET] = -1;
+    arerequestspaused[GET] = false;
 
-    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
-    curl_multi_setopt(curlmupload, CURLMOPT_SOCKETDATA, this);
-    curl_multi_setopt(curlmupload, CURLMOPT_TIMERFUNCTION, upload_timer_callback);
-    curl_multi_setopt(curlmupload, CURLMOPT_TIMERDATA, this);
-    curluploadtimeoutreset = -1;
+    curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+    curltimeoutreset[PUT] = -1;
+    arerequestspaused[PUT] = false;
 
     if (dnsservers.size())
     {
@@ -714,24 +695,24 @@ void CurlHttpIO::disconnect()
 
 bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
 {
-    maxdownloadspeed = bpslimit;
+    maxspeed[GET] = bpslimit;
     return true;
 }
 
 bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
 {
-    maxuploadspeed = bpslimit;
+    maxspeed[PUT] = bpslimit;
     return true;
 }
 
 m_off_t CurlHttpIO::getmaxdownloadspeed()
 {
-    return maxdownloadspeed;
+    return maxspeed[GET];
 }
 
 m_off_t CurlHttpIO::getmaxuploadspeed()
 {
-    return maxuploadspeed;
+    return maxspeed[PUT];
 }
 
 // wake up from cURL I/O
@@ -742,9 +723,9 @@ void CurlHttpIO::addevents(Waiter* w, int)
 
     addaresevents(waiter);
     addcurlevents(waiter, API);
-    if (curlapitimeoutreset >= 0)
+    if (curltimeoutreset[API] >= 0)
     {
-        m_time_t ds = curlapitimeoutreset - Waiter::ds;
+        m_time_t ds = curltimeoutreset[API] - Waiter::ds;
         if (ds <= 0)
         {
             curltimeoutms = 0;
@@ -758,49 +739,31 @@ void CurlHttpIO::addevents(Waiter* w, int)
         }
     }
 
-    if (aredownloadspaused)
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        curltimeoutms = 100;
-    }
-    else
-    {
-        addcurlevents(waiter, GET);
-        if (curldownloadtimeoutreset >= 0)
+        if (arerequestspaused[d])
         {
-            m_time_t ds = curldownloadtimeoutreset - Waiter::ds;
-            if (ds <= 0)
+            if (curltimeoutms < 0 || curltimeoutms > 100)
             {
-                curltimeoutms = 0;
-            }
-            else
-            {
-                if (curltimeoutms < 0 || curltimeoutms > ds * 100)
-                {
-                    curltimeoutms = ds * 100;
-                }
+                curltimeoutms = 100;
             }
         }
-    }
-
-    if (areuploadspaused)
-    {
-        curltimeoutms = 100;
-    }
-    else
-    {
-        addcurlevents(waiter, PUT);
-        if (curluploadtimeoutreset >= 0)
+        else
         {
-            m_time_t ds = curluploadtimeoutreset - Waiter::ds;
-            if (ds <= 0)
+            addcurlevents(waiter, (direction_t)d);
+            if (curltimeoutreset[d] >= 0)
             {
-                curltimeoutms = 0;
-            }
-            else
-            {
-                if (curltimeoutms < 0 || curltimeoutms > ds * 100)
+                m_time_t ds = curltimeoutreset[d] - Waiter::ds;
+                if (ds <= 0)
                 {
-                    curltimeoutms = ds * 100;
+                    curltimeoutms = 0;
+                }
+                else
+                {
+                    if (curltimeoutms < 0 || curltimeoutms > ds * 100)
+                    {
+                        curltimeoutms = ds * 100;
+                    }
                 }
             }
         }
@@ -1158,7 +1121,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
 
-
     if(httpio->proxyip.size())
     {
         LOG_debug << "Using the hostname instead of the IP";
@@ -1177,7 +1139,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_slist_free_all(httpctx->headers);
 
         httpctx->req = NULL;
-        if(!httpctx->ares_pending)
+        if (!httpctx->ares_pending)
         {
             delete httpctx;
         }
@@ -1209,7 +1171,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
 
-        if (httpio->maxdownloadspeed && httpio->maxdownloadspeed <= 100 * 1024)
+        if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
@@ -1278,23 +1240,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             }
         }
 
-        CURLM *multihandle;
-        if (req->type == REQ_JSON)
-        {
-            multihandle = httpio->curlmapi;
-            httpio->numapiconnections++;
-        }
-        else if (data ? len : req->out->size())
-        {
-            multihandle = httpio->curlmupload;
-            httpio->numuploadconnections++;
-        }
-        else
-        {
-            multihandle = httpio->curlmdownload;
-            httpio->numdownloadconnections++;
-        }
-        curl_multi_add_handle(multihandle, curl);
+        httpio->numconnections[httpctx->d]++;
+        curl_multi_add_handle(httpio->curlm[httpctx->d], curl);
         httpctx->curl = curl;
     }
     else
@@ -1304,7 +1251,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_slist_free_all(httpctx->headers);
 
         httpctx->req = NULL;
-        if(!httpctx->ares_pending)
+        if (!httpctx->ares_pending)
         {
             delete httpctx;
         }
@@ -1321,7 +1268,6 @@ void CurlHttpIO::request_proxy_ip()
     }
 
     proxyinflight++;
-
     proxyip.clear();
 
     CurlHttpContext* httpctx = new CurlHttpContext;
@@ -1476,9 +1422,9 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
 
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
 {
-    if(type == CURLINFO_TEXT && size)
+    if (type == CURLINFO_TEXT && size)
     {
-        data[size-1] = 0;
+        data[size - 1] = 0;
         LOG_verbose << "cURL DEBUG: " << data;
     }
 
@@ -1497,13 +1443,14 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->ares_pending = 0;
-    req->httpiohandle = (void*)httpctx;
+    httpctx->d = (req->type == REQ_JSON) ? API : ((data ? len : req->out->size()) ? PUT : GET);
+    req->httpiohandle = (void*)httpctx;    
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
             || !(validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port))) // invalid request
     {
-        if(validrequest)
+        if (validrequest)
         {
             LOG_err << "Malformed proxy string: " << proxyurl;
         }
@@ -1703,29 +1650,11 @@ void CurlHttpIO::cancel(HttpReq* req)
     if (req->httpiohandle)
     {
         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-
         if (httpctx->curl)
         {
-            CURLM *multihandle;
-            if (req->type == REQ_JSON)
-            {
-                multihandle = curlmapi;
-                numapiconnections--;
-            }
-            else if (httpctx->data ? httpctx->len : req->out->size())
-            {
-                multihandle = curlmupload;
-                numuploadconnections--;
-            }
-            else
-            {
-                multihandle = curlmdownload;
-                numdownloadconnections--;
-            }
-
-            curl_multi_remove_handle(multihandle, httpctx->curl);
-            pauseddownloads.erase(httpctx->curl);
-            pauseduploads.erase(httpctx->curl);
+            numconnections[httpctx->d]--;
+            pausedrequests[httpctx->d].erase(httpctx->curl);
+            curl_multi_remove_handle(curlm[httpctx->d], httpctx->curl);
             curl_easy_cleanup(httpctx->curl);
             curl_slist_free_all(httpctx->headers);
         }
@@ -1753,7 +1682,6 @@ void CurlHttpIO::cancel(HttpReq* req)
 m_off_t CurlHttpIO::postpos(void* handle)
 {
     double bytes = 0;
-
     CurlHttpContext* httpctx = (CurlHttpContext*)handle;
 
     if (httpctx->curl)
@@ -1782,72 +1710,49 @@ bool CurlHttpIO::doio()
     }
 
     processcurlevents(API);
-    result |= multidoio(curlmapi);
+    result |= multidoio(curlm[API]);
 
-    partialdownloaddata = 0;
-    if (aredownloadspaused)
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        aredownloadspaused = false;
-        while (pauseddownloads.size() && !aredownloadspaused)
+        partialdata[d] = 0;
+        if (arerequestspaused[d])
         {
-            set<CURL *>::iterator it = pauseddownloads.begin();
-            CURL *easy_handle = *it;
-            pauseddownloads.erase(it);
-            curl_easy_pause(easy_handle, CURLPAUSE_CONT);
+            arerequestspaused[d] = false;
+            set<CURL *>::iterator it = pausedrequests[d].begin();
+            while (!arerequestspaused[d] && it != pausedrequests[d].end())
+            {
+                CURL *easy_handle = *it;
+                pausedrequests[d].erase(it++);
+                curl_easy_pause(easy_handle, CURLPAUSE_CONT);
+            }
+
+            if (!arerequestspaused[d])
+            {
+                int dummy;
+                curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
+            }
         }
 
-        if (!aredownloadspaused)
+        if (!arerequestspaused[d])
         {
-            int dummy;
-            curl_multi_socket_action(curlmdownload, CURL_SOCKET_TIMEOUT, 0, &dummy);
+            processcurlevents((direction_t)d);
+            result |= multidoio(curlm[d]);
         }
-    }
-
-    if (!aredownloadspaused)
-    {
-        processcurlevents(GET);
-        result |= multidoio(curlmdownload);
-    }
-
-    partialuploaddata = 0;
-    if (areuploadspaused)
-    {
-        areuploadspaused = false;
-        while (pauseduploads.size() && !areuploadspaused)
-        {
-            set<CURL *>::iterator it = pauseduploads.begin();
-            CURL *easy_handle = *it;
-            pauseduploads.erase(it);
-            curl_easy_pause(easy_handle, CURLPAUSE_CONT);
-        }
-
-        if (!areuploadspaused)
-        {
-            int dummy;
-            curl_multi_socket_action(curlmupload, CURL_SOCKET_TIMEOUT, 0, &dummy);
-        }
-    }
-
-    if (!areuploadspaused)
-    {
-        processcurlevents(PUT);
-        result |= multidoio(curlmupload);
     }
 
     curlsocketsprocessed = true;
     return result;
 }
 
-bool CurlHttpIO::multidoio(CURLM *curlm)
+bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 {
     int dummy = 0;
     CURLMsg* msg;
     bool result;
 
-    while ((msg = curl_multi_info_read(curlm, &dummy)))
+    while ((msg = curl_multi_info_read(curlmhandle, &dummy)))
     {
         HttpReq* req = NULL;
-
         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
         {
             req->httpio = NULL;
@@ -1941,21 +1846,9 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
                         // for IPv6 errors, try IPv4 before sending an error to the engine
                         if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
                         {
-                            if (curlm == curlmapi)
-                            {
-                                numapiconnections--;
-                            }
-                            else if (curlm == curlmdownload)
-                            {
-                                numdownloadconnections--;
-                            }
-                            else if (curlm == curlmupload)
-                            {
-                                numuploadconnections--;
-                            }
-                            curl_multi_remove_handle(curlm, msg->easy_handle);
-                            pauseddownloads.erase(msg->easy_handle);
-                            pauseduploads.erase(msg->easy_handle);
+                            numconnections[httpctx->d]--;
+                            pausedrequests[httpctx->d].erase(msg->easy_handle);
+                            curl_multi_remove_handle(curlmhandle, msg->easy_handle);
                             curl_easy_cleanup(msg->easy_handle);
                             curl_slist_free_all(httpctx->headers);
                             httpctx->headers = NULL;
@@ -1987,21 +1880,7 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
             req = NULL;
         }
 
-        if (curlm == curlmapi)
-        {
-            numapiconnections--;
-        }
-        else if (curlm == curlmdownload)
-        {
-            numdownloadconnections--;
-        }
-        else if (curlm == curlmupload)
-        {
-            numuploadconnections--;
-        }
-        curl_multi_remove_handle(curlm, msg->easy_handle);
-        pauseddownloads.erase(msg->easy_handle);
-        pauseduploads.erase(msg->easy_handle);
+        curl_multi_remove_handle(curlmhandle, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
 
         if (req)
@@ -2009,13 +1888,16 @@ bool CurlHttpIO::multidoio(CURLM *curlm)
             inetstatus(req->httpstatus);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-            if(httpctx)
+            if (httpctx)
             {
+                numconnections[httpctx->d]--;
+                pausedrequests[httpctx->d].erase(httpctx->curl);
+
                 curl_slist_free_all(httpctx->headers);
                 req->httpiohandle = NULL;
 
                 httpctx->req = NULL;
-                if(!httpctx->ares_pending)
+                if (!httpctx->ares_pending)
                 {
                     delete httpctx;
                 }
@@ -2060,7 +1942,7 @@ void CurlHttpIO::drop_pending_requests()
         }
 
         httpctx->req = NULL;
-        if(!httpctx->ares_pending)
+        if (!httpctx->ares_pending)
         {
             delete httpctx;
         }
@@ -2100,16 +1982,16 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         return 0;
     }
 
-    if (httpio->maxuploadspeed)
+    if (httpio->maxspeed[PUT])
     {
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = (httpio->maxuploadspeed - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialuploaddata;
+            long maxbytes = (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialdata[PUT];
             if (maxbytes <= 0)
             {
-                httpio->pauseduploads.insert(httpctx->curl);
-                httpio->areuploadspaused = true;
+                httpio->pausedrequests[PUT].insert(httpctx->curl);
+                httpio->arerequestspaused[PUT] = true;
                 return CURL_READFUNC_PAUSE;
             }
 
@@ -2117,7 +1999,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
             {
                 nread = maxbytes;
             }
-            httpio->partialuploaddata += nread;
+            httpio->partialdata[PUT] += nread;
         }
     }
     
@@ -2133,21 +2015,21 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     if (httpio)
     {
-        if (httpio->maxdownloadspeed)
+        if (httpio->maxspeed[GET])
         {
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             bool isUpload = httpctx->data ? httpctx->len : req->out->size();
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
-                if ((httpio->downloadSpeed + 10 * (httpio->partialdownloaddata + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxdownloadspeed)
+                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxspeed[GET])
                 {
                     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-                    httpio->pauseddownloads.insert(httpctx->curl);
-                    httpio->aredownloadspaused = true;
+                    httpio->pausedrequests[GET].insert(httpctx->curl);
+                    httpio->arerequestspaused[GET] = true;
                     return CURL_WRITEFUNC_PAUSE;
                 }
-                httpio->partialdownloaddata += len;
+                httpio->partialdata[GET] += len;
             }
         }
 
@@ -2218,7 +2100,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
-    std::map<int, SockInfo> &socketmap = (d == API) ? httpio->curlapisockets : ((d == GET) ? httpio->curldownloadsockets : httpio->curluploadsockets);
+    std::map<int, SockInfo> &socketmap = httpio->curlsockets[d];
 
     if (what == CURL_POLL_REMOVE)
     {
@@ -2269,13 +2151,12 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
     return socket_callback(e, s, what, userp, socketp, PUT);
 }
 
-int CurlHttpIO::api_timer_callback(CURLM *, long timeout_ms, void *userp)
+int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
-
     if (timeout_ms < 0)
     {
-        httpio->curlapitimeoutreset = -1;
+        httpio->curltimeoutreset[d] = -1;
     }
     else
     {
@@ -2285,57 +2166,26 @@ int CurlHttpIO::api_timer_callback(CURLM *, long timeout_ms, void *userp)
             timeoutds++;
         }
 
-        httpio->curlapitimeoutreset = Waiter::ds + timeoutds;
+        httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Setting cURL API timeout to " << timeout_ms << " ms";
+    LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";
     return 0;
 }
 
-int CurlHttpIO::download_timer_callback(CURLM *, long timeout_ms, void *userp)
+int CurlHttpIO::api_timer_callback(CURLM *multi, long timeout_ms, void *userp)
 {
-    CurlHttpIO *httpio = (CurlHttpIO *)userp;
-
-    if (timeout_ms < 0)
-    {
-        httpio->curldownloadtimeoutreset = -1;
-    }
-    else
-    {
-        m_time_t timeoutds = timeout_ms / 100;
-        if (timeout_ms % 100)
-        {
-            timeoutds++;
-        }
-
-        httpio->curldownloadtimeoutreset = Waiter::ds + timeoutds;
-    }
-
-    LOG_debug << "Setting cURL download timeout to " << timeout_ms << " ms";
-    return 0;
+    return timer_callback(multi, timeout_ms, userp, API);
 }
 
-int CurlHttpIO::upload_timer_callback(CURLM *, long timeout_ms, void *userp)
+int CurlHttpIO::download_timer_callback(CURLM *multi, long timeout_ms, void *userp)
 {
-    CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    return timer_callback(multi, timeout_ms, userp, GET);
+}
 
-    if (timeout_ms < 0)
-    {
-        httpio->curluploadtimeoutreset = -1;
-    }
-    else
-    {
-        m_time_t timeoutds = timeout_ms / 100;
-        if (timeout_ms % 100)
-        {
-            timeoutds++;
-        }
-
-        httpio->curluploadtimeoutreset = Waiter::ds + timeoutds;
-    }
-
-    LOG_debug << "Setting cURL upload timeout to " << timeout_ms << " ms";
-    return 0;
+int CurlHttpIO::upload_timer_callback(CURLM *multi, long timeout_ms, void *userp)
+{
+    return timer_callback(multi, timeout_ms, userp, PUT);
 }
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
