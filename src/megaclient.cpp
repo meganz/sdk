@@ -2482,7 +2482,7 @@ bool MegaClient::dispatch(direction_t d)
             }
             else
             {
-                ts = nextit->second->slot;
+                ts = nexttransfer->slot;
             }
 
             if (ts->fa->asyncavailable())
