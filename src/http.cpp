@@ -552,45 +552,46 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 }
 
 // decrypt, mac and write downloaded chunk
-void HttpReqDL::finalize(SymmCipher* key, chunkmac_map* macs,
-                         uint64_t ctriv, m_off_t startpos, m_off_t endpos)
+void HttpReqDL::finalize(Transfer *transfer)
 {
-    unsigned skip;
-    unsigned prune;
-
-    if (endpos == -1)
+    byte *chunkstart = buf;
+    m_off_t startpos = dlpos;
+    m_off_t finalpos = startpos + bufpos;
+    assert(finalpos <= transfer->size);
+    if (finalpos != transfer->size)
     {
-        skip = 0;
-        prune = 0;
-    }
-    else
-    {
-        if (startpos > dlpos)
-        {
-            skip = (unsigned)(startpos - dlpos);
-        }
-        else
-        {
-            skip = 0;
-        }
-
-        if (dlpos + bufpos > endpos)
-        {
-            prune = (unsigned)(dlpos + bufpos - endpos);
-        }
-        else
-        {
-            prune = 0;
-        }
+        finalpos &= -SymmCipher::BLOCKSIZE;
     }
 
-    byte *chunkstart = buf + skip;
-    m_off_t chunklen = bufpos - skip - prune;
-    m_off_t chunkpos = dlpos + skip;
-
-    ChunkMAC &chunkmac = (*macs)[ChunkedHash::chunkfloor(chunkpos)];
-    key->ctr_crypt(chunkstart, chunklen, chunkpos, ctriv, chunkmac.mac, 0,
-            !chunkmac.finished && !chunkmac.offset);
+    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
+    m_off_t chunksize = endpos - startpos;
+    while (chunksize)
+    {
+        m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
+        ChunkMAC &chunkmac = chunkmacs[chunkid];
+        if (!chunkmac.finished)
+        {
+            chunkmac = transfer->chunkmacs[chunkid];
+            transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
+                                    chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+            if (endpos == ChunkedHash::chunkceil(chunkid) || endpos == transfer->size)
+            {
+                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                chunkmac.finished = true;
+                chunkmac.offset = 0;
+            }
+            else
+            {
+                LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                chunkmac.finished = false;
+                chunkmac.offset += chunksize;
+            }
+        }
+        chunkstart += chunksize;
+        startpos = endpos;
+        endpos = ChunkedHash::chunkceil(startpos, finalpos);
+        chunksize = endpos - startpos;
+    }
 }
 
 // prepare chunk for uploading: mac and encrypt

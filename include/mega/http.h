@@ -271,7 +271,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
     unsigned size;
 
     virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
-    virtual void finalize(SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
+    virtual void finalize(Transfer*) { }
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -293,9 +293,10 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
 struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
+    chunkmac_map chunkmacs;
 
     void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
-    void finalize(SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void finalize(Transfer *transfer);
 
     ~HttpReqDL() { }
 };
