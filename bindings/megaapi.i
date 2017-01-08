@@ -59,6 +59,31 @@
 %typemap(javaclassmodifiers) mega::ShareList "class";
 %typemap(javaclassmodifiers) mega::UserList "class";
 
+%typemap(out) char*
+{
+    if ($1)
+    {
+        int len = strlen($1);
+        jbyteArray array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion(array, 0, len, (const jbyte*)$1);
+        $result = (jstring) jenv->NewObject(clsString, ctorString, array, strEncodeUTF8);
+    }
+}
+
+%typemap(directorin,descriptor="Ljava/lang/String;") char *
+{
+    $input = 0;
+    if ($1)
+    {
+        int len = strlen($1);
+        jbyteArray array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion(array, 0, len, (const jbyte*)$1);
+        $input = (jstring) jenv->NewObject(clsString, ctorString, array, strEncodeUTF8);
+    }
+    Swig::LocalRefGuard path_refguard(jenv, $input);
+}
+
+
 //Make the "delete" method protected
 %typemap(javadestruct, methodname="delete", methodmodifiers="protected synchronized") SWIGTYPE 
 {   
@@ -108,11 +133,17 @@
 %runtime
 %{
     JavaVM *MEGAjvm = NULL;
+    jstring strEncodeUTF8;
+    jclass clsString;
+    jmethodID ctorString;
 %}
 
 %typemap(check) const char *appKey
 %{
     jenv->GetJavaVM(&MEGAjvm);
+    strEncodeUTF8 = jenv->NewStringUTF("UTF-8");
+    clsString = jenv->FindClass("java/lang/String");
+    ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
 %}
 
 
