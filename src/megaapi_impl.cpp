@@ -7641,10 +7641,20 @@ void MegaApiImpl::file_removed(File *f, error e)
 }
 
 void MegaApiImpl::file_complete(File *f)
-{
+{   
     MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
     if (transfer)
     {
+        if (f->transfer->type == GET)
+        {
+            // The final name can change when downloads are complete
+            // if there is another file in the same path
+
+            string path;
+            fsAccess->local2path(&f->localname, &path);
+            transfer->setPath(path.c_str());
+        }
+
         processTransferComplete(f->transfer, transfer);
     }
 }
