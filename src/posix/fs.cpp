@@ -50,13 +50,13 @@ PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 PosixAsyncIOContext::~PosixAsyncIOContext()
 {
     LOG_verbose << "Deleting PosixAsyncIOContext";
-    pthread_mutex_lock(&PosixFileAccess::asyncmutex);
+    PosixFileAccess::asyncmutex.lock();
     if (synchronizer)
     {
         synchronizer->context = NULL;
         synchronizer = NULL;
     }
-    pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+    PosixFileAccess::asyncmutex.unlock();
 }
 
 PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
@@ -149,7 +149,7 @@ void PosixFileAccess::sysclose()
     }
 }
 
-pthread_mutex_t PosixFileAccess::asyncmutex = PTHREAD_MUTEX_INITIALIZER;
+MUTEX_CLASS PosixFileAccess::asyncmutex(false);
 
 bool PosixFileAccess::asyncavailable()
 {
@@ -165,7 +165,7 @@ void PosixFileAccess::asyncopfinished(union sigval sigev_value)
 {
     PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(sigev_value.sival_ptr);
 
-    pthread_mutex_lock(&PosixFileAccess::asyncmutex);
+    PosixFileAccess::asyncmutex.lock();
     PosixAsyncIOContext *context = synchronizer->context;
     struct aiocb *aiocbp = synchronizer->aiocb;
 
@@ -174,7 +174,7 @@ void PosixFileAccess::asyncopfinished(union sigval sigev_value)
         LOG_debug << "Async IO request already cancelled";
         delete synchronizer;
         delete aiocbp;
-        pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+        PosixFileAccess::asyncmutex.unlock();
         return;
     }
 
@@ -206,7 +206,7 @@ void PosixFileAccess::asyncopfinished(union sigval sigev_value)
     {
         context->userCallback(context->userData);
     }
-    pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+    PosixFileAccess::asyncmutex.unlock();
 }
 
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
