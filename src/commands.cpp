@@ -163,6 +163,8 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
     {
         arg("ssl", 2);
     }
+
+	arg("r", 1);
 }
 
 void CommandGetFA::procresult()
