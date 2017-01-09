@@ -1812,7 +1812,8 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
+            TYPE_GET_USER_EMAIL
         };
 
         virtual ~MegaRequest();
@@ -5756,6 +5757,22 @@ class MegaApi
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the email address of any user in MEGA.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_EMAIL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the user (the provided one as parameter)
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Returns the email address
+         *
+         * @param handle Handle of the user to get the attribute.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel the retrieval of a thumbnail
          *
          * The associated request type with this request is MegaRequest::TYPE_CANCEL_ATTR_FILE
@@ -6532,6 +6549,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Retry a transfer
+         *
+         * This function allows to start a transfer based on a MegaTransfer object. It can be used,
+         * for example, to retry transfers that finished with an error. To do it, you can retain the
+         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+         * and use it later with this function.
+         *
+         * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
+         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
+         * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * @param transfer Transfer to be retried
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Move a transfer one position up in the transfer queue

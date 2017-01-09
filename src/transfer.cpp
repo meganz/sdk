@@ -91,7 +91,7 @@ Transfer::~Transfer()
 
     if (finished)
     {
-        if(type == GET && localfilename.size())
+        if (type == GET && localfilename.size())
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
@@ -382,13 +382,8 @@ void Transfer::failed(error e, dstime timeleft)
     {
         chunkmacs.clear();
         progresscompleted = 0;
-
-        if (ultoken)
-        {
-            delete [] ultoken;
-            ultoken = NULL;
-        }
-
+        delete [] ultoken;
+        ultoken = NULL;
         pos = 0;
     }
 

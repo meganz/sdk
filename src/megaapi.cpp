@@ -1647,6 +1647,11 @@ void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
 }
 
+void MegaApi::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->getUserEmail(handle, listener);
+}
+
 void MegaApi::getUserAttribute(const char *email_or_handle, int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute(email_or_handle, type, listener);
@@ -2016,6 +2021,11 @@ void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->retryTransfer(transfer, listener);
 }
 
 void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)

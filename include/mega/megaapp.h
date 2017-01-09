@@ -146,6 +146,8 @@ struct MEGA_API MegaApp
     virtual void delua_result(error) { }
 #endif
 
+    virtual void getuseremail_result(string *, error) { }
+
     // file node export result
     virtual void exportnode_result(error) { }
     virtual void exportnode_result(handle, handle) { }

@@ -21,6 +21,7 @@
 
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS WinHttpIO
+#define DONT_RELEASE_HTTPIO
 
 #include "zlib.h"
 #include "mega.h"
