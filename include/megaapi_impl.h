@@ -114,14 +114,11 @@ class MegaGfxProc : public GfxProcExternal {};
     #else
     class MegaHttpIO : public WinHttpIO {};
     #endif
-
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinWaiter {};
     #else
     class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinPhoneWaiter {};
     #endif
+	class MegaFileSystemAccess : public WinFileSystemAccess {};
+	class MegaWaiter : public WinWaiter {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
