@@ -2657,7 +2657,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_TRUNCATE: return "CHAT_TRUNCATE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
-        case TYPE_REGISTER_PUSH_NOTIFICATION: return "TYPE_REGISTER_PUSH_NOTIFICATION";
+        case TYPE_REGISTER_PUSH_NOTIFICATION: return "REGISTER_PUSH_NOTIFICATION";
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
     }
     return "UNKNOWN";

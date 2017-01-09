@@ -4737,7 +4737,7 @@ CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *cli
     cmd("spt");
     arg("p", deviceType);
     arg("t", token);
-    notself(client);
+
     tag = client->reqtag;
 }
 
