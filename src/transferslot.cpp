@@ -30,6 +30,21 @@
 #include "mega/logging.h"
 
 namespace mega {
+
+// transfer attempts are considered failed after XFERTIMEOUT seconds
+// without data flow
+const dstime TransferSlot::XFERTIMEOUT = 600;
+
+// max time without progress callbacks
+const dstime TransferSlot::PROGRESSTIMEOUT = 10;
+
+// max request size for downloads
+#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152;
+#else
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216;
+#endif
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
