@@ -3464,6 +3464,12 @@ void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
 {
     pImpl->getChatPresenceURL(listener);
 }
+
+void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener)
+{
+    pImpl->registerPushNotification(deviceType, token, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)

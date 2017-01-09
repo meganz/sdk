@@ -814,6 +814,16 @@ public:
     CommandChatPresenceURL(MegaClient*);
 };
 
+class MEGA_API CommandRegisterPushNotification : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandRegisterPushNotification(MegaClient*, int, const char*);
+};
+
 #endif
 
 

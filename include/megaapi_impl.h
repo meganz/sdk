@@ -1627,6 +1627,7 @@ class MegaApiImpl : public MegaApp
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
+        void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1879,6 +1880,7 @@ protected:
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
         virtual void chatpresenceurl_result(string*, error);
+        virtual void registerpushnotification_result(error);
 
         virtual void chats_updated(textchat_map *);
 #endif

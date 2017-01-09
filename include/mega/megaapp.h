@@ -207,6 +207,7 @@ struct MEGA_API MegaApp
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
     virtual void chatpresenceurl_result(string*, error) { }
+    virtual void registerpushnotification_result(error) { }
 
     virtual void chats_updated(textchat_map *) { }
 #endif
