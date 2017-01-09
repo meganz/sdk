@@ -7604,7 +7604,17 @@ void MegaApiImpl::file_added(File *f)
         }
 
         string path;
-        fsAccess->local2path(&f->localname, &path);
+        LocalNode *l = dynamic_cast<LocalNode *>(f);
+        if (l)
+        {
+            string lpath;
+            l->getlocalpath(&lpath, true);
+            fsAccess->local2path(&lpath, &path);
+        }
+        else
+        {
+            fsAccess->local2path(&f->localname, &path);
+        }
         transfer->setPath(path.c_str());
     }
 
