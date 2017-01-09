@@ -27,9 +27,11 @@
 #include <memory.h>
 #include <limits.h>
 
+
 #include <sys/types.h>
 #ifdef _WIN32
 #include <WinSock2.h>
+#include <Shlwapi.h> //PathAppend
 #else
 #include <sys/socket.h>
 #include <unistd.h>
@@ -73,7 +75,6 @@ void closeSocket(int socket){
 #endif
 }
 
-
 using namespace std;
 
 string getAbsPath(string relativelocalPath)
@@ -110,7 +111,7 @@ string getAbsPath(string relativelocalPath)
    if (newlen <= 0 || newlen >= len)
    {
        cerr << " failed to get CWD" << endl;
-       return relativelocalPath
+       return relativelocalPath;
    }
 
    if (memcmp(absolutepath.data(), L"\\\\?\\", 8))
@@ -295,9 +296,7 @@ int main(int argc, char* argv[])
     addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
     addr.sin_port = htons(portno);
 
-    socklen_t saddrlength = sizeof( addr );
-
-    if (::connect(thesock, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
+    if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
     {
         cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
         cerr << "Unable to connect to service" << endl;
@@ -316,7 +315,7 @@ int main(int argc, char* argv[])
 
     int receiveSocket = SOCKET_ERROR ;
 
-    n = recv(thesock, &receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
+    n = recv(thesock, (char *)&receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output socket" << endl;
@@ -335,7 +334,7 @@ int main(int argc, char* argv[])
     addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
     addr.sin_port = htons(MEGACMDINITIALPORTNUMBER+receiveSocket);
 
-    if (::connect(newsockfd, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
+    if (::connect(newsockfd, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
     {
         cerr << "ERROR connecting to output socket: " << ERRNO << endl;
         return -1;;
@@ -343,7 +342,7 @@ int main(int argc, char* argv[])
 
     int outcode = -1;
 
-    n = recv(newsockfd, &outcode, sizeof(outcode), MSG_NOSIGNAL);
+    n = recv(newsockfd, (char *)&outcode, sizeof(outcode), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output code: " << ERRNO << endl;
@@ -351,7 +350,7 @@ int main(int argc, char* argv[])
     }
 
     int BUFFERSIZE = 1024;
-    char buffer[BUFFERSIZE+1];
+    char buffer[1025];
     do{
         n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
         if (n)
