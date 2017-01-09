@@ -113,6 +113,7 @@ struct MEGA_API WinDirNotify : public DirNotify
     ~WinDirNotify();
 };
 
+#ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext;
 struct MEGA_API WinAsyncSynchronizer
 {
@@ -127,6 +128,7 @@ struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 
     WinAsyncSynchronizer *synchronizer;
 };
+#endif
 
 class MEGA_API WinFileAccess : public FileAccess
 {
@@ -160,11 +162,13 @@ public:
     ~WinFileAccess();
 
 protected:
+#ifndef WINDOWS_PHONE
     virtual AsyncIOContext* newasynccontext();
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,
             LPOVERLAPPED lpOverlapped);
+#endif
 };
 } // namespace
 

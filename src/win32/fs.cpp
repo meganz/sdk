@@ -147,6 +147,8 @@ void WinFileAccess::sysclose()
     }
 }
 
+#ifndef WINDOWS_PHONE
+
 WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
 {
     synchronizer = NULL;
@@ -209,13 +211,19 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
     }
 }
 
+#endif
+
 bool WinFileAccess::asyncavailable()
 {
+#ifdef WINDOWS_PHONE
+	return false;
+#endif
     return true;
 }
 
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
+#ifndef WINDOWS_PHONE
     string path;
     path.assign((char *)context->buffer, context->len);
     bool read = context->access & AsyncIOContext::ACCESS_READ;
@@ -228,10 +236,12 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
+#endif
 }
 
 void WinFileAccess::asyncsysread(AsyncIOContext *context)
 {
+#ifndef WINDOWS_PHONE
     if (!context)
     {
         return;
@@ -279,10 +289,12 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
             winContext->userCallback(winContext->userData);
         }
     }
+#endif
 }
 
 void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 {
+#ifndef WINDOWS_PHONE
     if (!context)
     {
         return;
@@ -330,6 +342,7 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
             winContext->userCallback(winContext->userData);
         }
     }
+#endif
 }
 
 // update local name
