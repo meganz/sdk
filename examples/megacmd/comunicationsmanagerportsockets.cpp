@@ -276,7 +276,7 @@ int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline
         LOG_warn << "invalid socket to select: " << sockfd  << " readline_fd="  << readline_fd;
     }
 
-    int rc = select(0, &fds, NULL, NULL, NULL);
+    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
     if (rc == SOCKET_ERROR)
     {
         if (ERRNO != EINTR)  //syscall
