@@ -1162,7 +1162,7 @@ void MegaClient::exec()
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
                                     && pendingcs->bufpos > 10)
                             {
-                                Waiter::bumpds();
+								WAIT_CLASS::bumpds();
                                 fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                             }
 
@@ -1185,7 +1185,7 @@ void MegaClient::exec()
                             {
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
-                                    Waiter::bumpds();
+									WAIT_CLASS::bumpds();
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
