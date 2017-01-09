@@ -28,6 +28,8 @@ private:
     int sockfd, newsockfd;
 #ifdef _WIN32
     HANDLE sockfd_event_handle;
+    static HANDLE readlinefd_event_handle;
+    static bool ended;
 #endif
     socklen_t clilen;
     char buffer[1024];
@@ -48,6 +50,9 @@ private:
 
 public:
     ComunicationsManagerPortSockets();
+#ifdef _WIN32
+    static void * watchReadlineFd(void *);
+#endif
 
     int initialize();
 
