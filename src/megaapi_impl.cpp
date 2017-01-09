@@ -7604,6 +7604,7 @@ void MegaApiImpl::file_added(File *f)
         }
 
         string path;
+#ifdef ENABLE_SYNC
         LocalNode *l = dynamic_cast<LocalNode *>(f);
         if (l)
         {
@@ -7612,6 +7613,7 @@ void MegaApiImpl::file_added(File *f)
             fsAccess->local2path(&lpath, &path);
         }
         else
+#endif
         {
             fsAccess->local2path(&f->localname, &path);
         }
