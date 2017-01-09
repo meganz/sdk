@@ -1213,7 +1213,7 @@ void WinDirNotify::process(DWORD dwBytes)
         readchanges();
 
         // ensure accuracy of the notification timestamps
-        Waiter::bumpds();
+		WAIT_CLASS::bumpds();
 
         // we trust the OS to always return conformant data
         for (;;)

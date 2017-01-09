@@ -486,6 +486,9 @@ public:
 
     // get the URL of the presence server
     void getChatPresenceUrl();
+
+    // register a token device to route push notifications
+    void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
 
     // toggle global debug flag

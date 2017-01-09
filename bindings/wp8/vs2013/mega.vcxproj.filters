@@ -144,9 +144,6 @@
     <ClInclude Include="..\..\..\include\mega\wp8\megasys.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h">
-      <Filter>SDK\Header</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\thread\cppthread.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
@@ -273,6 +270,9 @@
     <ClInclude Include="..\MStringList.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\win32\megawaiter.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -369,9 +369,6 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\waiterbase.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\wp8\waiter.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\win32\fs.cpp">
@@ -481,6 +478,9 @@
     </ClCompile>
     <ClCompile Include="..\MStringList.cpp">
       <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\win32\waiter.cpp">
+      <Filter>SDK\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

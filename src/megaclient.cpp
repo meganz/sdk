@@ -968,6 +968,12 @@ void MegaClient::exec()
             while (curfa != activefa.end())
             {
                 HttpReqCommandPutFA* fa = *curfa;
+                m_off_t p = fa->transferred(this);
+                if (fa->progressreported < p)
+                {
+                    httpio->updateuploadspeed(p - fa->progressreported);
+                    fa->progressreported = p;
+                }
 
                 switch (fa->status)
                 {
@@ -1135,7 +1141,7 @@ void MegaClient::exec()
                         // fetches pending for this unconnected channel - dispatch fresh connection
                         LOG_debug << "Getting fresh download URL";
                         fc->timeout.reset();
-                        reqs.add(new CommandGetFA(this, cit->first, fc->fahref, httpio->chunkedok));
+                        reqs.add(new CommandGetFA(this, cit->first, fc->fahref));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
@@ -1165,7 +1171,7 @@ void MegaClient::exec()
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
                                     && pendingcs->bufpos > 10)
                             {
-                                Waiter::bumpds();
+								WAIT_CLASS::bumpds();
                                 fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                             }
 
@@ -1188,7 +1194,7 @@ void MegaClient::exec()
                             {
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
-                                    Waiter::bumpds();
+									WAIT_CLASS::bumpds();
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
@@ -10742,6 +10748,11 @@ void MegaClient::setChatTitle(handle chatid, const char *title)
 void MegaClient::getChatPresenceUrl()
 {
     reqs.add(new CommandChatPresenceURL(this));
+}
+
+void MegaClient::registerPushNotification(int deviceType, const char *token)
+{
+    reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
 }
 
 #endif

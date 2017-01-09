@@ -72,7 +72,7 @@
     <ClInclude Include="..\..\..\include\mega\wp8\megafs.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\meganet.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\megasys.h" />
-    <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h" />
+    <ClInclude Include="..\..\..\include\mega\win32\megawaiter.h" />
     <ClInclude Include="..\DelegateMGfxProcessor.h" />
     <ClInclude Include="..\DelegateMGlobalListener.h" />
     <ClInclude Include="..\DelegateMListener.h" />
@@ -154,7 +154,7 @@
     <ClCompile Include="..\..\..\src\utils.cpp" />
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
-    <ClCompile Include="..\..\..\src\wp8\waiter.cpp" />
+    <ClCompile Include="..\..\..\src\win32\waiter.cpp" />
     <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />

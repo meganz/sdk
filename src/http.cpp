@@ -30,7 +30,7 @@
 namespace mega {
 
 // interval to calculate the mean speed (ds)
-const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
+const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
 
 // max time to calculate the mean speed
 const int SpeedController::SPEED_MAX_VALUES = 10000;
@@ -89,7 +89,6 @@ HttpIO::HttpIO()
     noinetds = 0;
     inetback = false;
     lastdata = NEVER;
-    chunkedok = true;
     downloadSpeed = 0;
     uploadSpeed = 0;
 }
@@ -310,12 +309,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
-bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
 }
 
-bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxuploadspeed(m_off_t)
 {
     return false;
 }
@@ -341,29 +340,13 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 
     httpio = client->httpio;
     bufpos = 0;
+    outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
-}
-
-// attempt to send chunked data, remove from out
-void HttpReq::postchunked(MegaClient* client)
-{
-    if (!chunked)
-    {
-        chunked = true;
-        post(client);
-    }
-    else
-    {
-        if (httpio)
-        {
-            httpio->sendchunked(this);
-        }
-    }
 }
 
 void HttpReq::disconnect()
@@ -374,8 +357,6 @@ void HttpReq::disconnect()
         httpio = NULL;
         init();
     }
-
-    chunked = false;
 }
 
 HttpReq::HttpReq(bool b)
@@ -386,7 +367,6 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
-    chunked = false;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -414,6 +394,7 @@ void HttpReq::init()
     contentlength = 0;
     timeleft = -1;
     lastdata = NEVER;
+    outpos = 0;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -675,21 +656,20 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 
     while (transferBytes.size())
     {
-        dstime deltaTime = currentTime - transferTimes.front();
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        map<dstime, m_off_t>::iterator it = transferBytes.begin();
+        dstime deltaTime = currentTime - it->first;
+        if (deltaTime < SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
 
-        partialBytes -= transferBytes.front();
-        transferBytes.erase(transferBytes.begin());
-        transferTimes.erase(transferTimes.begin());
+        partialBytes -= it->second;
+        transferBytes.erase(it);
     }
 
     if (numBytes > 0)
     {
-        transferBytes.push_back(numBytes);
-        transferTimes.push_back(currentTime);
+        transferBytes[currentTime] += numBytes;
         partialBytes += numBytes;
     }
 

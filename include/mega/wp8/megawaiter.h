@@ -18,30 +18,4 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-#ifndef WAIT_CLASS
-#define WAIT_CLASS WinPhoneWaiter
-
-namespace mega {
-class MEGA_API WinPhoneWaiter : public Waiter
-{
-	int maxfd;
-	SOCKET wakupSocket;
-	struct sockaddr_in notifyAddress;
-
-public:
-    PCRITICAL_SECTION pcsHTTP;
-    unsigned pendingfsevents;
-
-    int wait();
-	static void bumpds();
-	void init(dstime ds);
-	void bumpmaxfd(int);
-	fd_set rfds, wfds, efds;
-
-	WinPhoneWaiter();
-	void notify();
-};
-} // namespace
-
-#endif
+#include "mega/win32/megawaiter.h"
