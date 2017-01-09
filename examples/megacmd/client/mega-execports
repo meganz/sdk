@@ -58,7 +58,7 @@ def parseArgs(argsin):
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
-        sock.connect(('127.0.0.1',12300))
+	sock.connect(('127.0.0.1',12300))
 
 	commandArgs=parseArgs(sys.argv[1:])
 
@@ -73,8 +73,8 @@ try:
 
 	sock.close()
 
-        sockout =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sockout.connect(('127.0.0.1',12300+sockOutId))
+	sockout =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sockout.connect(('127.0.0.1',12300+sockOutId))
 
 	outCode, = struct.unpack('i', sockout.recv(4))#get out code
 
