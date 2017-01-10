@@ -1570,7 +1570,7 @@ void MegaClient::exec()
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // or while we are fetching nodes
         // FIXME: indicate by callback
-        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired)
+        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired && !fetchingnodes)
         {
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
@@ -1895,7 +1895,7 @@ void MegaClient::exec()
                 LOG_verbose << "Running syncdown";
                 syncdownrequired = false;
 
-                if (statecurrent)
+                if (!fetchingnodes)
                 {
                     bool success = true;
                     for (it = syncs.begin(); it != syncs.end(); it++)
