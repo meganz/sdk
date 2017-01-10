@@ -53,20 +53,22 @@ std::string ConfigurationManager::getConfigFolder()
 void ConfigurationManager::loadConfigDir()
 {
 #ifdef _WIN32 //TODO: untested
-    TCHAR szPath[MAX_PATH];
-    if (!SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
+
+   TCHAR szPath[MAX_PATH];
+    if (!SUCCEEDED(GetModuleFileName(NULL, szPath , MAX_PATH)))
     {
-        LOG_fatal << "Couldnt get HOME folder";
+        LOG_fatal << "Couldnt get EXECUTABLE folder";
     }
     else
     {
-        if (PathAppend(szPath,TEXT(".megaCmd")))
+        if (SUCCEEDED(PathRemoveFileSpec(szPath)))
         {
-            MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+            if (PathAppend(szPath,TEXT(".megaCmd")))
+            {
+                MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+            }
         }
     }
-
-
 #else
     const char *homedir = NULL;
 
