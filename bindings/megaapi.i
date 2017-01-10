@@ -1,6 +1,4 @@
 #ifdef SWIGJAVA
-#define __ANDROID__
-#define USE_LIBUV
 #define ENABLE_CHAT
 #endif
 
@@ -97,6 +95,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %{
     if ($1)
     {
+#ifdef __ANDROID__
         if (sdkVersion < 23)
         {
             int len = strlen($1);
@@ -106,6 +105,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
             jenv->DeleteLocalRef($1_array);
         }
         else
+#endif
         {
             $result = jenv->NewStringUTF($1);
         }
@@ -117,6 +117,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     $input = 0;
     if ($1)
     {
+#ifdef __ANDROID__
         if (sdkVersion < 23)
         {
             int len = strlen($1);
@@ -126,6 +127,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
             jenv->DeleteLocalRef($1_array);
         }
         else
+#endif
         {
             $input = jenv->NewStringUTF($1);
         }
