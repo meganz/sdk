@@ -1790,7 +1790,7 @@ void MegaClient::exec()
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
-                                    syncuprequired = !syncup(&(*it)->localroot, &nds);
+                                    syncuprequired |= !syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
                                 }
                             }
