@@ -36,6 +36,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/un.h>
 #endif
 #define MEGACMDINITIALPORTNUMBER 12300
 
@@ -67,6 +68,10 @@ bool socketValid(int socket)
 #endif
 }
 
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+
 void closeSocket(int socket){
 #ifdef _WIN32
     closesocket(socket);
@@ -83,7 +88,6 @@ string getAbsPath(string relativelocalPath)
     {
         return relativelocalPath;
     }
-
 
 #ifdef _WIN32
     string localpath = relativelocalPath;
@@ -274,6 +278,81 @@ string parseArgs(int argc, char* argv[])
     return toret;
 }
 
+#ifdef _WIN32
+int createSocket(int number = 0, bool net=true)
+#else
+int createSocket(int number = 0, bool net=false)
+#endif
+{
+if (net)
+{
+    int thesock = socket(AF_INET, SOCK_STREAM, 0);
+    if (!socketValid(thesock))
+    {
+        cerr << "ERROR opening socket: " << ERRNO << endl;
+        return INVALID_SOCKET;
+    }
+    int portno=MEGACMDINITIALPORTNUMBER+number;
+
+    struct sockaddr_in addr;
+
+    memset(&addr, 0, sizeof( addr ));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+    addr.sin_port = htons(portno);
+
+    if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
+    {
+        cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
+        cerr << "Unable to connect to service" << endl;
+        cerr << "Please ensure MegaCMD is running" << endl;
+        return INVALID_SOCKET;
+    }
+    return thesock;
+}
+
+#ifndef _WIN32
+else
+{
+    int thesock = socket(AF_UNIX, SOCK_STREAM, 0);
+    char socket_path[60];
+    if (!socketValid(thesock))
+    {
+        cerr << "ERROR opening socket: " << ERRNO << endl;
+        return INVALID_SOCKET;
+    }
+
+    bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
+    if (number)
+    {
+        sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), number);
+    }
+    else
+    {
+        sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
+    }
+
+    struct sockaddr_un addr;
+
+    memset(&addr, 0, sizeof( addr ));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
+
+    if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
+    {
+        cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
+        cerr << "Unable to connect to service" << endl;
+        cerr << "Please ensure MegaCMD is running" << endl;
+        return INVALID_SOCKET;
+    }
+
+    return thesock;
+}
+return INVALID_SOCKET;
+
+#endif
+}
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -295,33 +374,12 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    int thesock = socket(AF_INET, SOCK_STREAM, 0);
-    if (!socketValid(thesock))
-    {
-        cerr << "ERROR opening socket: " << ERRNO << endl;
-        return -1;
-    }
-
-    int portno=MEGACMDINITIALPORTNUMBER;
-
-    struct sockaddr_in addr;
-
-    memset(&addr, 0, sizeof( addr ));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-    addr.sin_port = htons(portno);
-
-    if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
-    {
-        cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
-        cerr << "Unable to connect to service" << endl;
-        cerr << "Please ensure MegaCMD is running" << endl;
-        return -1;
-    }
+    int thesock = createSocket();
+    if (thesock == INVALID_SOCKET)
+        return INVALID_SOCKET;
 
     string parsedArgs = parseArgs(argc,argv);
 
-    cout << " executing: " << parsedArgs << endl;
     int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
     {
@@ -338,23 +396,9 @@ int main(int argc, char* argv[])
         return -1;;
     }
 
-    int newsockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (!socketValid(newsockfd))
-    {
-        cerr << "ERROR opening output socket: " << ERRNO << endl;
-        return -1;;
-    }
-
-    memset(&addr, 0, sizeof( addr ));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-    addr.sin_port = htons(MEGACMDINITIALPORTNUMBER+receiveSocket);
-
-    if (::connect(newsockfd, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
-    {
-        cerr << "ERROR connecting to output socket: " << ERRNO << endl;
-        return -1;;
-    }
+    int newsockfd =createSocket(receiveSocket);
+    if (newsockfd == INVALID_SOCKET)
+        return INVALID_SOCKET;
 
     int outcode = -1;
 
