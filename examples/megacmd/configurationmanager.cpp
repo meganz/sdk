@@ -52,8 +52,6 @@ std::string ConfigurationManager::getConfigFolder()
 
 void ConfigurationManager::loadConfigDir()
 {
-    const char *homedir = NULL;
-
 #ifdef _WIN32 //TODO: untested
     TCHAR szPath[MAX_PATH];
     if (!SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
@@ -70,6 +68,8 @@ void ConfigurationManager::loadConfigDir()
 
 
 #else
+    const char *homedir = NULL;
+
     homedir = getenv("HOME");
     if (!homedir)
     {

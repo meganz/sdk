@@ -16,5 +16,5 @@ SOURCES += ../../../../examples/megacmd/client/megacmdclient.cpp
 HEADERS += ../../../../examples/megacmd/client/megacmdclient.h
 
 win32 {
- LIBS +=  -lshlwapi -lws2_32 -lshell32
+LIBS +=  -lshlwapi -lws2_32
 }

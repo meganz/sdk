@@ -274,12 +274,25 @@ string parseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-
     if (argc < 2)
     {
         cerr << "Too few arguments" << endl;
         return -1;
     }
+#if _WIN32
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    int err;
+
+    /* Use the MAKEWORD(lowbyte, highbyte) macro declared in Windef.h */
+    wVersionRequested = MAKEWORD(2, 2);
+
+    err = WSAStartup(wVersionRequested, &wsaData);
+    if (err != 0) {
+        cerr << "ERROR initializing WSA" << endl;
+    }
+#endif
+
     int thesock = socket(AF_INET, SOCK_STREAM, 0);
     if (!socketValid(thesock))
     {
@@ -368,5 +381,8 @@ int main(int argc, char* argv[])
 
     closeSocket(thesock);
     closeSocket(newsockfd);
+#if _WIN32
+    WSACleanup();
+#endif
     return outcode;
 }
