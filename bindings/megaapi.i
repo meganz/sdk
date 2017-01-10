@@ -12,7 +12,7 @@ JavaVM *MEGAjvm = NULL;
 jstring strEncodeUTF8;
 jclass clsString;
 jmethodID ctorString;
-int sdkVersion;
+int sdkVersion = 100;
 #endif
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
