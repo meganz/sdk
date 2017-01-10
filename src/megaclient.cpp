@@ -4691,7 +4691,6 @@ void MegaClient::notifypurge(void)
              && (*it)->localroot.node->changed.removed)
             {
                 delsync(*it);
-                syncactivity = true;
             }
         }
 #endif
