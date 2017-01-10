@@ -759,6 +759,9 @@ openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
 
+    # librt #TODO: allow --with-rt=...
+    AC_CHECK_LIB([rt], [aio_write], [LDFLAGS="-lrt $LDFLAGS"],AC_MSG_ERROR([librt has no required aio_write]))
+
     # OpenSSL
     AC_MSG_CHECKING(for OpenSSL)
     AC_ARG_WITH([openssl],
