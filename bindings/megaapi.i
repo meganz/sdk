@@ -4,6 +4,7 @@
 
 %module(directors="1") mega
 %{
+#define ENABLE_CHAT
 #include "megaapi.h"
 
 JavaVM *MEGAjvm = NULL;
