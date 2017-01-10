@@ -1,3 +1,5 @@
+CONFIG -= qt
+
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
@@ -56,9 +58,24 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
 
 win32 {
     LIBS += -lshell32
+    RC_FILE = icon.rc
 }
 else {
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerfilesockets.cpp
     HEADERS +=../../../../examples/megacmd/comunicationsmanagerfilesockets.h
 }
 include(../../../../bindings/qt/sdk.pri)
+DEFINES -= USE_QT
+DEFINES -= MEGA_QT_LOGGING
+DEFINES += USE_FREEIMAGE
+SOURCES -= src/thread/qtthread.cpp
+SOURCES += src/thread/win32thread.cpp
+SOURCES -= src/gfx/qt.cpp
+SOURCES += src/gfx/freeimage.cpp
+SOURCES -= bindings/qt/QTMegaRequestListener.cpp
+SOURCES -= bindings/qt/QTMegaTransferListener.cpp
+SOURCES -= bindings/qt/QTMegaGlobalListener.cpp
+SOURCES -= bindings/qt/QTMegaSyncListener.cpp
+SOURCES -= bindings/qt/QTMegaListener.cpp
+SOURCES -= bindings/qt/QTMegaEvent.cpp
+LIBS += -lfreeimage
