@@ -1892,11 +1892,10 @@ void MegaClient::exec()
 
             if (syncdownrequired)
             {
-                LOG_verbose << "Running syncdown";
                 syncdownrequired = false;
-
                 if (!fetchingnodes)
                 {
+                    LOG_verbose << "Running syncdown";
                     bool success = true;
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
@@ -1955,7 +1954,7 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    LOG_err << "Syncdown requested before statecurrent";
+                    LOG_err << "Syncdown requested while fetchingnodes is set";
                 }
             }
         }
