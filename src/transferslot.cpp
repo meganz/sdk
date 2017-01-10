@@ -71,6 +71,7 @@ TransferSlot::~TransferSlot()
             && transfer->progresscompleted != transfer->size)
     {
         m_off_t p = 0;
+        bool cachetransfer = false; // need to save in cache
         for (int i = 0; i < connections; i++)
         {
             if (fa && reqs[i] && reqs[i]->status == REQ_INFLIGHT
@@ -79,18 +80,43 @@ TransferSlot::~TransferSlot()
             {
                 m_off_t bufpos = reqs[i]->bufpos & -SymmCipher::BLOCKSIZE;
                 m_off_t dlpos = ((HttpReqDL *)reqs[i])->dlpos;
-                ChunkMAC &chunk = transfer->chunkmacs[reqs[i]->pos];
 
-                p += bufpos;
-                transfer->key.ctr_crypt(reqs[i]->buf, bufpos, dlpos, transfer->ctriv,
-                            chunk.mac, false, !chunk.finished && !chunk.offset);
+                byte *bufstart = reqs[i]->buf;
+                m_off_t buflen = bufpos;
+                m_off_t startpos = dlpos;   // in the file
+                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);  // in the file
+                m_off_t finalpos = startpos + buflen;
 
-                fa->fwrite((const byte*)reqs[i]->buf, bufpos, dlpos);
-                chunk.offset += (unsigned int)bufpos;
+                while (endpos <= finalpos)
+                {
+                    m_off_t chunksize = endpos - startpos;
+                    reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
+                    transfer->progresscompleted += chunksize;
+                    LOG_debug << "Caching finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+
+                    startpos = endpos;
+                    endpos = ChunkedHash::chunkceil(startpos, transfer->size);
+
+                    bufstart += chunksize;
+                    buflen -= chunksize;
+                    cachetransfer = true;
+                }
+
+                if (buflen >= SymmCipher::BLOCKSIZE)
+                {
+                    ChunkMAC &chunk = transfer->chunkmacs[ChunkedHash::chunkfloor(startpos)];
+                    transfer->key.ctr_crypt(bufstart, buflen, startpos, transfer->ctriv,
+                                chunk.mac, false, !chunk.finished && !chunk.offset);
+
+                    fa->fwrite((const byte*)bufstart, buflen, startpos);
+                    chunk.offset += (unsigned int)buflen;
+                    cachetransfer = true;
+                    p += buflen;
+                }
             }
         }
 
-        if (p)
+        if (cachetransfer)
         {
             transfer->client->transfercacheadd(transfer);
             LOG_debug << "Completed: " << (transfer->progresscompleted + p)
@@ -190,6 +216,25 @@ void TransferSlot::doio(MegaClient* client)
     {
         if (transfer->type == GET || transfer->ultoken)
         {
+            if (fa && transfer->type == GET)
+            {
+                LOG_debug << "Verifying cached download";
+                transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+                transfer->hascurrentmetamac = true;
+
+                // verify meta MAC
+                if (transfer->currentmetamac == transfer->metamac)
+                {
+                    return transfer->complete();
+                }
+                else
+                {
+                    LOG_warn << "MAC verification failed for cached download";
+                    transfer->chunkmacs.clear();
+                    return transfer->failed(API_EKEY);
+                }
+            }
+
             // this is a pending completion, retry every 200 ms by default
             retrybt.backoff(2);
             retrying = true;
@@ -331,8 +376,17 @@ void TransferSlot::doio(MegaClient* client)
                     {
                         if (reqs[i]->size == reqs[i]->bufpos)
                         {
-                            reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
-                            transfer->progresscompleted += reqs[i]->size;
+                            m_off_t startpos = ((HttpReqDL *)reqs[i])->dlpos;
+                            m_off_t finalpos = startpos + reqs[i]->bufpos;
+                            while (startpos < finalpos)
+                            {
+                                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);
+                                m_off_t chunksize = endpos - startpos;
+                                reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
+                                transfer->progresscompleted += chunksize;
+                                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                                startpos = endpos;
+                            }
 
                             if (transfer->progresscompleted == transfer->size)
                             {
@@ -453,13 +507,7 @@ void TransferSlot::doio(MegaClient* client)
         {
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
-                m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos());
-
-                if (npos > transfer->size)
-                {
-                    npos = transfer->size;
-                }
-
+                m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos(), transfer->size);
                 if (!transfer->size)
                 {
                     transfer->pos = 0;
@@ -467,6 +515,43 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size)
                 {
+                    if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
+                    {
+                        m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
+                        if (maxReqSize > MAX_DOWNLOAD_REQ_SIZE)
+                        {
+                            maxReqSize = MAX_DOWNLOAD_REQ_SIZE;
+                        }
+
+                        if (maxReqSize > 0x100000)
+                        {
+                            m_off_t val = 0x100000;
+                            while (val <= maxReqSize)
+                            {
+                                val <<= 1;
+                            }
+                            maxReqSize = val >> 1;
+                            maxReqSize -= 0x100000;
+                        }
+                        else
+                        {
+                            maxReqSize = 0;
+                        }
+
+                        chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
+                        m_off_t reqSize = npos - transfer->pos;
+                        while (npos < transfer->size
+                               && reqSize <= maxReqSize
+                               && (it == transfer->chunkmacs.end()
+                                   || (!it->second.finished && !it->second.offset)))
+                        {
+                            npos = ChunkedHash::chunkceil(npos, transfer->size);
+                            reqSize = npos - transfer->pos;
+                            it = transfer->chunkmacs.find(npos);
+                        }
+                        LOG_debug << "Downloading chunk of size " << reqSize;
+                    }
+
                     if (!reqs[i])
                     {
                         reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();

@@ -21,6 +21,7 @@
 
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS WinHttpIO
+#define DONT_RELEASE_HTTPIO
 
 #include "zlib.h"
 #include "mega.h"
@@ -60,8 +61,6 @@ public:
 
     void post(HttpReq*, const char* = 0, unsigned = 0);
     void cancel(HttpReq*);
-
-    void sendchunked(HttpReq*);
 
     m_off_t postpos(void*);
 

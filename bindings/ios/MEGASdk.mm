@@ -1380,9 +1380,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSURL *)httpServerGetLocalLink:(MEGANode *)node {
-    char *localLink = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    if (!val) return nil;
     
-    return localLink ? [NSURL URLWithString:[NSString stringWithUTF8String:localLink]] : nil;
+    NSURL *ret = [NSURL URLWithString:[NSString stringWithUTF8String:val]];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)httpServerSetMaxBufferSize:(NSInteger)bufferSize {
@@ -1399,6 +1403,15 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (NSInteger)httpServerGetMaxOutputSize {
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
+}
+
+- (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+}
+
+- (void)registeriOSdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
 #endif

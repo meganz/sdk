@@ -66,6 +66,8 @@ struct MEGA_API Waiter
 
     static const int NEEDEXEC = 1;
     static const int HAVESTDIN = 2;
+
+    virtual ~Waiter() { }
 };
 } // namespace
 

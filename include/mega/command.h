@@ -90,8 +90,12 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     handle th;
     fatype type;
     string* data;
+    m_off_t progressreported;
 
     void procresult();
+
+    // progress information
+    virtual m_off_t transferred(MegaClient*);
 
     HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
     ~HttpReqCommandPutFA();
@@ -104,7 +108,7 @@ class MEGA_API CommandGetFA : public Command
 public:
     void procresult();
 
-    CommandGetFA(MegaClient *client, int, handle, bool);
+    CommandGetFA(MegaClient *client, int, handle);
 };
 
 class MEGA_API CommandLogin : public Command
@@ -250,6 +254,14 @@ public:
     void procresult();
 };
 #endif
+
+class MEGA_API CommandGetUserEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandGetUserEmail(MegaClient*, const char *uid);
+};
 
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
@@ -800,6 +812,16 @@ public:
     void procresult();
 
     CommandChatPresenceURL(MegaClient*);
+};
+
+class MEGA_API CommandRegisterPushNotification : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandRegisterPushNotification(MegaClient*, int, const char*);
 };
 
 #endif

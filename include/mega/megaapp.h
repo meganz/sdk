@@ -146,6 +146,8 @@ struct MEGA_API MegaApp
     virtual void delua_result(error) { }
 #endif
 
+    virtual void getuseremail_result(string *, error) { }
+
     // file node export result
     virtual void exportnode_result(error) { }
     virtual void exportnode_result(handle, handle) { }
@@ -205,6 +207,7 @@ struct MEGA_API MegaApp
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
     virtual void chatpresenceurl_result(string*, error) { }
+    virtual void registerpushnotification_result(error) { }
 
     virtual void chats_updated(textchat_map *) { }
 #endif

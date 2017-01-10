@@ -1224,8 +1224,13 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
-	this->access = share->access;
-	this->ts = share->ts;
+    if ((!user || !*user) && share->pcr)
+    {
+        delete [] user;
+        user = MegaApi::strdup(share->pcr->isoutgoing ? share->pcr->targetemail.c_str() : share->pcr->originatoremail.c_str());
+    }
+    this->access = share->access;
+    this->ts = share->ts;
 }
 
 MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
@@ -2648,8 +2653,12 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PAUSE_TRANSFER: return "PAUSE_TRANSFER";
         case TYPE_MOVE_TRANSFER: return "MOVE_TRANSFER";
         case TYPE_CHAT_SET_TITLE: return "CHAT_SET_TITLE";
+        case TYPE_CHAT_UPDATE_PERMISSIONS: return "CHAT_UPDATE_PERMISSIONS";
+        case TYPE_CHAT_TRUNCATE: return "CHAT_TRUNCATE";
         case TYPE_SET_MAX_CONNECTIONS: return "SET_MAX_CONNECTIONS";
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
+        case TYPE_REGISTER_PUSH_NOTIFICATION: return "REGISTER_PUSH_NOTIFICATION";
+        case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -3613,10 +3622,27 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
-    delete request; // delete here since onRequestFinish() is never called
+
+    requestMap.erase(request->getTag());
+    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
+    {
+        delete it->second;
+    }
+
+    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        delete it->second;
+    }
+
     delete gfxAccess;
     delete fsAccess;
-//    delete httpio;  do not delete since it could crash
+    delete waiter;
+
+#ifndef DONT_RELEASE_HTTPIO
+    delete httpio;
+#endif
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -4362,11 +4388,6 @@ void MegaApiImpl::loop()
 
     sdkMutex.lock();
     delete client;
-
-	//It doesn't seem fully safe to delete those objects :-/
-    // delete httpio;
-    // delete waiter;
-    // delete fsAccess;
     sdkMutex.unlock();
 }
 
@@ -4609,6 +4630,14 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
 
     request->setMegaStringMap(value);
     request->setParamType(type);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
+    request->setNodeHandle(handle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5647,22 +5676,51 @@ void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
 
 void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener)
 {
-	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
     if(node && !node->isPublic() && !node->isForeign())
-	{
-		transfer->setNodeHandle(node->getHandle());
-	}
-	else
-	{
-		transfer->setPublicNode(node);
-	}
+    {
+        transfer->setNodeHandle(node->getHandle());
+    }
+    else
+    {
+        transfer->setPublicNode(node);
+    }
 
     transfer->setStreamingTransfer(true);
-	transfer->setStartPos(startPos);
-	transfer->setEndPos(startPos + size - 1);
-	transfer->setMaxRetries(maxRetries);
-	transferQueue.push(transfer);
-	waiter->notify();
+    transfer->setStartPos(startPos);
+    transfer->setEndPos(startPos + size - 1);
+    transfer->setMaxRetries(maxRetries);
+    transferQueue.push(transfer);
+    waiter->notify();
+}
+
+void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    MegaTransferPrivate *t = dynamic_cast<MegaTransferPrivate*>(transfer);
+    if (!t || (t->getType() != MegaTransfer::TYPE_DOWNLOAD && t->getType() != MegaTransfer::TYPE_UPLOAD))
+    {
+        return;
+    }
+
+    int type = t->getType();
+    if (type == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        MegaNode *node = t->getPublicMegaNode();
+        if (!node)
+        {
+            node = getNodeByHandle(t->getNodeHandle());
+        }
+        this->startDownload(node, t->getPath(), t->getStartPos(), t->getEndPos(),
+                            0, t->getAppData(), listener);
+        delete node;
+    }
+    else
+    {
+        MegaNode *parent = getNodeByHandle(t->getParentHandle());
+        startUpload(t->getPath(), parent, t->getFileName(), t->getTime(), 0,
+                          t->getAppData(), t->isSourceFileTemporary(), listener);
+        delete parent;
+    }
 }
 
 #ifdef ENABLE_SYNC
@@ -6427,7 +6485,7 @@ void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle u
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -6442,7 +6500,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -6480,6 +6538,15 @@ void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, MegaRequest
 void MegaApiImpl::getChatPresenceURL(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_PRESENCE_URL, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION, listener);
+    request->setNumber(deviceType);
+    request->setText(token);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6534,7 +6601,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     sdkMutex.lock();
     vector<Node*> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
-    if (!user || user->show != VISIBLE)
+    if (!user)
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -6570,13 +6637,8 @@ MegaNodeList* MegaApiImpl::getInShares()
     vector<Node*> vNodes;
     for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
-        User *user = &(it->second);
-        if (user->show != VISIBLE)
-        {
-            continue;
-        }
-
         Node *n;
+        User *user = &(it->second);
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -6600,14 +6662,8 @@ MegaShareList* MegaApiImpl::getInSharesList()
 
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
-        User *user = &(it->second);
-        if (user->show != VISIBLE)
-        {
-            continue;
-        }
-
         Node *n;
-
+        User *user = &(it->second);
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -6677,7 +6733,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE))
+        if (share->user)
         {
             vShares.push_back(share);
             vHandles.push_back(node->nodehandle);
@@ -7558,7 +7614,19 @@ void MegaApiImpl::file_added(File *f)
         }
 
         string path;
-        fsAccess->local2path(&f->localname, &path);
+#ifdef ENABLE_SYNC
+        LocalNode *l = dynamic_cast<LocalNode *>(f);
+        if (l)
+        {
+            string lpath;
+            l->getlocalpath(&lpath, true);
+            fsAccess->local2path(&lpath, &path);
+        }
+        else
+#endif
+        {
+            fsAccess->local2path(&f->localname, &path);
+        }
         transfer->setPath(path.c_str());
     }
 
@@ -7595,10 +7663,20 @@ void MegaApiImpl::file_removed(File *f, error e)
 }
 
 void MegaApiImpl::file_complete(File *f)
-{
+{   
     MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
     if (transfer)
     {
+        if (f->transfer->type == GET)
+        {
+            // The final name can change when downloads are complete
+            // if there is another file in the same path
+
+            string path;
+            fsAccess->local2path(&f->localname, &path);
+            transfer->setPath(path.c_str());
+        }
+
         processTransferComplete(f->transfer, transfer);
     }
 }
@@ -7652,14 +7730,17 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         return NULL;
     }
 
-    MegaFile *file;
+    MegaFile *file = NULL;
     *type = (direction_t)MemAccess::get<char>(d->data());
     switch (*type)
     {
     case GET:
+    {
         file = MegaFileGet::unserialize(d);
         break;
+    }
     case PUT:
+    {
         file = MegaFilePut::unserialize(d);
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
@@ -7681,6 +7762,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
             }
         }
         delete nodes;
+        break;
+    }
+    default:
         break;
     }
 
@@ -8194,6 +8278,21 @@ void MegaApiImpl::chatpresenceurl_result(string *url, error e)
         request->setLink(url->c_str());
     }
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::registerpushnotification_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
@@ -8798,7 +8897,7 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
                 break;
             case OPCA_ADD:
                 char buffer[12];
-                Base64::btoa((byte*)&h, sizeof(h), buffer);
+                Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
                 LOG_debug << "Outgoing pending contact request succeeded, id: " << buffer;
                 break;
         }
@@ -9695,6 +9794,27 @@ void MegaApiImpl::delua_result(error)
 {
 }
 #endif
+
+void MegaApiImpl::getuseremail_result(string *email, error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
+    {
+        return;
+    }
+
+    if (e == API_OK && email)
+    {
+        request->setEmail(email->c_str());
+    }
+
+    fireOnRequestFinish(request, e);
+    return;
+}
 
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
@@ -12450,6 +12570,22 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
 		}
+        case MegaRequest::TYPE_GET_USER_EMAIL:
+        {
+            handle uh = request->getNodeHandle();
+            if (uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+            uid[11] = 0;
+
+            client->getUserEmail(uid);
+            break;
+        }
         case MegaRequest::TYPE_SET_ATTR_FILE:
         {
             const char* srcFilePath = request->getFile();
@@ -13664,7 +13800,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->inviteToChat(chatid, uid, access, title);
@@ -13685,7 +13821,7 @@ void MegaApiImpl::sendPendingRequests()
             if (uh != INVALID_HANDLE)
             {
                 char uid[12];
-                Base64::btoa((byte*)&uh, sizeof uh, uid);
+                Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
                 uid[11] = 0;
 
                 client->removeFromChat(chatid, uid);
@@ -13751,7 +13887,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             char uid[12];
-            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
             uid[11] = 0;
 
             client->updateChatPermissions(chatid, uid, access);
@@ -13786,6 +13922,20 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_PRESENCE_URL:
         {
             client->getChatPresenceUrl();
+            break;
+        }
+        case MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION:
+        {
+            int deviceType = request->getNumber();
+            const char *token = request->getText();
+
+            if ((deviceType != 1 && deviceType != 2) || token == NULL)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->registerPushNotification(deviceType, token);
             break;
         }
 #endif
@@ -14334,7 +14484,7 @@ bool OutShareProcessor::processNode(Node *node)
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
         Share *share = it->second;
-        if (share->user && (share->user->show == VISIBLE)) // public links have no user
+        if (share->user) // public links have no user
         {
             shares.push_back(share);
             handles.push_back(node->nodehandle);

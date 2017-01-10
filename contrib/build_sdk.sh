@@ -870,7 +870,7 @@ main() {
                 make_opts="$OPTARG"
                 ;;
             n)
-                no_examples="--disable-examples"
+                no_examples="--disable-examples --disable-megacmd"
                 ;;
             o)
                 local_dir=$(readlink -f $OPTARG)
