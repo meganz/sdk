@@ -1405,6 +1405,15 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
 }
 
+- (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+}
+
+- (void)registeriOSdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
+}
+
 #endif
 
 #pragma mark - Debug log messages
