@@ -44,7 +44,7 @@ CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
         bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
-        bindings/qt//QTMegaGlobalListener.cpp \
+        bindings/qt/QTMegaGlobalListener.cpp \
         bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
