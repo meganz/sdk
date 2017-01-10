@@ -152,6 +152,8 @@ string parseArgs(int argc, char* argv[])
     int totalRealArgs = 0;
     if (argc>1)
     {
+        absolutedargs.push_back(argv[1]);
+
         if (!strcmp(argv[1],"sync"))
         {
             for (int i = 2; i < argc; i++)
@@ -163,7 +165,7 @@ string parseArgs(int argc, char* argv[])
                 }
             }
 
-            for (int i = 1; i < argc; i++)
+            for (int i = 2; i < argc; i++)
             {
                 if (i==itochange && totalRealArgs>=2)
                 {
@@ -177,7 +179,7 @@ string parseArgs(int argc, char* argv[])
         }
         else if (!strcmp(argv[1],"lcd")) //localpath args
         {
-            for (int i = 1; i < argc; i++)
+            for (int i = 2; i < argc; i++)
             {
                 if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
@@ -191,7 +193,7 @@ string parseArgs(int argc, char* argv[])
         }
         else if (!strcmp(argv[1],"get") || !strcmp(argv[1],"preview") || !strcmp(argv[1],"thumbnail"))
         {
-            for (int i = 1; i < argc; i++)
+            for (int i = 2; i < argc; i++)
             {
                 if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
@@ -214,7 +216,7 @@ string parseArgs(int argc, char* argv[])
         else if (!strcmp(argv[1],"put"))
         {
             int lastRealArg = 0;
-            for (int i = 1; i < argc; i++)
+            for (int i = 2; i < argc; i++)
             {
                 if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
@@ -222,7 +224,7 @@ string parseArgs(int argc, char* argv[])
                 }
             }
             bool firstRealArg = true;
-            for  (int i = 1; i < argc; i++)
+            for  (int i = 2; i < argc; i++)
             {
                 if (strlen(argv[i]) && argv[i][0] !='-')
                 {
@@ -243,7 +245,7 @@ string parseArgs(int argc, char* argv[])
         }
         else
         {
-            for (int i = 1; i < argc; i++)
+            for (int i = 2; i < argc; i++)
             {
                 absolutedargs.push_back(argv[i]);
             }
@@ -319,6 +321,7 @@ int main(int argc, char* argv[])
 
     string parsedArgs = parseArgs(argc,argv);
 
+    cout << " executing: " << parsedArgs << endl;
     int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
     {
