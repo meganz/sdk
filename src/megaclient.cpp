@@ -2963,9 +2963,12 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                // run syncdown() before continuing
-                                applykeys();
-                                return false;
+                                if (!fetchingnodes)
+                                {
+                                    // run syncdown() before continuing
+                                    applykeys();
+                                    return false;
+                                }
 #endif
                                 break;
 
