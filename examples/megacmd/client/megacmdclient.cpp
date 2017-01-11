@@ -82,47 +82,89 @@ void closeSocket(int socket){
 
 using namespace std;
 
-string getAbsPath(string relativelocalPath)
+#ifdef _WIN32
+// convert UTF-8 to Windows Unicode
+void path2local(string* path, string* local)
 {
-    if (!relativelocalPath.size())
+    // make space for the worst case
+    local->resize((path->size() + 1) * sizeof(wchar_t));
+
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+                                  path->c_str(),
+                                  -1,
+                                  (wchar_t*)local->data(),
+                                  local->size() / sizeof(wchar_t) + 1);
+    if (len)
     {
-        return relativelocalPath;
+        // resize to actual result
+        local->resize(sizeof(wchar_t) * (len - 1));
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+// convert to Windows Unicode Utf8
+void local2path(string* local, string* path)
+{
+    path->resize((local->size() + 1) * 4 / sizeof(wchar_t));
+
+    path->resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local->data(),
+                                     local->size() / sizeof(wchar_t),
+                                     (char*)path->data(),
+                                     path->size() + 1,
+                                     NULL, NULL));
+    //normalize(path);
+}
+#endif
+string getAbsPath(string relativePath)
+{
+    if (!relativePath.size())
+    {
+        return relativePath;
     }
 
 #ifdef _WIN32
-    string localpath = relativelocalPath;
-    string absolutepath;
+    string utf8absolutepath;
+    string localpath;
+    path2local(&relativePath, &localpath);
+
+    string absolutelocalpath;
     localpath.append("", 1);
 
-   if (!PathIsRelativeW((LPCWSTR)relativelocalPath.data()))
+   if (!PathIsRelativeW((LPCWSTR)localpath.data()))
    {
-       absolutepath = relativelocalPath;
-       if (memcmp(absolutepath.data(), L"\\\\?\\", 8))
+       utf8absolutepath = relativePath;
+       if (utf8absolutepath.find("\\\\?\\") != 0)
        {
-           absolutepath.insert(0, (const char *)L"\\\\?\\", 8);
+           utf8absolutepath.insert(0, "\\\\?\\", sizeof("\\\\?\\")-1);
        }
-       return absolutepath;
+       return utf8absolutepath;
    }
 
-   int len = GetFullPathNameW((LPCWSTR)relativelocalPath.data(), 0, NULL, NULL);
+   int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
    if (len <= 0)
    {
-      return relativelocalPath;
+      return relativePath;
    }
 
-   absolutepath.resize(len * sizeof(wchar_t));
-   int newlen = GetFullPathNameW((LPCWSTR)relativelocalPath.data(), len, (LPWSTR)absolutepath.data(), NULL);
+   absolutelocalpath.resize(len * sizeof(wchar_t));
+   int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutelocalpath.data(), NULL);
    if (newlen <= 0 || newlen >= len)
    {
        cerr << " failed to get CWD" << endl;
-       return relativelocalPath;
+       return relativePath;
    }
 
-   if (memcmp(absolutepath.data(), L"\\\\?\\", 8))
+   local2path(&absolutelocalpath, &utf8absolutepath);
+
+   if (utf8absolutepath.find("\\\\?\\") != 0)
    {
-       absolutepath.insert(0, (const char *)L"\\\\?\\", 8);
+       utf8absolutepath.insert(0, "\\\\?\\", sizeof("\\\\?\\")-1);
    }
-   return absolutepath;
+
+   return utf8absolutepath;
 
 #else
     if (relativelocalPath.size() && relativelocalPath.at(0) == '/')
@@ -199,7 +241,7 @@ string parseArgs(int argc, char* argv[])
         {
             for (int i = 2; i < argc; i++)
             {
-                if (strlen(argv[i]) && argv[i][0] !='-' )
+                if (strlen(argv[i]) && argv[i][0] != '-' )
                 {
                     totalRealArgs++;
                     if (totalRealArgs>1)
@@ -257,21 +299,21 @@ string parseArgs(int argc, char* argv[])
     }
 
     string toret="";
-    for (u_int i=0;i < absolutedargs.size();i++)
+    for (u_int i=0; i < absolutedargs.size(); i++)
     {
         if (absolutedargs.at(i).find(" ") != string::npos || !absolutedargs.at(i).size())
         {
-            toret+="\"";
+            toret += "\"";
         }
         toret+=absolutedargs.at(i);
         if (absolutedargs.at(i).find(" ") != string::npos || !absolutedargs.at(i).size())
         {
-            toret+="\"";
+            toret += "\"";
         }
 
-        if (i!=(absolutedargs.size()-1))
+        if (i != (absolutedargs.size()-1))
         {
-            toret+=" ";
+            toret += " ";
         }
     }
 
@@ -279,9 +321,9 @@ string parseArgs(int argc, char* argv[])
 }
 
 #ifdef _WIN32
-int createSocket(int number = 0, bool net=true)
+int createSocket(int number = 0, bool net = true)
 #else
-int createSocket(int number = 0, bool net=false)
+int createSocket(int number = 0, bool net = false)
 #endif
 {
 if (net)
@@ -373,12 +415,13 @@ int main(int argc, char* argv[])
         cerr << "ERROR initializing WSA" << endl;
     }
 #endif
+    string parsedArgs = parseArgs(argc,argv);
 
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
+    {
         return INVALID_SOCKET;
-
-    string parsedArgs = parseArgs(argc,argv);
+    }
 
     int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
