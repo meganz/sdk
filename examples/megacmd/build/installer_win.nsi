@@ -45,6 +45,8 @@ VIAddVersionKey "ProductVersion" "1.0.0.0"
 !define SRCDIR_MEGACMD "..\..\..\contrib\QtCreator\${BUILDFOLDER_X86}\MEGAcmdServer\release"
 !endif
 
+!define SRCDIR_BATFILES "..\client\win"
+
 !define MULTIUSER_MUI
 !define MULTIUSER_INSTALLMODE_COMMANDLINE
 !define MULTIUSER_EXECUTIONLEVEL Standard
@@ -464,7 +466,178 @@ modeselected:
   AccessControl::SetFileOwner "$INSTDIR\FreeImage.dll" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\FreeImage.dll" "$USERNAME" "GenericRead + GenericWrite"
 
-;!ifndef BUILD_UNINSTALLER  ; if building uninstaller, skip this check
+; BAT files
+
+  File "${SRCDIR_BATFILES}\mega-attr.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-attr.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-attr.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-cd.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-cd.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-cd.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-confirm.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-confirm.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-confirm.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-cp.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-cp.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-cp.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-debug.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-debug.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-debug.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-du.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-du.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-du.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-export.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-export.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-export.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-find.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-find.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-find.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-get.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-get.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-get.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-help.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-help.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-help.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-history.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-history.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-history.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-import.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-import.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-import.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-invite.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-invite.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-invite.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-ipc.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-ipc.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-ipc.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-killsession.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-killsession.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-killsession.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-lcd.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-lcd.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-lcd.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-log.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-log.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-log.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-login.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-login.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-login.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-logout.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-logout.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-logout.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-lpwd.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-lpwd.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-lpwd.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-ls.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-ls.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-ls.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-mkdir.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-mkdir.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-mkdir.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-mount.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-mount.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-mount.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-mv.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-mv.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-mv.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-passwd.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-passwd.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-passwd.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-preview.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-preview.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-preview.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-put.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-put.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-put.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-pwd.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-pwd.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-pwd.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-quit.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-quit.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-quit.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-reload.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-reload.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-reload.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-rm.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-rm.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-rm.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-session.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-session.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-session.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-share.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-share.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-share.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-showpcr.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-showpcr.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-showpcr.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-signup.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-signup.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-signup.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-speedlimit.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-speedlimit.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-speedlimit.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-sync.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-sync.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-sync.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-thumbnail.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-thumbnail.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-thumbnail.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-userattr.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-userattr.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-userattr.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-users.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-users.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-users.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-version.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-version.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-version.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_BATFILES}\mega-whoami.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-whoami.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-whoami.bat" "$USERNAME" "GenericRead + GenericWrite"
+
+; Uninstaller
+
   File "${UNINSTALLER_NAME}"
   AccessControl::SetFileOwner "$INSTDIR\${UNINSTALLER_NAME}" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\${UNINSTALLER_NAME}" "$USERNAME" "GenericRead + GenericWrite"
