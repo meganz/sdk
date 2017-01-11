@@ -13944,6 +13944,11 @@ bool MegaApiImpl::isWaiting()
     return waiting || waitingRequest || client->syncfslockretry;
 }
 
+bool MegaApiImpl::areServersBusy()
+{
+    return waitingRequest;
+}
+
 TreeProcCopy::TreeProcCopy()
 {
 	nn = NULL;

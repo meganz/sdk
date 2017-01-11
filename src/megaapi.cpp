@@ -2713,6 +2713,11 @@ bool MegaApi::isWaiting()
     return pImpl->isWaiting();
 }
 
+bool MegaApi::areServersBusy()
+{
+    return pImpl->areServersBusy();
+}
+
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);

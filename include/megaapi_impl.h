@@ -1470,6 +1470,7 @@ class MegaApiImpl : public MegaApp
 #endif
         void update();
         bool isWaiting();
+        bool areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
