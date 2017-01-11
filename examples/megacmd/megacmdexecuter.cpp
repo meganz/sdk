@@ -2969,7 +2969,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         if (fa->isfolder(&localpath))
                         {
                             delete fa;
-                            path += "/";
                             if (!canWrite(path))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -3057,8 +3056,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         if (fa->isfolder(&localpath))
                         {
                             delete fa;
-                            if (! (path.find_last_of("/") == path.size()-1) )
-                                path+="/";
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);

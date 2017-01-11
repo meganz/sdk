@@ -167,9 +167,9 @@ string getAbsPath(string relativePath)
    return utf8absolutepath;
 
 #else
-    if (relativelocalPath.size() && relativelocalPath.at(0) == '/')
+    if (relativePath.size() && relativePath.at(0) == '/')
     {
-        return relativelocalPath;
+        return relativePath;
     }
     else
     {
@@ -177,16 +177,16 @@ string getAbsPath(string relativePath)
         if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
         {
             cerr << " failed to get CWD" << endl;
-            return relativelocalPath;
+            return relativePath;
         }
 
         string absolutepath = cCurrentPath;
         absolutepath.append("/");
-        absolutepath.append(relativelocalPath);
+        absolutepath.append(relativePath);
         return absolutepath;
     }
 
-    return relativelocalPath;
+    return relativePath;
 #endif
 
 }
