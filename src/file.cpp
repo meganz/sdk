@@ -514,6 +514,7 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
     {
         LOG_debug << "LocalNode created, associating with remote Node";
         ll->setnode(n);
+        ll->treestate(TREESTATE_SYNCED);
         ll->sync->statecacheadd(ll);
     }
     delete this;

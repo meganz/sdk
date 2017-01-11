@@ -13941,7 +13941,7 @@ void MegaApiImpl::update()
 
 bool MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest;
+    return waiting || waitingRequest || client->syncfslockretry;
 }
 
 TreeProcCopy::TreeProcCopy()
