@@ -470,6 +470,13 @@ bool SyncFileGet::failed(error e)
 
         if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
+            if (e == API_EKEY)
+            {
+                int creqtag = n->parent->client->reqtag;
+                n->parent->client->reqtag = 0;
+                n->parent->client->sendevent(99433, "Undecryptable file");
+                n->parent->client->reqtag = creqtag;
+            }
             n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
         }
     }
