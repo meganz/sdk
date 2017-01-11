@@ -6,7 +6,7 @@ build-stamp:
 
 	#build dependencies into folder deps
 	mkdir deps
-	bash -x ./contrib/build_sdk.sh -o archives -f \
+	bash -x ./contrib/build_sdk.sh -o archives \
 	  -g -b -l -c -s -u -a -z -p deps/
 
 	./configure --disable-shared --enable-static --disable-silent-rules \
@@ -28,6 +28,7 @@ install: build
 	###dh_auto_install --destdir=megacmd/megacmd
 	dh_install examples/megacmd/client/mega-* /usr/bin/
 	dh_install examples/mega-cmd /usr/bin/
+	dh_install examples/mega-exec /usr/bin/
 	dh_install examples/megacmd/client/megacmd_completion.sh /etc/bash_completion.d/
 	lsb_release -ds > distro
 	lsb_release -rs > version	

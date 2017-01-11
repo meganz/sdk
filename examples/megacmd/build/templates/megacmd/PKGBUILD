@@ -55,12 +55,12 @@ build() {
 
 	#build dependencies into folder deps
 	mkdir deps
-	bash -x ./contrib/build_sdk.sh -o archives -f \
+	bash -x ./contrib/build_sdk.sh -o archives \
 	  -e -g -b -l -c -s -u -a -q -p deps/
 
 	./configure --disable-shared --enable-static --disable-silent-rules \
 	  --disable-curl-checks --with-sodium=deps --with-cryptopp=deps\
-	  --with-curl=deps --without-freeimage --with-readline=deps \
+	  --with-curl=deps --with-freeimage=deps --with-readline=deps \
 	  --with-cares=deps \
 	  --with-termcap=deps --prefix=$PWD/deps --disable-examples
 
@@ -86,4 +86,6 @@ package() {
 	for i in examples/megacmd/client/mega-*; do install -D $i $_bindir/${i/examples\/megacmd\/client\//}; done
 	install -D examples/megacmd/client/megacmd_completion.sh $_confdir/bash_completion.d/megacmd_completion.sh
 	install -D examples/mega-cmd $_bindir/mega-cmd
+	install -D examples/mega-exec $_bindir/mega-exec
+
 }

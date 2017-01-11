@@ -43,7 +43,7 @@ cd $cwd
 archives=$cwd/archives
 rm -fr $archives
 mkdir $archives
-$BASEPATH/contrib/build_sdk.sh -q -e -f -g -w -s -v -u -o $archives
+$BASEPATH/contrib/build_sdk.sh -q -e -g -w -s -v -u -o $archives
 
 # get current version
 megacmd_VERSION=0.0.1 #TODO: read from version.h file
