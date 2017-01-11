@@ -3126,37 +3126,65 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 if (isRegExp(words[1]))
                 {
-                    if (words.size() > 2)
+                    vector<MegaNode *> *nodesToGet = nodesbypath(words[1].c_str());
+                    if (nodesToGet)
                     {
-                        path = words[2];
-                        string localpath;
-                        fsAccessCMD->path2local(&path, &localpath);
-                        FileAccess *fa = fsAccessCMD->newfileaccess();
-                        if (fa->isfolder(&localpath))
+                        if (words.size() > 2)
                         {
-                            delete fa;
-                            if (! (path.find_last_of("/") == path.size()-1) )
-                                path+="/";
-                            if (!canWrite(words[2]))
+                            path = words[2];
+                            string localpath;
+                            fsAccessCMD->path2local(&path, &localpath);
+                            FileAccess *fa = fsAccessCMD->newfileaccess();
+                            if (fa->isfolder(&localpath))
                             {
-                                setCurrentOutCode(MCMD_NOTPERMITTED);
-                                LOG_err << "Write not allowed in " << words[2];
+                                delete fa;
+                                if (!canWrite(words[2]))
+                                {
+                                    setCurrentOutCode(MCMD_NOTPERMITTED);
+                                    LOG_err << "Write not allowed in " << words[2];
+                                    return;
+                                }
+                            }
+                            else if (nodesToGet->size()>1) //several files into one file!
+                            {
+                                delete fa;
+                                setCurrentOutCode(MCMD_INVALIDTYPE);
+                                LOG_err << words[2] << " is not a valid Download Folder";
                                 return;
                             }
-                        }
-                        else
-                        {
-                            delete fa;
-                            setCurrentOutCode(MCMD_INVALIDTYPE);
-                            LOG_err << words[2] << " is not a valid Download Folder";
-                            return;
-                        }
-                    }
+                            else
+                            {
+                                delete fa;
+                                string localpath;
+                                fsAccessCMD->path2local(&path, &localpath);
+                                int lastpart = fsAccessCMD->lastpartlocal(&localpath);
+                                string containingFolder;
+                                if (lastpart)
+                                {
+                                    string firstpartlocal(localpath, 0, lastpart - fsAccessCMD->localseparator.size());
+                                    fsAccessCMD->local2path(&firstpartlocal, &containingFolder);
+                                }
 
-                    vector<MegaNode *> *nodesToList = nodesbypath(words[1].c_str());
-                    if (nodesToList)
-                    {
-                        for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
+                                string localcontainingFolder;
+                                fsAccessCMD->path2local(&containingFolder, &localcontainingFolder);
+                                FileAccess *fa = fsAccessCMD->newfileaccess();
+                                if (!fa->isfolder(&localcontainingFolder))
+                                {
+                                    delete fa;
+                                    setCurrentOutCode(MCMD_INVALIDTYPE);
+                                    LOG_err << containingFolder << " is not a valid Download Folder";
+                                    return;
+                                }
+                                delete fa;
+                                if (!canWrite(containingFolder))
+                                {
+                                    setCurrentOutCode(MCMD_NOTPERMITTED);
+                                    LOG_err << "Write not allowed in " << containingFolder;
+                                    return;
+                                }
+                            }
+                        }
+                        for (std::vector< MegaNode * >::iterator it = nodesToGet->begin(); it != nodesToGet->end(); ++it)
                         {
                             MegaNode * n = *it;
                             if (n)
@@ -3166,8 +3194,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
                         }
 
-                        nodesToList->clear();
-                        delete nodesToList;
+                        nodesToGet->clear();
+                        delete nodesToGet;
                     }
                 }
                 else
@@ -3186,8 +3214,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 if (fa->isfolder(&localpath))
                                 {
                                     delete fa;
-                                    if (! (path.find_last_of("/") == path.size()-1) )
-                                        path+="/";
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -3236,8 +3262,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 if (fa->isfolder(&localpath))
                                 {
                                     delete fa;
-                                    if (! (path.find_last_of("/") == path.size()-1) )
-                                        path+="/";
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -4945,6 +4969,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (getFlag(clflags,"l"))
         {
             OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
+
+            OUTSTREAM << "Credits: https://github.com/meganz/sdk/blob/master/CREDITS.md" << endl;
 
             OUTSTREAM << "Features enabled:" << endl;
 
