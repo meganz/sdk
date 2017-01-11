@@ -69,7 +69,13 @@ DEFINES -= USE_QT
 DEFINES -= MEGA_QT_LOGGING
 DEFINES += USE_FREEIMAGE
 SOURCES -= src/thread/qtthread.cpp
-SOURCES += src/thread/win32thread.cpp
+win32{
+    SOURCES += src/thread/win32thread.cpp
+}
+else{
+    SOURCES += src/thread/posixthread.cpp
+    LIBS += -lpthread
+}
 SOURCES -= src/gfx/qt.cpp
 SOURCES += src/gfx/freeimage.cpp
 SOURCES -= bindings/qt/QTMegaRequestListener.cpp
