@@ -3212,7 +3212,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     }
 
                                     string localcontainingFolder;
-                                    fsAccessCMD->path2local(&path, &localcontainingFolder);
+                                    fsAccessCMD->path2local(&containingFolder, &localcontainingFolder);
                                     FileAccess *fa = fsAccessCMD->newfileaccess();
                                     if (!fa->isfolder(&localcontainingFolder))
                                     {
