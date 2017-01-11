@@ -653,7 +653,7 @@ modeselected:
   CreateShortCut "$DESKTOP\MEGAcmd.lnk" "$INSTDIR\MEGAcmd.exe"
   WriteIniStr "$INSTDIR\MEGA Website.url" "InternetShortcut" "URL" "${PRODUCT_WEB_SITE}"
   CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmd.exe" 1
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
   !insertmacro MUI_STARTMENU_WRITE_END
   goto modeselected2
 currentuser2:
@@ -665,7 +665,7 @@ currentuser2:
 
   WriteIniStr "$INSTDIR\MEGA Website.url" "InternetShortcut" "URL" "${PRODUCT_WEB_SITE}"
   CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmd.exe" 1
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
   !insertmacro MUI_STARTMENU_WRITE_END
 modeselected2:
 
@@ -772,7 +772,7 @@ Section Uninstall
   Delete "$INSTDIR\FreeImage.dll"
   
   SetShellVarContext current
-  Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk"
+  Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk"
   Delete "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk"
   Delete "$INSTDIR\MEGA Website.url"
   Delete "$DESKTOP\MEGAcmd.lnk"
@@ -783,7 +783,7 @@ Section Uninstall
   RMDir "$INSTDIR"
   
   SetShellVarContext all
-  Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk"
+  Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk"
   Delete "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk"
   Delete "$INSTDIR\MEGA Website.url"
   Delete "$DESKTOP\MEGAcmd.lnk"
