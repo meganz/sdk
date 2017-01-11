@@ -413,6 +413,13 @@ bool Sync::scan(string* localpath, FileAccess* fa)
         string localname, name;
         bool success;
 
+        string utf8path;
+        if (SimpleLogger::logCurrentLevel >= logDebug)
+        {
+            client->fsaccess->local2path(localpath, &utf8path);
+            LOG_debug << "Scanning folder: " << utf8path;
+        }
+
         da = client->fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
@@ -458,6 +465,10 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                     }
 
                     localpath->resize(t);
+                }
+                else
+                {
+                    LOG_debug << "Excluded: " << name;
                 }
             }
         }
@@ -553,7 +564,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
         if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
         {
-            LOG_debug << "Excluded path: " << path;
+            LOG_debug << "Excluded: " << path;
             return NULL;
         }
 

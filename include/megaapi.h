@@ -1377,8 +1377,12 @@ public:
     virtual int getOwnPrivilege() const;
 
     /**
-     * @brief getUrl Returns your URL to connect to chatd for this chat
-     * @return
+     * @brief Returns your URL to connect to chatd for this chat
+     *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The URL of the chatd server, or NULL if not available.
      */
     virtual const char *getUrl() const;
 
@@ -1422,12 +1426,12 @@ public:
     virtual MegaHandle getOriginatingUser() const;
 
     /**
-     * @brief getTitle Returns the title of the chat, if any.
+     * @brief Returns the title of the chat, if any.
      *
      * The MegaTextChat retains the ownership of the returned string. It will
      * be only valid until the MegaTextChat is deleted.
      *
-     * @return The title of the chat as a byte array encoded in Base64URL.
+     * @return The title of the chat as a byte array encoded in Base64URL, or NULL if not available.
      */
     virtual const char *getTitle() const;
 
@@ -1805,7 +1809,8 @@ class MegaRequest
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS
+            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER
         };
 
         virtual ~MegaRequest();
@@ -2200,6 +2205,16 @@ class MegaRequest
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
          * - MegaApi::sendEvent - Returns the event type
+         * - MegaApi::moveTransferUp - Returns MegaTransfer::MOVE_TYPE_UP
+         * - MegaApi::moveTransferUpByTag - Returns MegaTransfer::MOVE_TYPE_UP
+         * - MegaApi::moveTransferDown - Returns MegaTransfer::MOVE_TYPE_DOWN
+         * - MegaApi::moveTransferDownByTag - Returns MegaTransfer::MOVE_TYPE_DOWN
+         * - MegaApi::moveTransferToFirst - Returns MegaTransfer::MOVE_TYPE_TOP
+         * - MegaApi::moveTransferToFirstByTag - Returns MegaTransfer::MOVE_TYPE_TOP
+         * - MegaApi::moveTransferToLast - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
          * - MegaApi::setMaxConnections - Returns the number of connections
          *
          * This value is valid for these request in onRequestFinish when the
@@ -2221,6 +2236,18 @@ class MegaRequest
          * - MegaApi::createChat - Creates a chat for one or more participants
          * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
+         * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
+         * - MegaApi::pauseTransferByTag - Returns true if the transfer has to be pause or false if it has to be resumed
+         * - MegaApi::moveTransferUp - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferUpByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferDown - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferDownByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToFirst - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToFirstByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToLast - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
+         * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
+         * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
          *
          * @return Flag related to the request
          */
@@ -2275,6 +2302,18 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::cancelTransfer - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         * - MegaApi::pauseTransfer - Returns the tag of the request to pause or resume
+         * - MegaApi::pauseTransferByTag - Returns the tag of the request to pause or resume
+         * - MegaApi::moveTransferUp - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferUpByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferDown - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferDownByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToFirst - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToFirstByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToLast - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferToLastByTag - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
+         * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          *
          * @return Tag of a transfer related to the request
          */
@@ -2358,6 +2397,25 @@ class MegaTransfer
             TYPE_DOWNLOAD = 0,
             TYPE_UPLOAD,
             TYPE_LOCAL_HTTP_DOWNLOAD
+        };
+
+        enum {
+            STATE_NONE = 0,
+            STATE_QUEUED,
+            STATE_ACTIVE,
+            STATE_PAUSED,
+            STATE_RETRYING,
+            STATE_COMPLETING,
+            STATE_COMPLETED,
+            STATE_CANCELLED,
+            STATE_FAILED
+        };
+
+        enum {
+            MOVE_TYPE_UP = 1,
+            MOVE_TYPE_DOWN,
+            MOVE_TYPE_TOP,
+            MOVE_TYPE_BOTTOM
         };
         
         virtual ~MegaTransfer();
@@ -2645,7 +2703,125 @@ class MegaTransfer
          * @return Application data associated with this transfer
          */
         virtual const char* getAppData() const;
+
+        /**
+         * @brief Returns the state of the transfer
+         *
+         * It can be one of these values:
+         * - STATE_NONE = 0
+         * Unknown state. This state should be never returned.
+         *
+         * - STATE_QUEUED = 1
+         * The transfer is queued. No data related to it is being transferred.
+         *
+         * - STATE_ACTIVE = 2
+         * The transfer is active. Its data is being transferred.
+         *
+         * - STATE_PAUSED = 3
+         * The transfer is paused. It won't be activated until it's resumed.
+         *
+         * - STATE_RETRYING = 4
+         * The transfer is waiting to be retried due to a temporary error.
+         *
+         * - STATE_COMPLETING = 5
+         * The transfer is being completed. All data has been transferred
+         * but it's still needed to attach the resulting node to the
+         * account (uploads), to attach thumbnails/previews to the
+         * node (uploads of images) or to create the resulting local
+         * file (downloads). The transfer should be completed in a short time.
+         *
+         * - STATE_COMPLETED = 6
+         * The transfer has beeing finished.
+         *
+         * - STATE_CANCELLED = 7
+         * The transfer was cancelled by the user.
+         *
+         * - STATE_FAILED = 8
+         * The transfer was cancelled by the SDK due to a fatal error or
+         * after a high number of retries.
+         *
+         * @return State of the transfer
+         */
+        virtual int getState() const;
+
+        /**
+         * @brief Returns the priority of the transfer
+         *
+         * This value is intended to keep the order of the transfer queue on apps.
+         *
+         * @return Priority of the transfer
+         */
+        virtual unsigned long long getPriority() const;
 };
+
+/**
+ * @brief Provides information about transfer queues
+ *
+ * This object is used as the return value of the function MegaApi::getTransferData
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the transfer
+ * queues when the object is created, they are immutable.
+ *
+ */
+class MegaTransferData
+{
+public:
+    virtual ~MegaTransferData();
+
+    /**
+     * @brief Creates a copy of this MegaTransferData object
+     *
+     * The resulting object is fully independent of the source MegaTransferData,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTransferData object
+     */
+    virtual MegaTransferData *copy() const;
+
+    /**
+     * @brief Returns the number of downloads in the transfer queue
+     * @return Number of downloads in the transfer queue
+     */
+    virtual int getNumDownloads() const;
+
+    /**
+     * @brief Returns the number of uploads in the transfer queue
+     * @return Number of uploads in the transfer queue
+     */
+    virtual int getNumUploads() const;
+
+    /**
+     * @brief Returns the tag of the download at index i
+     * @param i index of the selected download. It must be between 0 and MegaTransferData::getNumDownloads (not included)
+     * @return Tag of the download at index i
+     */
+    virtual int getDownloadTag(int i) const;
+
+    /**
+     * @brief Returns the tag of the upload at index i
+     * @param i index of the selected upload. It must be between 0 and MegaTransferData::getNumUploads (not included)
+     * @return Tag of the upload at index i
+     */
+    virtual int getUploadTag(int i) const;
+
+    /**
+     * @brief Returns the priority of the download at index i
+     * @param i index of the selected download. It must be between 0 and MegaTransferData::getNumDownloads (not included)
+     * @return Priority of the download at index i
+     */
+    virtual unsigned long long getDownloadPriority(int i) const;
+
+    /**
+     * @brief Returns the priority of the upload at index i
+     * @param i index of the selected upload. It must be between 0 and MegaTransferData::getNumUploads (not included)
+     * @return Priority of the upload at index i
+     */
+    virtual unsigned long long getUploadPriority(int i) const;
+};
+
 
 /**
  * @brief Provides information about a contact request
@@ -4131,6 +4307,15 @@ class MegaApi
          * @return Base64-encoded hash
          */
         char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
+         * @brief Get internal timestamp used by the SDK
+         *
+         * This is a time used in certain internal operations.
+         *
+         * @return actual SDK time in deciseconds
+         */
+        long long getSDKtime();
 
         /**
          * @brief Get an URL to transfer the current session to the webclient
@@ -6140,6 +6325,188 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Move a transfer one position up in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position up in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferUpByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position down in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferDown(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer one position down in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferDownByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the top of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToFirst(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the top of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToFirstByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the bottom of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         *
+         * @param transfer Transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToLast(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer to the bottom of the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+         * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferToLastByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer before another one in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+         * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+         *
+         * @param transfer Transfer to move
+         * @param prevTransfer Transfer with the target position
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferBefore(MegaTransfer *transfer, MegaTransfer *prevTransfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a transfer before another one in the transfer queue
+         *
+         * If the transfer is successfully moved, onTransferUpdate will be called
+         * for the corresponding listeners of the moved transfer and the new priority
+         * of the transfer will be available using MegaTransfer::getPriority
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+         * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+         * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+         *
+         * @param transferTag Tag of the transfer to move
+         * @param prevTransfer Tag of the transfer with the target position
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel the transfer with a specific tag
          *
          * When a transfer is cancelled, it will finish and will provide the error code
@@ -6204,13 +6571,56 @@ class MegaApi
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Pause/resume a transfer
+         *
+         * The request finishes with MegaError::API_OK if the state of the transfer is the
+         * desired one at that moment. That means that the request succeed when the transfer
+         * is successfully paused or resumed, but also if the transfer was already in the
+         * desired state and it wasn't needed to change anything.
+         *
+         * Resumed transfers don't necessarily continue just after the resumption. They
+         * are tagged as queued and are processed according to its position on the request queue.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+         * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+         *
+         * @param transfer Transfer to pause or resume
+         * @param pause True to pause the transfer or false to resume it
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransfer(MegaTransfer *transfer, bool pause, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Pause/resume a transfer
+         *
+         * The request finishes with MegaError::API_OK if the state of the transfer is the
+         * desired one at that moment. That means that the request succeed when the transfer
+         * is successfully paused or resumed, but also if the transfer was already in the
+         * desired state and it wasn't needed to change anything.
+         *
+         * Resumed transfers don't necessarily continue just after the resumption. They
+         * are tagged as queued and are processed according to its position on the request queue.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+         * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+         *
+         * @param transferTag Tag of the transfer to pause or resume
+         * @param pause True to pause the transfer or false to resume it
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Enable the resumption of transfers 
          *
          * This function enables the cache of transfers, so they can be resumed later.
          * Additionally, if a previous cache already exists (from previous executions),
          * then this function also resumes the existing cached transfers.
          * 
-         * @note Cached downloads expire after 10 days since the last time they were active.
          * @note Cached uploads expire after 24 hours since the last time they were active.
          * @note Cached transfers related to files that have been modified since they were
          * added to the cache are discarded, since the file has changed.
@@ -6350,6 +6760,66 @@ class MegaApi
         void setUploadMethod(int method);
 
         /**
+         * @brief Set the maximum download speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Download speed in bytes per second
+         * @return true if the network layer allows to control the download speed, otherwise false
+         */
+        bool setMaxDownloadSpeed(int bpslimit);
+
+        /**
+         * @brief Set the maximum upload speed in bytes per second
+         *
+         * Currently, this method is only available using the cURL-based network layer.
+         * It doesn't work with WinHTTP. You can check if the function will have effect
+         * by checking the return value. If it's true, the value will be applied. Otherwise,
+         * this function returns false.
+         *
+         * A value <= 0 means unlimited speed
+         *
+         * @param bpslimit Upload speed in bytes per second
+         * @return true if the network layer allows to control the upload speed, otherwise false
+         */
+        bool setMaxUploadSpeed(int bpslimit);
+
+        /**
+         * @brief Get the maximum download speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Download speed in bytes per second
+         */
+        int getMaxDownloadSpeed();
+
+        /**
+         * @brief Get the maximum upload speed in bytes per second
+         *
+         * The value 0 means unlimited speed
+         *
+         * @return Upload speed in bytes per second
+         */
+        int getMaxUploadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentDownloadSpeed();
+
+        /**
+         * @brief Return the current download speed
+         * @return Download speed in bytes per second
+         */
+        int getCurrentUploadSpeed();
+
+        /**
          * @brief Get the active transfer method for downloads
          *
          * Valid values for the return parameter are:
@@ -6394,6 +6864,37 @@ class MegaApi
          * @return Active transfer method for uploads
          */
         int getUploadMethod();
+
+        /**
+         * @brief Get information about transfer queues
+         * @param listener MegaTransferListener to start receiving information about transfers
+         * @return Information about transfer queues
+         */
+        MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Force an onTransferUpdate callback for the specified transfer
+         *
+         * The callback will be received by transfer listeners registered to receive all
+         * callbacks related to callbacks and additionally by the listener in the last
+         * parameter of this function, if it's not NULL.
+         *
+         * @param transfer Transfer that will be provided in the onTransferUpdate callback
+         * @param listener Listener that will receive the callback
+         */
+        void notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Force an onTransferUpdate callback for the specified transfer
+         *
+         * The callback will be received by transfer listeners registered to receive all
+         * callbacks related to callbacks and additionally by the listener in the last
+         * parameter of this function, if it's not NULL.
+         *
+         * @param transferTag Tag of the transfer that will be provided in the onTransferUpdate callback
+         * @param listener Listener that will receive the callback
+         */
+        void notifyTransferByTag(int transferTag, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Get all active transfers
@@ -6731,6 +7232,16 @@ class MegaApi
          * @return Total number of local nodes in the account
          */
         long long getNumLocalNodes();
+
+        /**
+         * @brief Get the path if the file/folder that is blocking the sync engine
+         *
+         * If the sync engine is not blocked, this function returns NULL
+         * You take the ownership of the returned value
+         *
+         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
+         */
+        char *getBlockedPath();
 #endif
 
         /**
@@ -7751,18 +8262,33 @@ class MegaApi
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
+         *
+         * If the conversion fails, the size of the string will be 0
+         * If the input string is empty, the size of the result will be also 0
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 and the size of the output is zero
+         *
 		 * @param utf16data UTF16 buffer
 		 * @param utf16size Size of the UTF16 buffer (in characters)
 		 * @param utf8string Pointer to a string that will be filled with UTF8 characters
-		 * If the conversion fails, the size of the string will be 0
 		 */
         static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
 
         /**
          * @brief Convert an UTF8 string to UTF16 (Windows only)
+         *
+         * The converted string will always be a valid UTF16 string. It will have a trailing null byte
+         * added to the string, that along with the null character of the string itself forms a valid
+         * UTF16 string terminator character. Thus, it's valid to pass utf16string->data() to any function
+         * accepting a UTF16 string.
+         *
+         * If the conversion fails, the size of the string will be 1 (null character)
+         * If the input string is empty, the size of the result will be also 1 (null character)
+         * You can know that the conversion failed checking if the size of the input
+         * is not 0 (or NULL) and the size of the output is zero
+         *
          * @param utf8data NULL-terminated UTF8 character array
          * @param utf16string Pointer to a string that will be filled with UTF16 characters
-         * If the conversion fails, the size of the string will be 0
          */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif

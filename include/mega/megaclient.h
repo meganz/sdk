@@ -27,6 +27,7 @@
 #include "gfx.h"
 #include "filefingerprint.h"
 #include "request.h"
+#include "transfer.h"
 #include "treeproc.h"
 #include "sharenodekeys.h"
 #include "account.h"
@@ -127,7 +128,7 @@ public:
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes();
+    void fetchnodes(bool nocache = false);
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
@@ -312,6 +313,9 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+    // determine if more transfers fit in the pipeline
+    bool moretransfers(direction_t);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -353,6 +357,18 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // set max download speed
+    bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    m_off_t getmaxuploadspeed();
+
     // use HTTPS for all communications
     bool usehttps;
     
@@ -385,6 +401,9 @@ public:
 
     // account auth for public folders
     string accountauth;
+
+    // file that is blocking the sync engine
+    string blockedfile;
 
     // stats id
     static char* statsid;
@@ -433,8 +452,11 @@ private:
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 24;
 
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
+    // maximum number of queued putfa before halting the upload queue
+    static const int MAXQUEUEDFA = 24;
+
+    // maximum number of concurrent putfa
+    static const int MAXPUTFA = 6;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -545,10 +567,10 @@ public:
     bool statecurrent;
 
     // pending file attribute writes
-    putfa_list newfa;
+    putfa_list queuedfa;
 
-    // current attribute being sent
-    putfa_list::iterator curfa;
+    // current file attributes being sent
+    putfa_list activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -619,6 +641,9 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+
+    // transfer list to manage the priority of transfers
+    TransferList transferlist;
 
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];

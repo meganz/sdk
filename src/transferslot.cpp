@@ -33,7 +33,9 @@ namespace mega {
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
+    lastprogressreport = 0;
     progressreported = 0;
+
     lastdata = Waiter::ds;
     errorcount = 0;
 
@@ -47,6 +49,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     transfer = ctransfer;
     transfer->slot = this;
+    transfer->state = TRANSFERSTATE_ACTIVE;
 
     connections = transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
     LOG_debug << "Creating transfer slot with " << connections << " connections";
@@ -500,10 +503,24 @@ void TransferSlot::doio(MegaClient* client)
 
     p += transfer->progresscompleted;
 
-    if (p != progressreported)
+    if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
-        progressreported = p;
-        lastdata = Waiter::ds;
+        if (p != progressreported)
+        {
+            m_off_t diff = p - progressreported;
+            if (transfer->type == PUT)
+            {
+                client->httpio->updateuploadspeed(diff);
+            }
+            else
+            {
+                client->httpio->updatedownloadspeed(diff);
+            }
+
+            progressreported = p;
+            lastdata = Waiter::ds;
+        }
+        lastprogressreport = Waiter::ds;
 
         progress();
     }

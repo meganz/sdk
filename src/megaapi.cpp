@@ -815,6 +815,15 @@ const char *MegaTransfer::getAppData() const
     return NULL;
 }
 
+int MegaTransfer::getState() const
+{
+    return STATE_NONE;
+}
+
+unsigned long long MegaTransfer::getPriority() const
+{
+    return 0;
+}
 
 MegaError::MegaError(int errorCode)
 {
@@ -1167,6 +1176,11 @@ char *MegaApi::getBase64PwKey(const char *password)
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     return pImpl->getStringHash(base64pwkey, inBuf);
+}
+
+long long MegaApi::getSDKtime()
+{
+    return pImpl->getSDKtime();
 }
 
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -1676,6 +1690,16 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
     pImpl->pauseTransfers(pause, direction, listener);
 }
 
+void MegaApi::pauseTransfer(MegaTransfer *transfer, bool pause, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfer(transfer ? transfer->getTag() : 0, pause, listener);
+}
+
+void MegaApi::pauseTransferByTag(int transferTag, bool pause, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfer(transferTag, pause, listener);
+}
+
 void MegaApi::enableTransferResumption(const char *loggedOutId)
 {
     pImpl->enableTransferResumption(loggedOutId);
@@ -1717,6 +1741,36 @@ void MegaApi::setUploadMethod(int method)
     pImpl->setUploadMethod(method);
 }
 
+int MegaApi::getMaxDownloadSpeed()
+{
+    return pImpl->getMaxDownloadSpeed();
+}
+
+int MegaApi::getMaxUploadSpeed()
+{
+    return pImpl->getMaxUploadSpeed();
+}
+
+bool MegaApi::setMaxDownloadSpeed(int bpslimit)
+{
+    return pImpl->setMaxDownloadSpeed(bpslimit);
+}
+
+bool MegaApi::setMaxUploadSpeed(int bpslimit)
+{
+    return pImpl->setMaxUploadSpeed(bpslimit);
+}
+
+int MegaApi::getCurrentDownloadSpeed()
+{
+    return pImpl->getCurrentDownloadSpeed();
+}
+
+int MegaApi::getCurrentUploadSpeed()
+{
+    return pImpl->getCurrentUploadSpeed();
+}
+
 int MegaApi::getDownloadMethod()
 {
     return pImpl->getDownloadMethod();
@@ -1725,6 +1779,21 @@ int MegaApi::getDownloadMethod()
 int MegaApi::getUploadMethod()
 {
     return pImpl->getUploadMethod();
+}
+
+MegaTransferData *MegaApi::getTransferData(MegaTransferListener *listener)
+{
+    return pImpl->getTransferData(listener);
+}
+
+void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->notifyTransfer(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::notifyTransferByTag(int transferTag, MegaTransferListener *listener)
+{
+    pImpl->notifyTransfer(transferTag, listener);
 }
 
 MegaTransferList *MegaApi::getTransfers()
@@ -1800,6 +1869,56 @@ void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferUp(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferUpByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferUp(transferTag, listener);
+}
+
+void MegaApi::moveTransferDown(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferDown(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferDownByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferDown(transferTag, listener);
+}
+
+void MegaApi::moveTransferToFirst(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToFirst(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferToFirstByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToFirst(transferTag, listener);
+}
+
+void MegaApi::moveTransferToLast(MegaTransfer *transfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToLast(transfer ? transfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferToLastByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferToLast(transferTag, listener);
+}
+
+void MegaApi::moveTransferBefore(MegaTransfer *transfer, MegaTransfer *prevTransfer, MegaRequestListener *listener)
+{
+    pImpl->moveTransferBefore(transfer ? transfer->getTag() : 0, prevTransfer ? prevTransfer->getTag() : 0, listener);
+}
+
+void MegaApi::moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListener *listener)
+{
+    pImpl->moveTransferBefore(transferTag, prevTransferTag, listener);
 }
 
 void MegaApi::cancelTransferByTag(int transferTag, MegaRequestListener *listener)
@@ -1883,6 +2002,11 @@ string MegaApi::getLocalPath(MegaNode *n)
 long long MegaApi::getNumLocalNodes()
 {
     return pImpl->getNumLocalNodes();
+}
+
+char *MegaApi::getBlockedPath()
+{
+    return pImpl->getBlockedPath();
 }
 
 bool MegaApi::isScanning()
@@ -3216,6 +3340,7 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     if(!utf8data)
     {
         utf16string->clear();
+        utf16string->append("", 1);
         return;
     }
 
@@ -3225,11 +3350,16 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
     utf16string->resize(size * sizeof(wchar_t));
 
     // resize to actual result
-    utf16string->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-        utf8data,
-        size,
-        (wchar_t*)utf16string->data(),
-                                                               utf16string->size())));
+    utf16string->resize(sizeof(wchar_t) * MultiByteToWideChar(CP_UTF8, 0, utf8data, size, (wchar_t*)utf16string->data(),
+                                                              utf16string->size() / sizeof(wchar_t) + 1));
+    if (utf16string->size())
+    {
+        utf16string->resize(utf16string->size() - 1);
+    }
+    else
+    {
+        utf16string->append("", 1);
+    }
 }
 
 #endif
@@ -3869,6 +3999,46 @@ void MegaStringMap::set(const char *, const char *)
 }
 
 int MegaStringMap::size() const
+{
+    return 0;
+}
+
+MegaTransferData::~MegaTransferData()
+{
+
+}
+
+MegaTransferData *MegaTransferData::copy() const
+{
+    return NULL;
+}
+
+int MegaTransferData::getNumDownloads() const
+{
+    return 0;
+}
+
+int MegaTransferData::getNumUploads() const
+{
+    return 0;
+}
+
+int MegaTransferData::getDownloadTag(int i) const
+{
+    return 0;
+}
+
+int MegaTransferData::getUploadTag(int i) const
+{
+    return 0;
+}
+
+unsigned long long MegaTransferData::getDownloadPriority(int i) const
+{
+    return 0;
+}
+
+unsigned long long MegaTransferData::getUploadPriority(int i) const
 {
     return 0;
 }

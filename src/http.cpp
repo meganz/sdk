@@ -29,6 +29,9 @@
 
 namespace mega {
 
+// interval to calculate the mean speed (ds)
+const int HttpIO::SPEED_MEAN_INTERVAL_DS = 10;
+
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
 
@@ -81,6 +84,10 @@ HttpIO::HttpIO()
     inetback = false;
     lastdata = NEVER;
     chunkedok = true;
+    downloadPartialBytes = 0;
+    downloadSpeed = 0;
+    uploadPartialBytes = 0;
+    uploadSpeed = 0;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -112,6 +119,58 @@ bool HttpIO::inetisback()
     }
 
     return false;
+}
+
+void HttpIO::updatedownloadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (downloadBytes.size())
+    {
+        dstime deltaTime = currentTime - downloadTimes.front();
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        downloadPartialBytes -= downloadBytes.front();
+        downloadBytes.erase(downloadBytes.begin());
+        downloadTimes.erase(downloadTimes.begin());
+    }
+
+    if (size)
+    {
+        downloadBytes.push_back(size);
+        downloadTimes.push_back(currentTime);
+        downloadPartialBytes += size;
+    }
+
+    downloadSpeed = (downloadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+}
+
+void HttpIO::updateuploadspeed(m_off_t size)
+{
+    dstime currentTime = Waiter::ds;
+    while (uploadBytes.size())
+    {
+        dstime deltaTime = currentTime - uploadTimes.front();
+        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        {
+            break;
+        }
+
+        uploadPartialBytes -= uploadBytes.front();
+        uploadBytes.erase(uploadBytes.begin());
+        uploadTimes.erase(uploadTimes.begin());
+    }
+
+    if (size)
+    {
+        uploadBytes.push_back(size);
+        uploadTimes.push_back(currentTime);
+        uploadPartialBytes += size;
+    }
+
+    uploadSpeed = (uploadPartialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
 }
 
 Proxy *HttpIO::getautoproxy()
@@ -149,7 +208,7 @@ Proxy *HttpIO::getautoproxy()
             {
                 wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
 
-                if (*character == '/')
+                if (*character == '/' || *character == '=')
                 {
                     proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
                     break;
@@ -287,6 +346,26 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     {
         LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
     }
+}
+
+bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+{
+    return false;
+}
+
+bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
+{
+    return false;
+}
+
+m_off_t HttpIO::getmaxdownloadspeed()
+{
+    return 0;
+}
+
+m_off_t HttpIO::getmaxuploadspeed()
+{
+    return 0;
 }
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
