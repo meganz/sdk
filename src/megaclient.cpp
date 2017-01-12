@@ -2516,6 +2516,17 @@ bool MegaClient::dispatch(direction_t d)
                     nexttransfer->asyncopencontext = NULL;
                     asyncfopens--;
                 }
+
+                assert(!asyncfopens);
+                //FIXME: Improve the management of asynchronous fopen when they can
+                //be really asynchronous. All transfers could open its file in this
+                //stage (not good) and, if we limit it, the transfer queue could hang because
+                //it's full of transfers in that state. Transfer moves also complicates
+                //the management because transfers that haven't been opened could be
+                //placed over transfers that are already being opened.
+                //Probably, the best approach is to add the slot of these transfers to
+                //the queue and ensure that all operations (transfer moves, pauses)
+                //are correctly cancelled when needed
             }
             else
             {
