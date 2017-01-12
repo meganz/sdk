@@ -154,8 +154,12 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     path.assign(localpath, len);
     if (sync && !sync->initializing)
     {
+        attr_map::iterator ait;
         LocalNode *ll = sync->localnodebypath(l, &path);
-        if (ll)
+        if (ll && ll->node && ll->node->localnode == ll
+                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
+                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
+                && ait->second == ll->name)
         {
             LOG_debug << "LocalNode for notification detected";
             string tmppath;

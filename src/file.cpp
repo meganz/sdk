@@ -510,7 +510,8 @@ void SyncFileGet::updatelocalname()
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
     LocalNode *ll = sync->checkpath(NULL, &localname);
-    if (ll && ll != (LocalNode*)~0)
+    if (ll && ll != (LocalNode*)~0 && n
+            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {
         LOG_debug << "LocalNode created, associating with remote Node";
         ll->setnode(n);

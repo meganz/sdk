@@ -1720,7 +1720,7 @@ void MegaClient::exec()
                 }
 
                 // notify the app of the length of the pending scan queue
-                if (!scanningpending)
+                if (scanningpending < 4)
                 {
                     if (syncscanstate)
                     {
@@ -1729,7 +1729,7 @@ void MegaClient::exec()
                         syncscanstate = false;
                     }
                 }
-                else
+                else if (scanningpending > 10)
                 {
                     if (!syncscanstate)
                     {
@@ -1899,6 +1899,8 @@ void MegaClient::exec()
         }
         else
         {
+            notifypurge();
+
             // sync timer: retry syncdown() ops in case of local filesystem lock clashes
             if (syncdownretry && syncdownbt.armed())
             {
