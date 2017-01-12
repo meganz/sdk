@@ -2493,15 +2493,21 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "find")
     {
-
         if (words.size() > 1)
         {
             n = nodebypath(words[1].c_str());
+            if (!n)
+            {
+                setCurrentOutCode(MCMD_NOTFOUND);
+                LOG_err << "Couldn't find " << words[1];
+                return;
+            }
         }
         else
         {
             n = api->getNodeByHandle(cwd);
         }
+
 
         string pattern = getOption(cloptions, "pattern", "*");
 
@@ -2971,6 +2977,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         if (fa->isfolder(&localpath))
                         {
                             delete fa;
+                            if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
+                            {
+                                path+="/";
+                            }
                             if (!canWrite(path))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -3058,6 +3068,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         if (fa->isfolder(&localpath))
                         {
                             delete fa;
+                            if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
+                            {
+                                path+="/";
+                            }
                             if (!canWrite(words[2]))
                             {
                                 setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -3140,6 +3154,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             if (fa->isfolder(&localpath))
                             {
                                 delete fa;
+                                if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
+                                {
+                                    path+="/";
+                                }
                                 if (!canWrite(words[2]))
                                 {
                                     setCurrentOutCode(MCMD_NOTPERMITTED);
@@ -3264,6 +3282,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 if (fa->isfolder(&localpath))
                                 {
                                     delete fa;
+                                    if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
+                                    {
+                                        path+="/";
+                                    }
                                     if (!canWrite(words[2]))
                                     {
                                         setCurrentOutCode(MCMD_NOTPERMITTED);
