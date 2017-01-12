@@ -86,6 +86,8 @@ TransferSlot::~TransferSlot()
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size)
     {
+        bool cachetransfer = false; // need to save in cache
+
         if (fa && fa->asyncavailable())
         {
             for (int i = 0; i < connections; i++)
@@ -108,6 +110,7 @@ TransferSlot::~TransferSlot()
                         downloadRequest->chunkmacs.clear();
                         transfer->progresscompleted += downloadRequest->bufpos;
                         LOG_debug << "Cached async data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                        cachetransfer = true;
                     }
                 }
             }
@@ -117,7 +120,6 @@ TransferSlot::~TransferSlot()
             fa->fopen(&transfer->localfilename, false, true);
         }
 
-        bool cachetransfer = false; // need to save in cache
         for (int i = 0; i < connections; i++)
         {
             HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
