@@ -105,17 +105,17 @@ class SynchronousRequestListenerFuse : public MegaRequestListener
 		mutex m;
 };
 
-class SynchronousTransferListener : public MegaTransferListener
+class SynchronousTransferListenerFuse : public MegaTransferListener
 {
 	public:
-		SynchronousTransferListener()
+		SynchronousTransferListenerFuse()
 		{
 			transfer = NULL;
 			error = NULL;
 			notified = false;
 		}
 		
-		~SynchronousTransferListener()
+		~SynchronousTransferListenerFuse()
 		{
 			delete transfer;
 			delete error;
@@ -510,7 +510,7 @@ static int MEGAread(const char *p, char *buf, size_t size, off_t offset,
 		size = node->getSize() - offset;
 	}
 	
-	SynchronousTransferListener listener;
+	SynchronousTransferListenerFuse listener;
 	megaApi->startStreaming(node, offset, size, &listener);
 	listener.wait();
 	delete node;
