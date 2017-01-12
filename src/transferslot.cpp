@@ -84,7 +84,8 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 TransferSlot::~TransferSlot()
 {
     if (transfer->type == GET && !transfer->finished
-            && transfer->progresscompleted != transfer->size)
+            && transfer->progresscompleted != transfer->size
+            && !transfer->asyncopencontext)
     {
         bool cachetransfer = false; // need to save in cache
 
