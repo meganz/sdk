@@ -553,6 +553,9 @@ public:
     // stats id
     static char* statsid;
 
+    // number of ongoing asynchronous fopen
+    int asyncfopens;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;

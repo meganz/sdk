@@ -85,7 +85,13 @@ Transfer::~Transfer()
         delete slot;
     }
 
-    delete asyncopencontext;
+    if (asyncopencontext)
+    {
+        delete asyncopencontext;
+        asyncopencontext = NULL;
+        client->asyncfopens--;
+    }
+
     if (ultoken)
     {
         delete [] ultoken;

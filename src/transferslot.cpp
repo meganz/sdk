@@ -179,6 +179,13 @@ TransferSlot::~TransferSlot()
         delete fa;
     }
 
+    if (transfer->asyncopencontext)
+    {
+        delete transfer->asyncopencontext;
+        transfer->asyncopencontext = NULL;
+        transfer->client->asyncfopens--;
+    }
+
     while (connections--)
     {
         delete asyncIO[connections];

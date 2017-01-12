@@ -771,6 +771,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     retryessl = false;
     workinglockcs = NULL;
     scpaused = false;
+    asyncfopens = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1550,6 +1551,10 @@ void MegaClient::exec()
         // fill transfer slots from the queue
         dispatchmore(PUT);
         dispatchmore(GET);
+
+#ifndef EMSCRIPTEN
+        assert(!asyncfopens);
+#endif
 
         slotit = tslots.begin();
 
@@ -2499,6 +2504,7 @@ bool MegaClient::dispatch(direction_t d)
                     nexttransfer->asyncopencontext = (d == PUT)
                         ? ts->fa->asyncfopen(&nexttransfer->localfilename, true, false)
                         : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
+                    asyncfopens++;
                 }
 
                 if (nexttransfer->asyncopencontext->finished)
@@ -2508,6 +2514,7 @@ bool MegaClient::dispatch(direction_t d)
                     openfinished = true;
                     delete nexttransfer->asyncopencontext;
                     nexttransfer->asyncopencontext = NULL;
+                    asyncfopens--;
                 }
             }
             else
