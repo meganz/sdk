@@ -79,7 +79,7 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotefolderpatterncommands [] = {"sync"};
 vector<string> localremotefolderpatterncommands(alocalremotefolderpatterncommands, alocalremotefolderpatterncommands + sizeof alocalremotefolderpatterncommands / sizeof alocalremotefolderpatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "find"};
+string aremotepatterncommands[] = {"export", "find", "attr"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string aremotefolderspatterncommands[] = {"cd", "share"};
@@ -1440,8 +1440,10 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -a" << "\t" << "Adds an export (or modifies it if existing)" << endl;
         os << " --expire=TIMEDELAY" << "\t" << "Determines the expiration time of a node." << endl;
-        os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), minutes(M), seconds(s), months(m) or years(y)" << endl;
-        os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, 12 days and 3 hours after the current moment" << endl;
+        os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), " << endl;
+        os << "                   " << "\t"  << "   minutes(M), seconds(s), months(m) or years(y)" << endl;
+        os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, " << endl;
+        os << "                   " << "\t"  << "   12 days and 3 hours after the current moment" << endl;
         os << " -d" << "\t" << "Deletes an export" << endl;
         os << endl;
         os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
@@ -1537,7 +1539,8 @@ string getHelpStr(const char *command)
         os << "Print info of the user" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
+        os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder " << endl;
+        os << "   " << "\t" << "(see mount), pro level, account balance, and also the active sessions" << endl;
     }
     if (!strcmp(command, "passwd"))
     {

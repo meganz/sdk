@@ -1500,8 +1500,9 @@ string MegaCmdExecuter::getDisplayPath(string givenPath, MegaNode* n)
     return toret;
 }
 
-void MegaCmdExecuter::dumpListOfExported(MegaNode* n, string givenPath)
+int MegaCmdExecuter::dumpListOfExported(MegaNode* n, string givenPath)
 {
+    int toret = 0;
     vector<MegaNode *> listOfExported;
     processTree(n, includeIfIsExported, (void*)&listOfExported);
     for (std::vector< MegaNode * >::iterator it = listOfExported.begin(); it != listOfExported.end(); ++it)
@@ -1515,8 +1516,9 @@ void MegaCmdExecuter::dumpListOfExported(MegaNode* n, string givenPath)
             delete n;
         }
     }
-
+    toret = listOfExported.size();
     listOfExported.clear();
+    return toret;
 }
 
 /**
@@ -4651,6 +4653,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             words.push_back(string("")); //give at least an empty so that cwd is used
         }
+
         for (int i = 1; i < (int)words.size(); i++)
         {
             unescapeifRequired(words[i]);
@@ -4681,7 +4684,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
                             else
                             {
-                                dumpListOfExported(n, words[i]);
+                                if (dumpListOfExported(n, words[i]) == 0 )
+                                {
+                                    OUTSTREAM << words[i] << " is not exported. Use -a to export it" << endl;
+                                }
                             }
                             delete n;
                         }
@@ -4713,7 +4719,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     else
                     {
-                        dumpListOfExported(n, words[i]);
+                        if (dumpListOfExported(n, words[i]) == 0 )
+                        {
+                            OUTSTREAM << words[i] << " is not exported. Use -a to export it" << endl;
+                        }
                     }
                     delete n;
                 }

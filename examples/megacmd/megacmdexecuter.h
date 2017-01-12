@@ -70,7 +70,7 @@ public:
     void dumptree(mega::MegaNode* n, int recurse, int extended_info, int depth = 0, std::string pathRelativeTo = "NULL");
     mega::MegaContactRequest * getPcrByContact(std::string contactEmail);
     std::string getDisplayPath(std::string givenPath, mega::MegaNode* n);
-    void dumpListOfExported(mega::MegaNode* n, std::string givenPath);
+    int dumpListOfExported(mega::MegaNode* n, std::string givenPath);
     void listnodeshares(mega::MegaNode* n, std::string name);
     void dumpListOfShared(mega::MegaNode* n, std::string givenPath);
     void dumpListOfAllShared(mega::MegaNode* n, std::string givenPath);
