@@ -623,6 +623,9 @@ freeimage_pkg() {
     
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    
+    #patch to fix problem with newest compilers
+    sed -i "s#-Wno-ctor-dtor-privacy#-Wno-ctor-dtor-privacy -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
