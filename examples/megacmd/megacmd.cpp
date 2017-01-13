@@ -1252,7 +1252,8 @@ string getHelpStr(const char *command)
     if (!strcmp(command, "login"))
     {
         os << "Logs into a mega" << endl;
-        os << " You can log in either with email and password, with session ID, or into an exportedfolder" << endl;
+        os << " You can log in either with email and password, with session ID," << endl;
+        os << " or into an exportedfolder" << endl;
         os << " If loging into an exported folder indicate url#key" << endl;
     }
     else if (!strcmp(command, "signup"))
@@ -1262,7 +1263,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " --name=\"Your Name\"" << "\t" << "Name to register. e.g. \"John Smith\"" << endl;
         os << endl;
-        os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
+        os << " You will receive an email to confirm your account. " << endl;
+        os << " Once you have received the email, please proceed to confirm the link " << endl;
+        os << " included in that email with \"confirm\"." << endl;
     }
     else if (!strcmp(command, "clear"))
     {
@@ -1315,8 +1318,10 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the current logs level" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -c" << "\t" << "CMD log level (higher level messages). Messages captured by the command line." << endl;
-        os << " -s" << "\t" << "SDK log level (lower level messages). Messages captured by the engine and libs" << endl;
+        os << " -c" << "\t" << "CMD log level (higher level messages). " << endl;
+        os << "   " << "\t" << " Messages captured by the command line." << endl;
+        os << " -s" << "\t" << "SDK log level (lower level messages)." << endl;
+        os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
     }
     else if (!strcmp(command, "du"))
     {
@@ -1337,7 +1342,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "It will be used for uploads and downloads" << endl;
         os << endl;
-        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+        os << "If not using interactive console, the current local folder will be " << endl;
+        os << " that of the shell executing mega comands" << endl;
     }
     else if (!strcmp(command, "lpwd"))
     {
@@ -1345,7 +1351,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "It will be used for uploads and downloads" << endl;
         os << endl;
-        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+        os << "If not using interactive console, the current local folder will be " << endl;
+        os << " that of the shell executing mega comands" << endl;
     }
     else if (!strcmp(command, "logout"))
     {
@@ -1371,11 +1378,14 @@ string getHelpStr(const char *command)
     {
         os << "Downloads a remote file/folder or a public link " << endl;
         os << endl;
-        os << "In case it is a file, the file will be downloaded at the specified folder (or at the current folder if none specified) " << endl;
+        os << "In case it is a file, the file will be downloaded at the specified folder " << endl;
+        os << "                             (or at the current folder if none specified) " << endl;
         os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl;
         os << endl;
-        os << "For folders, the entire contents (and the root folder itself) will be downloaded into the destination folder" << endl;
-        os << "If the folder already exists, the contents will be merged with the downloaded one (preserving the existing files)" << endl;
+        os << "For folders, the entire contents (and the root folder itself) will be" << endl;
+        os << "                               downloaded into the destination folder" << endl;
+        os << "If the folder already exists, the contents will be merged with the " << endl;
+        os << "                     downloaded one (preserving the existing files)" << endl;
     }
     if (!strcmp(command, "attr"))
     {
@@ -1425,11 +1435,14 @@ string getHelpStr(const char *command)
     {
         os << "Controls synchronizations" << endl;
         os << endl;
-        os << "If no argument is provided, it lists current synchronization with their IDs and their state" << endl;
+        os << "If no argument is provided, it lists current synchronization with their IDs " << endl;
+        os << "                                                             and their state" << endl;
         os << endl;
-        os << "If provided local and remote paths, it will start synchronizing a local folder into a remote folder" << endl;
+        os << "If provided local and remote paths, it will start synchronizing a local folder " << endl;
+        os << "                                                           into a remote folder" << endl;
         os << endl;
-        os << "If an ID is provided, it will list such synchronization with its state, unless an option is specified:" << endl;
+        os << "If an ID is provided, it will list such synchronization with its state, " << endl;
+        os << "                                          unless an option is specified:" << endl;
         os << "-d" << " " << "ID|localpath" << "\t" << "deletes a synchronization" << endl;
         os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) or resumes a synchronization" << endl;
     }
@@ -1464,8 +1477,9 @@ string getHelpStr(const char *command)
         os << "              " << "\t" << "2: " << "Full access" << endl;
         os << "              " << "\t" << "3: " << "Owner access" << endl;
         os << endl;
-        os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
-        os << " it will display all the shares existing in the tree of that path" << endl;
+        os << "If a remote path is given it'll be used to add/delete or in case " << endl;
+        os << " of no option selected, it will display all the shares existing " << endl;
+        os << " in the tree of that path" << endl;
     }
     else if (!strcmp(command, "invite"))
     {
@@ -1598,23 +1612,72 @@ string getHelpStr(const char *command)
     return os.str();
 }
 
-
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
 void printAvailableCommands(int extensive = 0)
 {
     vector<string> validCommandsOrdered = validCommands;
     sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
-    for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+    if (!extensive)
     {
-        if (validCommandsOrdered.at(i)!="completion")
+        size_t i = 0;
+        size_t j = (validCommandsOrdered.size()/3)+((validCommandsOrdered.size()%3>0)?1:0);
+        size_t k = 2*(validCommandsOrdered.size()/3)+validCommandsOrdered.size()%3;
+        for (i = 0; i < validCommandsOrdered.size() && j < validCommandsOrdered.size()  && k < validCommandsOrdered.size(); i++, j++, k++)
         {
-            OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str());
-            if (extensive)
+            OUTSTREAM << "      " << setw(20) << left << validCommandsOrdered.at(i) <<  setw(20) << validCommandsOrdered.at(j)  <<  "      " << validCommandsOrdered.at(k) << endl;
+        }
+        if (validCommandsOrdered.size()%3)
+        {
+            OUTSTREAM << "      " << setw(20) <<  validCommandsOrdered.at(i);
+            if (validCommandsOrdered.size()%3 > 1 )
             {
-                string helpstr = getHelpStr(validCommandsOrdered.at(i).c_str());
-                helpstr=string(helpstr,helpstr.find_first_of("\n")+1);
-                OUTSTREAM << ": " << string(helpstr,0,helpstr.find_first_of("\n"));
+                OUTSTREAM << setw(20) <<  validCommandsOrdered.at(j);
             }
             OUTSTREAM << endl;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+        {
+            if (validCommandsOrdered.at(i)!="completion")
+            {
+                if (extensive > 1)
+                {
+                    u_int width = 90;
+                    int rows = 1, cols = width;
+
+                    #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+                        if (RL_ISSTATE(RL_STATE_INITIALIZED))
+                        {
+                            rl_resize_terminal();
+                            rl_get_screen_size(&rows, &cols);
+                        }
+                    #endif
+
+                    if (cols)
+                    {
+                        width = min(width,cols-2);
+                    }
+
+                    OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
+                    OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
+                    for (u_int j = 0; j< width; j++) OUTSTREAM << "-";
+                    OUTSTREAM << endl;
+
+
+                }
+                else
+                {
+                    OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str());
+                    string helpstr = getHelpStr(validCommandsOrdered.at(i).c_str());
+                    helpstr=string(helpstr,helpstr.find_first_of("\n")+1);
+                    OUTSTREAM << ": " << string(helpstr,0,helpstr.find_first_of("\n"));
+
+                    OUTSTREAM << endl;
+                }
+            }
         }
     }
 }
@@ -1687,6 +1750,7 @@ void executecommand(char* ptr)
         OUTSTREAM << "Here is the list of available commands and their usage" << endl;
         OUTSTREAM << "Use \"help\" -f to get a brief description of the commands" << endl;
         OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
+        OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
         OUTSTREAM << endl << "Commands:" << endl;
 
         printAvailableCommands(getFlag(&clflags,"f"));
