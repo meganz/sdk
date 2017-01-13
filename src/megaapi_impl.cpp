@@ -14022,7 +14022,11 @@ void MegaApiImpl::update()
 
 bool MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest || client->syncfslockretry;
+    return waiting || waitingRequest 
+#ifdef ENABLE_SYNC
+        || client->syncfslockretry
+#endif
+    ;
 }
 
 bool MegaApiImpl::areServersBusy()
