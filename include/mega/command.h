@@ -713,6 +713,14 @@ public:
     CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
 };
 
+class MEGA_API CommandGetVersion : public Command
+{
+public:
+    void procresult();
+
+    CommandGetVersion(MegaClient*, const char*);
+};
+
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {

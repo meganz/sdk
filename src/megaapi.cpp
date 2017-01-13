@@ -2380,6 +2380,11 @@ MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
     return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
+void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
+{
+    return pImpl->getLastAvailableVersion(appKey, listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);

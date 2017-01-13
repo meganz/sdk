@@ -1813,7 +1813,7 @@ class MegaRequest
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
-            TYPE_GET_USER_EMAIL
+            TYPE_GET_USER_EMAIL,TYPE_APP_VERSION
         };
 
         virtual ~MegaRequest();
@@ -8433,6 +8433,29 @@ class MegaApi
          * @return SDK version
          */
         const char *getVersion();
+
+        /**
+         * @brief Get the last available version of the app
+         *
+         * It returns the last available version corresponding to an app token
+         *
+         * The associated request type with this request is MegaRequest::TYPE_APP_VERSION
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the app token
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the last available version code of the app
+         * - MegaRequest::getName - Returns the last available version string of the app
+         *
+         * Usually, the version code is used to internally control updates, and the version
+         * string is intended to be shown to final users.
+         *
+         * @param appKey Token of the app to check or NULL to use the same value as in the
+         * initialization of the MegaApi object
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLastAvailableVersion(const char *appKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the User-Agent header used by the SDK

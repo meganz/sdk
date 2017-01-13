@@ -2908,6 +2908,11 @@ const char *MegaClient::version()
             "." TOSTRING(MEGA_MICRO_VERSION);
 }
 
+void MegaClient::getlastversion(const char *appKey)
+{
+    reqs.add(new CommandGetVersion(this, appKey));
+}
+
 // process server-client request
 bool MegaClient::procsc()
 {

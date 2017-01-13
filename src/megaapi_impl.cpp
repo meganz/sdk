@@ -2659,6 +2659,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_PRESENCE_URL: return "CHAT_PRESENCE_URL";
         case TYPE_REGISTER_PUSH_NOTIFICATION: return "REGISTER_PUSH_NOTIFICATION";
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
+        case TYPE_APP_VERSION: return "APP_VERSION";
     }
     return "UNKNOWN";
 }
@@ -3604,7 +3605,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	}
 
     nocache = false;
-
+    if (appKey)
+    {
+        this->appKey = appKey;
+    }
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -7086,6 +7090,14 @@ const char *MegaApiImpl::getVersion()
     return client->version();
 }
 
+void MegaApiImpl::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_APP_VERSION, listener);
+    request->setText(appKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -8130,6 +8142,21 @@ void MegaApiImpl::confirmemaillink_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::getversion_result(int versionCode, const char *versionString, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_APP_VERSION)) return;
+
+    if (!e)
+    {
+        request->setNumber(versionCode);
+        request->setName(versionString);
+    }
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -13935,6 +13962,16 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->registerPushNotification(deviceType, token);
+            break;
+        }
+        case MegaRequest::TYPE_APP_VERSION:
+        {
+            const char *appKey = request->getText();
+            if (!appKey)
+            {
+                appKey = this->appKey.c_str();
+            }
+            client->getlastversion(appKey);
             break;
         }
 #endif
