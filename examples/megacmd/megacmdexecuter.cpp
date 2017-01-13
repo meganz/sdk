@@ -1021,7 +1021,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
     int l = 0;
     const char* bptr = ptr;
     int remote = 0; //shared
-    MegaNode* n;
+    MegaNode* n = NULL;
 
     // split path by / or :
     do
@@ -1182,9 +1182,11 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
             n = api->getNodeByHandle(cwd);
         }
     }
-
-    getNodesMatching(n, c, nodesMatching);
-    delete n;
+    if (n)
+    {
+        getNodesMatching(n, c, nodesMatching);
+        delete n;
+    }
 
     return nodesMatching;
 }
@@ -2601,17 +2603,24 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 if (isRegExp(words[i]))
                 {
                     vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
-                    for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin(); it != nodesToDelete->end(); ++it)
+                    if (nodesToDelete->size())
                     {
-                        MegaNode * nodeToDelete = *it;
-                        if (nodeToDelete)
+                        for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin(); it != nodesToDelete->end(); ++it)
                         {
-                            deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
-                            delete nodeToDelete;
+                            MegaNode * nodeToDelete = *it;
+                            if (nodeToDelete)
+                            {
+                                deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
+                                delete nodeToDelete;
+                            }
                         }
+                        nodesToDelete->clear();
                     }
-
-                    nodesToDelete->clear();
+                    else
+                    {
+                        setCurrentOutCode(MCMD_NOTFOUND);
+                        LOG_err << words[i] << ": No such file or directory";
+                    }
                     delete nodesToDelete;
                 }
                 else
@@ -2621,6 +2630,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
                         delete nodeToDelete;
+                    }
+                    else
+                    {
+                        setCurrentOutCode(MCMD_NOTFOUND);
+                        LOG_err << words[i] << ": No such file or directory";
                     }
                 }
             }
