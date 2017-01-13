@@ -1,2 +1,2 @@
 #!/bin/bash
-osascript -e 'tell app "Terminal" to do script "/Applications/MEGAcmd.app/Contents/MacOS/mega-cmd" activate'
+osascript -e 'tell app "Terminal" to do script "/Applications/MEGAcmd.app/Contents/MacOS/mega-cmd;exit" activate'
