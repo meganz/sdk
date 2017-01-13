@@ -30,19 +30,22 @@ done
 rm -rf Release_x64
 mkdir Release_x64
 cd Release_x64
-$QTBASE/bin/lrelease ../../../contrib/QtCreator/MEGAcmd/MEGAcmd.pro
-$QTBASE/bin/qmake -r ../../../contrib/QtCreator/MEGAcmd/ -spec macx-g++ CONFIG+=release CONFIG+=x86_64 -nocache
+$QTBASE/bin/qmake -r ../../../../contrib/QtCreator/MEGAcmd/ -spec macx-g++ CONFIG+=release CONFIG+=x86_64 -nocache
 make -j4
 
+cp -R MEGAcmdServer/MEGAcmd.app MEGAcmdServer/MEGAcmd_orig.app
+$QTBASE/bin/macdeployqt MEGAcmdServer/MEGAcmd.app
+dsymutil MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd -o MEGAcmd.app.dSYM
+strip MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
+dsymutil MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient -o MEGAclient.dSYM
+strip MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient
+cp ../../client/mega-* MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
+cp ../../client/megacmd_completion.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
+mv MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-cmd
+cp ../installer/MEGAcmd.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
 
-cp -R MEGAcmdServer/MEGAcmdServer.app MEGAcmdServer/MEGAcmd_orig.app
-$QTBASE/bin/macdeployqt MEGAcmdServer/MEGAcmdServer.app
-dsymutil MEGAcmdServer/MEGAcmdServer.app/Contents/MacOS/MEGAcmd -o MEGAcmd.app.dSYM
-strip MEGAcmdServer/MEGAcmdServer.app/Contents/MacOS/MEGAcmd
-dsymutil MEGAcmdClient/MEGAcmdClient.app/Contents/MacOS/MEGAclient -o MEGAclient.dSYM
-strip MEGAcmdClient/MEGAcmdClient.app/Contents/MacOS/MEGAclient
-mv MEGAcmdClient/MEGAcmdClient.app/Contents/MacOS/MEGAclient MEGAcmdServer/MEGAcmdServer.app/Contents/MacOS/MEGAclient
-mv MEGAcmdServer/MEGAcmdServer.app ./MEGAcmd.app
+mv MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-exec
+mv MEGAcmdServer/MEGAcmd.app ./MEGAcmd.app
 
 if [ "$sign" = "1" ]; then
 	cp -R $APP_NAME.app ${APP_NAME}_unsigned.app

@@ -91,3 +91,5 @@ megaclient_statecache*
 /contrib/QtCreator/MEGAcmd/MEGAcmd
 /contrib/QtCreator/MEGAcmd/Makefile
 /contrib/QtCreator/MEGAcmd/moc_*.cpp
+examples/megacmd/build/Release_x64
+MEGAcmdServer.pro.user
