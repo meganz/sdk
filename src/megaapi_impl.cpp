@@ -11218,8 +11218,12 @@ char* MegaApiImpl::getNodePath(MegaNode *node)
 	if (n->nodehandle == client->rootnodes[0])
 	{
 		path = "/";
-        sdkMutex.unlock();
-        return stringToArray(path);
+                if (strcmp("CRYPTO_ERROR",n->displayname()))
+        	{
+        		path.insert(1,n->displayname());
+        	}
+                sdkMutex.unlock();
+                return stringToArray(path);
 	}
 
 	while (n)
