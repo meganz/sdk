@@ -2964,6 +2964,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (words.size() > 1)
         {
             string path = "./";
+            bool destinyIsFolder = false;
             if (isPublicLink(words[1]))
             {
                 if (getLinkType(words[1]) == MegaNode::TYPE_FILE)
@@ -2974,7 +2975,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         string localpath;
                         fsAccessCMD->path2local(&path, &localpath);
                         FileAccess *fa = fsAccessCMD->newfileaccess();
-                        if (fa->isfolder(&localpath))
+                        destinyIsFolder = fa->isfolder(&localpath);
+                        if (destinyIsFolder)
                         {
                             delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
@@ -3001,7 +3003,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             }
 
                             string localcontainingFolder;
-                            fsAccessCMD->path2local(&path, &localcontainingFolder);
+                            fsAccessCMD->path2local(&containingFolder, &localcontainingFolder);
                             if (!fa->isfolder(&localcontainingFolder))
                             {
                                 delete fa;
@@ -3046,6 +3048,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         if (megaCmdListener->getRequest())
                         {
+                            if (destinyIsFolder && getFlag(clflags,"m"))
+                            {
+                                while( (path.find_last_of("/") == path.size()-1) || (path.find_last_of("\\") == path.size()-1))
+                                {
+                                    path=path.substr(0,path.size()-1);
+                                }
+                            }
                             MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
                             downloadNode(path, api, n);
                             delete n;
@@ -3106,6 +3115,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             MegaNode *folderRootNode = apiFolder->getRootNode();
                             if (folderRootNode)
                             {
+                                if (destinyIsFolder && getFlag(clflags,"m"))
+                                {
+                                    while( (path.find_last_of("/") == path.size()-1) || (path.find_last_of("\\") == path.size()-1))
+                                    {
+                                        path=path.substr(0,path.size()-1);
+                                    }
+                                }
                                 MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
                                 if (authorizedNode != NULL)
                                 {
@@ -3151,7 +3167,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             string localpath;
                             fsAccessCMD->path2local(&path, &localpath);
                             FileAccess *fa = fsAccessCMD->newfileaccess();
-                            if (fa->isfolder(&localpath))
+                            destinyIsFolder = fa->isfolder(&localpath);
+                            if (destinyIsFolder)
                             {
                                 delete fa;
                                 if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
@@ -3204,6 +3221,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                             }
                         }
+                        if (destinyIsFolder && getFlag(clflags,"m"))
+                        {
+                            while( (path.find_last_of("/") == path.size()-1) || (path.find_last_of("\\") == path.size()-1))
+                            {
+                                path=path.substr(0,path.size()-1);
+                            }
+                        }
                         for (std::vector< MegaNode * >::iterator it = nodesToGet->begin(); it != nodesToGet->end(); ++it)
                         {
                             MegaNode * n = *it;
@@ -3218,7 +3242,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         delete nodesToGet;
                     }
                 }
-                else
+                else //not regexp
                 {
                     MegaNode *n = nodebypath(words[1].c_str());
                     if (n)
@@ -3231,7 +3255,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 string localpath;
                                 fsAccessCMD->path2local(&path, &localpath);
                                 FileAccess *fa = fsAccessCMD->newfileaccess();
-                                if (fa->isfolder(&localpath))
+                                destinyIsFolder = fa->isfolder(&localpath);
+                                if (destinyIsFolder)
                                 {
                                     delete fa;
                                     if (!canWrite(words[2]))
@@ -3279,7 +3304,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 string localpath;
                                 fsAccessCMD->path2local(&path, &localpath);
                                 FileAccess *fa = fsAccessCMD->newfileaccess();
-                                if (fa->isfolder(&localpath))
+                                destinyIsFolder = fa->isfolder(&localpath);
+                                if (destinyIsFolder)
                                 {
                                     delete fa;
                                     if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
@@ -3300,6 +3326,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     LOG_err << words[2] << " is not a valid Download Folder";
                                     return;
                                 }
+                            }
+                        }
+                        if (destinyIsFolder && getFlag(clflags,"m"))
+                        {
+                            while( (path.find_last_of("/") == path.size()-1) || (path.find_last_of("\\") == path.size()-1))
+                            {
+                                path=path.substr(0,path.size()-1);
                             }
                         }
                         downloadNode(path, api, n);

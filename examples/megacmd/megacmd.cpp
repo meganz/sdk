@@ -1059,7 +1059,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
-        return "get exportedlink#key|remotepath [localpath]";
+        return "get exportedlink#key|remotepath [-m] [localpath]";
     }
     if (!strcmp(command, "getq"))
     {
@@ -1384,11 +1384,12 @@ string getHelpStr(const char *command)
         os << endl;
         os << "In case it is a file, the file will be downloaded at the specified folder " << endl;
         os << "                             (or at the current folder if none specified) " << endl;
-        os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl;
+//        os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl; //TODO: check this with public links
         os << endl;
         os << "For folders, the entire contents (and the root folder itself) will be" << endl;
-        os << "                               downloaded into the destination folder" << endl;
-        os << "If the folder already exists, the contents will be merged with the " << endl;
+        os << "                    by default downloaded into the destination folder" << endl;
+        os << "Options:" << endl;
+        os << " -m" << "\t" << "if the folder already exists, the contents will be merged with the " << endl;
         os << "                     downloaded one (preserving the existing files)" << endl;
     }
     if (!strcmp(command, "attr"))
