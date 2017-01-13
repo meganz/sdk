@@ -96,6 +96,7 @@ MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
     cwd = UNDEF;
     fsAccessCMD = new MegaFileSystemAccess();
     mtxSyncMap.init(false);
+    session = NULL;
 }
 MegaCmdExecuter::~MegaCmdExecuter()
 {
