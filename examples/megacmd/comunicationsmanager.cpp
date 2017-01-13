@@ -97,3 +97,13 @@ string ComunicationsManager::get_petition_details(CmdPetition *inf)
 ComunicationsManager::~ComunicationsManager()
 {
 }
+
+MegaThread *CmdPetition::getPetitionThread() const
+{
+    return petitionThread;
+}
+
+void CmdPetition::setPetitionThread(MegaThread *value)
+{
+    petitionThread = value;
+}

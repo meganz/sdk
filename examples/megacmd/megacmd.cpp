@@ -62,7 +62,10 @@ MegaMutex mutexapiFolders;
 
 MegaCMDLogger *loggerCMD;
 
+MegaMutex mutexEndedPetitionThreads;
 std::vector<MegaThread *> petitionThreads;
+std::vector<MegaThread *> endedPetitionThreads;
+
 
 //Comunications Manager
 ComunicationsManager * cm;
@@ -1874,6 +1877,7 @@ void * doProcessLine(void *pointer)
 
     LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
+    MegaThread * petitionThread = inf->getPetitionThread();
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
     semaphoreClients.release();
@@ -1881,26 +1885,41 @@ void * doProcessLine(void *pointer)
     {
         exit(0);
     }
+
+    mutexEndedPetitionThreads.lock();
+    endedPetitionThreads.push_back(petitionThread);
+    mutexEndedPetitionThreads.unlock();
+
     return NULL;
 }
 
 
 void delete_finished_threads()
 {
-    for (std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end(); )
+    mutexEndedPetitionThreads.lock();
+    for (std::vector<MegaThread *>::iterator it = endedPetitionThreads.begin(); it != endedPetitionThreads.end(); )
     {
-#ifdef USE_QT
         MegaThread *mt = (MegaThread*)*it;
-        if (mt->isFinished())
+        for (std::vector<MegaThread *>::iterator it2 = petitionThreads.begin(); it2 != petitionThreads.end(); )
         {
-            delete mt;
-            it = petitionThreads.erase(it);
+            if (mt == (MegaThread*)*it2)
+            {
+                it2 = petitionThreads.erase(it2);
+            }
+            else
+            {
+                ++it2;
+            }
         }
-        else
-#endif
-        ++it;
+
+        mt->join();
+        delete mt;
+        it = endedPetitionThreads.erase(it);
     }
+    mutexEndedPetitionThreads.unlock();
 }
+
+
 
 void finalize()
 {
@@ -2005,6 +2024,7 @@ void megacmd()
                         //append new one
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
+                        inf->setPetitionThread(petitionThread);
 
                         LOG_debug << "starting processing: " << *inf;
 
@@ -2041,6 +2061,8 @@ void megacmd()
         }
         if (doExit)
         {
+            if (saved_line != NULL)
+                free(saved_line);
             return;
         }
     }
@@ -2144,6 +2166,8 @@ int main(int argc, char* argv[])
     }
 
     mutexHistory.init(false);
+
+    mutexEndedPetitionThreads.init(false);
 
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 

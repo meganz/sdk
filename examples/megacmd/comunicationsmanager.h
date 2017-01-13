@@ -28,6 +28,7 @@ class CmdPetition
 {
     public:
         char * line = NULL;
+        mega::MegaThread * petitionThread = NULL;
 
         char *getLine()
         {
@@ -40,6 +41,8 @@ class CmdPetition
                 free(line);
             }
         }
+        mega::MegaThread *getPetitionThread() const;
+        void setPetitionThread(mega::MegaThread *value);
 };
 
 
