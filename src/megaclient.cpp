@@ -176,7 +176,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 {
                     int creqtag = reqtag;
                     reqtag = 0;
-                    sendevent(99424,"Replacing share key");
+                    sendevent(99428,"Replacing share key");
                     reqtag = creqtag;
                     delete n->sharekey;
                 }
@@ -915,7 +915,7 @@ void MegaClient::exec()
         {
             int creqtag = reqtag;
             reqtag = 0;
-            sendevent(99424, "Timeout (server idle)");
+            sendevent(99427, "Timeout (server idle)");
             reqtag = creqtag;
 
             disconnect();
