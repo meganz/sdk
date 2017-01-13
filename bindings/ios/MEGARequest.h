@@ -98,7 +98,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePauseTransfer,
     MEGARequestTypeMoveTransfer,
     MEGARequestTypeChatPresenceUrl,
-    MEGARequestTypeRegisterPushNotification
+    MEGARequestTypeRegisterPushNotification,
+    MEGARequestTypeGetUserEmail
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

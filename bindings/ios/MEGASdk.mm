@@ -63,7 +63,7 @@ using namespace mega;
 
 @implementation MEGASdk
 
-static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener(nil);
+static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListener(nil);
 
 #pragma mark - Properties
 
@@ -1423,7 +1423,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
-    DelegateMEGALogerListener *newLogger = new DelegateMEGALogerListener(delegate);
+    DelegateMEGALoggerListener *newLogger = new DelegateMEGALoggerListener(delegate);
     delete externalLogger;
     externalLogger = newLogger;
 }

@@ -120,6 +120,8 @@ public:
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
     ~Sync();
 
+    static const int SCANNING_DELAY_DS;
+
 protected :
     bool readstatecache();
 
