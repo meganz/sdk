@@ -509,7 +509,15 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname);
+    if (ll && ll != (LocalNode*)~0 && n
+            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    {
+        LOG_debug << "LocalNode created, associating with remote Node";
+        ll->setnode(n);
+        ll->treestate(TREESTATE_SYNCED);
+        ll->sync->statecacheadd(ll);
+    }
     delete this;
 }
 

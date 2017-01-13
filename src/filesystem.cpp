@@ -23,6 +23,7 @@
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
@@ -143,15 +144,66 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 
     failed = true;
     error = false;
+    sync = NULL;
 }
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
 {
+    string path;
+    path.assign(localpath, len);
+    if (notifyq[q].size()
+            && notifyq[q].back().localnode == l
+            && notifyq[q].back().path == path)
+    {
+        if (notifyq[q].back().timestamp)
+        {
+            notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
+        }
+        LOG_debug << "Repeated notification skipped";
+        return;
+    }
+
+    if (!immediate && sync && !sync->initializing)
+    {
+        string tmppath;
+        if (l)
+        {
+            l->getlocalpath(&tmppath);
+        }
+
+        if (localpath)
+        {
+            if (tmppath.size())
+            {
+                tmppath.append(sync->client->fsaccess->localseparator);
+            }
+
+            tmppath.append(path);
+        }
+        attr_map::iterator ait;
+        FileAccess *fa = sync->client->fsaccess->newfileaccess();
+        bool success = fa->fopen(&tmppath, false, false);
+        LocalNode *ll = sync->localnodebypath(l, &path);
+        if ((!ll && !success && !fa->retry) // deleted file
+            || (ll && success && ll->node && ll->node->localnode == ll
+                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
+                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
+                && ait->second == ll->name
+                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
+                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
+        {
+            LOG_debug << "Self filesystem notification skipped";
+            delete fa;
+            return;
+        }
+        delete fa;
+    }
+
     notifyq[q].resize(notifyq[q].size() + 1);
     notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
     notifyq[q].back().localnode = l;
-    notifyq[q].back().path.assign(localpath, len);
+    notifyq[q].back().path = path;
 }
 
 // default: no fingerprint

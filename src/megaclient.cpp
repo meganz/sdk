@@ -721,7 +721,6 @@ void MegaClient::init()
 #ifdef ENABLE_SYNC
     syncactivity = false;
     syncops = false;
-    syncadded = false;
     syncdebrisadding = false;
     syncscanfailed = false;
     syncfslockretry = false;
@@ -730,6 +729,7 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
+    syncuprequired = false;
 
     if (syncscanstate)
     {
@@ -1599,6 +1599,7 @@ void MegaClient::exec()
             {
                 syncsup = true;
                 syncactivity = true;
+                syncdownrequired = true;
             }
         }
 
@@ -1620,20 +1621,36 @@ void MegaClient::exec()
         // sync timer: read lock retry
         if (syncfslockretry && syncfslockretrybt.armed())
         {
-            syncfslockretrybt.backoff(1);
+            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
         }
 
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // or while we are fetching nodes
         // FIXME: indicate by callback
-        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired)
+        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired && !fetchingnodes)
         {
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
             {
-                unsigned totalpending = 0;
-                dstime nds = NEVER;
+                bool prevpending = false;
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                {
+                    for (it = syncs.begin(); it != syncs.end(); )
+                    {
+                        Sync* sync = *it++;
+                        prevpending |= sync->dirnotify->notifyq[q].size();
+                        if (prevpending)
+                        {
+                            break;
+                        }
+                    }
+                    if (prevpending)
+                    {
+                        break;
+                    }
+                }
 
+                dstime nds = NEVER;
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
                     if (!syncfsopsfailed)
@@ -1675,7 +1692,6 @@ void MegaClient::exec()
 
                                         if (syncadding)
                                         {
-                                            syncfslockretry = true;
                                             break;
                                         }
                                     }
@@ -1684,13 +1700,13 @@ void MegaClient::exec()
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
                                         if (!syncadding)
                                         {
+                                            LOG_debug << "Running syncup to create missing folders";
                                             syncup(&sync->localroot, &nds);
                                             sync->cachenodes();
                                         }
 
                                         // we interrupt processing the notifyq if the completion
                                         // of a node creation is required to continue
-                                        syncfslockretry = true;
                                         break;
                                     }
                                 }
@@ -1703,17 +1719,6 @@ void MegaClient::exec()
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
                                     sync->deletemissing(&sync->localroot);
-                                }
-
-                                if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
-                                {
-                                    syncfslockretrybt.backoff(1);
-                                    syncfslockretry = true;
-                                }
-
-                                if (q == DirNotify::DIREVENTS)
-                                {
-                                    totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
                                 }
                             }
 
@@ -1728,6 +1733,31 @@ void MegaClient::exec()
                             break;
                         }
                     }
+                }
+
+                unsigned totalpending = 0;
+                unsigned scanningpending = 0;
+                for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
+                {
+                    for (it = syncs.begin(); it != syncs.end(); )
+                    {
+                        Sync* sync = *it++;
+                        totalpending += sync->dirnotify->notifyq[q].size();
+                        if (q == DirNotify::DIREVENTS)
+                        {
+                            scanningpending += sync->dirnotify->notifyq[q].size();
+                        }
+                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        {
+                            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
+                            syncfslockretry = true;
+                        }
+                    }
+                }
+
+                if (!syncfslockretry && !syncfsopsfailed)
+                {
+                    blockedfile.clear();
                 }
 
                 if (syncadding)
@@ -1746,41 +1776,33 @@ void MegaClient::exec()
                     syncupdate();
                 }
 
-                // set retry interval for locked filesystem items once all
-                // pending items were processed
-                if (syncfslockretry)
-                {
-                    syncfslockretrybt.backoff(2);
-                }
-
                 // notify the app of the length of the pending scan queue
-                if (totalpending < 4)
+                if (scanningpending < 4)
                 {
                     if (syncscanstate)
                     {
+                        LOG_debug << "Scanning finished";
                         app->syncupdate_scanning(false);
                         syncscanstate = false;
                     }
                 }
-                else if (totalpending > 10)
+                else if (scanningpending > 10)
                 {
                     if (!syncscanstate)
                     {
+                        LOG_debug << "Scanning started";
                         app->syncupdate_scanning(true);
                         syncscanstate = true;
                     }
                 }
 
-                bool success = true;
-                string localpath;
+                if (prevpending && !totalpending)
+                {
+                    LOG_debug << "Scan queue processed, triggering a scan";
+                    syncdownrequired = true;
+                }
 
                 notifypurge();
-
-                if (syncadded)
-                {
-                    syncadded = false;
-                    syncops = true;
-                }
 
                 if (!syncadding && (syncactivity || syncops))
                 {
@@ -1793,48 +1815,6 @@ void MegaClient::exec()
                             (*it)->errorcode = API_ENOENT;
                             (*it)->changestate(SYNC_FAILED);
                         }
-                        else
-                        {
-                            localpath = (*it)->localroot.localname;
-
-                            if ((*it)->state == SYNC_ACTIVE && !syncscanstate)
-                            {
-                                if (!syncdown(&(*it)->localroot, &localpath, true))
-                                {
-                                    // a local filesystem item was locked - schedule periodic retry
-                                    // and force a full rescan afterwards as the local item may
-                                    // be subject to changes that are notified with obsolete paths
-                                    success = false;
-                                    (*it)->dirnotify->error = true;
-                                }
-
-                                (*it)->cachenodes();                            
-                            }
-                        }
-                    }
-
-                    // notify the app if a lock is being retried
-                    if (success)
-                    {
-                        syncdownretry = false;
-
-                        if (syncfsopsfailed)
-                        {
-                            syncfsopsfailed = false;
-                            blockedfile.clear();
-                            app->syncupdate_local_lockretry(false);
-                        }
-                    }
-                    else
-                    {
-                        if (!syncfsopsfailed)
-                        {
-                            syncfsopsfailed = true;
-                            app->syncupdate_local_lockretry(true);
-                        }
-
-                        syncdownretry = true;
-                        syncdownbt.backoff(50);
                     }
 
                     // perform aggregate ops that require all scanqs to be fully processed
@@ -1843,7 +1823,7 @@ void MegaClient::exec()
                         if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                           || (*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                         {
-                            if (!syncnagleretry)
+                            if (!syncnagleretry && !syncfslockretry)
                             {
                                 syncactivity = true;
                             }
@@ -1872,7 +1852,7 @@ void MegaClient::exec()
                         if (!syncfsopsfailed)
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncadded << syncfslockretry << synccreate.size();
+                                        << syncfslockretry << synccreate.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -1880,11 +1860,10 @@ void MegaClient::exec()
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                                 && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size()
-                                 && !syncadding)
+                                 && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    syncup(&(*it)->localroot, &nds);
+                                    LOG_debug << "Running syncup on demand";
+                                    syncuprequired |= !syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
                                 }
                             }
@@ -1893,6 +1872,7 @@ void MegaClient::exec()
                             {
                                 syncnaglebt.backoff(nds - Waiter::ds);
                                 syncnagleretry = true;
+                                syncuprequired = true;
                             }
 
                             // delete files that were overwritten by folders in syncup()
@@ -1976,6 +1956,8 @@ void MegaClient::exec()
         }
         else
         {
+            notifypurge();
+
             // sync timer: retry syncdown() ops in case of local filesystem lock clashes
             if (syncdownretry && syncdownbt.armed())
             {
@@ -1985,61 +1967,69 @@ void MegaClient::exec()
 
             if (syncdownrequired)
             {
-                LOG_verbose << "Running syncdown";
                 syncdownrequired = false;
-
-                bool success = true;
-                for (it = syncs.begin(); it != syncs.end(); it++)
+                if (!fetchingnodes)
                 {
-                    // make sure that the remote synced folder still exists
-                    if (!(*it)->localroot.node)
+                    LOG_verbose << "Running syncdown";
+                    bool success = true;
+                    for (it = syncs.begin(); it != syncs.end(); it++)
                     {
-                        LOG_err << "The remote root node doesn't exist";
-                        (*it)->errorcode = API_ENOENT;
-                        (*it)->changestate(SYNC_FAILED);
+                        // make sure that the remote synced folder still exists
+                        if (!(*it)->localroot.node)
+                        {
+                            LOG_err << "The remote root node doesn't exist";
+                            (*it)->errorcode = API_ENOENT;
+                            (*it)->changestate(SYNC_FAILED);
+                        }
+                        else
+                        {
+                            string localpath = (*it)->localroot.localname;
+                            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                            {
+                                LOG_debug << "Running syncdown on demand";
+                                if (!syncdown(&(*it)->localroot, &localpath, true))
+                                {
+                                    // a local filesystem item was locked - schedule periodic retry
+                                    // and force a full rescan afterwards as the local item may
+                                    // be subject to changes that are notified with obsolete paths
+                                    success = false;
+                                    (*it)->dirnotify->error = true;
+                                }
+
+                                (*it)->cachenodes();
+                            }
+                        }
+                    }
+
+                    // notify the app if a lock is being retried
+                    if (success)
+                    {
+                        syncuprequired = true;
+                        syncdownretry = false;
+                        syncactivity = true;
+
+                        if (syncfsopsfailed)
+                        {
+                            syncfsopsfailed = false;
+                            blockedfile.clear();
+                            app->syncupdate_local_lockretry(false);
+                        }
                     }
                     else
                     {
-                        string localpath = (*it)->localroot.localname;
-                        if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                        if (!syncfsopsfailed)
                         {
-                            if (!syncdown(&(*it)->localroot, &localpath, true))
-                            {
-                                // a local filesystem item was locked - schedule periodic retry
-                                // and force a full rescan afterwards as the local item may
-                                // be subject to changes that are notified with obsolete paths
-                                success = false;
-                                (*it)->dirnotify->error = true;
-                            }
-
-                            (*it)->cachenodes();
+                            syncfsopsfailed = true;
+                            app->syncupdate_local_lockretry(true);
                         }
-                    }
-                }
 
-                // notify the app if a lock is being retried
-                if (success)
-                {
-                    syncdownretry = false;
-                    syncactivity = true;
-
-                    if (syncfsopsfailed)
-                    {
-                        syncfsopsfailed = false;
-                        blockedfile.clear();
-                        app->syncupdate_local_lockretry(false);
+                        syncdownretry = true;
+                        syncdownbt.backoff(50);
                     }
                 }
                 else
                 {
-                    if (!syncfsopsfailed)
-                    {
-                        syncfsopsfailed = true;
-                        app->syncupdate_local_lockretry(true);
-                    }
-
-                    syncdownretry = true;
-                    syncdownbt.backoff(50);
+                    LOG_err << "Syncdown requested while fetchingnodes is set";
                 }
             }
         }
@@ -2196,6 +2186,7 @@ int MegaClient::preparewait()
         if (syncfslockretry && !syncdownretry && !syncadding
                 && statecurrent && !syncdownrequired && !syncfsopsfailed)
         {
+            LOG_debug << "Waiting for a temporary error checking filesystem notification";
             syncfslockretrybt.update(&nds);
         }
 
@@ -2926,6 +2917,7 @@ bool MegaClient::procsc()
     char test[] = "},{\"a\":\"t\",\"i\":\"";
     char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool stop = false;
+    bool newnodes = false;
 #endif
     Node* dn = NULL;
 
@@ -3078,8 +3070,9 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes && jsonsc.pos[1] != ']') // there are more packets
+                                if (!fetchingnodes)
                                 {
+                                    // run syncdown() before continuing
                                     applykeys();
                                     return false;
                                 }
@@ -3106,15 +3099,17 @@ bool MegaClient::procsc()
                                 mergenewshares(1);
 
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes && stop)
+                                if (!fetchingnodes)
                                 {
-                                    stop = false;
-
-                                    if (jsonsc.pos[1] != ']') // there are more packets
+                                    if (stop)
                                     {
                                         // run syncdown() before continuing
                                         applykeys();
                                         return false;
+                                    }
+                                    else
+                                    {
+                                        newnodes = true;
                                     }
                                 }
 #endif
@@ -3141,12 +3136,9 @@ bool MegaClient::procsc()
                                     }
                                 }
 
-                                if (jsonsc.pos[1] != ']') // there are more packets
-                                {
-                                    // run syncdown() to process the deletion before continuing
-                                    applykeys();
-                                    return false;
-                                }
+                                // run syncdown() to process the deletion before continuing
+                                applykeys();
+                                return false;
 #endif
                                 break;
 
@@ -3231,7 +3223,7 @@ bool MegaClient::procsc()
                 insca = false;
 
 #ifdef ENABLE_SYNC
-                if (!fetchingnodes)
+                if (!fetchingnodes && newnodes)
                 {
                     applykeys();
                     return false;
@@ -4802,8 +4794,6 @@ void MegaClient::notifypurge(void)
                 delsync(*it);
             }
         }
-
-        syncadded = true;
 #endif
         applykeys();
 
@@ -8925,11 +8915,13 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             }
             else
             {
+                LOG_err << "Initial scan failed";
+                sync->changestate(SYNC_FAILED);
                 delete sync;
-                e = API_ENOENT;
+                e = API_EFAILED;
             }
 
-            syncadded = true;
+            syncactivity = true;
         }
         else
         {
@@ -9969,7 +9961,6 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
     delete[] nn;
 
     syncadding--;
-
     syncactivity = true;
 }
 

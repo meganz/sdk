@@ -7503,10 +7503,16 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for the server
+         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
          * @return true if the SDK is waiting for the server to complete a request
          */
         bool isWaiting();
+
+        /**
+         * @brief Check if the SDK is waiting for the server
+         * @return true if the SDK is waiting for the server to complete a request
+         */
+        bool areServersBusy();
 
         /**
          * @brief Get the number of pending uploads

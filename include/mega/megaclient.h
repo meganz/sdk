@@ -313,7 +313,6 @@ public:
 #ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
-    bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
@@ -897,6 +896,8 @@ public:
 
     // scan required flag
     bool syncdownrequired;
+
+    bool syncuprequired;
 
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
