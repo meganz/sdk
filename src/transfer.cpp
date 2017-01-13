@@ -320,11 +320,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-        if (chunkceil > t->size)
-        {
-            chunkceil = t->size;
-        }
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
 
         if (t->pos == it->first && it->second.finished)
         {
@@ -729,7 +725,7 @@ void Transfer::complete()
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f);
-                            client->app->file_removed(*it, API_EFAILED);
+                            client->app->file_removed(f, API_EFAILED);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -1057,6 +1053,7 @@ bool DirectReadSlot::doio()
 
             speed = speedController.calculateSpeed(t);
             meanSpeed = speedController.getMeanSpeed();
+            dr->drn->client->httpio->updatedownloadspeed(t);
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;

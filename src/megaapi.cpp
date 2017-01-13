@@ -2023,6 +2023,11 @@ void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
     pImpl->cancelTransfer(t, listener);
 }
 
+void MegaApi::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->retryTransfer(transfer, listener);
+}
+
 void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)
 {
     pImpl->moveTransferUp(transfer ? transfer->getTag() : 0, listener);
@@ -3464,6 +3469,12 @@ void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
 {
     pImpl->getChatPresenceURL(listener);
 }
+
+void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener)
+{
+    pImpl->registerPushNotification(deviceType, token, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)

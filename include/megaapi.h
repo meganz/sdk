@@ -1812,7 +1812,7 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL,
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL
         };
 
@@ -6551,6 +6551,23 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Retry a transfer
+         *
+         * This function allows to start a transfer based on a MegaTransfer object. It can be used,
+         * for example, to retry transfers that finished with an error. To do it, you can retain the
+         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+         * and use it later with this function.
+         *
+         * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
+         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
+         * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * @param transfer Transfer to be retried
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
+
+        /**
          * @brief Move a transfer one position up in the transfer queue
          *
          * If the transfer is successfully moved, onTransferUpdate will be called
@@ -9183,6 +9200,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Register a token for push notifications
+         *
+         * This function attach a token to the current session, which is intended to get push notifications
+         * on mobile platforms like Android and iOS.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the token provided.
+         * - MegaRequest::getNumber - Returns the device type provided.
+         *
+         * @param deviceType Integer id for the provider. 1 for Android, 2 for iOS
+         * @param token Character array representing the token to be registered.
+         * @param listener MegaRequestListener to track this request
+         */
+        void registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener = NULL);
 #endif
 
 private:

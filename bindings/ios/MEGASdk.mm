@@ -63,7 +63,7 @@ using namespace mega;
 
 @implementation MEGASdk
 
-static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener(nil);
+static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListener(nil);
 
 #pragma mark - Properties
 
@@ -1405,6 +1405,15 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
 }
 
+- (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+}
+
+- (void)registeriOSdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
+}
+
 #endif
 
 #pragma mark - Debug log messages
@@ -1414,7 +1423,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
-    DelegateMEGALogerListener *newLogger = new DelegateMEGALogerListener(delegate);
+    DelegateMEGALoggerListener *newLogger = new DelegateMEGALoggerListener(delegate);
     delete externalLogger;
     externalLogger = newLogger;
 }
