@@ -372,6 +372,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("c");
     }
+    else if ("get" == thecommand)
+    {
+        validParams->insert("m");
+    }
 }
 
 void escapeEspace(string &orig)
@@ -1658,7 +1662,7 @@ void printAvailableCommands(int extensive = 0)
 
                     if (cols)
                     {
-                        width = min(width,cols-2);
+                        width = min((int)width,cols-2);
                     }
 
                     OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
