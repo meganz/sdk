@@ -43,11 +43,11 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
     {
         if (users->size() == 1)
         {
-            LOG_info << " 1 user received or updated";
+            LOG_debug << " 1 user received or updated";
         }
         else
         {
-            LOG_info << users->size() << " users received or updated";
+            LOG_debug << users->size() << " users received or updated";
         }
     }
     else //initial update or too many changes
@@ -58,15 +58,15 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
         {
             if (users->size() == 1)
             {
-                LOG_info << " 1 user received or updated";
+                LOG_debug << " 1 user received or updated";
             }
             else
             {
-                LOG_info << users->size() << " users received or updated";
+                LOG_debug << users->size() << " users received or updated";
             }
 
             // force reshow display for a first clean prompt
-            if (initial && loggerCMD->getCmdLoggerLevel()>=MegaApi::LOG_LEVEL_INFO)
+            if (initial && loggerCMD->getCmdLoggerLevel()>=MegaApi::LOG_LEVEL_DEBUG)
             {
                 rl_forced_update_display();
             }
@@ -159,19 +159,19 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 
         if (nfolders)
         {
-            LOG_info << nfolders << " folders " << "added or updated ";
+            LOG_debug << nfolders << " folders " << "added or updated ";
         }
         if (nfiles)
         {
-            LOG_info << nfiles << " files " << "added or updated ";
+            LOG_debug << nfiles << " files " << "added or updated ";
         }
         if (rfolders)
         {
-            LOG_info << rfolders << " folders " << "removed";
+            LOG_debug << rfolders << " folders " << "removed";
         }
         if (rfiles)
         {
-            LOG_info << rfiles << " files " << "removed";
+            LOG_debug << rfiles << " files " << "removed";
         }
     }
 }
