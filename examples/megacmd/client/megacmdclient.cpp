@@ -258,6 +258,11 @@ string parseArgs(int argc, char* argv[])
                     absolutedargs.push_back(argv[i]);
                 }
             }
+            if (totalRealArgs == 1)
+            {
+                absolutedargs.push_back(getAbsPath("."));
+
+            }
         }
         else if (!strcmp(argv[1],"put"))
         {
