@@ -62,7 +62,8 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
     if (n)
     {
         char *np = api->getNodePath(n);
-        *ptraux++ = ':';
+        if (ptraux!=dynamicprompt)
+            *ptraux++ = ':';
         ptraux = min(ptraux, lastpos - 2);
         strncpy(ptraux, np, ( lastpos - ptraux ) / sizeof( dynamicprompt[0] ));
         ptraux += strlen(np);
