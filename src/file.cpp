@@ -524,6 +524,7 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
         ll->setnode(n);
         ll->treestate(TREESTATE_SYNCED);
         ll->sync->statecacheadd(ll);
+        ll->sync->cachenodes();
     }
     delete this;
 }
