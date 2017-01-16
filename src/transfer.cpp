@@ -799,7 +799,8 @@ void Transfer::complete()
         // files must not change during a PUT transfer
         if (slot->fa->asyncavailable())
         {
-            slot->fa->closef();
+            delete slot->fa;
+            slot->fa = client->fsaccess->newfileaccess();
             slot->fa->fopen(&localfilename);
         }
 

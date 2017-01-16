@@ -35,6 +35,7 @@ WinFileAccess::~WinFileAccess()
     if (hFile != INVALID_HANDLE_VALUE)
     {
         CloseHandle(hFile);
+        assert(hFind == INVALID_HANDLE_VALUE);
     }
     else if (hFind != INVALID_HANDLE_VALUE)
     {
@@ -154,7 +155,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return true;
 }
 
-bool WinFileAccess::sysopen()
+bool WinFileAccess::sysopen(bool async)
 {
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
@@ -163,7 +164,7 @@ bool WinFileAccess::sysopen()
 #else
     hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        NULL, OPEN_EXISTING, 0, NULL);
+                        NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
 
     if (hFile == INVALID_HANDLE_VALUE)
@@ -240,7 +241,7 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
     }
     else
     {
-        LOG_warn << "Async operation finished with error";
+        LOG_warn << "Async operation finished with error: " << dwErrorCode;
     }
 
     delete synchronizer;
@@ -369,12 +370,12 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 
     overlapped->hEvent = synchronizer;
 
-    if(!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+    if (!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
                    overlapped, asyncopfinished))
     {
         winContext->failed = true;
         winContext->retry = WinFileSystemAccess::istransient(GetLastError());
-        LOG_warn << "Async read failed at startup";
+        LOG_warn << "Async write failed at startup";
         winContext->finished = true;
         winContext->synchronizer = NULL;
         delete synchronizer;

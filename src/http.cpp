@@ -555,7 +555,7 @@ void HttpReqDL::finalize(Transfer *transfer)
             chunkmac = transfer->chunkmacs[chunkid];
             transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
                                     chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
-            if (endpos == ChunkedHash::chunkceil(chunkid) || endpos == transfer->size)
+            if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
             {
                 LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 chunkmac.finished = true;

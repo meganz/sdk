@@ -147,7 +147,7 @@ public:
 
     bool sysread(byte *, unsigned, m_off_t);
     bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen();
+    bool sysopen(bool async = false);
     void sysclose();
 
     // async interface

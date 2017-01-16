@@ -64,6 +64,7 @@ struct MEGA_API AsyncIOContext
     unsigned pad;
     byte *buffer;
     Waiter *waiter;
+    FileAccess *fa;
 };
 
 // generic host file/directory access interface
@@ -119,13 +120,19 @@ struct MEGA_API FileAccess
     // system-specific raw read/open/close
     virtual bool sysread(byte *, unsigned, m_off_t) = 0;
     virtual bool sysstat(m_time_t*, m_off_t*) = 0;
-    virtual bool sysopen() = 0;
+    virtual bool sysopen(bool async = false) = 0;
     virtual void sysclose() = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess() { }
 
     virtual bool asyncavailable() { return false; }
+
+    AsyncIOContext *asyncfopen(string *);
+
+    // non-locking ops: open/close temporary hFile
+    bool asyncopenf();
+    void asyncclosef();
 
     AsyncIOContext *asyncfopen(string *, bool, bool, m_off_t = 0);
     virtual void asyncsysopen(AsyncIOContext*);
@@ -140,6 +147,7 @@ struct MEGA_API FileAccess
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);
+    int numops;
 };
 
 struct MEGA_API InputStreamAccess

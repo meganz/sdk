@@ -123,7 +123,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return false;
 }
 
-bool PosixFileAccess::sysopen()
+bool PosixFileAccess::sysopen(bool)
 {
 #ifdef USE_IOS
     string localname = this->localname;

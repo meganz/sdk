@@ -117,7 +117,8 @@ TransferSlot::~TransferSlot()
             }
 
             // Open the file in synchonous mode
-            fa->closef();
+            delete fa;
+            fa = transfer->client->fsaccess->newfileaccess();
             fa->fopen(&transfer->localfilename, false, true);
         }
 
@@ -808,7 +809,7 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_warn << "Retrying a failed read";
                                 pos = asyncIO[i]->pos;
                                 size = asyncIO[i]->len;
-                                npos = ChunkedHash::chunkceil(pos);
+                                npos = ChunkedHash::chunkceil(pos, transfer->size);
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                             }

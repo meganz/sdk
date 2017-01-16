@@ -223,6 +223,7 @@ DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
 FileAccess::FileAccess(Waiter *waiter)
 {
     this->waiter = waiter;
+    this->numops = 0;
 }
 
 // open file for reading
@@ -270,9 +271,83 @@ void FileAccess::closef()
 void FileAccess::asyncopfinished(void *param)
 {
     AsyncIOContext *context = (AsyncIOContext *)param;
+    if (context->op == AsyncIOContext::READ)
+    {
+        context->fa->asyncclosef();
+    }
+
     if (context->waiter)
     {
         context->waiter->notify();
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfopen(string *f)
+{
+    localname.resize(1);
+    updatelocalname(f);
+
+    LOG_verbose << "Async open start";
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::OPEN;
+    context->access = AsyncIOContext::ACCESS_READ;
+
+    context->buffer = (byte *)f->data();
+    context->len = f->size();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = context;
+    context->pos = size;
+    context->fa = this;
+
+    context->failed = !sysstat(&mtime, &size);
+    context->retry = this->retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+
+    return context;
+}
+
+bool FileAccess::asyncopenf()
+{
+    if (!localname.size())
+    {
+        return true;
+    }
+
+    if (numops)
+    {
+        numops++;
+        return true;
+    }
+
+    m_time_t curr_mtime;
+    m_off_t curr_size;
+
+    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
+    {
+        return false;
+    }
+
+    LOG_debug << "Opening async file handle for reading";
+    bool result = sysopen(true);
+    if (result)
+    {
+        numops++;
+    }
+    return result;
+}
+
+void FileAccess::asyncclosef()
+{
+    numops--;
+    if (localname.size() && !numops)
+    {
+        LOG_debug << "Closing async file handle";
+        sysclose();
     }
 }
 
@@ -291,6 +366,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
     context->userCallback = asyncopfinished;
     context->userData = context;
     context->pos = size;
+    context->fa = this;
 
     asyncsysopen(context);
     return context;
@@ -321,6 +397,20 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = context;
+    context->fa = this;
+
+    if (!asyncopenf())
+    {
+        LOG_err << "Error in asyncopenf";
+        context->failed = true;
+        context->retry = this->retry;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return context;
+    }
 
     asyncsysread(context);
     return context;
@@ -349,6 +439,7 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = context;
+    context->fa = this;
 
     asyncsyswrite(context);
     return context;
