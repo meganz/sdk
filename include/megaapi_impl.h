@@ -1436,6 +1436,7 @@ class MegaApiImpl : public MegaApp
         int getDownloadMethod();
         int getUploadMethod();
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+        MegaTransfer *getFirstTransfer(int type);
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();

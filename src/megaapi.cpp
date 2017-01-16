@@ -1938,6 +1938,11 @@ MegaTransferData *MegaApi::getTransferData(MegaTransferListener *listener)
     return pImpl->getTransferData(listener);
 }
 
+MegaTransfer *MegaApi::getFirstTransfer(int type)
+{
+    return pImpl->getFirstTransfer(type);
+}
+
 void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
 {
     pImpl->notifyTransfer(transfer ? transfer->getTag() : 0, listener);

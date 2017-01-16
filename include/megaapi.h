@@ -7124,6 +7124,16 @@ class MegaApi
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
 
         /**
+         * @brief Get the first transfer in a transfer queue
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param Transfer queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+         * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
+         */
+        MegaTransfer *getFirstTransfer(int type);
+
+        /**
          * @brief Force an onTransferUpdate callback for the specified transfer
          *
          * The callback will be received by transfer listeners registered to receive all
