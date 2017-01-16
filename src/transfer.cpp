@@ -400,7 +400,13 @@ void Transfer::failed(error e, dstime timeleft)
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
-            client->app->file_removed(*it, API_EFAILED);
+#ifdef ENABLE_SYNC
+            if((*it)->syncxfer)
+            {
+                client->syncdownrequired = true;
+            }
+#endif
+            client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
         delete this;
@@ -725,7 +731,13 @@ void Transfer::complete()
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f);
-                            client->app->file_removed(f, API_EFAILED);
+#ifdef ENABLE_SYNC
+                            if (f->syncxfer)
+                            {
+                                client->syncdownrequired = true;
+                            }
+#endif
+                            client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
                             f->terminated();
                         }
