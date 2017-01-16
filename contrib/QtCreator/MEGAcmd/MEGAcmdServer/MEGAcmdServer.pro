@@ -84,4 +84,19 @@ SOURCES -= bindings/qt/QTMegaGlobalListener.cpp
 SOURCES -= bindings/qt/QTMegaSyncListener.cpp
 SOURCES -= bindings/qt/QTMegaListener.cpp
 SOURCES -= bindings/qt/QTMegaEvent.cpp
-LIBS += -lfreeimage
+
+macx {
+
+    ICON = app.icns
+    QMAKE_INFO_PLIST = Info_MEGA.plist
+    DEFINES += USE_PTHREAD
+    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/FreeImage/Source
+    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/readline
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
+    LIBS += -framework SystemConfiguration -framework CoreFoundation -framework Foundation
+    LIBS += -lncurses
+}
+else {
+    LIBS += -lfreeimage
+}
