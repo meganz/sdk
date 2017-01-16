@@ -13460,7 +13460,10 @@ void MegaApiImpl::sendPendingRequests()
                     Transfer *t = it->second;
                     for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
                     {
-                        cancelTransferByTag((*it2)->tag);
+                        if (!(*it2)->syncxfer)
+                        {
+                            cancelTransferByTag((*it2)->tag);
+                        }
                     }
                 }
                 request->setFlag(true);
