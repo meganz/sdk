@@ -48,10 +48,27 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for reading. Error: " << e;
         return false;
     }
 
-    return ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL) && dwRead == len;
+    if (!ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "ReadFile failed. Error: " << e;
+        return false;
+    }
+
+    if (dwRead != len)
+    {
+        retry = false;
+        LOG_err << "ReadFile failed (dwRead) " << dwRead << " - " << len;
+        return false;
+    }
+    return true;
 }
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -60,12 +77,35 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for writting. Error: " << e;
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL)
-            && dwWritten == len
-            && FlushFileBuffers(hFile);
+    if (!WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "WriteFile failed. Error: " << e;
+        return false;
+    }
+
+     if (dwWritten != len)
+     {
+         retry = false;
+         LOG_err << "WriteFile failed (dwWritten) " << dwWritten << " - " << len;
+         return false;
+     }
+
+     if (!FlushFileBuffers(hFile))
+     {
+         DWORD e = GetLastError();
+         retry = WinFileSystemAccess::istransient(e);
+         LOG_err << "FlushFileBuffers failed. Error: " << e;
+         return false;
+     }
+     return true;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -141,9 +181,12 @@ void WinFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // hFile will always be valid at this point
-        CloseHandle(hFile);
-        hFile = INVALID_HANDLE_VALUE;
+        assert (hFile != INVALID_HANDLE_VALUE);
+        if (hFile != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(hFile);
+            hFile = INVALID_HANDLE_VALUE;
+        }
     }
 }
 

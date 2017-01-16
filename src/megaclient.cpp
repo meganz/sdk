@@ -1729,11 +1729,6 @@ void MegaClient::exec()
                                     sync->deletemissing(&sync->localroot);
                                 }
                             }
-
-                            if (sync->state == SYNC_ACTIVE)
-                            {
-                                sync->cachenodes();
-                            }
                         }
 
                         if (syncadding)
@@ -1750,6 +1745,8 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); )
                     {
                         Sync* sync = *it++;
+                        sync->cachenodes();
+
                         totalpending += sync->dirnotify->notifyq[q].size();
                         if (q == DirNotify::DIREVENTS)
                         {

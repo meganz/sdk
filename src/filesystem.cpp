@@ -152,6 +152,8 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
 {
     string path;
     path.assign(localpath, len);
+
+#ifdef ENABLE_SYNC
     if (notifyq[q].size()
             && notifyq[q].back().localnode == l
             && notifyq[q].back().path == path)
@@ -199,6 +201,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         }
         delete fa;
     }
+#endif
 
     notifyq[q].resize(notifyq[q].size() + 1);
     notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
