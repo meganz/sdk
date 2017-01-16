@@ -29,10 +29,10 @@ arch=('i686' 'x86_64')
 url="http://mega.nz/#sync"
 license=() #TODO
 groups=()
-depends=('glibc' 'gcc-libs' 'sqlite' 'openssl' 'zlib' 'libpsl' 'icu' 'bash-completion')
+depends=('glibc' 'gcc-libs' 'sqlite' 'openssl' 'zlib' 'libpsl' 'icu' 'bash-completion' 'pcre')
 makedepends=('unzip' 'wget' 'ca-certificates')
 checkdepends=()
-optdepends=('sni-qt: fix systray issue on KDE and LXQt', 'nautilus-megacmd: for integration with nautilus')
+optdepends=()
 provides=("megacmd=${pkgver}")
 replaces=()
 backup=()
