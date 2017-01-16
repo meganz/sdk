@@ -9,7 +9,7 @@ Source0:	megacmd_%{version}.tar.gz
 Vendor:		MEGA Limited
 Packager:	MEGA Linux Team <linux@mega.co.nz>
 
-BuildRequires: openssl-devel, sqlite-devel, zlib-devel, autoconf, automake, libtool, gcc-c++
+BuildRequires: openssl-devel, sqlite-devel, zlib-devel, autoconf, automake, libtool, gcc-c++, pcrecpp-devel
 BuildRequires: hicolor-icon-theme, unzip, wget
 
 %if 0%{?suse_version}

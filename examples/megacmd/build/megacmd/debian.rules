@@ -10,7 +10,7 @@ build-stamp:
 	  -g -b -l -c -s -u -a -z -p deps/
 
 	./configure --disable-shared --enable-static --disable-silent-rules \
-	  --disable-curl-checks --with-sodium=deps \
+	  --disable-curl-checks --with-sodium=deps --with-pcre \
 	  --with-curl=deps --without-freeimage --with-readline=deps \
 	  --with-termcap=deps --prefix=$(CURDIR)/deps --disable-examples
 
