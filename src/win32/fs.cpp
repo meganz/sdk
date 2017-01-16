@@ -181,9 +181,12 @@ void WinFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // hFile will always be valid at this point
-        CloseHandle(hFile);
-        hFile = INVALID_HANDLE_VALUE;
+        assert (hFile != INVALID_HANDLE_VALUE);
+        if (hFile != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(hFile);
+            hFile = INVALID_HANDLE_VALUE;
+        }
     }
 }
 

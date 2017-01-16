@@ -126,9 +126,12 @@ void PosixFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // fd will always be valid at this point
-        close(fd);
-        fd = -1;
+        assert (fd >= 0);
+        if (fd >= 0)
+        {
+            close(fd);
+            fd = -1;
+        }
     }
 }
 
