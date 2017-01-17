@@ -29,6 +29,9 @@
 #include "mega/base64.h"
 
 namespace mega {
+
+const int Sync::SCANNING_DELAY_DS = 5;
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
@@ -68,6 +71,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         // FIXME: pass last segment of localdebris
         dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
+    dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
     if (cfsfp)
@@ -894,8 +898,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         {
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
+            LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
             dirnotify->notify(DirNotify::RETRY, ll, localpath->data(), localpath->size());
             client->syncfslockretry = true;
+            client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
+            client->blockedfile = path;
         }
         else if (l)
         {
@@ -929,7 +936,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 dstime Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
-    dstime dsmin = Waiter::ds - 5;
+    dstime dsmin = Waiter::ds - SCANNING_DELAY_DS;
     LocalNode* l;
 
     while (t--)

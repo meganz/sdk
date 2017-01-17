@@ -229,7 +229,11 @@ void TransferSlot::doio(MegaClient* client)
                 }
                 else
                 {
-                    LOG_warn << "MAC verification failed for cached download";
+                    int creqtag = client->reqtag;
+                    client->reqtag = 0;
+                    client->sendevent(99432, "MAC verification failed for cached download");
+                    client->reqtag = creqtag;
+
                     transfer->chunkmacs.clear();
                     return transfer->failed(API_EKEY);
                 }
@@ -345,7 +349,11 @@ void TransferSlot::doio(MegaClient* client)
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
                             {
-                                LOG_warn << "Integrity check failed";
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99429, "Integrity check failed in upload");
+                                client->reqtag = creqtag;
+
                                 lasterror = e;
                                 errorcount++;
                                 reqs[i]->status = REQ_PREPARED;
@@ -416,7 +424,11 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                                 else
                                 {
-                                    LOG_warn << "MAC verification failed";                                    
+                                    int creqtag = client->reqtag;
+                                    client->reqtag = 0;
+                                    client->sendevent(99431, "MAC verification failed");
+                                    client->reqtag = creqtag;
+
                                     transfer->chunkmacs.clear();
                                     return transfer->failed(API_EKEY);
                                 }
@@ -426,6 +438,11 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99430, "Invalid chunk size");
+                            client->reqtag = creqtag;
+
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
                             errorcount++;

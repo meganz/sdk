@@ -174,14 +174,14 @@ m_off_t ChunkedHash::chunkceil(m_off_t p, m_off_t limit)
 
         if ((p >= cp) && (p < np))
         {
-            return (!limit || np < limit) ? np : limit;
+            return (limit < 0 || np < limit) ? np : limit;
         }
 
         cp = np;
     }
 
     np = ((p - cp) & - (8 * SEGSIZE)) + cp + 8 * SEGSIZE;
-    return (!limit || np < limit) ? np : limit;
+    return (limit < 0 || np < limit) ? np : limit;
 }
 
 

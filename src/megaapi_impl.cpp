@@ -5422,6 +5422,32 @@ MegaTransferData *MegaApiImpl::getTransferData(MegaTransferListener *listener)
     return data;
 }
 
+MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
+{
+    if (type != MegaTransfer::TYPE_DOWNLOAD && type != MegaTransfer::TYPE_UPLOAD)
+    {
+        return NULL;
+    }
+
+    MegaTransfer* transfer = NULL;
+    sdkMutex.lock();
+    transfer_list::iterator it = client->transferlist.begin((direction_t)type);
+    if (it != client->transferlist.end((direction_t)type))
+    {
+         Transfer *t = (*it);
+         if (t->files.size())
+         {
+             MegaTransferPrivate *megaTransfer = getMegaTransferPrivate(t->files.front()->tag);
+             if (megaTransfer)
+             {
+                 transfer = megaTransfer->copy();
+             }
+         }
+    }
+    sdkMutex.unlock();
+    return transfer;
+}
+
 void MegaApiImpl::notifyTransfer(int transferTag, MegaTransferListener *listener)
 {
     sdkMutex.lock();
@@ -8312,10 +8338,13 @@ void MegaApiImpl::chats_updated(textchat_map *chats)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
+    if(syncMap.find(sync->tag) == syncMap.end()) return;
+    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+    megaSync->setState(newstate);
     LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
     client->abortbackoff(false);
 
-    if(newstate == SYNC_FAILED)
+    if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
 
@@ -8329,10 +8358,6 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
         requestMap[nextTag]=request;
         fireOnRequestFinish(request, MegaError(sync->errorcode));
     }
-
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-    megaSync->setState(newstate);
 
     fireOnSyncStateChanged(megaSync);
 }
@@ -13447,7 +13472,10 @@ void MegaApiImpl::sendPendingRequests()
                     Transfer *t = it->second;
                     for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
                     {
-                        cancelTransferByTag((*it2)->tag);
+                        if (!(*it2)->syncxfer)
+                        {
+                            cancelTransferByTag((*it2)->tag);
+                        }
                     }
                 }
                 request->setFlag(true);
@@ -14014,7 +14042,7 @@ void MegaApiImpl::update()
 
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
-    LOG_debug << "FLAGS: " << client->syncactivity << " " << client->syncadded
+    LOG_debug << "FLAGS: " << client->syncactivity
               << " " << client->syncdownrequired << " " << client->syncdownretry
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed
               << " " << client->syncnagleretry << " " << client->syncscanfailed
@@ -14035,7 +14063,16 @@ void MegaApiImpl::update()
 
 bool MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest;
+    return waiting || waitingRequest 
+#ifdef ENABLE_SYNC
+        || client->syncfslockretry
+#endif
+    ;
+}
+
+bool MegaApiImpl::areServersBusy()
+{
+    return waitingRequest;
 }
 
 TreeProcCopy::TreeProcCopy()

@@ -7124,6 +7124,16 @@ class MegaApi
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
 
         /**
+         * @brief Get the first transfer in a transfer queue
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param Transfer queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+         * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
+         */
+        MegaTransfer *getFirstTransfer(int type);
+
+        /**
          * @brief Force an onTransferUpdate callback for the specified transfer
          *
          * The callback will be received by transfer listeners registered to receive all
@@ -7503,10 +7513,16 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for the server
+         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
          * @return true if the SDK is waiting for the server to complete a request
          */
         bool isWaiting();
+
+        /**
+         * @brief Check if the SDK is waiting for the server
+         * @return true if the SDK is waiting for the server to complete a request
+         */
+        bool areServersBusy();
 
         /**
          * @brief Get the number of pending uploads

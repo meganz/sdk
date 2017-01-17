@@ -126,9 +126,12 @@ void PosixFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // fd will always be valid at this point
-        close(fd);
-        fd = -1;
+        assert (fd >= 0);
+        if (fd >= 0)
+        {
+            close(fd);
+            fd = -1;
+        }
     }
 }
 
@@ -143,6 +146,7 @@ void PosixFileAccess::updatelocalname(string* name)
 
 bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 {
+    retry = false;
 #ifndef __ANDROID__
     return pread(fd, (char*)dst, len, pos) == len;
 #else
@@ -153,6 +157,7 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
 bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 {
+    retry = false;
 #ifndef __ANDROID__
     return pwrite(fd, data, len, pos) == len;
 #else
