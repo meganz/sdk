@@ -155,12 +155,14 @@ public:
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
 
     // async interface
+    static MUTEX_CLASS asyncmutex;
     virtual bool asyncavailable();
     virtual void asyncsysopen(AsyncIOContext* context);
     virtual void asyncsysread(AsyncIOContext* context);
     virtual void asyncsyswrite(AsyncIOContext* context);
 
     ~PosixFileAccess();
+    static set<PosixAsyncSynchronizer*> sychronizers;
 
 protected:
     virtual AsyncIOContext* newasynccontext();

@@ -58,14 +58,22 @@ PosixAsyncIOContext::~PosixAsyncIOContext()
     sigset_t signalset;
     sigemptyset (&signalset);
     sigaddset(&signalset, SIGASYNCIO);
+    PosixFileAccess::asyncmutex.lock();
+
     sigprocmask(SIG_BLOCK, &signalset, NULL);
     if (synchronizer)
     {
+        ((PosixFileAccess *)fa)->sychronizers.erase(synchronizer);
         synchronizer->context = NULL;
         synchronizer = NULL;
     }
+
+    PosixFileAccess::asyncmutex.unlock();
     sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
+
+MUTEX_CLASS PosixFileAccess::asyncmutex(false);
+set<PosixAsyncSynchronizer*> PosixFileAccess::sychronizers;
 
 PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
 {
@@ -185,35 +193,97 @@ AsyncIOContext *PosixFileAccess::newasynccontext()
 
 void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
 {
-    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(info->si_value.sival_ptr);
-    PosixAsyncIOContext *context = synchronizer->context;
-    struct aiocb *aiocbp = synchronizer->aiocb;
-    if (!context)
-    {
-        delete synchronizer;
-        delete aiocbp;
-        return;
-    }
+    PosixFileAccess::asyncmutex.lock();
+    PosixAsyncIOContext *context;
+    struct aiocb *aiocbp;
+    bool notify = false;
 
-    context->synchronizer = NULL;
-    context->failed = aio_error(aiocbp);
-    aio_return(aiocbp);
-    if (!context->failed)
+    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(info->si_value.sival_ptr);
+    if (!synchronizer)
     {
-        if (context->op == AsyncIOContext::READ)
+        for (set<PosixAsyncSynchronizer*>::iterator it = PosixFileAccess::sychronizers.begin(); it != PosixFileAccess::sychronizers.end();)
         {
-            memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+            synchronizer = (*it);
+            context = synchronizer->context;
+            aiocbp = synchronizer->aiocb;
+            if (!context)
+            {
+                delete synchronizer;
+                delete aiocbp;
+                PosixFileAccess::sychronizers.erase(it++);
+            }
+            else
+            {
+                int e = aio_error(aiocbp);
+                if (e != EINPROGRESS)
+                {
+                    context->synchronizer = NULL;
+                    context->failed = aio_return(aiocbp) < 0;
+                    if (!context->failed)
+                    {
+                        if (context->op == AsyncIOContext::READ)
+                        {
+                            memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+                        }
+                    }
+
+                    delete synchronizer;
+                    delete aiocbp;
+                    context->retry = false;
+                    context->finished = true;
+                    notify = true;
+                    PosixFileAccess::sychronizers.erase(it++);
+                }
+                else
+                {
+                    it++;
+                }
+            }
         }
     }
+    else
+    {
+        set<PosixAsyncSynchronizer*>::iterator it = PosixFileAccess::sychronizers.find(synchronizer);
+        if (it == PosixFileAccess::sychronizers.end())
+        {
+            PosixFileAccess::asyncmutex.unlock();
+            return;
+        }
+        PosixFileAccess::sychronizers.erase(it);
 
-    delete synchronizer;
-    delete aiocbp;
-    context->retry = false;
-    context->finished = true;
-    if (context->userCallback)
+        context = synchronizer->context;
+        aiocbp = synchronizer->aiocb;
+        if (!context)
+        {
+            delete synchronizer;
+            delete aiocbp;
+            PosixFileAccess::asyncmutex.unlock();
+            return;
+        }
+
+        context->synchronizer = NULL;
+        context->failed = aio_error(aiocbp);
+        aio_return(aiocbp);
+        if (!context->failed)
+        {
+            if (context->op == AsyncIOContext::READ)
+            {
+                memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+            }
+        }
+
+        delete synchronizer;
+        delete aiocbp;
+        context->retry = false;
+        context->finished = true;
+        notify = true;
+    }
+
+    if (notify && context->userCallback)
     {
         context->userCallback(context->userData);
     }
+    PosixFileAccess::asyncmutex.unlock();
 }
 
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
@@ -267,9 +337,17 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
     aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
 
+    sigset_t signalset;
+    sigemptyset (&signalset);
+    sigaddset(&signalset, SIGASYNCIO);
+    sigprocmask(SIG_BLOCK, &signalset, NULL);
+    PosixFileAccess::asyncmutex.lock();
+
+    sychronizers.insert(synchronizer);
     if (aio_read(aiocbp))
     {
         LOG_warn << "Async read failed at startup:" << errno;
+        sychronizers.erase(synchronizer);
         posixContext->failed = true;
         posixContext->retry = false;
         posixContext->finished = true;
@@ -282,6 +360,9 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+
+    PosixFileAccess::asyncmutex.unlock();
+    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
@@ -321,9 +402,17 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
     aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
 
+    sigset_t signalset;
+    sigemptyset (&signalset);
+    sigaddset(&signalset, SIGASYNCIO);
+    sigprocmask(SIG_BLOCK, &signalset, NULL);
+    PosixFileAccess::asyncmutex.lock();
+
+    sychronizers.insert(synchronizer);
     if (aio_write(aiocbp))
     {
         LOG_warn << "Async write failed at startup: " << errno;
+        sychronizers.erase(synchronizer);
         posixContext->failed = true;
         posixContext->retry = false;
         posixContext->finished = true;
@@ -336,6 +425,9 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+
+    PosixFileAccess::asyncmutex.unlock();
+    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 // update local name
