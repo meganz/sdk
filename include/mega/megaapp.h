@@ -195,6 +195,9 @@ struct MEGA_API MegaApp
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
+    // get version info
+    virtual void getversion_result(int, const char*, error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
