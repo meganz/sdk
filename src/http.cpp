@@ -542,6 +542,7 @@ void HttpReqDL::finalize(Transfer *transfer)
     if (finalpos != transfer->size)
     {
         finalpos &= -SymmCipher::BLOCKSIZE;
+        bufpos &= -SymmCipher::BLOCKSIZE;
     }
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);

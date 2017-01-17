@@ -2489,6 +2489,8 @@ bool MegaClient::dispatch(direction_t d)
                 if (!nexttransfer->asyncopencontext)
                 {
                     LOG_debug << "Starting async open";
+
+                    // try to open file (PUT transfers: open in nonblocking mode)
                     nexttransfer->asyncopencontext = (d == PUT)
                         ? ts->fa->asyncfopen(&nexttransfer->localfilename)
                         : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
@@ -2518,13 +2520,13 @@ bool MegaClient::dispatch(direction_t d)
             }
             else
             {
+                // try to open file (PUT transfers: open in nonblocking mode)
                 openok = (d == PUT)
                         ? ts->fa->fopen(&nexttransfer->localfilename)
                         : ts->fa->fopen(&nexttransfer->localfilename, false, true);
                 openfinished = true;
             }
 
-            // try to open file (PUT transfers: open in nonblocking mode)
             if (openfinished && openok)
             {
                 handle h = UNDEF;

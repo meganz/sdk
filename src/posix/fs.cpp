@@ -223,7 +223,7 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
                     context->failed = aio_return(aiocbp) < 0;
                     if (!context->failed)
                     {
-                        if (context->op == AsyncIOContext::READ)
+                        if (context->op == AsyncIOContext::READ && context->pad)
                         {
                             memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
                         }
@@ -268,7 +268,7 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
         aio_return(aiocbp);
         if (!context->failed)
         {
-            if (context->op == AsyncIOContext::READ)
+            if (context->op == AsyncIOContext::READ && context->pad)
             {
                 memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
             }
