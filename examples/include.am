@@ -27,7 +27,7 @@ noinst_HEADERS = examples/megacli.h
 examples_megasimplesync_SOURCES = examples/megasimplesync.cpp
 
 if BUILD_MEGACMD
-noinst_HEADERS += examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/listeners.h examples/megacmd/megacmdexecuter.h examples/megacmd/comunicationsmanagerportsockets.h
+noinst_HEADERS += examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdutils.h examples/megacmd/listeners.h examples/megacmd/megacmdexecuter.h examples/megacmd/megacmdversion.h examples/megacmd/comunicationsmanagerportsockets.h
 megacmdcompletiondir = $(sysconfdir)/bash_completion.d/
 megacmdcompletion_DATA = examples/megacmd/client/megacmd_completion.sh
 megacmdscripts_bindir = $(bindir)
