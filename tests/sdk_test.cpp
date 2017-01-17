@@ -1271,10 +1271,49 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_FALSE(null_pointer) << "Cannot download node";
     ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
 
+
+    // --- Upload a 0-bytes file ---
+
+    string filename3 = EMPTYFILE;
+    FILE *fp = fopen(filename3.c_str(), "w");
+    fclose(fp);
+
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename3.c_str(), rootnode);
+
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 600) )
+            << "Upload 0-byte file failed after " << 600 << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload file (error: " << lastError[0] << ")";
+
+    MegaNode *n4 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n4 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError[0] << ")";
+    ASSERT_STREQ(filename3.data(), n4->getName()) << "Uploaded file with wrong name (error: " << lastError[0] << ")";
+
+
+    // --- Download a 0-byte file ---
+
+    filename3 = "./" + EMPTYFILE;
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(n4, filename3.c_str());
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download 0-byte file failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
+
+    MegaNode *n5 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n5 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot download node";
+    ASSERT_EQ(n4->getHandle(), n5->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
+
+
     delete rootnode;
     delete n1;
     delete n2;
     delete n3;
+    delete n4;
+    delete n5;
 }
 
 /**
