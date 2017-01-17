@@ -400,6 +400,9 @@ public:
     // SDK version
     const char* version();
 
+    // get the last available version of the app
+    void getlastversion(const char *appKey);
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
