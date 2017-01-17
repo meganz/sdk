@@ -313,27 +313,27 @@ const char * getLogLevelStr(int loglevel)
 
 int getLogLevelNum(const char* level)
 {
-    if (!strcmp(level, "FATAL"))
+    if (!strcmp(level, "FATAL") || !strcmp(level, "fatal"))
     {
         return MegaApi:: LOG_LEVEL_FATAL;
     }
-    if (!strcmp(level, "ERROR"))
+    if (!strcmp(level, "ERROR") || !strcmp(level, "error"))
     {
         return MegaApi:: LOG_LEVEL_ERROR;
     }
-    if (!strcmp(level, "WARNING"))
+    if (!strcmp(level, "WARNING") || !strcmp(level, "warning"))
     {
         return MegaApi:: LOG_LEVEL_WARNING;
     }
-    if (!strcmp(level, "INFO"))
+    if (!strcmp(level, "INFO") || !strcmp(level, "info"))
     {
         return MegaApi:: LOG_LEVEL_INFO;
     }
-    if (!strcmp(level, "DEBUG"))
+    if (!strcmp(level, "DEBUG") || !strcmp(level, "debug"))
     {
         return MegaApi:: LOG_LEVEL_DEBUG;
     }
-    if (!strcmp(level, "VERBOSE"))
+    if (!strcmp(level, "VERBOSE") || !strcmp(level, "verbose"))
     {
         return MegaApi:: LOG_LEVEL_MAX;
     }
