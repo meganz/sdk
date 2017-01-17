@@ -58,16 +58,14 @@ PosixAsyncIOContext::~PosixAsyncIOContext()
     sigset_t signalset;
     sigemptyset (&signalset);
     sigaddset(&signalset, SIGASYNCIO);
-    PosixFileAccess::asyncmutex.lock();
-
     sigprocmask(SIG_BLOCK, &signalset, NULL);
+    PosixFileAccess::asyncmutex.lock();
     if (synchronizer)
     {
         ((PosixFileAccess *)fa)->sychronizers.erase(synchronizer);
         synchronizer->context = NULL;
         synchronizer = NULL;
     }
-
     PosixFileAccess::asyncmutex.unlock();
     sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
