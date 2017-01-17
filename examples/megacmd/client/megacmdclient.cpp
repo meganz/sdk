@@ -149,7 +149,7 @@ string getAbsPath(string relativePath)
       return relativePath;
    }
 
-   absolutelocalpath.resize(len * sizeof(wchar_t));
+   absolutelocalpath.resize(len * sizeof(wchar_t)-1);
    int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutelocalpath.data(), NULL);
    if (newlen <= 0 || newlen >= len)
    {
@@ -282,6 +282,7 @@ string parseArgs(int argc, char* argv[])
                     if (firstRealArg || i <lastRealArg)
                     {
                         absolutedargs.push_back(getAbsPath(argv[i]));
+                        firstRealArg = false;
                     }
                     else
                     {
@@ -407,6 +408,8 @@ int main(int argc, char* argv[])
         cerr << "Too few arguments" << endl;
         return -1;
     }
+    string parsedArgs = parseArgs(argc,argv);
+
 #if _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -420,7 +423,6 @@ int main(int argc, char* argv[])
         cerr << "ERROR initializing WSA" << endl;
     }
 #endif
-    string parsedArgs = parseArgs(argc,argv);
 
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
