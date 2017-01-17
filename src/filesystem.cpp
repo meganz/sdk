@@ -226,6 +226,12 @@ FileAccess::FileAccess(Waiter *waiter)
     this->numops = 0;
 }
 
+FileAccess::~FileAccess()
+{
+    // All AsyncIOContext objects must be deleted before
+    assert(!numops);
+}
+
 // open file for reading
 bool FileAccess::fopen(string* name)
 {
@@ -271,11 +277,6 @@ void FileAccess::closef()
 void FileAccess::asyncopfinished(void *param)
 {
     AsyncIOContext *context = (AsyncIOContext *)param;
-    if (context->op == AsyncIOContext::READ)
-    {
-        context->fa->asyncclosef();
-    }
-
     if (context->waiter)
     {
         context->waiter->notify();
@@ -511,6 +512,15 @@ AsyncIOContext::AsyncIOContext()
     finished = false;
     failed = false;
     retry = false;
+}
+
+AsyncIOContext::~AsyncIOContext()
+{
+    // AsyncIOContext objects must be deleted before the FileAccess object
+    if (op == AsyncIOContext::READ)
+    {
+        fa->asyncclosef();
+    }
 }
 
 } // namespace

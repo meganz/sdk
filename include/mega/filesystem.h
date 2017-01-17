@@ -47,7 +47,7 @@ struct MEGA_API AsyncIOContext
     };
 
     AsyncIOContext();
-    virtual ~AsyncIOContext() { }
+    virtual ~AsyncIOContext();
 
     // results
     asyncfscallback userCallback;
@@ -124,7 +124,7 @@ struct MEGA_API FileAccess
     virtual void sysclose() = 0;
 
     FileAccess(Waiter *waiter);
-    virtual ~FileAccess() { }
+    virtual ~FileAccess();
 
     virtual bool asyncavailable() { return false; }
 
