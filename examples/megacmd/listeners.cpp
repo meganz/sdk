@@ -322,7 +322,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
 
             float oldpercent = percentFetchnodes;
             percentFetchnodes = request->getTransferredBytes() * 1.0 / request->getTotalBytes() * 100.0;
-            if (( percentFetchnodes == oldpercent ) && ( oldpercent != 0 ))
+            if (alreadyFinished || ( ( percentFetchnodes == oldpercent ) && ( oldpercent != 0 )) )
             {
                 return;
             }
@@ -340,23 +340,33 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
             {
                 return;                                                            // after a 100% this happens
             }
-            sprintf(aux,                               "||(%lld/%lld MB: %.2f %%) ", request->getTransferredBytes() / 1024 / 1024, request->getTotalBytes() / 1024 / 1024, percentFetchnodes);
+            sprintf(aux,"||(%lld/%lld MB: %.2f %%) ", request->getTransferredBytes() / 1024 / 1024, request->getTotalBytes() / 1024 / 1024, percentFetchnodes);
             sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
             for (int i = 0; i <= ( cols - strlen("Fetching nodes ||") - strlen(aux)) * 1.0 * percentFetchnodes / 100.0; i++)
             {
                 *ptr++ = '#';
             }
 
+
             {
                 if (RL_ISSTATE(RL_STATE_INITIALIZED))
                 {
-                    rl_message("%s", outputString.c_str());
+                    if (percentFetchnodes == 100 && !alreadyFinished)
+                    {
+                        alreadyFinished = true;
+                        rl_message("%s\n", outputString.c_str());
+                    }
+                    else
+                    {
+                        rl_message("%s", outputString.c_str());
+                    }
                 }
                 else
                 {
                     cout << outputString << endl; //too verbose
                 }
             }
+
 #endif
             break;
         }
@@ -383,6 +393,7 @@ MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener
     this->megaApi = megaApi;
     this->listener = listener;
     percentFetchnodes = 0.0f;
+    alreadyFinished = false;
 }
 
 
@@ -421,7 +432,6 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         return;
     }
 
-
 #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
     int rows = 1, cols = 80;
 
@@ -444,29 +454,29 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
     *ptr = '.'; //replace \0 char
 
 
-    float oldpercent = percentFetchnodes;
-    percentFetchnodes = transfer->getTransferredBytes() * 1.0 / transfer->getTotalBytes() * 100.0;
-    if (( percentFetchnodes == oldpercent ) && ( oldpercent != 0 ))
+    float oldpercent = percentDowloaded;
+    percentDowloaded = transfer->getTransferredBytes() * 1.0 / transfer->getTotalBytes() * 100.0;
+    if (alreadyFinished || ( ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) ) )
     {
         return;
     }
-    if (percentFetchnodes < 0)
+    if (percentDowloaded < 0)
     {
-        percentFetchnodes = 0;
+        percentDowloaded = 0;
     }
 
     char aux[40];
     if (transfer->getTotalBytes() < 0)
     {
-        return;                         // after a 100% this happens
+        return; // after a 100% this happens
     }
     if (transfer->getTransferredBytes() < 0.001 * transfer->getTotalBytes())
     {
-        return;                                                            // after a 100% this happens
+        return; // after a 100% this happens
     }
-    sprintf(aux,                               "||(%lld/%lld MB: %.2f %%) ", transfer->getTransferredBytes() / 1024 / 1024, transfer->getTotalBytes() / 1024 / 1024, percentFetchnodes);
+    sprintf(aux,"||(%lld/%lld MB: %.2f %%) ", transfer->getTransferredBytes() / 1024 / 1024, transfer->getTotalBytes() / 1024 / 1024, percentDowloaded);
     sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
-    for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentFetchnodes / 100.0; i++)
+    for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentDowloaded / 100.0; i++)
     {
         *ptr++ = '#';
     }
@@ -474,7 +484,15 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
     {
         if (RL_ISSTATE(RL_STATE_INITIALIZED))
         {
-            rl_message("%s", outputString.c_str());
+            if (percentDowloaded == 100 && !alreadyFinished)
+            {
+                alreadyFinished = true;
+                rl_message("%s\n", outputString.c_str());
+            }
+            else
+            {
+                rl_message("%s", outputString.c_str());
+            }
         }
         else
         {
@@ -482,7 +500,6 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         }
     }
 #endif
-
 
     LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType();
 }
@@ -502,7 +519,8 @@ MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferL
 {
     this->megaApi = megaApi;
     this->listener = listener;
-    percentFetchnodes = 0.0f;
+    percentDowloaded = 0.0f;
+    alreadyFinished = false;
 }
 
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)

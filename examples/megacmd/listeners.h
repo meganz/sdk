@@ -29,6 +29,7 @@ class MegaCmdListener : public mega::SynchronousRequestListener
 {
 private:
     float percentFetchnodes;
+    bool alreadyFinished;
 public:
     MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();
@@ -47,7 +48,8 @@ protected:
 class MegaCmdTransferListener : public mega::SynchronousTransferListener
 {
 private:
-    float percentFetchnodes;
+    float percentDowloaded;
+    bool alreadyFinished;
 public:
     MegaCmdTransferListener(mega::MegaApi *megaApi, mega::MegaTransferListener *listener = NULL);
     virtual ~MegaCmdTransferListener();
