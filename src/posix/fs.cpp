@@ -36,11 +36,15 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
+#define SIGASYNCIO SIGRTMIN
+
 namespace mega {
     
 #ifdef USE_IOS
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif
+
+bool PosixFileAccess::asyncinitialized = false;
 
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
@@ -50,13 +54,17 @@ PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 PosixAsyncIOContext::~PosixAsyncIOContext()
 {
     LOG_verbose << "Deleting PosixAsyncIOContext";
-    PosixFileAccess::asyncmutex.lock();
+
+    sigset_t signalset;
+    sigemptyset (&signalset);
+    sigaddset(&signalset, SIGASYNCIO);
+    sigprocmask(SIG_BLOCK, &signalset, NULL);
     if (synchronizer)
     {
         synchronizer->context = NULL;
         synchronizer = NULL;
     }
-    PosixFileAccess::asyncmutex.unlock();
+    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
@@ -69,6 +77,19 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
 #endif
 
     fsidvalid = false;
+
+    if (!asyncinitialized)
+    {
+        asyncinitialized = true;
+        if (asyncavailable())
+        {
+            struct sigaction sa;
+            sa.sa_sigaction = asyncopfinished;
+            sigemptyset (&sa.sa_mask);
+            sa.sa_flags = SA_RESTART | SA_SIGINFO;
+            sigaction(SIGASYNCIO, &sa, NULL);
+        }
+    }
 }
 
 PosixFileAccess::~PosixFileAccess()
@@ -152,8 +173,6 @@ void PosixFileAccess::sysclose()
     }
 }
 
-MUTEX_CLASS PosixFileAccess::asyncmutex(false);
-
 bool PosixFileAccess::asyncavailable()
 {
     return true;
@@ -164,52 +183,37 @@ AsyncIOContext *PosixFileAccess::newasynccontext()
     return new PosixAsyncIOContext();
 }
 
-void PosixFileAccess::asyncopfinished(union sigval sigev_value)
+void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
 {
-    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(sigev_value.sival_ptr);
-
-    PosixFileAccess::asyncmutex.lock();
+    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(info->si_value.sival_ptr);
     PosixAsyncIOContext *context = synchronizer->context;
     struct aiocb *aiocbp = synchronizer->aiocb;
-
     if (!context)
     {
-        LOG_debug << "Async IO request already cancelled";
         delete synchronizer;
         delete aiocbp;
-        PosixFileAccess::asyncmutex.unlock();
         return;
     }
 
     context->synchronizer = NULL;
     context->failed = aio_error(aiocbp);
+    aio_return(aiocbp);
     if (!context->failed)
     {
         if (context->op == AsyncIOContext::READ)
         {
             memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
-            LOG_verbose << "Async read finished OK";
         }
-        else
-        {
-            LOG_verbose << "Async write finished OK";
-        }
-    }
-    else
-    {
-        LOG_warn << "Async operation finished with error";
     }
 
     delete synchronizer;
     delete aiocbp;
-
     context->retry = false;
     context->finished = true;
     if (context->userCallback)
     {
         context->userCallback(context->userData);
     }
-    PosixFileAccess::asyncmutex.unlock();
 }
 
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
@@ -259,9 +263,9 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
     synchronizer->context = posixContext;
     posixContext->synchronizer = synchronizer;
 
-    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+    aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
-    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
 
     if (aio_read(aiocbp))
     {
@@ -313,9 +317,9 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
     synchronizer->context = posixContext;
     posixContext->synchronizer = synchronizer;
 
-    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_SIGNAL;
+    aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
-    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
 
     if (aio_write(aiocbp))
     {

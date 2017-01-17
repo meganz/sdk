@@ -33,6 +33,7 @@
 #endif
 
 #include <aio.h>
+#include <signal.h>
 #include "mega.h"
 
 #define DEBRISFOLDER ".debris"
@@ -154,7 +155,6 @@ public:
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
 
     // async interface
-    static MUTEX_CLASS asyncmutex;
     virtual bool asyncavailable();
     virtual void asyncsysopen(AsyncIOContext* context);
     virtual void asyncsysread(AsyncIOContext* context);
@@ -164,7 +164,8 @@ public:
 
 protected:
     virtual AsyncIOContext* newasynccontext();
-    static void asyncopfinished(union sigval sigev_value);
+    static void asyncopfinished(int, siginfo_t*, void *);
+    static bool asyncinitialized;
 };
 
 class MEGA_API PosixDirNotify : public DirNotify
