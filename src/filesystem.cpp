@@ -339,6 +339,10 @@ bool FileAccess::asyncopenf()
     {
         numops++;
     }
+    else
+    {
+        LOG_err << "Error opening async file handle";
+    }
     return result;
 }
 

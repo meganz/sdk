@@ -265,7 +265,7 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
 
     if (aio_read(aiocbp))
     {
-        LOG_warn << "Async read failed at startup";
+        LOG_warn << "Async read failed at startup:" << errno;
         posixContext->failed = true;
         posixContext->retry = false;
         posixContext->finished = true;
@@ -319,7 +319,7 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
 
     if (aio_write(aiocbp))
     {
-        LOG_warn << "Async read failed at startup";
+        LOG_warn << "Async write failed at startup: " << errno;
         posixContext->failed = true;
         posixContext->retry = false;
         posixContext->finished = true;
