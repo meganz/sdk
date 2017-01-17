@@ -274,6 +274,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("version" == thecommand)
     {
         validParams->insert("l");
+        validParams->insert("c");
     }
     else if ("rm" == thecommand)
     {
@@ -1170,7 +1171,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "version"))
     {
-        return "version [-l]";
+        return "version [-l][-c]";
     }
     if (!strcmp(command, "debug"))
     {
@@ -1576,6 +1577,7 @@ string getHelpStr(const char *command)
         os << "Prints MEGA versioning info" << endl;
         os << endl;
         os << "Options:" << endl;
+        os << " -c" << "\t" << "Shows changelog for the current version" << endl;
         os << " -l" << "\t" << "Show extended info: MEGA SDK version and features enabled" << endl;
     }
     else if (!strcmp(command, "thumbnail"))

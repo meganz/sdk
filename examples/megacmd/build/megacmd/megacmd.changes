@@ -1,5 +1,5 @@
-megasync (0.9.1) stable; urgency=low
-
+Tue Jan 17 14:22:10 CET 2017 - linux@mega.co.nz
+- Update to version 0.9.1:
   * Initial version of megacmd
   * Features:
   * Interactive shell
@@ -10,5 +10,4 @@ megasync (0.9.1) stable; urgency=low
   * Files management
   * Synching
 
- -- MEGA Team <linux@mega.co.nz>  Tue, 17 Jan 2017 14:22:10 +0100
-
+-------------------------------------------------------------------

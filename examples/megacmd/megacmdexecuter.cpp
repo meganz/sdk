@@ -27,6 +27,7 @@
 #include "megacmdlogger.h"
 #include "comunicationsmanager.h"
 #include "listeners.h"
+#include "megacmdversion.h"
 
 #include <iomanip>
 #include <string>
@@ -1888,6 +1889,8 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
         }
     }
 
+#if defined(_WIN32) || defined(__APPLE__)
+
     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
     srl->getApi()->getLastAvailableVersion("BdARkQSQ",megaCmdListener);
     megaCmdListener->wait();
@@ -1902,7 +1905,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
     else
     {
-        if (megaCmdListener->getRequest()->getNumber() != 000)//TODO: get actual version code
+        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
         {
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
             OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -1911,7 +1914,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
         }
     }
     delete megaCmdListener;
-
+#endif
 
 }
 
@@ -5201,7 +5204,17 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "version")
     {
-        OUTSTREAM << "MEGA CMD version: " << 0 << "." << 0 << "." << 1 << endl;
+        OUTSTREAM << "MEGA CMD version: " << MEGACMD_MAJOR_VERSION << "." << MEGACMD_MINOR_VERSION << "." << MEGACMD_MICRO_VERSION << ": code " << MEGACMD_CODE_VERSION << endl;
+        if (getFlag(clflags,"c"))
+        {
+            OUTSTREAM << "Changes in the current version:" << endl;
+            string thechangelog = megacmdchangelog;
+            if (thechangelog.size())
+            {
+                replaceAll(thechangelog,"\n","\n * ");
+                OUTSTREAM << " * " << thechangelog << endl << endl;
+            }
+        }
         if (getFlag(clflags,"l"))
         {
             OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;

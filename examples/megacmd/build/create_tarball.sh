@@ -46,7 +46,7 @@ mkdir $archives
 $BASEPATH/contrib/build_sdk.sh -q -e -g -w -s -v -u -o $archives
 
 # get current version
-megacmd_VERSION=0.0.1 #TODO: read from version.h file
+megacmd_VERSION=$(cat $BASEPATH/examples/megacmd/megacmdversion.h  | grep define | grep _VERSION | grep -v CODE | head -n 3 | awk 'BEGIN{ORS=""; first=1}{if(first){first=0;}else{print ".";}print $3}')
 export megacmd_NAME=megacmd-$megacmd_VERSION
 rm -rf $megacmd_NAME.tar.gz
 rm -rf $megacmd_NAME
@@ -87,7 +87,7 @@ if [ "$last_version" != "$megacmd_VERSION" ]; then
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    #~ ./generate_rpm_changelog_entry.sh ../src/megacmd/control/Preferences.cpp > $changelog #TODO: read this from somewhere
+    ./generate_rpm_changelog_entry.sh $megacmd_VERSION $BASEPATH/examples/megacmd/megacmdversion.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
@@ -99,7 +99,7 @@ if [ "$last_version" != "$megacmd_VERSION" ]; then
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    #~ ./generate_deb_changelog_entry.sh $megacmd_VERSION ../src/megacmd/control/Preferences.cpp > $changelog #TODO: read this from somewhere
+    ./generate_deb_changelog_entry.sh $megacmd_VERSION $BASEPATH/examples/megacmd/megacmdversion.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
