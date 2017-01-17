@@ -1,8 +1,8 @@
 #!/bin/bash -x
 
 ##
- # @file build/create_tarball.sh
- # @brief Generates megacmd and extensions tarballs
+ # @file examples/megacmd/build/create_tarball.sh
+ # @brief Generates megacmd tarballs and compilation scripts
  #
  # (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  #
