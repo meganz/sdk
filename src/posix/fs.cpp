@@ -36,7 +36,11 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
+#if defined(__MACH__)
+#define SIGASYNCIO SIGUSR1
+#else
 #define SIGASYNCIO SIGRTMIN
+#endif
 
 namespace mega {
     
