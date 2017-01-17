@@ -176,11 +176,6 @@ TransferSlot::~TransferSlot()
         pendingcmd->cancel();
     }
 
-    if (fa)
-    {
-        delete fa;
-    }
-
     if (transfer->asyncopencontext)
     {
         delete transfer->asyncopencontext;
@@ -196,6 +191,11 @@ TransferSlot::~TransferSlot()
 
     delete[] asyncIO;
     delete[] reqs;
+
+    if (fa)
+    {
+        delete fa;
+    }
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
