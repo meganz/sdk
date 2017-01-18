@@ -32,8 +32,11 @@
 #include <sys/vfs.h>
 #endif
 
+#ifndef __ANDROID__
 #include <aio.h>
 #include <signal.h>
+#endif
+
 #include "mega.h"
 
 #define DEBRISFOLDER ".debris"
@@ -57,7 +60,10 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
     int notifyfd;
+
+#ifndef __ANDROID__
     sigset_t asyncsignalset;
+#endif
 
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
@@ -117,6 +123,7 @@ public:
     ~PosixFileSystemAccess();
 };
 
+#ifndef __ANDROID__
 struct MEGA_API PosixAsyncIOContext;
 struct MEGA_API PosixAsyncSynchronizer
 {
@@ -131,6 +138,7 @@ struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 
     PosixAsyncSynchronizer *synchronizer;
 };
+#endif
 
 class MEGA_API PosixFileAccess : public FileAccess
 {
@@ -156,19 +164,22 @@ public:
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
 
     // async interface
-    static MUTEX_CLASS asyncmutex;
     virtual bool asyncavailable();
     virtual void asyncsysopen(AsyncIOContext* context);
     virtual void asyncsysread(AsyncIOContext* context);
     virtual void asyncsyswrite(AsyncIOContext* context);
 
     ~PosixFileAccess();
+
+#ifndef __ANDROID__
+    static MUTEX_CLASS asyncmutex;
     static set<PosixAsyncSynchronizer*> sychronizers;
     static bool asyncinitialized;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(int, siginfo_t*, void *);
+#endif
 };
 
 class MEGA_API PosixDirNotify : public DirNotify

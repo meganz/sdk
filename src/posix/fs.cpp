@@ -48,7 +48,10 @@ namespace mega {
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif
 
+#ifndef __ANDROID__
 bool PosixFileAccess::asyncinitialized = false;
+set<PosixAsyncSynchronizer*> PosixFileAccess::sychronizers;
+MUTEX_CLASS PosixFileAccess::asyncmutex(false);
 
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
@@ -67,9 +70,7 @@ PosixAsyncIOContext::~PosixAsyncIOContext()
     }
     PosixFileAccess::asyncmutex.unlock();
 }
-
-MUTEX_CLASS PosixFileAccess::asyncmutex(false);
-set<PosixAsyncSynchronizer*> PosixFileAccess::sychronizers;
+#endif
 
 PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
 {
@@ -166,12 +167,7 @@ void PosixFileAccess::sysclose()
 
 bool PosixFileAccess::asyncavailable()
 {
-    bool enabled = true;
-    if (!enabled)
-    {
-        return false;
-    }
-
+#ifndef __ANDROID__
     if (!asyncinitialized)
     {
         asyncinitialized = true;
@@ -188,8 +184,12 @@ bool PosixFileAccess::asyncavailable()
         sigprocmask(SIG_BLOCK, &signalset, NULL);
     }
     return true;
+#else
+    return false;
+#endif
 }
 
+#ifndef __ANDROID__
 AsyncIOContext *PosixFileAccess::newasynccontext()
 {
     return new PosixAsyncIOContext();
@@ -292,9 +292,11 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
     }
     PosixFileAccess::asyncmutex.unlock();
 }
+#endif
 
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
+#ifndef __ANDROID__
     string path;
     path.assign((char *)context->buffer, context->len);
     context->failed = !fopen(&path, context->access & AsyncIOContext::ACCESS_READ,
@@ -305,10 +307,12 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
+#endif
 }
 
 void PosixFileAccess::asyncsysread(AsyncIOContext *context)
 {
+#ifndef __ANDROID__
     if (!context)
     {
         return;
@@ -363,10 +367,12 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
         }
     }
     PosixFileAccess::asyncmutex.unlock();
+#endif
 }
 
 void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
 {
+#ifndef __ANDROID__
     if (!context)
     {
         return;
@@ -421,6 +427,7 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
         }
     }
     PosixFileAccess::asyncmutex.unlock();
+#endif
 }
 
 // update local name
@@ -602,8 +609,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     localseparator = "/";
 
+#ifndef __ANDROID__
     sigemptyset (&asyncsignalset);
     sigaddset(&asyncsignalset, SIGASYNCIO);
+#endif
 
 #ifdef USE_IOS
     if (!appbasepath)
@@ -718,19 +727,23 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
         pw->bumpmaxfd(notifyfd);
     }
 
+#ifndef __ANDROID__
     if (PosixFileAccess::asyncinitialized)
     {
         sigprocmask(SIG_UNBLOCK, &asyncsignalset, NULL);
     }
+#endif
 }
 
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
+#ifndef __ANDROID__
     if (PosixFileAccess::asyncinitialized)
     {
         sigprocmask(SIG_BLOCK, &asyncsignalset, NULL);
     }
+#endif
 
     int r = 0;
 #ifdef ENABLE_SYNC
