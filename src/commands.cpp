@@ -4372,6 +4372,48 @@ void CommandConfirmEmailLink::procresult()
     }
 }
 
+CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
+{
+    this->client = client;
+    cmd("lv");
+    arg("a", appKey);
+    tag = client->reqtag;
+}
+
+void CommandGetVersion::procresult()
+{
+    int versioncode = 0;
+    string versionstring;
+
+    if (client->json.isnumeric())
+    {
+        client->app->getversion_result(0, NULL, (error)client->json.getint());
+        return;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'c':
+                versioncode = client->json.getint();
+                break;
+
+            case 's':
+                client->json.storeobject(&versionstring);
+                break;
+
+            case EOO:
+                return client->app->getversion_result(versioncode, versionstring.c_str(), API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->getversion_result(0, NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)

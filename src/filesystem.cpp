@@ -23,7 +23,10 @@
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
+
+#ifndef WINDOWS_PHONE
 #include "mega/logging.h"
+#endif
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
