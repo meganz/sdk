@@ -18,15 +18,11 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-#include "mega/mega_utf8proc.h"
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
-
-#ifndef WINDOWS_PHONE
 #include "mega/logging.h"
-#endif
+#include "mega/mega_utf8proc.h"
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
