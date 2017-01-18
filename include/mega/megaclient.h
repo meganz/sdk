@@ -719,7 +719,7 @@ public:
     HttpReq* pendingcs;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
 
     // open/create state cache database table
     void opensctable();

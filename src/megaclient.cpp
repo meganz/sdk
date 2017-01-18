@@ -3391,6 +3391,18 @@ void MegaClient::updatesc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write new or modified chats
+            for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
+            {
+                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                {
+                    break;
+                }
+            }
+        }
+
         LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
@@ -8608,6 +8620,7 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+    chatnotify.clear();
 
 #ifndef ENABLE_CHAT
     users.clear();

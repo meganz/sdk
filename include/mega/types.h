@@ -422,7 +422,7 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
@@ -446,6 +446,170 @@ struct TextChat
     ~TextChat()
     {
         delete userpriv;
+    }
+
+    bool serialize(string *d)
+    {        
+        unsigned char l;
+
+        d->append((char*)&id, sizeof id);
+        d->append((char*)&priv, sizeof priv);
+
+        l = (unsigned char)url.size();
+        d->append((char*)&l, sizeof l);
+        d->append(url.c_str(), l);
+
+        d->append((char*)&shard, sizeof shard);
+
+        l = (unsigned char)userpriv->size();
+        d->append((char*)&l, sizeof l);
+        userpriv_vector::iterator it = userpriv->begin();
+        while (it != userpriv->end())
+        {
+            userpriv_pair userpriv = *it;
+
+            d->append((char*)&userpriv.first, sizeof userpriv.first);
+            d->append((char*)&userpriv.second, sizeof userpriv.second);
+
+            it++;
+        }
+
+        d->append((char*)&group, sizeof group);
+
+        l = (unsigned char)title.size();
+        d->append((char*)&l, sizeof l);
+        d->append(title.c_str(), l);
+
+        d->append((char*)&ou, sizeof ou);
+
+        d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
+
+        return true;
+    }
+
+    static TextChat* unserialize(class MegaClient *client, string *d)
+    {
+
+        handle id;
+        privilege_t priv;
+        string url;
+        int shard;
+        userpriv_vector *userpriv;
+        bool group;
+        string title;   // byte array
+        handle ou;
+
+        unsigned char l;
+        const char* ptr = d->data();
+        const char* end = ptr + d->size();
+
+        if (ptr + sizeof(handle) + sizeof(privilege_t) + 1 > end)
+        {
+            return NULL;
+        }
+
+        id = MemAccess::get<handle>(ptr);
+        ptr += sizeof id;
+
+        priv = MemAccess::get<privilege_t>(priv);
+        ptr += sizeof priv;
+
+        l = *ptr++;
+        if (l)
+        {
+            if (ptr + l > end)
+            {
+                return NULL;
+            }
+            url.assign(ptr, l);
+        }
+        ptr += l;
+
+        if (ptr + sizeof(int) + 1 > end)
+        {
+            return NULL;
+        }
+
+        shard = MemAccess::get<int>(shard);
+        ptr += sizeof shard;
+
+        l = *ptr++;
+        if (l)
+        {
+            if (ptr + l * (sizeof(handle) + sizeof(privilege_t)) > end)
+            {
+                return NULL;
+            }
+
+            userpriv = new userpriv_vector;
+
+            for (int i = 0; i < l; i++)
+            {
+                handle uh = MemAccess::get<handle>(ptr);
+                ptr += sizeof uh;
+
+                privilege_t priv = MemAccess::get<privilege_t>(ptr);
+                ptr += sizeof priv;
+
+                userpriv->push_back(userpriv_pair(uh, priv));
+            }
+        }
+
+        if (ptr + sizeof(bool) + 1 > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        group = MemAccess::get<bool>(group);
+        ptr += sizeof group;
+
+        l = *ptr++;
+        if (l)
+        {
+            if (ptr + l > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+            title.assign(ptr, l);
+        }
+        ptr += l;
+
+        if (ptr + sizeof(handle) + 10 > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        ou = MemAccess::get<handle>(ptr);
+        ptr += sizeof ou;
+
+        for (i = 10; i--;)
+        {
+            if (ptr + MemAccess::get<unsigned char>(ptr) < end)
+            {
+                ptr += MemAccess::get<unsigned char>(ptr) + 1;
+            }
+        }
+
+        if (ptr < end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        TextChat* chat = new TextChat;
+        chat->id = id;
+        chat->priv = priv;
+        chat->url = url;
+        chat->shard = shard;
+        chat->userpriv = userpriv;
+        chat->group = group;
+        chat->title = title;
+        chat->ou = ou;
+
+        return chat;
     }
 };
 typedef vector<TextChat*> textchat_vector;
