@@ -119,7 +119,11 @@ TransferSlot::~TransferSlot()
             // Open the file in synchonous mode
             delete fa;
             fa = transfer->client->fsaccess->newfileaccess();
-            fa->fopen(&transfer->localfilename, false, true);
+            if (!fa->fopen(&transfer->localfilename, false, true))
+            {
+                delete fa;
+                fa = NULL;
+            }
         }
 
         for (int i = 0; i < connections; i++)

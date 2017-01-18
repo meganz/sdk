@@ -801,7 +801,10 @@ void Transfer::complete()
         {
             delete slot->fa;
             slot->fa = client->fsaccess->newfileaccess();
-            slot->fa->fopen(&localfilename);
+            if (!slot->fa->fopen(&localfilename))
+            {
+                return failed(API_EREAD);
+            }
         }
 
         if (genfingerprint(slot->fa, true))
