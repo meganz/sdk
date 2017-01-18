@@ -58,11 +58,6 @@ PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 PosixAsyncIOContext::~PosixAsyncIOContext()
 {
     LOG_verbose << "Deleting PosixAsyncIOContext";
-
-    sigset_t signalset;
-    sigemptyset (&signalset);
-    sigaddset(&signalset, SIGASYNCIO);
-    sigprocmask(SIG_BLOCK, &signalset, NULL);
     PosixFileAccess::asyncmutex.lock();
     if (synchronizer)
     {
@@ -71,7 +66,6 @@ PosixAsyncIOContext::~PosixAsyncIOContext()
         synchronizer = NULL;
     }
     PosixFileAccess::asyncmutex.unlock();
-    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 MUTEX_CLASS PosixFileAccess::asyncmutex(false);
@@ -87,19 +81,6 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
 #endif
 
     fsidvalid = false;
-
-    if (!asyncinitialized)
-    {
-        asyncinitialized = true;
-        if (asyncavailable())
-        {
-            struct sigaction sa;
-            sa.sa_sigaction = asyncopfinished;
-            sigemptyset (&sa.sa_mask);
-            sa.sa_flags = SA_RESTART | SA_SIGINFO;
-            sigaction(SIGASYNCIO, &sa, NULL);
-        }
-    }
 }
 
 PosixFileAccess::~PosixFileAccess()
@@ -185,6 +166,27 @@ void PosixFileAccess::sysclose()
 
 bool PosixFileAccess::asyncavailable()
 {
+    bool enabled = true;
+    if (!enabled)
+    {
+        return false;
+    }
+
+    if (!asyncinitialized)
+    {
+        asyncinitialized = true;
+
+        struct sigaction sa;
+        sa.sa_sigaction = asyncopfinished;
+        sigemptyset (&sa.sa_mask);
+        sa.sa_flags = SA_RESTART | SA_SIGINFO;
+        sigaction(SIGASYNCIO, &sa, NULL);
+
+        sigset_t signalset;
+        sigemptyset (&signalset);
+        sigaddset(&signalset, SIGASYNCIO);
+        sigprocmask(SIG_BLOCK, &signalset, NULL);
+    }
     return true;
 }
 
@@ -339,12 +341,7 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
     aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
 
-    sigset_t signalset;
-    sigemptyset (&signalset);
-    sigaddset(&signalset, SIGASYNCIO);
-    sigprocmask(SIG_BLOCK, &signalset, NULL);
     PosixFileAccess::asyncmutex.lock();
-
     sychronizers.insert(synchronizer);
     if (aio_read(aiocbp))
     {
@@ -362,9 +359,7 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-
     PosixFileAccess::asyncmutex.unlock();
-    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
@@ -404,12 +399,7 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
     aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
 
-    sigset_t signalset;
-    sigemptyset (&signalset);
-    sigaddset(&signalset, SIGASYNCIO);
-    sigprocmask(SIG_BLOCK, &signalset, NULL);
     PosixFileAccess::asyncmutex.lock();
-
     sychronizers.insert(synchronizer);
     if (aio_write(aiocbp))
     {
@@ -427,9 +417,7 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-
     PosixFileAccess::asyncmutex.unlock();
-    sigprocmask(SIG_UNBLOCK, &signalset, NULL);
 }
 
 // update local name
@@ -611,6 +599,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     localseparator = "/";
 
+    sigemptyset (&asyncsignalset);
+    sigaddset(&asyncsignalset, SIGASYNCIO);
+
 #ifdef USE_IOS
     if (!appbasepath)
     {
@@ -723,11 +714,21 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 
         pw->bumpmaxfd(notifyfd);
     }
+
+    if (PosixFileAccess::asyncinitialized)
+    {
+        sigprocmask(SIG_UNBLOCK, &asyncsignalset, NULL);
+    }
 }
 
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
+    if (PosixFileAccess::asyncinitialized)
+    {
+        sigprocmask(SIG_BLOCK, &asyncsignalset, NULL);
+    }
+
     int r = 0;
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY

@@ -57,6 +57,7 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
     int notifyfd;
+    sigset_t asyncsignalset;
 
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
