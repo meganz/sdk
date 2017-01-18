@@ -36,7 +36,7 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
-#if defined(__MACH__)
+#ifndef SIGRTMIN
 #define SIGASYNCIO SIGUSR1
 #else
 #define SIGASYNCIO SIGRTMIN
@@ -202,7 +202,10 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
     struct aiocb *aiocbp;
     bool notify = false;
 
-    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(info->si_value.sival_ptr);
+    PosixAsyncSynchronizer *synchronizer = NULL;
+#ifdef SIGRTMIN
+    synchronizer = (PosixAsyncSynchronizer *)(info->si_value.sival_ptr);
+#endif
     if (!synchronizer)
     {
         for (set<PosixAsyncSynchronizer*>::iterator it = PosixFileAccess::sychronizers.begin(); it != PosixFileAccess::sychronizers.end();)
