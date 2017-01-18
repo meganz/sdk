@@ -114,6 +114,8 @@ TransferSlot::~TransferSlot()
                         cachetransfer = true;
                     }
                 }
+                delete asyncIO[i];
+                asyncIO[i] = NULL;
             }
 
             // Open the file in synchonous mode
