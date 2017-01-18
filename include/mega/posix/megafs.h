@@ -164,11 +164,11 @@ public:
 
     ~PosixFileAccess();
     static set<PosixAsyncSynchronizer*> sychronizers;
+    static bool asyncinitialized;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(int, siginfo_t*, void *);
-    static bool asyncinitialized;
 };
 
 class MEGA_API PosixDirNotify : public DirNotify
