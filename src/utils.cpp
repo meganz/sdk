@@ -47,6 +47,7 @@ TextChat::~TextChat()
 bool TextChat::serialize(string *d)
 {
     unsigned char l;
+    unsigned short ll;
 
     d->append((char*)&id, sizeof id);
     d->append((char*)&priv, sizeof priv);
@@ -57,24 +58,29 @@ bool TextChat::serialize(string *d)
 
     d->append((char*)&shard, sizeof shard);
 
-    l = (unsigned char)userpriv->size();
+    l = userpriv ? (unsigned char)userpriv->size() : 0;
     d->append((char*)&l, sizeof l);
-    userpriv_vector::iterator it = userpriv->begin();
-    while (it != userpriv->end())
+    if (userpriv)
     {
-        userpriv_pair userpriv = *it;
+        userpriv_vector::iterator it = userpriv->begin();
+        while (it != userpriv->end())
+        {
+            handle uh = it->first;
+            d->append((char*)&uh, sizeof uh);
 
-        d->append((char*)&userpriv.first, sizeof userpriv.first);
-        d->append((char*)&userpriv.second, sizeof userpriv.second);
+            privilege_t priv = it->second;
+            d->append((char*)&priv, sizeof priv);
 
-        it++;
+            it++;
+        }
     }
 
     d->append((char*)&group, sizeof group);
 
-    l = (unsigned char)title.size();
-    d->append((char*)&l, sizeof l);
-    d->append(title.c_str(), l);
+    // title is a binary array
+    ll = title.size();
+    d->append((char*)&ll, sizeof ll);
+    d->append(title.data(), ll);
 
     d->append((char*)&ou, sizeof ou);
 
@@ -89,12 +95,13 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     privilege_t priv;
     string url;
     int shard;
-    userpriv_vector *userpriv;
+    userpriv_vector *userpriv = NULL;
     bool group;
     string title;   // byte array
     handle ou;
 
     unsigned char l;
+    unsigned short ll;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
 
@@ -159,17 +166,18 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     group = MemAccess::get<bool>(ptr);
     ptr += sizeof group;
 
-    l = *ptr++;
-    if (l)
+    ll = MemAccess::get<short>(ptr);
+    ptr += sizeof ll;
+    if (ll)
     {
-        if (ptr + l > end)
+        if (ptr + ll > end)
         {
             delete userpriv;
             return NULL;
         }
-        title.assign(ptr, l);
+        title.assign(ptr, ll);
     }
-    ptr += l;
+    ptr += ll;
 
     if (ptr + sizeof(handle) + 10 > end)
     {
