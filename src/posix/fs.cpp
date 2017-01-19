@@ -181,7 +181,7 @@ bool PosixFileAccess::asyncavailable()
         sigset_t signalset;
         sigemptyset (&signalset);
         sigaddset(&signalset, SIGASYNCIO);
-        sigprocmask(SIG_BLOCK, &signalset, NULL);
+        pthread_sigmask(SIG_BLOCK, &signalset, NULL);
     }
     return true;
 #else
@@ -733,7 +733,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 #ifndef __ANDROID__
     if (PosixFileAccess::asyncinitialized)
     {
-        sigprocmask(SIG_UNBLOCK, &asyncsignalset, NULL);
+        pthread_sigmask(SIG_UNBLOCK, &asyncsignalset, NULL);
     }
 #endif
 }
@@ -744,7 +744,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifndef __ANDROID__
     if (PosixFileAccess::asyncinitialized)
     {
-        sigprocmask(SIG_BLOCK, &asyncsignalset, NULL);
+        pthread_sigmask(SIG_BLOCK, &asyncsignalset, NULL);
     }
 #endif
 
