@@ -675,12 +675,15 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
     }
 
     m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
-    meanSpeed = meanSpeed * speedCounter + speed;
-    speedCounter++;
-    meanSpeed /= speedCounter;
-    if (speedCounter > SPEED_MAX_VALUES)
+    if (numBytes)
     {
-        speedCounter = SPEED_MAX_VALUES;
+        meanSpeed = meanSpeed * speedCounter + speed;
+        speedCounter++;
+        meanSpeed /= speedCounter;
+        if (speedCounter > SPEED_MAX_VALUES)
+        {
+            speedCounter = SPEED_MAX_VALUES;
+        }
     }
     lastUpdate = currentTime;
     return speed;
