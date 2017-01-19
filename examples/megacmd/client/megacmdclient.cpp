@@ -351,9 +351,11 @@ if (net)
 
     if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
     {
-        cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
-        cerr << "Unable to connect to service" << endl;
-        cerr << "Please ensure MegaCMD is running" << endl;
+        cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
+        if (!number)
+        {
+            cerr << "Please ensure MegaCMD is running" << endl;
+        }
         return INVALID_SOCKET;
     }
     return thesock;
@@ -388,9 +390,11 @@ else
 
     if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
     {
-        cerr << "ERROR connecting to initial socket: " << ERRNO << endl;
-        cerr << "Unable to connect to service" << endl;
-        cerr << "Please ensure MegaCMD is running" << endl;
+        cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
+        if (!number)
+        {
+            cerr << "Please ensure MegaCMD is running" << endl;
+        }
         return INVALID_SOCKET;
     }
 
@@ -456,7 +460,7 @@ int main(int argc, char* argv[])
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output code: " << ERRNO << endl;
-        return -1;;
+        return -1;
     }
 
     int BUFFERSIZE = 1024;

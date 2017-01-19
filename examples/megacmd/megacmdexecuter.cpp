@@ -478,11 +478,11 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
     string currentPart = pathParts.front();
     pathParts.pop_front();
 
-    if (currentPart == ".")
+    if (currentPart == "." || currentPart == "")
     {
          if (!pathParts.size())
          {
-             pathsMatching->push_back(pathPrefix+".");
+             pathsMatching->push_back(pathPrefix+currentPart);
          }
 
         //ignore this part
@@ -789,7 +789,7 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
     string currentPart = pathParts.front();
     pathParts.pop();
 
-    if (currentPart == ".")
+    if (currentPart == "." || currentPart == "")
     {
         //ignore this part
         return getNodesMatching(parentNode, pathParts, nodesMatching);
@@ -1071,10 +1071,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
 
                     bptr = ptr + 1;
 
-                    if (!c.size() || s.size())
-                    {
-                        c.push(s);
-                    }
+                    c.push(s);
 
                     s.erase();
                 }
@@ -3159,7 +3156,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         string localpath;
                         fsAccessCMD->path2local(&path, &localpath);
                         FileAccess *fa = fsAccessCMD->newfileaccess();
-                        if (fa->isfolder(&localpath))
+                        destinyIsFolder = fa->isfolder(&localpath);
+                        if (destinyIsFolder)
                         {
                             delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
@@ -3321,6 +3319,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 downloadNode(path, api, n);
                                 delete n;
                             }
+                        }
+                        if (!nodesToGet->size())
+                        {
+                            setCurrentOutCode(MCMD_NOTFOUND);
+                            LOG_err << "Couldn't find " << words[1];
                         }
 
                         nodesToGet->clear();
@@ -4945,7 +4948,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         if (dumpListOfExported(n, words[i]) == 0 )
                         {
-                            OUTSTREAM << words[i] << " is not exported. Use -a to export it" << endl;
+                            OUTSTREAM << "Couldn't find nothing exported" << (words[i].size()?" below ":"") << words[i] << ". Use -a to export " << (words[i].size()?"it":"something") << endl;
                         }
                     }
                     delete n;
