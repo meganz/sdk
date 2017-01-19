@@ -64,9 +64,7 @@ PosixAsyncIOContext::~PosixAsyncIOContext()
     PosixFileAccess::asyncmutex.lock();
     if (synchronizer)
     {
-        ((PosixFileAccess *)fa)->sychronizers.erase(synchronizer);
         synchronizer->context = NULL;
-        synchronizer = NULL;
     }
     PosixFileAccess::asyncmutex.unlock();
 }
@@ -200,7 +198,6 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
     PosixFileAccess::asyncmutex.lock();
     PosixAsyncIOContext *context;
     struct aiocb *aiocbp;
-    bool notify = false;
 
     PosixAsyncSynchronizer *synchronizer = NULL;
 #ifdef SIGRTMIN
@@ -235,7 +232,10 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
 
                 context->retry = (e == EAGAIN);
                 context->finished = true;
-                notify = true;
+                if (context->userCallback)
+                {
+                    context->userCallback(context->userData);
+                }
             }
             delete synchronizer;
             delete aiocbp;
@@ -275,17 +275,16 @@ void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
 
             context->retry = (e == EAGAIN);
             context->finished = true;
-            notify = true;
+            if (context->userCallback)
+            {
+                context->userCallback(context->userData);
+            }
         }
         delete synchronizer;
         delete aiocbp;
         PosixFileAccess::sychronizers.erase(it);
     }
 
-    if (notify && context->userCallback)
-    {
-        context->userCallback(context->userData);
-    }
     PosixFileAccess::asyncmutex.unlock();
 }
 #endif
