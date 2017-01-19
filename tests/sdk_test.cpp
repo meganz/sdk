@@ -1022,6 +1022,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 
     delete session;
 }
