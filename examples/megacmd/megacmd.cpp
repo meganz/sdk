@@ -1488,6 +1488,13 @@ string getHelpStr(const char *command)
         os << "If a remote path is given it'll be used to add/delete or in case " << endl;
         os << " of no option selected, it will display all the shares existing " << endl;
         os << " in the tree of that path" << endl;
+        os << endl;
+        os << "When sharing a folder with a user that is not a contact (see \"users\" help)" << endl;
+        os << "  the share will be in a pending state. You can list pending shares with" << endl;
+        os << " \"share -p\". He would need to accept your invitation (see \"ipc\")" << endl;
+        os << endl;
+        os << "If someone has shared somethin with you, it will be listed as a root folder" << endl;
+        os << " Use \"mount\" to list folders shared with you" << endl;
     }
     else if (!strcmp(command, "invite"))
     {
