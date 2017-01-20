@@ -3063,7 +3063,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
                             {
+#ifdef _WIN32
+                                path+="\\";
+#else
                                 path+="/";
+#endif
                             }
                             if (!canWrite(path))
                             {
@@ -3162,7 +3166,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             delete fa;
                             if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
                             {
+#ifdef _WIN32
+                                path+="\\";
+#else
                                 path+="/";
+#endif
                             }
                             if (!canWrite(words[2]))
                             {
@@ -3256,7 +3264,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 delete fa;
                                 if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
                                 {
+#ifdef _WIN32
+                                    path+="\\";
+#else
                                     path+="/";
+#endif
                                 }
                                 if (!canWrite(words[2]))
                                 {
@@ -3346,6 +3358,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 destinyIsFolder = fa->isfolder(&localpath);
                                 if (destinyIsFolder)
                                 {
+                                    if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
+                                    {
+#ifdef _WIN32
+                                        path+="\\";
+#else
+                                        path+="/";
+#endif
+                                    }
                                     delete fa;
                                     if (!canWrite(words[2]))
                                     {
@@ -3398,7 +3418,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     delete fa;
                                     if (! (path.find_last_of("/") == path.size()-1) && ! (path.find_last_of("\\") == path.size()-1))
                                     {
+#ifdef _WIN32
+                                        path+="\\";
+#else
                                         path+="/";
+#endif
                                     }
                                     if (!canWrite(words[2]))
                                     {
