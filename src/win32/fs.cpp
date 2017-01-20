@@ -195,17 +195,32 @@ void WinFileAccess::sysclose()
 
 WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
 {
-    synchronizer = NULL;
+    overlapped = NULL;
 }
 
 WinAsyncIOContext::~WinAsyncIOContext()
 {
     LOG_verbose << "Deleting WinAsyncIOContext";
-    if (synchronizer)
+    finish();
+}
+
+void WinAsyncIOContext::finish()
+{
+    if (overlapped)
     {
-        synchronizer->context = NULL;
-        synchronizer = NULL;
+        if (!finished)
+        {
+            LOG_debug << "Synchronously waiting for async operation";
+            while (!finished)
+            {
+                SleepEx(INFINITE, true);
+            }
+        }
+
+        delete overlapped;
+        overlapped = NULL;
     }
+    assert(finished);
 }
 
 AsyncIOContext *WinFileAccess::newasynccontext()
@@ -215,17 +230,7 @@ AsyncIOContext *WinFileAccess::newasynccontext()
 
 VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
 {
-    WinAsyncSynchronizer *synchronizer = (WinAsyncSynchronizer *)(lpOverlapped->hEvent);
-    WinAsyncIOContext *context = synchronizer->context;
-    if (!context)
-    {
-        LOG_debug << "Async IO request already cancelled";
-        delete synchronizer;
-        delete lpOverlapped;
-        return;
-    }
-
-    context->synchronizer = NULL;
+    WinAsyncIOContext *context = (WinAsyncIOContext *)(lpOverlapped->hEvent);
     context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->len;
     if (!context->failed)
     {
@@ -243,9 +248,6 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
     {
         LOG_warn << "Async operation finished with error: " << dwErrorCode;
     }
-
-    delete synchronizer;
-    delete lpOverlapped;
 
     context->retry = WinFileSystemAccess::istransient(dwErrorCode);
     context->finished = true;
@@ -309,25 +311,20 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
 
     overlapped->Offset = winContext->pos & 0xFFFFFFFF;
     overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
 
-    WinAsyncSynchronizer *synchronizer = new WinAsyncSynchronizer();
-    synchronizer->overlapped = overlapped;
-    synchronizer->context = winContext;
-    winContext->synchronizer = synchronizer;
-
-    overlapped->hEvent = synchronizer;
-
-    if(!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+    if (!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
                    overlapped, asyncopfinished))
     {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
         winContext->failed = true;
-        winContext->retry = WinFileSystemAccess::istransient(GetLastError());
-        LOG_warn << "Async read failed at startup";
         winContext->finished = true;
-        winContext->synchronizer = NULL;
-        delete synchronizer;
+        winContext->overlapped = NULL;
         delete overlapped;
 
+        LOG_warn << "Async read failed at startup: " << e;
         if (winContext->userCallback)
         {
             winContext->userCallback(winContext->userData);
@@ -359,28 +356,22 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 
     OVERLAPPED *overlapped = new OVERLAPPED;
     memset(overlapped, 0, sizeof (OVERLAPPED));
-
     overlapped->Offset = winContext->pos & 0xFFFFFFFF;
     overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
-
-    WinAsyncSynchronizer *synchronizer = new WinAsyncSynchronizer();
-    synchronizer->overlapped = overlapped;
-    synchronizer->context = winContext;
-    winContext->synchronizer = synchronizer;
-
-    overlapped->hEvent = synchronizer;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
 
     if (!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
                    overlapped, asyncopfinished))
     {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
         winContext->failed = true;
-        winContext->retry = WinFileSystemAccess::istransient(GetLastError());
-        LOG_warn << "Async write failed at startup";
         winContext->finished = true;
-        winContext->synchronizer = NULL;
-        delete synchronizer;
+        winContext->overlapped = NULL;
         delete overlapped;
 
+        LOG_warn << "Async write failed at startup: "  << e;
         if (winContext->userCallback)
         {
             winContext->userCallback(winContext->userData);
