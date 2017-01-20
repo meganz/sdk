@@ -114,19 +114,13 @@ struct MEGA_API WinDirNotify : public DirNotify
 };
 
 #ifndef WINDOWS_PHONE
-struct MEGA_API WinAsyncIOContext;
-struct MEGA_API WinAsyncSynchronizer
-{
-    OVERLAPPED *overlapped;
-    WinAsyncIOContext *context;
-};
-
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 {
     WinAsyncIOContext();
     virtual ~WinAsyncIOContext();
+    virtual void finish();
 
-    WinAsyncSynchronizer *synchronizer;
+    OVERLAPPED *overlapped;
 };
 #endif
 
