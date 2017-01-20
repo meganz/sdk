@@ -406,6 +406,11 @@ int getShareLevelNum(const char* level)
     return atoi(level);
 }
 
+/**
+ * @brief tests if a path is writable
+ * @param path
+ * @return
+ */
 bool canWrite(string path) //TODO: move to fsAccess
 {
 #ifdef _WIN32

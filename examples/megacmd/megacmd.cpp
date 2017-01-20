@@ -1387,7 +1387,11 @@ string getHelpStr(const char *command)
         os << "Downloads a remote file/folder or a public link " << endl;
         os << endl;
         os << "In case it is a file, the file will be downloaded at the specified folder " << endl;
-        os << "                             (or at the current folder if none specified) " << endl;
+        os << "                             (or at the current folder if none specified)." << endl;
+        os << "  If the localpath(destiny) already exists and is the same (same contents)" << endl;
+        os << "  nothing will be done. If differs, it will create a new file appending \" (NUM)\" " << endl;
+        os << "  if the localpath(destiny) is a folder with a file with the same name on it, " << endl;
+        os << "         it will preserve the, it will create a new file appending \" (NUM)\" " << endl;
         os << endl;
         os << "For folders, the entire contents (and the root folder itself) will be" << endl;
         os << "                    by default downloaded into the destination folder" << endl;
