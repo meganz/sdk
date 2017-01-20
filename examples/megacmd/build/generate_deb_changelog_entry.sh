@@ -32,7 +32,7 @@ out1=$(awk -NF '"' ' /megacmdchangelog/ {flag=1;next} /;/{flag=0} flag { print "
 
 # print ChangeLog entry
 NOW=$(LANG=C date -R)
-echo "megasync ($1) stable; urgency=low"
+echo "megacmd ($1) stable; urgency=low"
 echo ""
 echo "$out1"
 echo ""
