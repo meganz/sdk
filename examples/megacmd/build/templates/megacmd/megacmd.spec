@@ -61,6 +61,7 @@ It features 2 modes of interaction:
 %endif
 
 %if 0%{?suse_version} > 1320
+%define flag_cryptopp -q
 %define with_cryptopp --with-cryptopp=deps
 %endif
 
