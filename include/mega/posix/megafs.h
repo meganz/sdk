@@ -124,19 +124,13 @@ public:
 };
 
 #ifndef __ANDROID__
-struct MEGA_API PosixAsyncIOContext;
-struct MEGA_API PosixAsyncSynchronizer
-{
-    struct aiocb *aiocb;
-    PosixAsyncIOContext *context;
-};
-
 struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 {
     PosixAsyncIOContext();
     virtual ~PosixAsyncIOContext();
+    virtual void finish();
 
-    PosixAsyncSynchronizer *synchronizer;
+    struct aiocb *aiocb;
 };
 #endif
 
@@ -173,7 +167,7 @@ public:
 
 #ifndef __ANDROID__
     static MUTEX_CLASS asyncmutex;
-    static set<PosixAsyncSynchronizer*> sychronizers;
+    static set<PosixAsyncIOContext*> contexts;
     static bool asyncinitialized;
 
 protected:

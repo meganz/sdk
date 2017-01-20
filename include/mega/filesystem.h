@@ -48,6 +48,7 @@ struct MEGA_API AsyncIOContext
 
     AsyncIOContext();
     virtual ~AsyncIOContext();
+    virtual void finish();
 
     // results
     asyncfscallback userCallback;

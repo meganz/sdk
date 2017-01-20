@@ -530,4 +530,9 @@ AsyncIOContext::~AsyncIOContext()
     }
 }
 
+void AsyncIOContext::finish()
+{
+
+}
+
 } // namespace

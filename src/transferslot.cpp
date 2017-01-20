@@ -95,11 +95,7 @@ TransferSlot::~TransferSlot()
             {
                 if (reqs[i] && reqs[i]->status == REQ_ASYNCIO)
                 {
-                    while (!asyncIO[i]->finished)
-                    {
-                        transfer->client->waiter->wait();
-                    }
-
+                    asyncIO[i]->finish();
                     if (!asyncIO[i]->failed)
                     {
                         LOG_verbose << "Async write succeeded";
