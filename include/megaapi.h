@@ -5203,6 +5203,22 @@ class MegaApi
          */
         char* getMyFingerprint();
 #endif
+
+        /**
+         * @brief Allow the MEGA SDK to use Posix signals
+         *
+         * This function must be called just at the startup of the app
+         * if you want to allow the usage of Posix signals. In that case,
+         * the SDK will manage the signal mask according to its needs
+         * and will enable functions that depend on them.
+         *
+         * Currently, asynchronous filesystem operations require signals
+         * on Linux, OS X and iOS.
+         *
+         * On Windows, this function doesn't have any effect.
+         */
+        static void allowSignals();
+
         /**
          * @brief Set the active log level
          *

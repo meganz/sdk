@@ -189,6 +189,11 @@ void PosixFileAccess::sysclose()
 bool PosixFileAccess::asyncavailable()
 {
 #ifndef __ANDROID__
+    if (!PosixFileSystemAccess::signalsAllowed)
+    {
+        return false;
+    }
+
     if (!asyncinitialized)
     {
         asyncinitialized = true;
@@ -1184,6 +1189,19 @@ bool PosixFileSystemAccess::unlinklocal(string* name)
     transient_error = errno == ETXTBSY || errno == EBUSY;
 
     return false;
+}
+
+bool PosixFileSystemAccess::signalsAllowed = false;
+
+void PosixFileSystemAccess::allowSignals()
+{
+#ifndef __ANDROID__
+    sigset_t signalset;
+    sigemptyset (&signalset);
+    sigaddset(&signalset, SIGASYNCIO);
+    pthread_sigmask(SIG_BLOCK, &signalset, NULL);
+    signalsAllowed = true;
+#endif
 }
 
 // delete all files, folders and symlinks contained in the specified folder

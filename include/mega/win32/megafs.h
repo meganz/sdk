@@ -80,6 +80,7 @@ public:
     void statsid(string*) const;
 
     static void emptydirlocal(string*, dev_t = 0);
+    static void allowSignals();
 
     WinFileSystemAccess();
 };

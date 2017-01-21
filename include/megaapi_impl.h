@@ -1327,6 +1327,7 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_CHAT
         char* getMyFingerprint();
 #endif
+        static void allowSignals();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);

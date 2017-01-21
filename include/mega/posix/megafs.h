@@ -112,6 +112,8 @@ public:
     void osversion(string*) const;
     void statsid(string*) const;
 
+    static bool signalsAllowed;
+    static void allowSignals();
     static void emptydirlocal(string*, dev_t = 0);
 
     int getdefaultfilepermissions();

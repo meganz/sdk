@@ -3734,6 +3734,11 @@ char *MegaApiImpl::getMyFingerprint()
 }
 #endif
 
+void MegaApiImpl::allowSignals()
+{
+    FSACCESS_CLASS::allowSignals();
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     if(!externalLogger)
