@@ -1581,8 +1581,8 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 {
     if (!transfer)
     {
-        LOG_warn << "Getting iterator of a NULL transfer";
-        return transfers[transfer->type].end();
+        LOG_err << "Getting iterator of a NULL transfer";
+        return transfer_list::iterator();
     }
 
     transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);

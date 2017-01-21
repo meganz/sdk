@@ -389,7 +389,10 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
 
 SyncFileGet::~SyncFileGet()
 {
-    n->syncget = NULL;
+    if (n)
+    {
+        n->syncget = NULL;
+    }
 }
 
 // create sync-specific temp download directory and set unique filename

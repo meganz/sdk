@@ -2709,7 +2709,7 @@ MegaStringMapPrivate::MegaStringMapPrivate(const string_map *map, bool toBase64)
 
             it->second.assign(buf);
 
-            delete buf;
+            delete [] buf;
         }
     }
 }
@@ -3970,6 +3970,11 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
             scope = '*';
+            break;
+
+        default:
+            LOG_err << "Getting invalid scope";
+            scope = 0;
             break;
     }
 
@@ -12492,8 +12497,8 @@ void MegaApiImpl::sendPendingRequests()
                 if (scope == '*' || scope == '#')
                 {
                     LOG_warn << "Cannot retrieve private/protected attributes from users other than yourself.";
-                    client->app->getua_result(API_EACCESS);
-                    return;
+                    e = API_EACCESS;
+                    break;
                 }
 
                 client->getua(email, type);

@@ -101,7 +101,7 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     m_time_t ts;
     m_time_t uts;
     string msg;
-    bool isoutgoing;
+    bool isoutgoing = false;
 
     const char* ptr = d->data();
     const char* end = ptr + d->size();

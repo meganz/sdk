@@ -8156,7 +8156,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
         string lok;
         Hash hash;
-        hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
+        hash.add((const byte *)dbname.c_str(), dbname.size() + 1);
         hash.get(&lok);
         tckey.setkey((const byte*)lok.data());
     }
