@@ -129,8 +129,6 @@ MegaMutex mutexHistory;
 
 map<int, string> threadline;
 
-void printWelcomeMsg();
-
 string getCurrentThreadLine()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
@@ -373,14 +371,43 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     }
 }
 
-void escapeEspace(string &orig)
+char* generic_completion(const char* text, int state, vector<string> validOptions)
 {
-    replaceAll(orig," ", "\\ ");
+    static size_t list_index, len;
+    string name;
+
+    if (!state)
+    {
+        list_index = 0;
+        len = strlen(text);
+    }
+    while (list_index < validOptions.size())
+    {
+        name = validOptions.at(list_index);
+        list_index++;
+
+        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
+        {
+            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
+            {
+                rl_completion_suppress_append = 1;
+            }
+
+            return dupstr((char*)name.c_str());
+        }
+    }
+
+    return((char*)NULL );
 }
 
-void unescapeEspace(string &orig)
+char* commands_completion(const char* text, int state)
 {
-    replaceAll(orig,"\\ ", " ");
+    return generic_completion(text, state, validCommands);
+}
+
+char* local_completion(const char* text, int state)
+{
+    return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
 char* empty_completion(const char* text, int state)
@@ -395,59 +422,6 @@ char* empty_completion(const char* text, int state)
         return strdup(text);
     }
     return NULL;
-}
-
-char* generic_completion(const char* text, int state, vector<string> validOptions)
-{
-    static size_t list_index, len;
-    static bool foundone;
-    string name;
-    if (!validOptions.size()) // no matches
-    {
-        return empty_completion(text,state); //dont fall back to filenames
-    }
-    if (!state)
-    {
-        list_index = 0;
-        foundone = false;
-        len = strlen(text);
-    }
-    while (list_index < validOptions.size())
-    {
-        name = validOptions.at(list_index);
-        if (!rl_completion_quote_character && interactiveThread()) {
-            escapeEspace(name);
-        }
-
-        list_index++;
-
-        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
-        {
-            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
-            {
-                rl_completion_suppress_append = 1;
-            }
-            foundone = true;
-            return dupstr((char*)name.c_str());
-        }
-    }
-
-    if (!foundone)
-    {
-        return empty_completion(text,state); //dont fall back to filenames
-    }
-
-    return((char*)NULL );
-}
-
-char* commands_completion(const char* text, int state)
-{
-    return generic_completion(text, state, validCommands);
-}
-
-char* local_completion(const char* text, int state)
-{
-    return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
 void addGlobalFlags(set<string> *setvalidparams)
@@ -547,45 +521,27 @@ char * flags_value_completion(const char*text, int state)
             {
                 if (currentFlag.find("--level=") == 0)
                 {
-                    string prefix = strncmp(text, "--level=", strlen("--level="))?"":"--level=";
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READ));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READWRITE));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_FULL));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_OWNER));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READ));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READWRITE));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_FULL));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_OWNER));
+                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
                 }
                 if (currentFlag.find("--with=") == 0)
                 {
                     validValues = cmdexecuter->getlistusers();
-                    string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
-                    for (u_int i=0;i<validValues.size();i++)
-                    {
-                        validValues.at(i)=prefix+validValues.at(i);
-                    }
                 }
             }
             if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
             {
                 validValues = cmdexecuter->getlistusers();
-                string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
-                for (u_int i=0;i<validValues.size();i++)
-                {
-                    validValues.at(i)=prefix+validValues.at(i);
-                }
             }
         }
     }
 
     char *toret = generic_completion(text, state, validValues);
     return toret;
-}
-
-void unescapeifRequired(string &what)
-{
-    if (!rl_completion_quote_character && interactiveThread() ) {
-        return unescapeEspace(what);
-    }
 }
 
 char* remotepaths_completion(const char* text, int state)
@@ -601,9 +557,6 @@ char* remotepaths_completion(const char* text, int state)
 #endif
         wildtext += "*";
 
-        if (!rl_completion_quote_character) {
-            unescapeEspace(wildtext);
-        }
         validpaths = cmdexecuter->listpaths(wildtext);
     }
     return generic_completion(text, state, validpaths);
@@ -867,8 +820,6 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
 
 static char** getCompletionMatches(const char * text, int start, int end)
 {
-    rl_filename_quoting_desired = 1;
-
     char **matches;
 
     matches = (char**)NULL;
@@ -883,7 +834,6 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
-
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
@@ -1971,7 +1921,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, u_int width, bool encapsulated = true)
+void printCenteredLine(string msj, int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1991,16 +1941,7 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    u_int width = 75;
-    int rows = 1, cols = width;
-    rl_get_screen_size(&rows, &cols);
-
-    if (cols)
-    {
-        width = cols-2;
-    }
-
-    cout << endl;
+    int width = 75;
     cout << ".";
     for (u_int i = 0; i < width; i++)
         cout << "=" ;
@@ -2032,16 +1973,6 @@ void printWelcomeMsg()
 
 }
 
-int quote_detector(char *line, int index)
-{
-    return (
-        index > 0 &&
-        line[index - 1] == '\\' &&
-        !quote_detector(line, index - 1)
-    );
-}
-
-
 int main(int argc, char* argv[])
 {
     NullBuffer null_buffer;
@@ -2049,11 +1980,12 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
+    printWelcomeMsg();
 
     loggerCMD = new MegaCMDLogger(&cout);
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
 
     if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
     {
@@ -2127,18 +2059,10 @@ int main(int argc, char* argv[])
     atexit(finalize);
 
     rl_attempted_completion_function = getCompletionMatches;
-    rl_completer_quote_characters = "\"'";
-    rl_filename_quote_characters  = " ";
-    rl_completer_word_break_characters = (char *)" ";
-
-
-    rl_char_is_quoted_p = &quote_detector;
 
     rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
     // so that we can use rl_message or rl_resize_terminal safely before ever
     // prompting anything.
-
-    printWelcomeMsg();
 
     if (!ConfigurationManager::session.empty())
     {
