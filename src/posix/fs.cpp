@@ -75,15 +75,16 @@ void PosixAsyncIOContext::finish()
             sigset_t signalset;
             sigemptyset (&signalset);
             sigaddset(&signalset, SIGASYNCIO);
-
-            struct aiocb  *aio_list[1];
-            aio_list[0] = aiocb;
             pthread_sigmask(SIG_UNBLOCK, &signalset, NULL);
-            while (!finished)
-            {
-                aio_suspend(aio_list, 1, NULL);
-            }
+            AsyncIOContext::finish();
             pthread_sigmask(SIG_BLOCK, &signalset, NULL);
+
+            // Ensure that the operation is totally finished
+            // The callback could run in a different thread
+            // and it could be still working on the cleanup
+            // while we are here.
+            PosixFileAccess::asyncmutex.lock();
+            PosixFileAccess::asyncmutex.unlock();
         }
         delete aiocb;
         aiocb = NULL;

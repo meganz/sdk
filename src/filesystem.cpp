@@ -307,11 +307,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->failed = !sysstat(&mtime, &size);
     context->retry = this->retry;
     context->finished = true;
-    if (context->userCallback)
-    {
-        context->userCallback(context->userData);
-    }
-
+    context->userCallback(context->userData);
     return context;
 }
 
@@ -413,10 +409,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
         context->failed = true;
         context->retry = this->retry;
         context->finished = true;
-        if (context->userCallback)
-        {
-            context->userCallback(context->userData);
-        }
+        context->userCallback(context->userData);
         return context;
     }
 
@@ -523,6 +516,8 @@ AsyncIOContext::AsyncIOContext()
 
 AsyncIOContext::~AsyncIOContext()
 {
+    finish();
+
     // AsyncIOContext objects must be deleted before the FileAccess object
     if (op == AsyncIOContext::READ)
     {
@@ -532,7 +527,17 @@ AsyncIOContext::~AsyncIOContext()
 
 void AsyncIOContext::finish()
 {
+    if (!finished)
+    {
+        while (!finished)
+        {
+            waiter->init(NEVER);
+            waiter->wait();
+        }
 
+        // We could have been consumed and external event
+        waiter->notify();
+    }
 }
 
 } // namespace

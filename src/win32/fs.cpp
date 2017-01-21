@@ -211,10 +211,7 @@ void WinAsyncIOContext::finish()
         if (!finished)
         {
             LOG_debug << "Synchronously waiting for async operation";
-            while (!finished)
-            {
-                SleepEx(INFINITE, true);
-            }
+            AsyncIOContext::finish();
         }
 
         delete overlapped;
