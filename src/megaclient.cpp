@@ -10526,16 +10526,19 @@ void MegaClient::setmaxconnections(direction_t d, int num)
             num = MegaClient::MAX_NUM_CONNECTIONS;
         }
 
-        connections[d] = num;
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+        if (connections[d] != num)
         {
-            TransferSlot *slot = *it++;
-            if (slot->transfer->type == d)
+            connections[d] = num;
+            for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
             {
-                slot->transfer->state = TRANSFERSTATE_QUEUED;
-                slot->transfer->bt.arm();
-                slot->transfer->cachedtempurl = slot->tempurl;
-                delete slot;
+                TransferSlot *slot = *it++;
+                if (slot->transfer->type == d)
+                {
+                    slot->transfer->state = TRANSFERSTATE_QUEUED;
+                    slot->transfer->bt.arm();
+                    slot->transfer->cachedtempurl = slot->tempurl;
+                    delete slot;
+                }
             }
         }
     }
