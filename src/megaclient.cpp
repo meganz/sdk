@@ -3294,6 +3294,19 @@ void MegaClient::initsc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write new or modified chats
+            for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
+            {
+                TextChat *chat = it->second;
+                if (!(complete = sctable->put(CACHEDCHAT, chat, &key)))
+                {
+                    break;
+                }
+            }
+        }
+
         LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
@@ -7513,6 +7526,8 @@ void MegaClient::procmcf(JSON *j)
                             }
                         }
                         chat->userpriv = userpriv;
+
+                        chats[chat->id] = chat;
                         notifychat(chat);
                     }
                     else
@@ -7952,6 +7967,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     Node* n;
     User* u;
     PendingContactRequest* pcr;
+    TextChat *chat;
     node_vector dp;
 
     LOG_info << "Loading session from local cache";
@@ -8005,6 +8021,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 else
                 {
                     LOG_err << "Failed - user record read error";
+                    return false;
+                }
+
+            case CACHEDCHAT:
+                if ((chat = TextChat::unserialize(this, &data)))
+                {
+                    chat->dbid = id;
+                    notifychat(chat);
+                }
+                else
+                {
+                    LOG_err << "Failed - chat record read error";
                     return false;
                 }
         }

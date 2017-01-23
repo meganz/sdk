@@ -183,6 +183,9 @@ public:
     // all users
     user_map users;
 
+    // all chats
+    textchat_map chats;
+
     // process API requests and HTTP I/O
     void exec();
 

@@ -8349,16 +8349,23 @@ void MegaApiImpl::registerpushnotification_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chats_updated(textchat_map *chats)
+void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
-    if (!chats || !chats->size())
+    if(!count)
     {
         return;
     }
 
-    MegaTextChatList *chatList = new MegaTextChatListPrivate(chats);
-    fireOnChatsUpdate(chatList);
-    delete chatList;
+    if (chats)
+    {
+        MegaTextChatList *chatList = new MegaTextChatListPrivate(chats);
+        fireOnChatsUpdate(chatList);
+        delete chatList;
+    }
+    else
+    {
+        fireOnChatsUpdate(NULL);
+    }
 }
 #endif
 
