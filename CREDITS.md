@@ -74,7 +74,7 @@ License: FreeImage Public License - Version 1.0.
 
 http://freeimage.sourceforge.net/freeimage-license.txt
 
-#### libuv
+#### SQLite
 SQLite is an in-process library that implements a self-contained, serverless, zero-configuration, transactional SQL database engine.
 
 http://www.sqlite.org/
