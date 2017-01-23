@@ -4905,13 +4905,11 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        // chats are notified even during fetchingnodes
-        app->chats_updated(&chatnotify);
-
-        for (i = 0; i < t; i++)
+        if (!fetchingnodes)
         {
-            delete chatnotify[i];
+            app->chats_updated(&chatnotify, t);
         }
+
         chatnotify.clear();
     }
 #endif
@@ -7283,7 +7281,6 @@ void MegaClient::notifychat(TextChat *chat)
 {
     chatnotify[chat->id] = chat;
 }
-
 #endif
 
 // process request for share node keys
