@@ -82,6 +82,3 @@ KEY
 
 }
 
-post_remove() {
-sed -n '1h;1!H;${g;s/###REPO for MEGA###\n.*###END REPO for MEGA###//;p;}' -i /etc/pacman.conf 
-}
