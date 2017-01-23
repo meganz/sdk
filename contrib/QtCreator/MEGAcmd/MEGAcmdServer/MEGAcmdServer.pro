@@ -50,7 +50,8 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
     ../../../../examples/megacmd/megacmdlogger.h \
     ../../../../examples/megacmd/configurationmanager.h \
     ../../../../examples/megacmd/comunicationsmanager.h \
-    ../../../../examples/megacmd/megacmdutils.h
+    ../../../../examples/megacmd/megacmdutils.h \
+    ../../../../examples/megacmd/megacmdversion.h
 
 
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerportsockets.cpp
