@@ -3003,6 +3003,7 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, nodes.size());
                         app->users_updated(NULL, users.size());
                         app->pcrs_updated(NULL, pcrindex.size());
+                        app->chats_updated(NULL, chats.size());
 
                         for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
                         {
