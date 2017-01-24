@@ -1261,8 +1261,8 @@ string getHelpStr(const char *command)
     {
         os << "Logs into a mega" << endl;
         os << " You can log in either with email and password, with session ID," << endl;
-        os << " or into an exportedfolder" << endl;
-        os << " If loging into an exported folder indicate url#key" << endl;
+        os << " or into a folder (an exported/public folder)" << endl;
+        os << " If loging into a folder indicate url#key" << endl;
     }
     else if (!strcmp(command, "signup"))
     {
@@ -1330,6 +1330,13 @@ string getHelpStr(const char *command)
         os << "   " << "\t" << " Messages captured by the command line." << endl;
         os << " -s" << "\t" << "SDK log level (lower level messages)." << endl;
         os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
+
+        os << endl;
+        os << "Verbosity in non-interactive mode: Regardless of the log level of the" << endl;
+        os << " interactive shell, you can increase the amount of information given" <<  endl;
+        os << "   by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+
+
     }
     else if (!strcmp(command, "du"))
     {
@@ -1774,6 +1781,7 @@ void executecommand(char* ptr)
         OUTSTREAM << endl << "Commands:" << endl;
 
         printAvailableCommands(getFlag(&clflags,"f"));
+        OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
         return;
     }
 

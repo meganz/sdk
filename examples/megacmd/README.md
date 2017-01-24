@@ -157,3 +157,21 @@ Options:
 Notice: if you use MegaCMD in non interactive mode, notice that shell pattern will 
 take precedence. You will need to either escape symbols like `*` (`\*`) 
 or surround them between quotes (e.g: "*.txt")
+
+
+# Known Bugs
+- Currently there are certain discrepancies with PATHS when loggin into a public folder.
+For instance, imagine a folder named `toshare` with a subfolder named `x`. If we login
+into `toshare` and execute `find /x`, this will be the output:
+
+```
+/toshare/x
+```
+Whereas if we execute `find /toshare/x`, we receive an error, since folder absolute path
+refers to `/` as root path. 
+```
+[err: 12:21:51] Couldn't find /toshare/x
+```
+
+It might better be refered as /toshare/x
+
