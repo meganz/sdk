@@ -161,8 +161,6 @@ public:
     ~PosixFileAccess();
 
 #ifndef __ANDROID__
-    static MUTEX_CLASS asyncmutex;
-
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(union sigval sigev_value);

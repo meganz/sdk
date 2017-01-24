@@ -279,10 +279,10 @@ void FileAccess::closef()
 
 void FileAccess::asyncopfinished(void *param)
 {
-    AsyncIOContext *context = (AsyncIOContext *)param;
-    if (context->waiter)
+    Waiter *waiter = (Waiter *)param;
+    if (waiter)
     {
-        context->waiter->notify();
+        waiter->notify();
     }
 }
 
@@ -300,7 +300,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->len = f->size();
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
-    context->userData = context;
+    context->userData = waiter;
     context->pos = size;
     context->fa = this;
 
@@ -368,7 +368,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
     context->len = f->size();
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
-    context->userData = context;
+    context->userData = waiter;
     context->pos = size;
     context->fa = this;
 
@@ -400,7 +400,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     context->buffer = (byte *)dst->data();
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
-    context->userData = context;
+    context->userData = waiter;
     context->fa = this;
 
     if (!asyncopenf())
@@ -439,7 +439,7 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->buffer = (byte *)data;
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
-    context->userData = context;
+    context->userData = waiter;
     context->fa = this;
 
     asyncsyswrite(context);

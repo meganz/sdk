@@ -43,8 +43,6 @@ namespace mega {
 #endif
 
 #ifndef __ANDROID__
-MUTEX_CLASS PosixFileAccess::asyncmutex(false);
-
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
     aiocb = NULL;
@@ -64,13 +62,6 @@ void PosixAsyncIOContext::finish()
         {
             LOG_debug << "Synchronously waiting for async operation";
             AsyncIOContext::finish();
-
-            // Ensure that the operation is totally finished
-            // The callback could run in a different thread
-            // and it could be still working on the cleanup
-            // while we are here.
-            PosixFileAccess::asyncmutex.lock();
-            PosixFileAccess::asyncmutex.unlock();
         }
         delete aiocb;
         aiocb = NULL;
@@ -193,7 +184,6 @@ AsyncIOContext *PosixFileAccess::newasynccontext()
 
 void PosixFileAccess::asyncopfinished(sigval sigev_value)
 {
-    PosixFileAccess::asyncmutex.lock();
     PosixAsyncIOContext *context = (PosixAsyncIOContext *)(sigev_value.sival_ptr);
     struct aiocb *aiocbp = context->aiocb;
     int e = aio_error(aiocbp);
@@ -216,12 +206,14 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
     {
         LOG_warn << "Async operation finished with error: " << e;
     }
+
+    asyncfscallback userCallback = context->userCallback;
+    void *userData = context->userData;
     context->finished = true;
-    if (context->userCallback)
+    if (userCallback)
     {
-        context->userCallback(context->userData);
+        userCallback(userData);
     }
-    PosixFileAccess::asyncmutex.unlock();
 }
 #endif
 
