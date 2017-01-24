@@ -4062,6 +4062,17 @@ char *MegaApiImpl::dumpSession()
     return buf;
 }
 
+char *MegaApiImpl::getSequenceNumber()
+{
+    sdkMutex.lock();
+
+    char *scsn = MegaApi::strdup(client->scsn);
+
+    sdkMutex.unlock();
+
+    return scsn;
+}
+
 char *MegaApiImpl::dumpXMPPSession()
 {
     sdkMutex.lock();

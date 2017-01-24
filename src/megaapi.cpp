@@ -1402,6 +1402,11 @@ char *MegaApi::dumpSession()
     return pImpl->dumpSession();
 }
 
+char *MegaApi::getSequenceNumber()
+{
+    return pImpl->getSequenceNumber();
+}
+
 char *MegaApi::dumpXMPPSession()
 {
     return pImpl->dumpXMPPSession();

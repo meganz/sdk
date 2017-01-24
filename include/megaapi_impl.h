@@ -1293,6 +1293,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *getSequenceNumber();
         char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
