@@ -56,7 +56,7 @@ on_exit_ok() {
         echo "Successfully configured MEGA SDK!"
     elif [ $download_only -eq 1 ]; then
         echo "Successfully downloaded MEGA SDK dependencies!"
-    elif [ $only_build_dependencies -eq 1]; then
+    elif [ $only_build_dependencies -eq 1 ]; then
         echo "Successfully built MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
