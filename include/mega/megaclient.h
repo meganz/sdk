@@ -183,8 +183,10 @@ public:
     // all users
     user_map users;
 
+#ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
+#endif
 
     // process API requests and HTTP I/O
     void exec();

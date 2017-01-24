@@ -29,6 +29,7 @@ Cachable::Cachable()
     notified = 0;
 }
 
+#ifdef ENABLE_CHAT
 TextChat::TextChat()
 {
     id = UNDEF;
@@ -222,6 +223,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     return chat;
 }
+#endif
 
 /**
  * @brief Encrypts a string after padding it to block length.

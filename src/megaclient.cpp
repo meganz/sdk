@@ -3003,8 +3003,9 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, nodes.size());
                         app->users_updated(NULL, users.size());
                         app->pcrs_updated(NULL, pcrindex.size());
+#ifdef ENABLE_CHAT
                         app->chats_updated(NULL, chats.size());
-
+#endif
                         for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
                         {
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
@@ -3294,6 +3295,7 @@ void MegaClient::initsc()
             }
         }
 
+#ifdef ENABLE_CHAT
         if (complete)
         {
             // 5. write new or modified chats
@@ -3305,8 +3307,11 @@ void MegaClient::initsc()
                 }
             }
         }
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+#else
 
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+ #endif
         finalizesc(complete);
     }
 }
@@ -3404,6 +3409,7 @@ void MegaClient::updatesc()
             }
         }
 
+#ifdef ENABLE_CHAT
         if (complete)
         {
             // 5. write new or modified chats
@@ -3417,8 +3423,10 @@ void MegaClient::updatesc()
                 }
             }
         }
-
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+#else
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+#endif
         finalizesc(complete);
     }
 }
@@ -7986,7 +7994,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
     Node* n;
     User* u;
     PendingContactRequest* pcr;
-    TextChat *chat;
     node_vector dp;
 
     LOG_info << "Loading session from local cache";
@@ -8045,15 +8052,20 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDCHAT:
-                if ((chat = TextChat::unserialize(this, &data)))
+#ifdef ENABLE_CHAT
                 {
-                    chat->dbid = id;
+                    TextChat *chat;
+                    if ((chat = TextChat::unserialize(this, &data)))
+                    {
+                        chat->dbid = id;
+                    }
+                    else
+                    {
+                        LOG_err << "Failed - chat record read error";
+                        return false;
+                    }
                 }
-                else
-                {
-                    LOG_err << "Failed - chat record read error";
-                    return false;
-                }
+#endif
                 break;
         }
         hasNext = sctable->next(&id, &data, &key);
@@ -8666,13 +8678,13 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
-    chatnotify.clear();
 
 #ifndef ENABLE_CHAT
     users.clear();
     uhindex.clear();
     umindex.clear();
 #else
+    chatnotify.clear();
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
