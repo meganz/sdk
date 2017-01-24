@@ -41,6 +41,9 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152;
+#elif defined (__APPLE__)
+    // Unfortunately we don't have async fs reads / writes for Apple yet
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
 #else
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216;
 #endif
