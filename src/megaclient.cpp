@@ -8038,6 +8038,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     LOG_err << "Failed - user record read error";
                     return false;
                 }
+                break;
 
             case CACHEDCHAT:
                 if ((chat = TextChat::unserialize(this, &data)))
@@ -8049,6 +8050,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     LOG_err << "Failed - chat record read error";
                     return false;
                 }
+                break;
         }
         hasNext = sctable->next(&id, &data, &key);
     }
