@@ -34,7 +34,6 @@
 
 #ifndef __ANDROID__
 #include <aio.h>
-#include <signal.h>
 #endif
 
 #include "mega.h"
@@ -60,10 +59,6 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
     int notifyfd;
-
-#ifndef __ANDROID__
-    sigset_t asyncsignalset;
-#endif
 
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
@@ -112,8 +107,6 @@ public:
     void osversion(string*) const;
     void statsid(string*) const;
 
-    static bool signalsAllowed;
-    static void allowSignals();
     static void emptydirlocal(string*, dev_t = 0);
 
     int getdefaultfilepermissions();
@@ -169,12 +162,10 @@ public:
 
 #ifndef __ANDROID__
     static MUTEX_CLASS asyncmutex;
-    static set<PosixAsyncIOContext*> contexts;
-    static bool asyncinitialized;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
-    static void asyncopfinished(int, siginfo_t*, void *);
+    static void asyncopfinished(union sigval sigev_value);
 #endif
 };
 

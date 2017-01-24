@@ -838,9 +838,6 @@ bool WinFileSystemAccess::unlinklocal(string* name)
     return r;
 }
 
-void WinFileSystemAccess::allowSignals()
-{ }
-
 // delete all files and folders contained in the specified folder
 // (does not recurse into mounted devices)
 void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)

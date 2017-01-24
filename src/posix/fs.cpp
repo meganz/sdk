@@ -36,12 +36,6 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
-#ifndef SIGRTMIN
-#define SIGASYNCIO SIGUSR1
-#else
-#define SIGASYNCIO SIGRTMIN
-#endif
-
 namespace mega {
     
 #ifdef USE_IOS
@@ -49,8 +43,6 @@ namespace mega {
 #endif
 
 #ifndef __ANDROID__
-bool PosixFileAccess::asyncinitialized = false;
-set<PosixAsyncIOContext*> PosixFileAccess::contexts;
 MUTEX_CLASS PosixFileAccess::asyncmutex(false);
 
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
@@ -71,13 +63,7 @@ void PosixAsyncIOContext::finish()
         if (!finished)
         {
             LOG_debug << "Synchronously waiting for async operation";
-
-            sigset_t signalset;
-            sigemptyset (&signalset);
-            sigaddset(&signalset, SIGASYNCIO);
-            pthread_sigmask(SIG_UNBLOCK, &signalset, NULL);
             AsyncIOContext::finish();
-            pthread_sigmask(SIG_BLOCK, &signalset, NULL);
 
             // Ensure that the operation is totally finished
             // The callback could run in a different thread
@@ -189,26 +175,10 @@ void PosixFileAccess::sysclose()
 bool PosixFileAccess::asyncavailable()
 {
 #ifndef __ANDROID__
-    if (!PosixFileSystemAccess::signalsAllowed)
-    {
+    #ifdef __APPLE__
         return false;
-    }
+    #endif
 
-    if (!asyncinitialized)
-    {
-        asyncinitialized = true;
-
-        struct sigaction sa;
-        sa.sa_sigaction = asyncopfinished;
-        sigemptyset (&sa.sa_mask);
-        sa.sa_flags = SA_RESTART | SA_SIGINFO;
-        sigaction(SIGASYNCIO, &sa, NULL);
-
-        sigset_t signalset;
-        sigemptyset (&signalset);
-        sigaddset(&signalset, SIGASYNCIO);
-        pthread_sigmask(SIG_BLOCK, &signalset, NULL);
-    }
     return true;
 #else
     return false;
@@ -221,80 +191,36 @@ AsyncIOContext *PosixFileAccess::newasynccontext()
     return new PosixAsyncIOContext();
 }
 
-void PosixFileAccess::asyncopfinished(int, siginfo_t *info, void *)
+void PosixFileAccess::asyncopfinished(sigval sigev_value)
 {
     PosixFileAccess::asyncmutex.lock();
-    PosixAsyncIOContext *context = NULL;
-    struct aiocb *aiocbp;
-
-#ifdef SIGRTMIN
-    context = (PosixAsyncIOContext *)(info->si_value.sival_ptr);
-#endif
-    if (!context)
+    PosixAsyncIOContext *context = (PosixAsyncIOContext *)(sigev_value.sival_ptr);
+    struct aiocb *aiocbp = context->aiocb;
+    int e = aio_error(aiocbp);
+    assert (e != EINPROGRESS);
+    context->retry = (e == EAGAIN);
+    context->failed = (aio_return(aiocbp) < 0);
+    if (!context->failed)
     {
-        for (set<PosixAsyncIOContext*>::iterator it = PosixFileAccess::contexts.begin(); it != PosixFileAccess::contexts.end();)
+        if (context->op == AsyncIOContext::READ && context->pad)
         {
-            context = (*it);
-            aiocbp = context->aiocb;
-            int e = aio_error(aiocbp);
-            if (e == EINPROGRESS)
-            {
-                it++;
-                continue;
-            }
-
-            PosixFileAccess::contexts.erase(it++);
-            context->failed = (aio_return(aiocbp) < 0);
-            if (!context->failed)
-            {
-                if (context->op == AsyncIOContext::READ && context->pad)
-                {
-                    memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
-                }
-            }
-            context->retry = (e == EAGAIN);
-            context->finished = true;
-            if (context->userCallback)
-            {
-                context->userCallback(context->userData);
-            }
+            memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
         }
     }
     else
     {
-        set<PosixAsyncIOContext*>::iterator it = PosixFileAccess::contexts.find(context);
-        if (it == PosixFileAccess::contexts.end())
-        {
-            PosixFileAccess::asyncmutex.unlock();
-            return;
-        }
-
-        aiocbp = context->aiocb;
-        int e = aio_error(aiocbp);
-        if (e == EINPROGRESS)
-        {
-            PosixFileAccess::asyncmutex.unlock();
-            return;
-        }
-
-        PosixFileAccess::contexts.erase(it);
-        context->failed = (aio_return(aiocbp) < 0);
-        if (!context->failed)
-        {
-            if (context->op == AsyncIOContext::READ && context->pad)
-            {
-                memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
-            }
-        }
-
-        context->retry = (e == EAGAIN);
-        context->finished = true;
-        if (context->userCallback)
-        {
-            context->userCallback(context->userData);
-        }
+        LOG_warn << "Async operation finished with error: " << e;
     }
-
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
     PosixFileAccess::asyncmutex.unlock();
 }
 #endif
@@ -343,13 +269,10 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
     aiocbp->aio_buf = (void *)posixContext->buffer;
     aiocbp->aio_nbytes = posixContext->len;
     aiocbp->aio_offset = posixContext->pos;
-    aiocbp->aio_sigevent.sigev_notify = SIGEV_SIGNAL;
-    aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
     posixContext->aiocb = aiocbp;
-
-    PosixFileAccess::asyncmutex.lock();
-    contexts.insert(posixContext);
     if (aio_read(aiocbp))
     {
         posixContext->retry = (errno == EAGAIN);
@@ -359,14 +282,11 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
         delete aiocbp;
 
         LOG_warn << "Async read failed at startup:" << errno;
-        contexts.erase(posixContext);
-
         if (posixContext->userCallback)
         {
             posixContext->userCallback(posixContext->userData);
         }
     }
-    PosixFileAccess::asyncmutex.unlock();
 #endif
 }
 
@@ -398,13 +318,11 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
     aiocbp->aio_buf = (void *)posixContext->buffer;
     aiocbp->aio_nbytes = posixContext->len;
     aiocbp->aio_offset = posixContext->pos;
-    aiocbp->aio_sigevent.sigev_notify = SIGEV_SIGNAL;
-    aiocbp->aio_sigevent.sigev_signo = SIGASYNCIO;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
     posixContext->aiocb = aiocbp;
 
-    PosixFileAccess::asyncmutex.lock();
-    contexts.insert(posixContext);
     if (aio_write(aiocbp))
     {
         posixContext->retry = (errno == EAGAIN);
@@ -414,14 +332,11 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
         delete aiocbp;
 
         LOG_warn << "Async write failed at startup: " << errno;
-        contexts.erase(posixContext);
-
         if (posixContext->userCallback)
         {
             posixContext->userCallback(posixContext->userData);
         }
     }
-    PosixFileAccess::asyncmutex.unlock();
 #endif
 }
 
@@ -604,11 +519,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     localseparator = "/";
 
-#ifndef __ANDROID__
-    sigemptyset (&asyncsignalset);
-    sigaddset(&asyncsignalset, SIGASYNCIO);
-#endif
-
 #ifdef USE_IOS
     if (!appbasepath)
     {
@@ -721,25 +631,11 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 
         pw->bumpmaxfd(notifyfd);
     }
-
-#ifndef __ANDROID__
-    if (PosixFileAccess::asyncinitialized)
-    {
-        pthread_sigmask(SIG_UNBLOCK, &asyncsignalset, NULL);
-    }
-#endif
 }
 
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
-#ifndef __ANDROID__
-    if (PosixFileAccess::asyncinitialized)
-    {
-        pthread_sigmask(SIG_BLOCK, &asyncsignalset, NULL);
-    }
-#endif
-
     int r = 0;
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
@@ -1189,19 +1085,6 @@ bool PosixFileSystemAccess::unlinklocal(string* name)
     transient_error = errno == ETXTBSY || errno == EBUSY;
 
     return false;
-}
-
-bool PosixFileSystemAccess::signalsAllowed = false;
-
-void PosixFileSystemAccess::allowSignals()
-{
-#ifndef __ANDROID__
-    sigset_t signalset;
-    sigemptyset (&signalset);
-    sigaddset(&signalset, SIGASYNCIO);
-    pthread_sigmask(SIG_BLOCK, &signalset, NULL);
-    signalsAllowed = true;
-#endif
 }
 
 // delete all files, folders and symlinks contained in the specified folder

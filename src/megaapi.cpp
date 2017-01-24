@@ -1285,11 +1285,6 @@ char *MegaApi::getMyFingerprint()
 }
 #endif
 
-void MegaApi::allowSignals()
-{
-    MegaApiImpl::allowSignals();
-}
-
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
