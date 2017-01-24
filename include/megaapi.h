@@ -9250,6 +9250,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the list of chatrooms for this account
+         *
+         * You take the ownership of the returned value
+         *
+         * @return A list of MegaTextChat objects with detailed information about each chatroom.
+         */
+        MegaTextChatList *getChatList();
 #endif
 
 private:

@@ -1631,6 +1631,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        MegaTextChatList *getChatList();
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);

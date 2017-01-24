@@ -6580,6 +6580,17 @@ void MegaApiImpl::registerPushNotification(int deviceType, const char *token, Me
     requestQueue.push(request);
     waiter->notify();
 }
+
+MegaTextChatList *MegaApiImpl::getChatList()
+{
+    sdkMutex.lock();
+
+    MegaTextChatListPrivate *list = new MegaTextChatListPrivate(&client->chats);
+
+    sdkMutex.unlock();
+
+    return list;
+}
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
