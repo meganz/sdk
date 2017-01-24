@@ -4721,7 +4721,12 @@ void MegaClient::sc_chatupdate()
                 }
                 else
                 {
-                    TextChat *chat = new TextChat();
+                    if (chats.find(chatid) == chats.end())
+                    {
+                        chats[chatid] = new TextChat();
+                    }
+
+                    TextChat *chat = chats[chatid];
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
@@ -4764,6 +4769,7 @@ void MegaClient::sc_chatupdate()
                             }
                         }
                     }
+                    delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
                     notifychat(chat);
@@ -7542,8 +7548,6 @@ void MegaClient::procmcf(JSON *j)
                         }
                         delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = userpriv;
-
-                        notifychat(chat);
                     }
                     else
                     {
