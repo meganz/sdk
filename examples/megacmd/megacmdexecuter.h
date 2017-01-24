@@ -69,8 +69,9 @@ public:
     void dumpNode(mega::MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
     void dumptree(mega::MegaNode* n, int recurse, int extended_info, int depth = 0, std::string pathRelativeTo = "NULL");
     mega::MegaContactRequest * getPcrByContact(std::string contactEmail);
+    bool TestCanWriteOnContainingFolder(std::string *path);
     std::string getDisplayPath(std::string givenPath, mega::MegaNode* n);
-    void dumpListOfExported(mega::MegaNode* n, std::string givenPath);
+    int dumpListOfExported(mega::MegaNode* n, std::string givenPath);
     void listnodeshares(mega::MegaNode* n, std::string name);
     void dumpListOfShared(mega::MegaNode* n, std::string givenPath);
     void dumpListOfAllShared(mega::MegaNode* n, std::string givenPath);
@@ -113,6 +114,7 @@ public:
     void confirmWithPassword(std::string passwd);
 
     int makedir(std::string remotepath, bool recursive, mega::MegaNode *parentnode = NULL);
+    bool IsFolder(std::string path);
 };
 
 #endif // MEGACMDEXECUTER_H

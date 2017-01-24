@@ -9,7 +9,7 @@ Source0:	megacmd_%{version}.tar.gz
 Vendor:		MEGA Limited
 Packager:	MEGA Linux Team <linux@mega.co.nz>
 
-BuildRequires: openssl-devel, sqlite-devel, zlib-devel, autoconf, automake, libtool, gcc-c++
+BuildRequires: openssl-devel, sqlite-devel, zlib-devel, autoconf, automake, libtool, gcc-c++, pcre-devel
 BuildRequires: hicolor-icon-theme, unzip, wget
 
 %if 0%{?suse_version}
@@ -61,6 +61,7 @@ It features 2 modes of interaction:
 %endif
 
 %if 0%{?suse_version} > 1320
+%define flag_cryptopp -q
 %define with_cryptopp --with-cryptopp=deps
 %endif
 
@@ -82,13 +83,13 @@ rm -fr bindings/qt/3rdparty/include/cryptopp
 
 #build dependencies into folder deps
 mkdir deps
-bash -x ./contrib/build_sdk.sh %{flag_cryptopp} -o archives -f \
+bash -x ./contrib/build_sdk.sh %{flag_cryptopp} -o archives \
   -g %{flag_disablezlib} -b -l -c -s -u -a -p deps/
 
 ./configure --disable-shared --enable-static --disable-silent-rules \
   --disable-curl-checks %{with_cryptopp} --with-sodium=deps \
   %{with_zlib} --with-sqlite=deps --with-cares=deps \
-  --with-curl=deps --without-freeimage --with-readline=deps \
+  --with-curl=deps --with-freeimage=deps --with-readline=deps \
   --with-termcap=deps --prefix=$PWD/deps --disable-examples
 
 make
@@ -98,6 +99,8 @@ make
 for i in examples/megacmd/client/mega-*; do install -D $i %{buildroot}%{_bindir}/${i/examples\/megacmd\/client\//}; done
 install -D examples/megacmd/client/megacmd_completion.sh %{buildroot}%{_sysconfdir}/bash_completion.d/megacmd_completion.sh
 install -D examples/mega-cmd %{buildroot}%{_bindir}/mega-cmd
+install -D examples/mega-exec %{buildroot}%{_bindir}/mega-exec
+
 
 %post
 #source bash_completion?

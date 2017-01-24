@@ -8854,6 +8854,18 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
     delete [] nn;
 
+    if (request->getType() == MegaRequest::TYPE_MOVE || request->getType() == MegaRequest::TYPE_COPY)
+    {
+        //scale to get the handle of the moved/copied node
+        Node *ntmp;
+        if (n)
+        {
+            for (ntmp = n; ((ntmp->parent != NULL) && (ntmp->parent->nodehandle != request->getParentHandle()) ); ntmp = ntmp->parent);
+            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == request->getParentHandle()) )
+                h = ntmp->nodehandle;
+        }
+    }
+
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
         request->setNodeHandle(h);
@@ -13357,7 +13369,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (connections > MegaClient::MAX_NUM_CONNECTIONS)
+            if ((unsigned int) connections > MegaClient::MAX_NUM_CONNECTIONS)
             {
                 e = API_ETOOMANY;
                 break;

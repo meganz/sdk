@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/comunicationsmanager.h
- * @brief MegaCMD: Communications manager
+ * @brief MegaCMD: Communications manager non supporting non-interactive mode
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -28,6 +28,7 @@ class CmdPetition
 {
     public:
         char * line = NULL;
+        mega::MegaThread * petitionThread = NULL;
 
         char *getLine()
         {
@@ -40,6 +41,8 @@ class CmdPetition
                 free(line);
             }
         }
+        mega::MegaThread *getPetitionThread() const;
+        void setPetitionThread(mega::MegaThread *value);
 };
 
 
