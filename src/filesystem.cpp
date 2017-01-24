@@ -219,6 +219,18 @@ DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return new DirNotify(localpath, ignore);
 }
 
+FileAccess::FileAccess(Waiter *waiter)
+{
+    this->waiter = waiter;
+    this->numops = 0;
+}
+
+FileAccess::~FileAccess()
+{
+    // All AsyncIOContext objects must be deleted before
+    assert(!numops);
+}
+
 // open file for reading
 bool FileAccess::fopen(string* name)
 {
@@ -261,6 +273,191 @@ void FileAccess::closef()
     }
 }
 
+void FileAccess::asyncopfinished(void *param)
+{
+    Waiter *waiter = (Waiter *)param;
+    if (waiter)
+    {
+        waiter->notify();
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfopen(string *f)
+{
+    localname.resize(1);
+    updatelocalname(f);
+
+    LOG_verbose << "Async open start";
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::OPEN;
+    context->access = AsyncIOContext::ACCESS_READ;
+
+    context->buffer = (byte *)f->data();
+    context->len = f->size();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = waiter;
+    context->pos = size;
+    context->fa = this;
+
+    context->failed = !sysstat(&mtime, &size);
+    context->retry = this->retry;
+    context->finished = true;
+    context->userCallback(context->userData);
+    return context;
+}
+
+bool FileAccess::asyncopenf()
+{
+    if (!localname.size())
+    {
+        return true;
+    }
+
+    if (numops)
+    {
+        numops++;
+        return true;
+    }
+
+    m_time_t curr_mtime;
+    m_off_t curr_size;
+
+    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
+    {
+        return false;
+    }
+
+    LOG_debug << "Opening async file handle for reading";
+    bool result = sysopen(true);
+    if (result)
+    {
+        numops++;
+    }
+    else
+    {
+        LOG_err << "Error opening async file handle";
+    }
+    return result;
+}
+
+void FileAccess::asyncclosef()
+{
+    numops--;
+    if (localname.size() && !numops)
+    {
+        LOG_debug << "Closing async file handle";
+        sysclose();
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t size)
+{
+    LOG_verbose << "Async open start";
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::OPEN;
+    context->access = AsyncIOContext::ACCESS_NONE
+            | (read ? AsyncIOContext::ACCESS_READ : 0)
+            | (write ? AsyncIOContext::ACCESS_WRITE : 0);
+
+    context->buffer = (byte *)f->data();
+    context->len = f->size();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = waiter;
+    context->pos = size;
+    context->fa = this;
+
+    asyncsysopen(context);
+    return context;
+}
+
+void FileAccess::asyncsysopen(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, m_off_t pos)
+{
+    LOG_verbose << "Async read start";
+    dst->resize(len + pad);
+
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::READ;
+    context->pos = pos;
+    context->len = len;
+    context->pad = pad;
+    context->buffer = (byte *)dst->data();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = waiter;
+    context->fa = this;
+
+    if (!asyncopenf())
+    {
+        LOG_err << "Error in asyncopenf";
+        context->failed = true;
+        context->retry = this->retry;
+        context->finished = true;
+        context->userCallback(context->userData);
+        return context;
+    }
+
+    asyncsysread(context);
+    return context;
+}
+
+void FileAccess::asyncsysread(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t pos)
+{
+    LOG_verbose << "Async write start";
+
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::WRITE;
+    context->pos = pos;
+    context->len = len;
+    context->buffer = (byte *)data;
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = waiter;
+    context->fa = this;
+
+    asyncsyswrite(context);
+    return context;
+}
+
+void FileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+AsyncIOContext *FileAccess::newasynccontext()
+{
+    return new AsyncIOContext();
+}
+
 bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
 {
     if (!openf())
@@ -295,4 +492,48 @@ bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
 
     return r;
 }
+
+AsyncIOContext::AsyncIOContext()
+{
+    op = NONE;
+    pos = 0;
+    len = 0;
+    pad = 0;
+    buffer = NULL;
+    waiter = NULL;
+    access = ACCESS_NONE;
+
+    userCallback = NULL;
+    userData = NULL;
+    finished = false;
+    failed = false;
+    retry = false;
+}
+
+AsyncIOContext::~AsyncIOContext()
+{
+    finish();
+
+    // AsyncIOContext objects must be deleted before the FileAccess object
+    if (op == AsyncIOContext::READ)
+    {
+        fa->asyncclosef();
+    }
+}
+
+void AsyncIOContext::finish()
+{
+    if (!finished)
+    {
+        while (!finished)
+        {
+            waiter->init(NEVER);
+            waiter->wait();
+        }
+
+        // We could have been consumed and external event
+        waiter->notify();
+    }
+}
+
 } // namespace

@@ -30,6 +30,24 @@
 #include "mega/logging.h"
 
 namespace mega {
+
+// transfer attempts are considered failed after XFERTIMEOUT seconds
+// without data flow
+const dstime TransferSlot::XFERTIMEOUT = 600;
+
+// max time without progress callbacks
+const dstime TransferSlot::PROGRESSTIMEOUT = 10;
+
+// max request size for downloads
+#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152;
+#elif defined (__APPLE__)
+    // Unfortunately we don't have async fs reads / writes for Apple yet
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
+#else
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216;
+#endif
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
@@ -57,6 +75,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     LOG_debug << "Creating transfer slot with " << connections << " connections";
 
     reqs = new HttpReqXfer*[connections]();
+    asyncIO = new AsyncIOContext*[connections]();
 
     fa = transfer->client->fsaccess->newfileaccess();
 
@@ -68,50 +87,71 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 TransferSlot::~TransferSlot()
 {
     if (transfer->type == GET && !transfer->finished
-            && transfer->progresscompleted != transfer->size)
+            && transfer->progresscompleted != transfer->size
+            && !transfer->asyncopencontext)
     {
-        m_off_t p = 0;
         bool cachetransfer = false; // need to save in cache
+
+        if (fa && fa->asyncavailable())
+        {
+            for (int i = 0; i < connections; i++)
+            {
+                if (reqs[i] && reqs[i]->status == REQ_ASYNCIO)
+                {
+                    asyncIO[i]->finish();
+                    if (!asyncIO[i]->failed)
+                    {
+                        LOG_verbose << "Async write succeeded";
+                        HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                        for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
+                        {
+                            transfer->chunkmacs[it->first] = it->second;
+                        }
+                        downloadRequest->chunkmacs.clear();
+                        transfer->progresscompleted += downloadRequest->bufpos;
+                        LOG_debug << "Cached async data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                        cachetransfer = true;
+                    }
+                }
+                delete asyncIO[i];
+                asyncIO[i] = NULL;
+            }
+
+            // Open the file in synchonous mode
+            delete fa;
+            fa = transfer->client->fsaccess->newfileaccess();
+            if (!fa->fopen(&transfer->localfilename, false, true))
+            {
+                delete fa;
+                fa = NULL;
+            }
+        }
+
         for (int i = 0; i < connections; i++)
         {
-            if (fa && reqs[i] && reqs[i]->status == REQ_INFLIGHT
-                    && reqs[i]->contentlength == reqs[i]->size
-                    && reqs[i]->bufpos >= SymmCipher::BLOCKSIZE)
+            HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+            if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
+                    && downloadRequest->contentlength == downloadRequest->size
+                    && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
             {
-                m_off_t bufpos = reqs[i]->bufpos & -SymmCipher::BLOCKSIZE;
-                m_off_t dlpos = ((HttpReqDL *)reqs[i])->dlpos;
-
-                byte *bufstart = reqs[i]->buf;
-                m_off_t buflen = bufpos;
-                m_off_t startpos = dlpos;   // in the file
-                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);  // in the file
-                m_off_t finalpos = startpos + buflen;
-
-                while (endpos <= finalpos)
+                downloadRequest->finalize(transfer);
+                m_off_t dlpos = downloadRequest->dlpos;
+                m_off_t bufsize = downloadRequest->bufpos;
+                if (fa->fwrite(downloadRequest->buf, bufsize, dlpos))
                 {
-                    m_off_t chunksize = endpos - startpos;
-                    reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
-                    transfer->progresscompleted += chunksize;
-                    LOG_debug << "Caching finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-
-                    startpos = endpos;
-                    endpos = ChunkedHash::chunkceil(startpos, transfer->size);
-
-                    bufstart += chunksize;
-                    buflen -= chunksize;
+                    LOG_verbose << "Sync write succeeded";
+                    for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
+                    {
+                        transfer->chunkmacs[it->first] = it->second;
+                    }
+                    downloadRequest->chunkmacs.clear();
+                    transfer->progresscompleted += bufsize;
+                    LOG_debug << "Cached data at: " << dlpos << "   Size: " << bufsize;
                     cachetransfer = true;
                 }
-
-                if (buflen >= SymmCipher::BLOCKSIZE)
+                else
                 {
-                    ChunkMAC &chunk = transfer->chunkmacs[ChunkedHash::chunkfloor(startpos)];
-                    transfer->key.ctr_crypt(bufstart, buflen, startpos, transfer->ctriv,
-                                chunk.mac, false, !chunk.finished && !chunk.offset);
-
-                    fa->fwrite((const byte*)bufstart, buflen, startpos);
-                    chunk.offset += (unsigned int)buflen;
-                    cachetransfer = true;
-                    p += buflen;
+                    LOG_err << "Error caching data at: " << dlpos;
                 }
             }
         }
@@ -119,8 +159,7 @@ TransferSlot::~TransferSlot()
         if (cachetransfer)
         {
             transfer->client->transfercacheadd(transfer);
-            LOG_debug << "Completed: " << (transfer->progresscompleted + p)
-                      << " Partial: " << p;
+            LOG_debug << "Completed: " << transfer->progresscompleted;
         }
     }
 
@@ -142,17 +181,26 @@ TransferSlot::~TransferSlot()
         pendingcmd->cancel();
     }
 
-    if (fa)
+    if (transfer->asyncopencontext)
     {
-        delete fa;
+        delete transfer->asyncopencontext;
+        transfer->asyncopencontext = NULL;
+        transfer->client->asyncfopens--;
     }
 
     while (connections--)
     {
+        delete asyncIO[connections];
         delete reqs[connections];
     }
 
+    delete[] asyncIO;
     delete[] reqs;
+
+    if (fa)
+    {
+        delete fa;
+    }
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -268,6 +316,7 @@ void TransferSlot::doio(MegaClient* client)
 
     if (errorcount > 4)
     {
+        LOG_warn << "Failed transfer: too many errors";
         return transfer->failed(lasterror);
     }
 
@@ -282,6 +331,13 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
+                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
+                    {
+                        // postponing unsorted chunk
+                        p += reqs[i]->size;
+                        break;
+                    }
+
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = time(NULL);
 
@@ -379,59 +435,99 @@ void TransferSlot::doio(MegaClient* client)
 
                         errorcount = 0;
                         transfer->failcount = 0;
+                        client->transfercacheadd(transfer);
+                        reqs[i]->status = REQ_READY;
                     }
                     else
                     {
                         if (reqs[i]->size == reqs[i]->bufpos)
                         {
-                            m_off_t startpos = ((HttpReqDL *)reqs[i])->dlpos;
-                            m_off_t finalpos = startpos + reqs[i]->bufpos;
-                            while (startpos < finalpos)
+                            HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                            if (fa->asyncavailable())
                             {
-                                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);
-                                m_off_t chunksize = endpos - startpos;
-                                reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
-                                transfer->progresscompleted += chunksize;
-                                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                                startpos = endpos;
-                            }
-
-                            if (transfer->progresscompleted == transfer->size)
-                            {
-                                if (transfer->progresscompleted)
-                                {
-                                    transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                    transfer->hascurrentmetamac = true;
-                                }
-
-                                // verify meta MAC
-                                if (!transfer->progresscompleted
-                                        || (transfer->currentmetamac == transfer->metamac))
-                                {
-                                    errorcount = 0;
-                                    transfer->failcount = 0;
-                                    client->transfercacheadd(transfer);
-
-                                    if (transfer->progresscompleted != progressreported)
-                                    {
-                                        progressreported = transfer->progresscompleted;
-                                        lastdata = Waiter::ds;
-
-                                        progress();
-                                    }
-
-                                    return transfer->complete();
+                                if (!asyncIO[i])
+                                { 
+                                    downloadRequest->finalize(transfer);
                                 }
                                 else
                                 {
-                                    int creqtag = client->reqtag;
-                                    client->reqtag = 0;
-                                    client->sendevent(99431, "MAC verification failed");
-                                    client->reqtag = creqtag;
-
-                                    transfer->chunkmacs.clear();
-                                    return transfer->failed(API_EKEY);
+                                    LOG_warn << "Retrying failed async write";
+                                    delete asyncIO[i];
+                                    asyncIO[i] = NULL;
                                 }
+
+                                p += reqs[i]->size;
+
+                                LOG_debug << "Writting data asynchronously at " << downloadRequest->dlpos;
+                                asyncIO[i] = fa->asyncfwrite(downloadRequest->buf, downloadRequest->bufpos, downloadRequest->dlpos);
+                                reqs[i]->status = REQ_ASYNCIO;
+                            }
+                            else
+                            {
+                                downloadRequest->finalize(transfer);
+                                if (fa->fwrite(downloadRequest->buf, downloadRequest->bufpos, downloadRequest->dlpos))
+                                {
+                                    LOG_verbose << "Sync write succeeded";
+                                    for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
+                                    {
+                                        transfer->chunkmacs[it->first] = it->second;
+                                        assert (transfer->chunkmacs[it->first].finished);
+                                    }
+                                    downloadRequest->chunkmacs.clear();
+                                    transfer->progresscompleted += downloadRequest->bufpos;
+                                    LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                                }
+                                else
+                                {
+                                    LOG_err << "Error saving finished chunk";
+                                    if (!fa->retry)
+                                    {
+                                        return transfer->failed(API_EWRITE);
+                                    }
+                                    lasterror = API_EWRITE;
+                                    backoff = 2;
+                                    break;
+                                }
+
+                                if (transfer->progresscompleted == transfer->size)
+                                {
+                                    if (transfer->progresscompleted)
+                                    {
+                                        transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+                                        transfer->hascurrentmetamac = true;
+                                    }
+
+                                    // verify meta MAC
+                                    if (!transfer->progresscompleted
+                                            || (transfer->currentmetamac == transfer->metamac))
+                                    {
+                                        errorcount = 0;
+                                        transfer->failcount = 0;
+                                        client->transfercacheadd(transfer);
+
+                                        if (transfer->progresscompleted != progressreported)
+                                        {
+                                            progressreported = transfer->progresscompleted;
+                                            lastdata = Waiter::ds;
+
+                                            progress();
+                                        }
+
+                                        return transfer->complete();
+                                    }
+                                    else
+                                    {
+                                        int creqtag = client->reqtag;
+                                        client->reqtag = 0;
+                                        client->sendevent(99431, "MAC verification failed");
+                                        client->reqtag = creqtag;
+
+                                        transfer->chunkmacs.clear();
+                                        return transfer->failed(API_EKEY);
+                                    }
+                                }
+                                client->transfercacheadd(transfer);
+                                reqs[i]->status = REQ_READY;
                             }
                             errorcount = 0;
                             transfer->failcount = 0;
@@ -450,9 +546,129 @@ void TransferSlot::doio(MegaClient* client)
                             break;
                         }
                     }
+                    break;
 
-                    client->transfercacheadd(transfer);
-                    reqs[i]->status = REQ_READY;
+                case REQ_ASYNCIO:
+                    if (asyncIO[i]->finished)
+                    {
+                        LOG_verbose << "Processing finished async fs operation";
+                        if (!asyncIO[i]->failed)
+                        {
+                            if (transfer->type == PUT)
+                            {
+                                LOG_verbose << "Async read succeeded";
+                                m_off_t npos = ChunkedHash::chunkceil(asyncIO[i]->pos, transfer->size);
+
+                                string finaltempurl = tempurl;
+                                if (client->usealtupport && !memcmp(tempurl.c_str(), "http:", 5))
+                                {
+                                    size_t index = tempurl.find("/", 8);
+                                    if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                                    {
+                                        finaltempurl.insert(index, ":8080");
+                                    }
+                                }
+
+                                reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                         &transfer->chunkmacs, transfer->ctriv,
+                                         asyncIO[i]->pos, npos);
+
+                                reqs[i]->pos = ChunkedHash::chunkfloor(asyncIO[i]->pos);
+                                reqs[i]->status = REQ_PREPARED;
+                            }
+                            else
+                            {
+                                LOG_verbose << "Async write succeeded";
+                                HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                                for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
+                                {
+                                    transfer->chunkmacs[it->first] = it->second;
+                                }
+                                downloadRequest->chunkmacs.clear();
+                                transfer->progresscompleted += downloadRequest->bufpos;
+                                LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+
+                                if (transfer->progresscompleted == transfer->size)
+                                {
+                                    if (transfer->progresscompleted)
+                                    {
+                                        transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+                                        transfer->hascurrentmetamac = true;
+                                    }
+
+                                    // verify meta MAC
+                                    if (!transfer->progresscompleted
+                                            || (transfer->currentmetamac == transfer->metamac))
+                                    {
+                                        errorcount = 0;
+                                        transfer->failcount = 0;
+                                        client->transfercacheadd(transfer);
+
+                                        if (transfer->progresscompleted != progressreported)
+                                        {
+                                            progressreported = transfer->progresscompleted;
+                                            lastdata = Waiter::ds;
+
+                                            progress();
+                                        }
+
+                                        return transfer->complete();
+                                    }
+                                    else
+                                    {
+                                        int creqtag = client->reqtag;
+                                        client->reqtag = 0;
+                                        client->sendevent(99431, "MAC verification failed");
+                                        client->reqtag = creqtag;
+
+                                        transfer->chunkmacs.clear();
+                                        return transfer->failed(API_EKEY);
+                                    }
+                                }
+
+                                client->transfercacheadd(transfer);
+                                reqs[i]->status = REQ_READY;
+
+                                if (client->orderdownloadedchunks)
+                                {
+                                    // Check connections again looking for postponed chunks
+                                    delete asyncIO[i];
+                                    asyncIO[i] = NULL;
+                                    i = connections;
+                                    continue;
+                                }
+                            }
+                            delete asyncIO[i];
+                            asyncIO[i] = NULL;
+                        }
+                        else
+                        {
+                            LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
+                            if (!asyncIO[i]->retry)
+                            {
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                                return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE);
+                            }
+
+                            // retry shortly
+                            if (transfer->type == PUT)
+                            {
+                                lasterror = API_EREAD;
+                                reqs[i]->status = REQ_READY;
+                            }
+                            else
+                            {
+                                lasterror = API_EWRITE;
+                                reqs[i]->status = REQ_SUCCESS;
+                            }
+                            backoff = 2;
+                        }
+                    }
+                    else if (transfer->type == GET)
+                    {
+                        p += asyncIO[i]->len;
+                    }
                     break;
 
                 case REQ_FAILURE:
@@ -530,7 +746,7 @@ void TransferSlot::doio(MegaClient* client)
                     transfer->pos = 0;
                 }
 
-                if ((npos > transfer->pos) || !transfer->size)
+                if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
                     if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
                     {
@@ -574,45 +790,79 @@ void TransferSlot::doio(MegaClient* client)
                         reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
                     }
 
-                    string finaltempurl = tempurl;
-                    if (transfer->type == GET && client->usealtdownport
-                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    bool prepare = true;
+                    if (transfer->type == PUT)
                     {
-                        size_t index = tempurl.find("/", 8);
-                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        unsigned pos = transfer->pos;
+                        unsigned size = (unsigned)(npos - pos);
+
+                        if (fa->asyncavailable())
                         {
-                            finaltempurl.insert(index, ":8080");
+                            if (asyncIO[i])
+                            {
+                                LOG_warn << "Retrying a failed read";
+                                pos = asyncIO[i]->pos;
+                                size = asyncIO[i]->len;
+                                npos = ChunkedHash::chunkceil(pos, transfer->size);
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                            }
+
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                            prepare = false;
+                        }
+                        else
+                        {
+                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos))
+                            {
+                                LOG_warn << "Error preparing transfer: " << fa->retry;
+                                if (!fa->retry)
+                                {
+                                    return transfer->failed(API_EREAD);
+                                }
+
+                                // retry the read shortly
+                                backoff = 2;
+                                npos = transfer->pos;
+                                prepare = false;
+                            }
                         }
                     }
 
-                    if (transfer->type == PUT && client->usealtupport
-                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    if (prepare)
                     {
-                        size_t index = tempurl.find("/", 8);
-                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        string finaltempurl = tempurl;
+                        if (transfer->type == GET && client->usealtdownport
+                                && !memcmp(tempurl.c_str(), "http:", 5))
                         {
-                            finaltempurl.insert(index, ":8080");
+                            size_t index = tempurl.find("/", 8);
+                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            {
+                                finaltempurl.insert(index, ":8080");
+                            }
                         }
-                    }
 
-                    if (reqs[i]->prepare(fa, finaltempurl.c_str(), &transfer->key,
-                                         &transfer->chunkmacs, transfer->ctriv,
-                                         transfer->pos, npos))
-                    {
+                        if (transfer->type == PUT && client->usealtupport
+                                && !memcmp(tempurl.c_str(), "http:", 5))
+                        {
+                            size_t index = tempurl.find("/", 8);
+                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            {
+                                finaltempurl.insert(index, ":8080");
+                            }
+                        }
+
+                        reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                                                 &transfer->chunkmacs, transfer->ctriv,
+                                                                 transfer->pos, npos);
                         reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);
                         reqs[i]->status = REQ_PREPARED;
-                        transfer->pos = npos;
                     }
-                    else
-                    {
-                        LOG_warn << "Error preparing transfer: " << fa->retry;
-                        if (!fa->retry)
-                        {
-                            return transfer->failed(API_EREAD);
-                        }
 
-                        // retry the read shortly
-                        backoff = 2;
+                    if (transfer->pos < npos)
+                    {
+                        transfer->pos = npos;
                     }
                 }
                 else if (reqs[i])

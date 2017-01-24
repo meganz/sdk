@@ -5203,6 +5203,7 @@ class MegaApi
          */
         char* getMyFingerprint();
 #endif
+
         /**
          * @brief Set the active log level
          *

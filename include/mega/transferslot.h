@@ -41,17 +41,13 @@ struct MEGA_API TransferSlot
 
     // transfer attempts are considered failed after XFERTIMEOUT seconds
     // without data flow
-    static const dstime XFERTIMEOUT = 600;
+    static const dstime XFERTIMEOUT;
 
     // max time without progress callbacks
-    static const dstime PROGRESSTIMEOUT = 10;
+    static const dstime PROGRESSTIMEOUT;
 
-    // max time without progress callbacks
-#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
-    static const m_off_t MAX_DOWNLOAD_REQ_SIZE = 2097152;
-#else
-    static const m_off_t MAX_DOWNLOAD_REQ_SIZE = 16777216;
-#endif
+    // max request size for downloads
+    static const m_off_t MAX_DOWNLOAD_REQ_SIZE;
 
     m_off_t progressreported;
 
@@ -80,6 +76,9 @@ struct MEGA_API TransferSlot
     // maximum number of parallel connections and connection aray
     int connections;
     HttpReqXfer** reqs;
+
+    // async IO operations
+    AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
     void doio(MegaClient*);

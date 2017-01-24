@@ -771,15 +771,18 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     retryessl = false;
     workinglockcs = NULL;
     scpaused = false;
+    asyncfopens = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
     usehttps = false;
+    orderdownloadedchunks = false;
 #else
     autodownport = false;
     autoupport = false;
     usehttps = true;
+    orderdownloadedchunks = true;
 #endif
     
     fetchingnodes = false;
@@ -809,6 +812,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     init();
 
     f->client = this;
+    f->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1547,6 +1551,10 @@ void MegaClient::exec()
         // fill transfer slots from the queue
         dispatchmore(PUT);
         dispatchmore(GET);
+
+#ifndef EMSCRIPTEN
+        assert(!asyncfopens);
+#endif
 
         slotit = tslots.begin();
 
@@ -2460,16 +2468,66 @@ bool MegaClient::dispatch(direction_t d)
             app->transfer_prepare(nexttransfer);
         }
 
+        bool openok;
+        bool openfinished = false;
+
         // verify that a local path was given and start/resume transfer
         if (nexttransfer->localfilename.size())
         {
-            // allocate transfer slot
-            ts = new TransferSlot(nexttransfer);
+            if (!nexttransfer->slot)
+            {
+                // allocate transfer slot
+                ts = new TransferSlot(nexttransfer);
+            }
+            else
+            {
+                ts = nexttransfer->slot;
+            }
 
-            // try to open file (PUT transfers: open in nonblocking mode)
-            if ((d == PUT)
-              ? ts->fa->fopen(&nexttransfer->localfilename)
-              : ts->fa->fopen(&nexttransfer->localfilename, false, true))
+            if (ts->fa->asyncavailable())
+            {
+                if (!nexttransfer->asyncopencontext)
+                {
+                    LOG_debug << "Starting async open";
+
+                    // try to open file (PUT transfers: open in nonblocking mode)
+                    nexttransfer->asyncopencontext = (d == PUT)
+                        ? ts->fa->asyncfopen(&nexttransfer->localfilename)
+                        : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
+                    asyncfopens++;
+                }
+
+                if (nexttransfer->asyncopencontext->finished)
+                {
+                    LOG_debug << "Async open finished";
+                    openok = !nexttransfer->asyncopencontext->failed;
+                    openfinished = true;
+                    delete nexttransfer->asyncopencontext;
+                    nexttransfer->asyncopencontext = NULL;
+                    asyncfopens--;
+                }
+
+                assert(!asyncfopens);
+                //FIXME: Improve the management of asynchronous fopen when they can
+                //be really asynchronous. All transfers could open its file in this
+                //stage (not good) and, if we limit it, the transfer queue could hang because
+                //it's full of transfers in that state. Transfer moves also complicates
+                //the management because transfers that haven't been opened could be
+                //placed over transfers that are already being opened.
+                //Probably, the best approach is to add the slot of these transfers to
+                //the queue and ensure that all operations (transfer moves, pauses)
+                //are correctly cancelled when needed
+            }
+            else
+            {
+                // try to open file (PUT transfers: open in nonblocking mode)
+                openok = (d == PUT)
+                        ? ts->fa->fopen(&nexttransfer->localfilename)
+                        : ts->fa->fopen(&nexttransfer->localfilename, false, true);
+                openfinished = true;
+            }
+
+            if (openfinished && openok)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
@@ -2587,7 +2645,7 @@ bool MegaClient::dispatch(direction_t d)
 
                 return true;
             }
-            else
+            else if (openfinished)
             {
                 string utf8path;
                 fsaccess->local2path(&nexttransfer->localfilename, &utf8path);
@@ -8098,7 +8156,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
         string lok;
         Hash hash;
-        hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
+        hash.add((const byte *)dbname.c_str(), dbname.size() + 1);
         hash.get(&lok);
         tckey.setkey((const byte*)lok.data());
     }
@@ -10468,16 +10526,19 @@ void MegaClient::setmaxconnections(direction_t d, int num)
             num = MegaClient::MAX_NUM_CONNECTIONS;
         }
 
-        connections[d] = num;
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+        if (connections[d] != num)
         {
-            TransferSlot *slot = *it++;
-            if (slot->transfer->type == d)
+            connections[d] = num;
+            for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
             {
-                slot->transfer->state = TRANSFERSTATE_QUEUED;
-                slot->transfer->bt.arm();
-                slot->transfer->cachedtempurl = slot->tempurl;
-                delete slot;
+                TransferSlot *slot = *it++;
+                if (slot->transfer->type == d)
+                {
+                    slot->transfer->state = TRANSFERSTATE_QUEUED;
+                    slot->transfer->bt.arm();
+                    slot->transfer->cachedtempurl = slot->tempurl;
+                    delete slot;
+                }
             }
         }
     }

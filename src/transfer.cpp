@@ -40,6 +40,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
+    asyncopencontext = NULL;
     progresscompleted = 0;
     hasprevmetamac = false;
     hascurrentmetamac = false;
@@ -82,6 +83,13 @@ Transfer::~Transfer()
     if (slot)
     {
         delete slot;
+    }
+
+    if (asyncopencontext)
+    {
+        delete asyncopencontext;
+        asyncopencontext = NULL;
+        client->asyncfopens--;
     }
 
     if (ultoken)
@@ -789,6 +797,16 @@ void Transfer::complete()
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         // files must not change during a PUT transfer
+        if (slot->fa->asyncavailable())
+        {
+            delete slot->fa;
+            slot->fa = client->fsaccess->newfileaccess();
+            if (!slot->fa->fopen(&localfilename))
+            {
+                return failed(API_EREAD);
+            }
+        }
+
         if (genfingerprint(slot->fa, true))
         {
             return failed(API_EREAD);
@@ -1563,8 +1581,8 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 {
     if (!transfer)
     {
-        LOG_warn << "Getting iterator of a NULL transfer";
-        return transfers[transfer->type].end();
+        LOG_err << "Getting iterator of a NULL transfer";
+        return transfer_list::iterator();
     }
 
     transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
@@ -1581,7 +1599,9 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && isReady(transfer))
+        if ((!transfer->slot && isReady(transfer))
+                || (transfer->asyncopencontext
+                    && transfer->asyncopencontext->finished))
         {
             return transfer;
         }

@@ -116,6 +116,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // cached temp URL for upload/download data
     string cachedtempurl;
+
+    // context of the async fopen operation
+    AsyncIOContext* asyncopencontext;
    
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;
