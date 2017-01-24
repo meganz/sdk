@@ -3299,8 +3299,7 @@ void MegaClient::initsc()
             // 5. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
-                TextChat *chat = it->second;
-                if (!(complete = sctable->put(CACHEDCHAT, chat, &key)))
+                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
                 }
@@ -3410,6 +3409,8 @@ void MegaClient::updatesc()
             // 5. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
+                char base64[12];
+                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
@@ -4921,6 +4922,11 @@ void MegaClient::notifypurge(void)
         if (!fetchingnodes)
         {
             app->chats_updated(&chatnotify, t);
+        }
+
+        for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
+        {
+            it->second->notified = false;
         }
 
         chatnotify.clear();
@@ -7292,7 +7298,11 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify[chat->id] = chat;
+    if (!chat->notified)
+    {
+        chat->notified = true;
+        chatnotify[chat->id] = chat;
+    }
 }
 #endif
 
@@ -7499,7 +7509,12 @@ void MegaClient::procmcf(JSON *j)
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
-                        TextChat *chat = new TextChat();
+                        if (chats.find(chatid) == chats.end())
+                        {
+                            chats[chatid] = new TextChat();
+                        }
+
+                        TextChat *chat = chats[chatid];
                         chat->id = chatid;
                         chat->priv = priv;
                         chat->url = url;
@@ -7525,9 +7540,9 @@ void MegaClient::procmcf(JSON *j)
                                 }
                             }
                         }
+                        delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = userpriv;
 
-                        chats[chat->id] = chat;
                         notifychat(chat);
                     }
                     else
@@ -8028,7 +8043,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 if ((chat = TextChat::unserialize(this, &data)))
                 {
                     chat->dbid = id;
-                    notifychat(chat);
                 }
                 else
                 {

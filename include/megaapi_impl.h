@@ -1887,7 +1887,7 @@ protected:
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
 
-        virtual void chats_updated(textchat_map *);
+        virtual void chats_updated(textchat_map *, int);
 #endif
 
 #ifdef ENABLE_SYNC

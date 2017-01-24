@@ -202,7 +202,15 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         return NULL;
     }
 
-    TextChat* chat = new TextChat;
+    if (client->chats.find(id) == client->chats.end())
+    {
+        client->chats[id] = new TextChat();
+    }
+    else
+    {
+        LOG_warn << "Unserialized a chat already in RAM";
+    }
+    TextChat* chat = client->chats[id];
     chat->id = id;
     chat->priv = priv;
     chat->url = url;
