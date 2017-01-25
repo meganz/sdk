@@ -747,7 +747,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
+                    if (transfer->type == GET && transfer->size)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > MAX_DOWNLOAD_REQ_SIZE)
