@@ -162,6 +162,9 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
 
@@ -169,6 +172,10 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
+#endif
+
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 
@@ -666,13 +673,20 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
+
 
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 
