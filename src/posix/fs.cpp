@@ -42,7 +42,7 @@ namespace mega {
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif
 
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
     aiocb = NULL;
@@ -165,7 +165,7 @@ void PosixFileAccess::sysclose()
 
 bool PosixFileAccess::asyncavailable()
 {
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
     #ifdef __APPLE__
         return false;
     #endif
@@ -176,7 +176,7 @@ bool PosixFileAccess::asyncavailable()
 #endif
 }
 
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
 AsyncIOContext *PosixFileAccess::newasynccontext()
 {
     return new PosixAsyncIOContext();
@@ -219,7 +219,7 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
     string path;
     path.assign((char *)context->buffer, context->len);
     context->failed = !fopen(&path, context->access & AsyncIOContext::ACCESS_READ,
@@ -235,7 +235,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 
 void PosixFileAccess::asyncsysread(AsyncIOContext *context)
 {
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
     if (!context)
     {
         return;
@@ -284,7 +284,7 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
 
 void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
 {
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
     if (!context)
     {
         return;
