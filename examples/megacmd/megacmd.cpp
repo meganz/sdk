@@ -2270,8 +2270,9 @@ int main(int argc, char* argv[])
     {
         api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
     }
-#endif
+#else
     api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+#endif
 
     for (int i = 0; i < 5; i++)
     {
