@@ -32,7 +32,7 @@
 #include <sys/vfs.h>
 #endif
 
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
 #include <aio.h>
 #endif
 
@@ -118,7 +118,7 @@ public:
     ~PosixFileSystemAccess();
 };
 
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
 struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 {
     PosixAsyncIOContext();
@@ -160,7 +160,7 @@ public:
 
     ~PosixFileAccess();
 
-#ifndef __ANDROID__
+#ifdef HAVE_AIO_RT
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(union sigval sigev_value);
