@@ -98,8 +98,15 @@ If that is not you case, include the location for the binaries in your path.
 
 ## Windows
 Once you have MEGAcmd installed, you just need to execute it to open the shell. 
-For non-interactive usage, there are several `mega-*bat`  client commands you can 
-use writting their absolute paths, or including their location into your environment PATH.
+For non-interactive usage, there are several `mega-*.bat`  client commands you can 
+use writting their absolute paths, or including their location into your environment PATH
+ and execute them normally (`mega-*`).
+If you use PowerShell and you have installed the official MEGAcmd, 
+you can do that simply with:
+
+```
+$env:PATH += ";$env:LOCALAPPDATA\MEGAcmd"
+```
 
 Client commands completion requires bash, hence, it is not available for Windows.
 
