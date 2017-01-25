@@ -91,7 +91,7 @@ endif
 if DARWIN
 if BUILD_MEGACMD
 examples_mega_cmd_SOURCES += examples/megacmd/megacmdplatform.mm
-examples_mega_cmd_LDFLAGS = -framework Cocoa
+examples_mega_cmd_LDFLAGS = -framework Cocoa -framework Security
 endif
 endif
 
