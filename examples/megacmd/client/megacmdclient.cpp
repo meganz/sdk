@@ -207,15 +207,22 @@ string parseArgs(int argc, char* argv[])
                 if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
                     totalRealArgs++;
-                    itochange = i;
                 }
             }
-
+            bool firstrealArg = true;
             for (int i = 2; i < argc; i++)
             {
-                if (i==itochange && totalRealArgs>=2)
+                if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
-                    absolutedargs.push_back(getAbsPath(argv[i]));
+                    if (totalRealArgs >=2 && firstrealArg)
+                    {
+                        absolutedargs.push_back(getAbsPath(argv[i]));
+                        firstrealArg=false;
+                    }
+                    else
+                    {
+                        absolutedargs.push_back(argv[i]);
+                    }
                 }
                 else
                 {
