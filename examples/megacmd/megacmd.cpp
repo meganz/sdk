@@ -2251,7 +2251,28 @@ int main(int argc, char* argv[])
 
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
+#ifdef __MACH__
+    int fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd >= 0)
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent", fd);
+    }
+    else
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+    }
+#endif
     api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+
     for (int i = 0; i < 5; i++)
     {
         MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, "MegaCMD User Agent");
