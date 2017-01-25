@@ -1175,7 +1175,7 @@ void CommandMoveNode::procresult()
                 }
                 rootnode = rootnode->parent;
             }
-            if (rootnode->type == RUBBISHNODE)
+            if (rootnode && rootnode->type == RUBBISHNODE)
             {
                 share_map::iterator it;
                 if (n->pendingshares)
@@ -1591,7 +1591,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t;
+    int t = 0;
 
     tag = client->restag;
 
@@ -1647,7 +1647,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     {
         arg("r", a);
 
-        if (u && u->pubk.isvalid())
+        if (u && u->pubk.isvalid() && t)
         {
             arg("k", asymmkey, t);
         }
@@ -4132,7 +4132,7 @@ void CommandQueryRecoveryLink::procresult()
 
     client->json.enterarray();
 
-    int type;
+    int type = API_EINTERNAL;
     string email;
     string ip;
     time_t ts;

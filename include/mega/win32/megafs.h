@@ -113,6 +113,17 @@ struct MEGA_API WinDirNotify : public DirNotify
     ~WinDirNotify();
 };
 
+#ifndef WINDOWS_PHONE
+struct MEGA_API WinAsyncIOContext : public AsyncIOContext
+{
+    WinAsyncIOContext();
+    virtual ~WinAsyncIOContext();
+    virtual void finish();
+
+    OVERLAPPED *overlapped;
+};
+#endif
+
 class MEGA_API WinFileAccess : public FileAccess
 {
     HANDLE hFile;
@@ -122,6 +133,7 @@ public:
     WIN32_FIND_DATAW ffd;
 
     bool fopen(string*, bool, bool);
+    bool fopen(string*, bool, bool, bool);
     void updatelocalname(string*);
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool frawread(byte *, unsigned, m_off_t);
@@ -129,13 +141,28 @@ public:
 
     bool sysread(byte *, unsigned, m_off_t);
     bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen();
+    bool sysopen(bool async = false);
     void sysclose();
+
+    // async interface
+    virtual bool asyncavailable();
+    virtual void asyncsysopen(AsyncIOContext* context);
+    virtual void asyncsysread(AsyncIOContext* context);
+    virtual void asyncsyswrite(AsyncIOContext* context);
 
     static bool skipattributes(DWORD);
 
-    WinFileAccess();
+    WinFileAccess(Waiter *w);
     ~WinFileAccess();
+
+protected:
+#ifndef WINDOWS_PHONE
+    virtual AsyncIOContext* newasynccontext();
+    static VOID CALLBACK asyncopfinished(
+            DWORD        dwErrorCode,
+            DWORD        dwNumberOfBytesTransfered,
+            LPOVERLAPPED lpOverlapped);
+#endif
 };
 } // namespace
 
