@@ -48,11 +48,6 @@
 #include <signal.h>
 #endif
 
-#ifdef __MACH__
-    #include <Cocoa/Cocoa.h>
-#endif
-
-
 using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
@@ -2197,9 +2192,8 @@ void initializeMacOSStuff(int argc, char* argv[])
 #ifdef QT_DEBUG
         return;
 #endif
-    SetProcessName(QString::fromUtf8("MEGAcmd"));
 
-    fd = -1;
+    int fd = -1;
     if (argc)
     {
         long int value = strtol(argv[argc-1], NULL, 10);
@@ -2219,7 +2213,7 @@ void initializeMacOSStuff(int argc, char* argv[])
         //Reboot
         if (fork() )
         {
-            execv("/Applications/MEGAcmd.app/Contents/MacOS/mega-cmd",argv);
+            execv("/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader",argv);
         }
         sleep(10); // TODO: remove
         ::exit(0);

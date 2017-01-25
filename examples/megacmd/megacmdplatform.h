@@ -4,7 +4,7 @@
 
 #ifdef __MACH__
 
-char *runWithRootPrivileges(char *command)
+char *runWithRootPrivileges(char *command);
 #endif
 
 #endif // MEGACMDPLATFORM_H

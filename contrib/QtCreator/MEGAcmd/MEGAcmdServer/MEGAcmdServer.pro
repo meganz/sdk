@@ -97,7 +97,7 @@ macx {
     INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/readline
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
-    LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation
+    LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
 }
 else {

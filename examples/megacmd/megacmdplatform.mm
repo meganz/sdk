@@ -1,4 +1,5 @@
 #include "megacmdplatform.h"
+#include <Cocoa/Cocoa.h>
 
 #ifdef __MACH__
 
@@ -20,7 +21,7 @@ char *runWithRootPrivileges(char *command)
 
     AuthorizationItem kAuthEnv[] = {/* { kAuthorizationEnvironmentIcon, strlen(icon), (void*)icon, 0 },*/
         {kAuthorizationEnvironmentPrompt, strlen(prompt), (char *) prompt, 0}};
-    AuthorizationEnvironment myAuthorizationEnvironment = { 2, kAuthEnv };
+    AuthorizationEnvironment myAuthorizationEnvironment = { 1, kAuthEnv };
 
     AuthorizationItem right = {kAuthorizationRightExecute, 0, NULL, 0};
     AuthorizationRights rights = {1, &right};
