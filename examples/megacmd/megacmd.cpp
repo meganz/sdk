@@ -46,6 +46,11 @@
 #include <signal.h>
 #endif
 
+#ifdef __MACH__
+    #include <Cocoa/Cocoa.h>
+#endif
+
+
 using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
@@ -2168,8 +2173,119 @@ int quote_detector(char *line, int index)
     );
 }
 
+
+#ifdef __MACH__
+
+char *runWithRootPrivileges(char *command)
+{
+    OSStatus status;
+    AuthorizationRef authorizationRef;
+
+    const char *prompt = "MEGAcmd. ";
+
+    char *result = NULL;
+
+    char* args[3];
+    args [0] = "-e";
+    args [1] = command;
+    args [2] = NULL;
+
+    FILE *pipe = NULL;
+
+    AuthorizationItem kAuthEnv[] = {/* { kAuthorizationEnvironmentIcon, strlen(icon), (void*)icon, 0 },*/
+        {kAuthorizationEnvironmentPrompt, strlen(prompt), (char *) prompt, 0}};
+    AuthorizationEnvironment myAuthorizationEnvironment = { 2, kAuthEnv };
+
+    AuthorizationItem right = {kAuthorizationRightExecute, 0, NULL, 0};
+    AuthorizationRights rights = {1, &right};
+    AuthorizationFlags flags = kAuthorizationFlagDefaults |
+    kAuthorizationFlagInteractionAllowed |
+    kAuthorizationFlagPreAuthorize |
+    kAuthorizationFlagExtendRights;
+
+    status = AuthorizationCreate(NULL, kAuthorizationEmptyEnvironment,
+                                     kAuthorizationFlagDefaults, &authorizationRef);
+    if (status != errAuthorizationSuccess)
+    {
+        return NULL;
+    }
+
+    // Call AuthorizationCopyRights to determine rights.
+    status = AuthorizationCopyRights(authorizationRef, &rights, &myAuthorizationEnvironment, flags, NULL);
+    if (status != errAuthorizationSuccess)
+    {
+        return NULL;
+    }
+
+    status = AuthorizationExecuteWithPrivileges(authorizationRef, "/usr/bin/osascript",
+                                                kAuthorizationFlagDefaults, args, &pipe);
+    AuthorizationFree(authorizationRef, kAuthorizationFlagDestroyRights);
+    if (status == errAuthorizationSuccess)
+    {
+        result = new char[1024];
+        fread(result, 1024, 1, pipe);
+        fclose(pipe);
+    }
+
+    return result;
+}
+
+bool enableSetuidBit()
+{
+    char *response = runWithRootPrivileges("do shell script \"chown root /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && chmod 4755 /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && echo true\"");
+    if (!response)
+    {
+        return NULL;
+    }
+    bool result = strlen(response) >= 4 && !strncmp(response, "true", 4);
+    delete response;
+    return result;
+}
+
+
+void initializeMacOSStuff(int argc, char* argv[])
+{
+#ifdef QT_DEBUG
+        return;
+#endif
+    SetProcessName(QString::fromUtf8("MEGAcmd"));
+
+    fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd < 0)
+    {
+        if (!enableSetuidBit())
+        {
+            ::exit(0);
+        }
+
+        //Reboot
+        if (fork() )
+        {
+            execv("/Applications/MEGAcmd.app/Contents/MacOS/mega-cmd",argv);
+        }
+        sleep(10); // TODO: remove
+        ::exit(0);
+    }
+}
+
+#endif
+
 int main(int argc, char* argv[])
 {
+
+#ifdef __MACH__
+    initializeMacOSStuff(argc,argv);
+#endif
+
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
     SimpleLogger::setAllOutputs(&null_stream);
