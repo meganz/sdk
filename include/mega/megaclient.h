@@ -600,13 +600,13 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 24;
+    static const unsigned MAXTRANSFERS;
 
     // maximum number of queued putfa before halting the upload queue
-    static const int MAXQUEUEDFA = 24;
+    static const int MAXQUEUEDFA;
 
     // maximum number of concurrent putfa
-    static const int MAXPUTFA = 6;
+    static const int MAXPUTFA;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
