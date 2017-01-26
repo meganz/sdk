@@ -24,7 +24,7 @@ VIAddVersionKey "ProductName" "MEGAcmd"
 VIProductVersion "0.9.1.0"
 VIAddVersionKey "FileVersion" "0.9.1.0"
 VIAddVersionKey "ProductVersion" "0.9.1.0"
-!define PRODUCT_VERSION "0.9.1 RC1"
+!define PRODUCT_VERSION "0.9.1"
 
 !define PRODUCT_PUBLISHER "Mega Limited"
 !define PRODUCT_WEB_SITE "http://www.mega.nz"
