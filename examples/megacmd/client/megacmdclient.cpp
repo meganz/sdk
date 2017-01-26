@@ -138,7 +138,7 @@ string getAbsPath(string relativePath)
        utf8absolutepath = relativePath;
        if (utf8absolutepath.find("\\\\?\\") != 0)
        {
-           utf8absolutepath.insert(0, "\\\\?\\", sizeof("\\\\?\\")-1);
+           utf8absolutepath.insert(0, "\\\\?\\");
        }
        return utf8absolutepath;
    }
@@ -149,19 +149,20 @@ string getAbsPath(string relativePath)
       return relativePath;
    }
 
-   absolutelocalpath.resize(len * sizeof(wchar_t)-1);
+   absolutelocalpath.resize(len * sizeof(wchar_t));
    int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutelocalpath.data(), NULL);
    if (newlen <= 0 || newlen >= len)
    {
        cerr << " failed to get CWD" << endl;
        return relativePath;
    }
+   absolutelocalpath.resize(newlen* sizeof(wchar_t));
 
    local2path(&absolutelocalpath, &utf8absolutepath);
 
    if (utf8absolutepath.find("\\\\?\\") != 0)
    {
-       utf8absolutepath.insert(0, "\\\\?\\", sizeof("\\\\?\\")-1);
+       utf8absolutepath.insert(0, "\\\\?\\");
    }
 
    return utf8absolutepath;
@@ -207,15 +208,22 @@ string parseArgs(int argc, char* argv[])
                 if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
                     totalRealArgs++;
-                    itochange = i;
                 }
             }
-
+            bool firstrealArg = true;
             for (int i = 2; i < argc; i++)
             {
-                if (i==itochange && totalRealArgs>=2)
+                if (strlen(argv[i]) && argv[i][0] !='-' )
                 {
-                    absolutedargs.push_back(getAbsPath(argv[i]));
+                    if (totalRealArgs >=2 && firstrealArg)
+                    {
+                        absolutedargs.push_back(getAbsPath(argv[i]));
+                        firstrealArg=false;
+                    }
+                    else
+                    {
+                        absolutedargs.push_back(argv[i]);
+                    }
                 }
                 else
                 {

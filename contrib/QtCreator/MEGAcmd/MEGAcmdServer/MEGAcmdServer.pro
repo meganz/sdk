@@ -51,7 +51,8 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
     ../../../../examples/megacmd/configurationmanager.h \
     ../../../../examples/megacmd/comunicationsmanager.h \
     ../../../../examples/megacmd/megacmdutils.h \
-    ../../../../examples/megacmd/megacmdversion.h
+    ../../../../examples/megacmd/megacmdversion.h \
+    ../../../../examples/megacmd/megacmdplatform.h
 
 
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerportsockets.cpp
@@ -87,7 +88,8 @@ SOURCES -= bindings/qt/QTMegaListener.cpp
 SOURCES -= bindings/qt/QTMegaEvent.cpp
 
 macx {
-
+    HEADERS += ../../../../examples/megacmd/megacmdplatform.h
+    OBJECTIVE_SOURCES += ../../../../examples/megacmd/megacmdplatform.mm
     ICON = app.icns
     QMAKE_INFO_PLIST = Info_MEGA.plist
     DEFINES += USE_PTHREAD
@@ -95,7 +97,7 @@ macx {
     INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/readline
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
-    LIBS += -framework SystemConfiguration -framework CoreFoundation -framework Foundation
+    LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
 }
 else {

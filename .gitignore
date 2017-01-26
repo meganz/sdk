@@ -104,3 +104,5 @@ MEGAcmdServer.pro.user
 /examples/mega-exec
 /examples/megacmd/build/megacmd/debian.copyright
 /examples/megacmd/client/mega-exec
+/contrib/QtCreator/MEGAcmd/MEGAcmdLoader/MEGAcmdLoader
+/contrib/QtCreator/MEGAcmd/MEGAcmdLoader/Makefile

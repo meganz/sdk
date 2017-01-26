@@ -1,3 +1,5 @@
+CONFIG -= qt
+
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
@@ -7,9 +9,8 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TEMPLATE = subdirs
-SUBDIRS = MEGAcmdServer MEGAcmdClient
+TARGET = MEGAcmdLoader
+TEMPLATE = app
+CONFIG += console
 
-macx {
-    SUBDIRS += MEGAcmdLoader
-}
+SOURCES += ../../../../examples/megacmd/loader/megacmdloader.cpp

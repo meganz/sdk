@@ -39,12 +39,15 @@ dsymutil MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd -o MEGAcmd.app.dSYM
 strip MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
 dsymutil MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient -o MEGAclient.dSYM
 strip MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient
+dsymutil MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader -o MEGAcmdLoader.dSYM
+strip MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader
 cp ../../client/mega-* MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
 cp ../../client/megacmd_completion.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
 mv MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-cmd
 cp ../installer/MEGAcmd.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
 
 mv MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-exec
+mv MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader
 mv MEGAcmdServer/MEGAcmd.app ./MEGAcmd.app
 
 if [ "$sign" = "1" ]; then

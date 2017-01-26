@@ -28,6 +28,8 @@
 #include "comunicationsmanager.h"
 #include "listeners.h"
 
+#include "megacmdplatform.h"
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -1261,8 +1263,8 @@ string getHelpStr(const char *command)
     {
         os << "Logs into a mega" << endl;
         os << " You can log in either with email and password, with session ID," << endl;
-        os << " or into an exportedfolder" << endl;
-        os << " If loging into an exported folder indicate url#key" << endl;
+        os << " or into a folder (an exported/public folder)" << endl;
+        os << " If loging into a folder indicate url#key" << endl;
     }
     else if (!strcmp(command, "signup"))
     {
@@ -1330,6 +1332,13 @@ string getHelpStr(const char *command)
         os << "   " << "\t" << " Messages captured by the command line." << endl;
         os << " -s" << "\t" << "SDK log level (lower level messages)." << endl;
         os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
+
+        os << endl;
+        os << "Verbosity in non-interactive mode: Regardless of the log level of the" << endl;
+        os << " interactive shell, you can increase the amount of information given" <<  endl;
+        os << "   by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+
+
     }
     else if (!strcmp(command, "du"))
     {
@@ -1774,6 +1783,7 @@ void executecommand(char* ptr)
         OUTSTREAM << endl << "Commands:" << endl;
 
         printAvailableCommands(getFlag(&clflags,"f"));
+        OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
         return;
     }
 
@@ -2160,8 +2170,65 @@ int quote_detector(char *line, int index)
     );
 }
 
+
+#ifdef __MACH__
+
+
+bool enableSetuidBit()
+{
+    char *response = runWithRootPrivileges("do shell script \"chown root /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && chmod 4755 /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && echo true\"");
+    if (!response)
+    {
+        return NULL;
+    }
+    bool result = strlen(response) >= 4 && !strncmp(response, "true", 4);
+    delete response;
+    return result;
+}
+
+
+void initializeMacOSStuff(int argc, char* argv[])
+{
+#ifdef QT_DEBUG
+        return;
+#endif
+
+    int fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd < 0)
+    {
+        if (!enableSetuidBit())
+        {
+            ::exit(0);
+        }
+
+        //Reboot
+        if (fork() )
+        {
+            execv("/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader",argv);
+        }
+        sleep(10); // TODO: remove
+        ::exit(0);
+    }
+}
+
+#endif
+
 int main(int argc, char* argv[])
 {
+
+#ifdef __MACH__
+    initializeMacOSStuff(argc,argv);
+#endif
+
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
     SimpleLogger::setAllOutputs(&null_stream);
@@ -2184,7 +2251,29 @@ int main(int argc, char* argv[])
 
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
+#ifdef __MACH__
+    int fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd >= 0)
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent", fd);
+    }
+    else
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+    }
+#else
     api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+#endif
+
     for (int i = 0; i < 5; i++)
     {
         MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, "MegaCMD User Agent");
