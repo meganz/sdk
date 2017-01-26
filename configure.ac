@@ -816,7 +816,10 @@ if test "x$WIN32" = "xno" ; then
 
     # librt #TODO: allow --with-rt=...
     AC_CHECK_LIB([rt], [aio_write], [
-    LDFLAGS="-lrt $LDFLAGS"
+    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+#    LIBRT_CXXFLAGS="-lrt "
+#    LIBRT_CPPFLAGS="-lrt "
+#    LIBRT_LDFLAGS="-lrt "
     AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
     ],
     )
@@ -1558,6 +1561,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
+  LDFLAGS:         $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
