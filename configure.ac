@@ -817,6 +817,7 @@ if test "x$WIN32" = "xno" ; then
     # librt #TODO: allow --with-rt=...
     AC_CHECK_LIB([rt], [aio_write], [
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+    LDFLAGS="-lrt $LDFLAGS"
 #    LIBRT_CXXFLAGS="-lrt "
 #    LIBRT_CPPFLAGS="-lrt "
 #    LIBRT_LDFLAGS="-lrt "
