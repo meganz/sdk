@@ -70,7 +70,11 @@ unsigned long CurlHttpIO::id_function()
 CurlHttpIO::CurlHttpIO()
 {
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
-    string curlssl = data->ssl_version;
+    string curlssl;
+    if (data->ssl_version)
+    {
+        curlssl = data->ssl_version;
+    }
     std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
