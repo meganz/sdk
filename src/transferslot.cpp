@@ -41,11 +41,10 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152;
-#elif defined (__APPLE__)
-    // Unfortunately we don't have async fs reads / writes for Apple yet
-    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
-#else
+#elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216;
+#else
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
 #endif
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -748,7 +747,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
+                    if (transfer->type == GET && transfer->size)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > MAX_DOWNLOAD_REQ_SIZE)
