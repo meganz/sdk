@@ -416,9 +416,9 @@ zlib_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Zlib"
-    local zlib_ver="1.2.8"
+    local zlib_ver="1.2.11"
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
-    local zlib_md5="44d667c142d7cda120332623eab69f40"
+    local zlib_md5="1c9f62f0778697a09d36121ead88e08e"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
