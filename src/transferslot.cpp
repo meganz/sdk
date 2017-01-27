@@ -86,6 +86,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 TransferSlot::~TransferSlot()
 {
     if (transfer->type == GET && !transfer->finished
+            && transfer->state != TRANSFERSTATE_RETRYING
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
     {
@@ -95,7 +96,7 @@ TransferSlot::~TransferSlot()
         {
             for (int i = 0; i < connections; i++)
             {
-                if (reqs[i] && reqs[i]->status == REQ_ASYNCIO)
+                if (reqs[i] && reqs[i]->status == REQ_ASYNCIO && asyncIO[i])
                 {
                     asyncIO[i]->finish();
                     if (!asyncIO[i]->failed)
@@ -475,6 +476,8 @@ void TransferSlot::doio(MegaClient* client)
                                     downloadRequest->chunkmacs.clear();
                                     transfer->progresscompleted += downloadRequest->bufpos;
                                     LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                                    errorcount = 0;
+                                    transfer->failcount = 0;
                                 }
                                 else
                                 {
@@ -500,10 +503,7 @@ void TransferSlot::doio(MegaClient* client)
                                     if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                     {
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
                                         client->transfercacheadd(transfer);
-
                                         if (transfer->progresscompleted != progressreported)
                                         {
                                             progressreported = transfer->progresscompleted;
@@ -528,8 +528,6 @@ void TransferSlot::doio(MegaClient* client)
                                 client->transfercacheadd(transfer);
                                 reqs[i]->status = REQ_READY;
                             }
-                            errorcount = 0;
-                            transfer->failcount = 0;
                         }
                         else
                         {
@@ -586,6 +584,8 @@ void TransferSlot::doio(MegaClient* client)
                                 downloadRequest->chunkmacs.clear();
                                 transfer->progresscompleted += downloadRequest->bufpos;
                                 LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                                errorcount = 0;
+                                transfer->failcount = 0;
 
                                 if (transfer->progresscompleted == transfer->size)
                                 {
@@ -599,10 +599,7 @@ void TransferSlot::doio(MegaClient* client)
                                     if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                     {
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
                                         client->transfercacheadd(transfer);
-
                                         if (transfer->progresscompleted != progressreported)
                                         {
                                             progressreported = transfer->progresscompleted;
