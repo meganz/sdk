@@ -33,8 +33,11 @@ bool MegaClient::disablepkp = false;
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
-// maximum number of concurrent transfers
-const unsigned MegaClient::MAXTRANSFERS = 24;
+// maximum number of concurrent transfers (uploads + downloads)
+const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
+
+// maximum number of concurrent transfers (uploads or downloads)
+const unsigned MegaClient::MAXTRANSFERS = 20;
 
 // maximum number of queued putfa before halting the upload queue
 const int MegaClient::MAXQUEUEDFA = 24;
@@ -3621,7 +3624,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
-    return tslots.size() < MAXTRANSFERS;
+    return tslots.size() < MAXTOTALTRANSFERS;
 }
 
 // returns 1 if more transfers of the requested type can be dispatched
@@ -3648,6 +3651,11 @@ bool MegaClient::moretransfers(direction_t d)
             r += (*it)->transfer->size - (*it)->progressreported;
             total++;
         }
+    }
+
+    if (total >= MAXTRANSFERS)
+    {
+        return false;
     }
 
     m_off_t speed = (d == GET) ? httpio->downloadSpeed : httpio->uploadSpeed;
