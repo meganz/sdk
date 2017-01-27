@@ -599,7 +599,10 @@ private:
     // next internal upload handle
     handle nextuh;
 
-    // maximum number of concurrent transfers
+    // maximum number of concurrent transfers (uploads + downloads)
+    static const unsigned MAXTOTALTRANSFERS;
+
+    // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
     // maximum number of queued putfa before halting the upload queue
