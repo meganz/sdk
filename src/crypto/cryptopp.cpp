@@ -150,13 +150,15 @@ void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         aesccm16_d.Resynchronize(iv, ivlen);
         aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result),
+                                                                    AuthenticatedDecryptionFilter::MAC_AT_END));
     }
     else if (taglen == 8)
     {
         aesccm8_d.Resynchronize(iv, ivlen);
         aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result),
+                                                                    AuthenticatedDecryptionFilter::MAC_AT_END));
     }
 }
 
@@ -170,7 +172,7 @@ void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
 {
     aesgcm_d.Resynchronize(iv, ivlen);
     StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result),
-        AuthenticatedDecryptionFilter::DEFAULT_FLAGS, taglen));
+        AuthenticatedDecryptionFilter::MAC_AT_END, taglen));
 }
 
 void SymmCipher::serializekeyforjs(string *d)
