@@ -789,7 +789,7 @@ void TransferSlot::doio(MegaClient* client)
                     bool prepare = true;
                     if (transfer->type == PUT)
                     {
-                        unsigned pos = transfer->pos;
+                        m_off_t pos = transfer->pos;
                         unsigned size = (unsigned)(npos - pos);
 
                         if (fa->asyncavailable())
