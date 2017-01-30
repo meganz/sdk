@@ -246,6 +246,11 @@ class SyncTestBase(unittest.TestCase):
             except IOError, e:
                 logging.error("Failed to create file: %s (%s)" % (ffname, e))
                 return False
+            except UnicodeEncodeError, e:
+                logging.debug("Discarded filename due to UnicodeEncodeError: %s" % (ffname))
+                i=i-1
+                continue
+                
             md5_str = self.md5_for_file(ffname)
             l_files.append({"name":fname, "size":fsize, "md5":md5_str, "name_orig":fname})
             logging.debug("File created: %s [%s, %db]" % (ffname, md5_str, fsize))
