@@ -758,6 +758,25 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringMap *stringMap;
 };
 
+class MegaEventPrivate : public MegaEvent
+{
+public:
+    MegaEventPrivate(int type);
+    MegaEventPrivate(MegaEventPrivate *event);
+    virtual ~MegaEventPrivate();
+    MegaEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getText() const;
+
+    void setText(const char* text);
+
+protected:
+    int type;
+    const char* text;
+
+};
+
 class MegaAccountBalancePrivate : public MegaAccountBalance
 {
 public:
@@ -1664,6 +1683,7 @@ protected:
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
+        void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -1925,6 +1945,9 @@ protected:
 
         // failed request retry notification
         virtual void notify_retry(dstime);
+
+        // notify about db commit
+        virtual void notify_dbcommit();
 
         void sendPendingRequests();
         void sendPendingTransfers();

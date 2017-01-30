@@ -2939,6 +2939,7 @@ bool MegaClient::procsc()
                             {
                                 sctable->commit();
                                 sctable->begin();
+                                app->notify_dbcommit();
                             }
 
                             WAIT_CLASS::bumpds();
@@ -3023,6 +3024,7 @@ bool MegaClient::procsc()
                     {
                         sctable->commit();
                         sctable->begin();
+                        app->notify_dbcommit();
                     }
                     break;
                     

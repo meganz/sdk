@@ -269,6 +269,8 @@ struct MEGA_API MegaApp
     // failed request retry notification
     virtual void notify_retry(dstime) { }
 
+    virtual void notify_dbcommit() { }
+
     virtual ~MegaApp() { }
 };
 } // namespace
