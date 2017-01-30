@@ -860,7 +860,7 @@ class SyncTestBase(unittest.TestCase):
         """
 
         # rename dirs
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_changes):
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
             dd = random.choice(dir_dicts_l)
@@ -873,7 +873,7 @@ class SyncTestBase(unittest.TestCase):
             prev_name = orig_name
 
             # rename 10 times
-            for _ in range(0, 10):
+            for _ in range(0, self.nr_changes):
                 strlen = random.randint(10, 20)
                 dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
@@ -899,7 +899,7 @@ class SyncTestBase(unittest.TestCase):
                 return False
 
         # rename files
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_changes):
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
             dd = random.choice(dir_dicts_l)
@@ -912,7 +912,7 @@ class SyncTestBase(unittest.TestCase):
             prev_name = orig_name
 
             # rename 10 times
-            for _ in range(0, 10):
+            for _ in range(0, self.nr_changes):
                 strlen = random.randint(10, 20)
                 dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
