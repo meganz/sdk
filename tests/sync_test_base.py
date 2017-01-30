@@ -319,7 +319,6 @@ class SyncTestBase(unittest.TestCase):
                     break
                 except IOError as ex:
                     # wait for a file
-                    logging.debug(" exception opening file: "+str(ex))
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     logging.debug("%s" % (ffname.encode("unicode-escape")))
                     self.app.sync()

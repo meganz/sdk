@@ -64,7 +64,7 @@ class SyncTestApp(object):
                 shutil.rmtree(self.local_folder_in)
             except OSError:
                 pass
-        time.sleep(0.2) # to prevent from sync algorithm interpreting we are renaming
+        time.sleep(1.2) # to prevent from sync algorithm interpreting we are renaming
         self.rnd_folder = get_random_str()
         self.local_folder_in = os.path.join(self.local_mount_in, self.rnd_folder)
         self.local_folder_out = os.path.join(self.local_mount_out, self.rnd_folder)
