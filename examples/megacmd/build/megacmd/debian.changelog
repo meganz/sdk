@@ -1,0 +1,14 @@
+megacmd (0.9.1) stable; urgency=low
+
+  * Initial version of megacmd
+  * Features:
+  * Interactive shell
+  * Non interactive mode
+  * Regular expresions
+  * Contacts management
+  * Public folders management
+  * Files management
+  * Synching
+
+ -- MEGA Team <linux@mega.co.nz>  Tue, 17 Jan 2017 14:22:10 +0100
+

@@ -29,6 +29,9 @@ m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
+
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
@@ -230,6 +233,8 @@ fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
 fi
+AM_CONDITIONAL([HAVE_PTHREAD], [test "${HAVE_PTHREAD}" = "yes"])
+
 
 # hardening options
 AC_ARG_ENABLE(gcc-hardening,
@@ -264,11 +269,66 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([yes])],
+    [
+     AC_MSG_RESULT([no])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
+	[JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+
+    # on Fedora / CentOS jni_md.h header is not included
+    if test -d "$JAVA_INCLUDE_DIR/linux"; then
+        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
+        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
+        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
+    fi
+
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 # Chat
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" ; then
+    enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
 
@@ -363,8 +423,8 @@ AC_ARG_WITH(sodium,
     sodium=false
      ;;
    yes)
-    AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    AC_CHECK_HEADERS([sodium.h],, [
+        AC_MSG_ERROR([sodium.h header not found or not usable])
     ])
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
             AC_MSG_ERROR([Could not find libsodium])
@@ -379,7 +439,7 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/lib",
@@ -391,11 +451,11 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
-         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         AC_MSG_ERROR([sodium.h header not found or not usable])
          )
     fi
 
@@ -413,8 +473,16 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    AC_CHECK_HEADERS([sodium.h], [sodium=true], [
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([sodium.h header not found or not usable])
+		fi
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([Could not find libsodium])
+		fi
+    ])
     ]
   )
 AC_SUBST(SODIUM_CXXFLAGS)
@@ -426,6 +494,84 @@ if test "x$sodium" = "xtrue" ; then
     AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
 fi
 AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
+
+#
+# PCRE
+#
+
+#libpcre
+AC_MSG_CHECKING(for libpcrecpp)
+pcre=false
+AC_ARG_WITH(pcre,
+  AS_HELP_STRING(--with-pcre=PATH, base of libpcrecpp installation),
+  [
+   case $with_pcre in
+   no)
+    pcre=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([pcrecpp.h],, [
+        AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    pcre=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_pcre/lib64"; then
+        LDFLAGS="-L$with_pcre/lib64 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib64",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    else
+        LDFLAGS="-L$with_pcre/lib32 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib32",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
+
+    pcre=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-pcre not specified])
+      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
+  ])
+AC_SUBST(PCRE_CXXFLAGS)
+AC_SUBST(PCRE_CPPFLAGS)
+AC_SUBST(PCRE_LDFLAGS)
+AC_SUBST(PCRE_LIBS)
+
+if test "x$pcre" = "xtrue" ; then
+    AC_DEFINE(USE_PCRE, [1], [Define to use libpcre])
+fi
+AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
+
 
 #
 # Zlib
@@ -667,6 +813,17 @@ fi
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+
+    # librt #TODO: allow --with-rt=...
+    AC_CHECK_LIB([rt], [aio_write], [
+    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+    LDFLAGS="-lrt $LDFLAGS"
+#    LIBRT_CXXFLAGS="-lrt "
+#    LIBRT_CPPFLAGS="-lrt "
+#    LIBRT_LDFLAGS="-lrt "
+    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
+    ],
+    )
 
     # OpenSSL
     AC_MSG_CHECKING(for OpenSSL)
@@ -921,10 +1078,19 @@ AC_SUBST(platform_include)
 # Examples
 AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE(examples,
-    AS_HELP_STRING([--enable-examples], [build example applications]),
+    AS_HELP_STRING([--enable-examples], [build example applications [default=yes]]),
     [], [enable_examples=yes])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
+
+# MegaCMD
+AC_MSG_CHECKING([if building megacmd application])
+AC_ARG_ENABLE(megacmd,
+    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
+    [], [enable_megacmd=yes])
+AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
+AC_MSG_RESULT([$enable_megacmd])
+
 
 # FreeImage
 freeimage=false
@@ -1011,7 +1177,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" ; then
+if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
@@ -1364,60 +1530,6 @@ if test "x$enable_php" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
-# Java
-AC_MSG_CHECKING([if building Java bindings])
-AC_ARG_ENABLE(java,
-    AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([yes])],
-    [
-     AC_MSG_RESULT([no])
-     enable_java=no]
-)
-AC_ARG_WITH(java-include-dir,
-    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
-	[JAVA_INCLUDE_DIR=$withval],)
-AC_SUBST(JAVA_INCLUDE_DIR)
-
-if test "x$enable_java" = "xyes" ; then
-    AX_PKG_SWIG(2.0.0, [], [
-        AC_MSG_ERROR([SWIG executable not found!])
-    ])
-    AX_SWIG_ENABLE_CXX
-    AX_SWIG_MULTI_MODULE_SUPPORT
-
-    if test -z "$SWIG"; then
-        AC_MSG_ERROR([SWIG executable not found!])
-    fi
-
-    AC_CHECK_PROG(JAVA, java, yes, no)
-    if test "x$JAVA" = "xno"; then
-      AC_MSG_ERROR([no java binary in PATH])
-    fi
-    AC_CHECK_PROG(JAVAC, javac, yes, no)
-    if test "x$JAVAC" = "xno"; then
-      AC_MSG_ERROR([no javac binary in PATH])
-    fi
-    AC_CHECK_PROG(JAR, jar, yes, no)
-    if test "x$JAR" = "xno"; then
-      AC_MSG_ERROR([no jar binary in PATH])
-    fi
-
-    SAVE_CPPFLAGS=$CPPFLAGS
-    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
-
-    # on Fedora / CentOS jni_md.h header is not included
-    if test -d "$JAVA_INCLUDE_DIR/linux"; then
-        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
-        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
-        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
-    fi
-
-    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
-    CPPFLAGS=$SAVE_CPPFLAGS
-fi
-AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
-
-
 dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################
@@ -1450,12 +1562,15 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
+  LDFLAGS:         $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
-  sync subsystem    $enable_sync
+  sync subsystem:   $enable_sync
+  chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
+  megacmd app:      $enable_megacmd
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
@@ -1475,4 +1590,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
+  PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
 ])

@@ -44,17 +44,17 @@ using namespace std;
 MegaApi* megaApi;
 string megaBasePath;
 
-class SynchronousRequestListener : public MegaRequestListener
+class SynchronousRequestListenerFuse : public MegaRequestListener
 {
 	public:
-		SynchronousRequestListener()
+		SynchronousRequestListenerFuse()
 		{
 			request = NULL;
 			error = NULL;
 			notified = false;
 		}
 		
-		~SynchronousRequestListener()
+		~SynchronousRequestListenerFuse()
 		{
 			delete request;
 			delete error;
@@ -105,17 +105,17 @@ class SynchronousRequestListener : public MegaRequestListener
 		mutex m;
 };
 
-class SynchronousTransferListener : public MegaTransferListener
+class SynchronousTransferListenerFuse : public MegaTransferListener
 {
 	public:
-		SynchronousTransferListener()
+		SynchronousTransferListenerFuse()
 		{
 			transfer = NULL;
 			error = NULL;
 			notified = false;
 		}
 		
-		~SynchronousTransferListener()
+		~SynchronousTransferListenerFuse()
 		{
 			delete transfer;
 			delete error;
@@ -240,7 +240,7 @@ static int MEGAmkdir(const char *p, mode_t mode)
 		return -ENOTDIR;
 	}
 
-	SynchronousRequestListener listener;
+	SynchronousRequestListenerFuse listener;
 	megaApi->createFolder(path.c_str() + index + 1, n, &listener);
 	listener.wait();
 	delete n;
@@ -282,7 +282,7 @@ static int MEGArmdir(const char *p)
 		return -ENOTEMPTY;
 	}
 	
-	SynchronousRequestListener listener;	
+	SynchronousRequestListenerFuse listener;	
 	megaApi->remove(n, &listener);
 	listener.wait();
 	delete n;
@@ -318,7 +318,7 @@ static int MEGAunlink(const char *p)
 		return -EISDIR;
 	}
 	
-	SynchronousRequestListener listener;	
+	SynchronousRequestListenerFuse listener;	
 	megaApi->remove(n, &listener);
 	listener.wait();
 	delete n;
@@ -362,7 +362,7 @@ static int MEGArename(const char *f, const char *t)
 		}
 		else
 		{
-			SynchronousRequestListener listener;	
+			SynchronousRequestListenerFuse listener;	
 			megaApi->moveNode(source, dest, &listener);
 			listener.wait();
 			delete source;
@@ -416,7 +416,7 @@ static int MEGArename(const char *f, const char *t)
 		return -EEXIST;
 	}
 	
-	SynchronousRequestListener listener;	
+	SynchronousRequestListenerFuse listener;	
 	megaApi->moveNode(source, dest, &listener);
 	listener.wait();
 	delete dest;
@@ -510,7 +510,7 @@ static int MEGAread(const char *p, char *buf, size_t size, off_t offset,
 		size = node->getSize() - offset;
 	}
 	
-	SynchronousTransferListener listener;
+	SynchronousTransferListenerFuse listener;
 	megaApi->startStreaming(node, offset, size, &listener);
 	listener.wait();
 	delete node;
@@ -584,7 +584,7 @@ int main(int argc, char *argv[])
 	megaApi->setLogLevel(MegaApi::LOG_LEVEL_INFO);
 	
 	//Login
-	SynchronousRequestListener listener;
+	SynchronousRequestListenerFuse listener;
 	megaApi->login(megauser.c_str(), megapassword.c_str(), &listener);
 	listener.wait();
 	if (listener.getError()->getErrorCode() != MegaError::API_OK)

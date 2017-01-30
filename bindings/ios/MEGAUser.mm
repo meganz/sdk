@@ -84,7 +84,7 @@ using namespace mega;
 }
 
 - (BOOL)hasChangedType:(MEGAUserChangeType)changeType {
-    return self.megaUser ? self.megaUser->hasChanged(changeType) : NO;
+    return self.megaUser ? self.megaUser->hasChanged((int)changeType) : NO;
 }
 
 @end

@@ -90,7 +90,16 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeGetCancelLink,
     MEGARequestTypeConfirmCancelLink,
     MEGARequestTypeGetChangeEmailLink,
-    MEGARequestTypeConfirmChangeEmailLink
+    MEGARequestTypeConfirmChangeEmailLink,
+    MEGARequestTypeChatUpdatePermissions,
+    MEGARequestTypeChatTruncate,
+    MEGARequestTypeChatSetTitle,
+    MEGARequestTypeSetMaxConnections,
+    MEGARequestTypePauseTransfer,
+    MEGARequestTypeMoveTransfer,
+    MEGARequestTypeChatPresenceUrl,
+    MEGARequestTypeRegisterPushNotification,
+    MEGARequestTypeGetUserEmail
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

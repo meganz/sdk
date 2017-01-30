@@ -32,6 +32,42 @@ struct MEGA_API FsNodeId
     virtual bool isequalto(FsNodeId*) = 0;
 };
 
+typedef void (*asyncfscallback)(void *);
+
+struct MEGA_API AsyncIOContext
+{
+    enum {
+        NONE, READ, WRITE, OPEN
+    };
+
+    enum {
+        ACCESS_NONE     = 0x00,
+        ACCESS_READ     = 0x01,
+        ACCESS_WRITE    = 0x02
+    };
+
+    AsyncIOContext();
+    virtual ~AsyncIOContext();
+    virtual void finish();
+
+    // results
+    asyncfscallback userCallback;
+    void *userData;
+    bool finished;
+    bool failed;
+    bool retry;
+
+    // parameters
+    int op;
+    int access;
+    m_off_t pos;
+    unsigned len;
+    unsigned pad;
+    byte *buffer;
+    Waiter *waiter;
+    FileAccess *fa;
+};
+
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
@@ -54,11 +90,17 @@ struct MEGA_API FileAccess
     // for files "opened" in nonblocking mode, the current local filename
     string localname;
 
+    // waiter to notify on filesystem events
+    Waiter *waiter;
+
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
     // open by name only
     bool fopen(string*);
+
+    // check if a local path is a folder
+    bool isfolder(string*);
 
     // update localname (only has an effect if operating in by-name mode)
     virtual void updatelocalname(string*) = 0;
@@ -79,10 +121,34 @@ struct MEGA_API FileAccess
     // system-specific raw read/open/close
     virtual bool sysread(byte *, unsigned, m_off_t) = 0;
     virtual bool sysstat(m_time_t*, m_off_t*) = 0;
-    virtual bool sysopen() = 0;
+    virtual bool sysopen(bool async = false) = 0;
     virtual void sysclose() = 0;
 
-    virtual ~FileAccess() { }
+    FileAccess(Waiter *waiter);
+    virtual ~FileAccess();
+
+    virtual bool asyncavailable() { return false; }
+
+    AsyncIOContext *asyncfopen(string *);
+
+    // non-locking ops: open/close temporary hFile
+    bool asyncopenf();
+    void asyncclosef();
+
+    AsyncIOContext *asyncfopen(string *, bool, bool, m_off_t = 0);
+    virtual void asyncsysopen(AsyncIOContext*);
+
+    AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
+    virtual void asyncsysread(AsyncIOContext*);
+
+    AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
+    virtual void asyncsyswrite(AsyncIOContext*);
+
+
+protected:
+    virtual AsyncIOContext* newasynccontext();
+    static void asyncopfinished(void *param);
+    int numops;
 };
 
 struct MEGA_API InputStreamAccess
@@ -134,6 +200,8 @@ struct MEGA_API DirNotify
     // ignore this
     string ignore;
 
+    Sync *sync;
+
     DirNotify(string*, string*);
     virtual ~DirNotify() {}
 };
@@ -143,6 +211,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 {
     // local path separator, e.g. "/"
     string localseparator;
+
+    // waiter to notify on filesystem events
+    Waiter *waiter;
 
     // instantiate FileAccess object
     virtual FileAccess* newfileaccess() = 0;
@@ -218,6 +289,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // delete notification
     virtual void delnotify(LocalNode*) { }
+
+    // get the absolute path corresponding to a path
+    virtual bool expanselocalpath(string *path, string *absolutepath) = 0;
 
     // default permissions for new files
     int getdefaultfilepermissions() { return 0600; }

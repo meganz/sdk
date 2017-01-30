@@ -33,6 +33,7 @@ disable_freeimage=0
 disable_ssl=0
 disable_zlib=0
 download_only=0
+only_build_dependencies=0
 enable_megaapi=0
 make_opts=""
 config_opts=""
@@ -55,6 +56,8 @@ on_exit_ok() {
         echo "Successfully configured MEGA SDK!"
     elif [ $download_only -eq 1 ]; then
         echo "Successfully downloaded MEGA SDK dependencies!"
+    elif [ $only_build_dependencies -eq 1 ]; then
+        echo "Successfully built MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
     fi
@@ -116,35 +119,35 @@ package_download() {
         rm -f $file || true
     fi
 
-	# use packages previously downloaded in /tmp/megasdkbuild folder
-	# if not present download from URL specified
-	# if wget fail, try curl
-	mkdir -p /tmp/megasdkbuild/
-	
-#	cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
+    # use packages previously downloaded in /tmp/megasdkbuild folder
+    # if not present download from URL specified
+    # if wget fail, try curl
+    mkdir -p /tmp/megasdkbuild/
+    
+#    cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-	cp /tmp/megasdkbuild/$3 $file || \
-	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-	curl -k $url > $file || exit 1
-	
-	echo "Checking MD5SUM for $file"
-	if ! echo $md5sum \*$file | md5sum -c - ; then
-		echo "Downloading $3 again"
-		#rm /tmp/megasdkbuild/$3
-		rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
-		wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-		curl -k $url > $file || exit 1
-		
-		echo "Checking (again) MD5SUM for $file"
-		if ! echo $md5sum \*$file | md5sum -c - ; then
-			echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
-			md5sum $file
-			exit 1
-		fi
-	fi
-	
-	#copy to tmp download folder for next constructions
-	cp $file /tmp/megasdkbuild/$3
+    cp /tmp/megasdkbuild/$3 $file || \
+    wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+    curl -k $url > $file || exit 1
+    
+    echo "Checking MD5SUM for $file"
+    if ! echo $md5sum \*$file | md5sum -c - ; then
+        echo "Downloading $3 again"
+        #rm /tmp/megasdkbuild/$3
+        rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
+        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        curl -k $url > $file || exit 1
+        
+        echo "Checking (again) MD5SUM for $file"
+        if ! echo $md5sum \*$file | md5sum -c - ; then
+            echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
+            md5sum $file
+            exit 1
+        fi
+    fi
+    
+    #copy to tmp download folder for next constructions
+    cp $file /tmp/megasdkbuild/$3
 }
 
 package_extract() {
@@ -413,9 +416,9 @@ zlib_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Zlib"
-    local zlib_ver="1.2.8"
+    local zlib_ver="1.2.11"
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
-    local zlib_md5="44d667c142d7cda120332623eab69f40"
+    local zlib_md5="1c9f62f0778697a09d36121ead88e08e"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
@@ -620,6 +623,9 @@ freeimage_pkg() {
     
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    
+    #patch to fix problem with newest compilers
+    sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -774,9 +780,9 @@ build_sdk() {
         echo "Building MEGA SDK"
         make clean
         if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        	make -j9 || exit 1
+            make -j9 || exit 1
         else
-        	make
+            make
         fi
         make install
     fi
@@ -825,7 +831,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdefglm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefglm:no:p:rstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -834,6 +840,10 @@ main() {
             a)
                 echo "* Enabling MegaApi"
                 enable_megaapi=1
+                ;;
+             b)
+                only_build_dependencies=1
+                echo "* Building dependencies only."
                 ;;
             c)
                 echo "* Configure only"
@@ -863,7 +873,7 @@ main() {
                 make_opts="$OPTARG"
                 ;;
             n)
-                no_examples="--disable-examples"
+                no_examples="--disable-examples --disable-megacmd"
                 ;;
             o)
                 local_dir=$(readlink -f $OPTARG)
@@ -976,10 +986,10 @@ main() {
         sodium_pkg $build_dir $install_dir
     fi
 
-	if [ $disable_zlib -eq 0 ]; then
-		zlib_pkg $build_dir $install_dir
-	fi
-	
+    if [ $disable_zlib -eq 0 ]; then
+        zlib_pkg $build_dir $install_dir
+    fi
+    
     sqlite_pkg $build_dir $install_dir
     
     if [ $enable_cares -eq 1 ]; then
@@ -1008,7 +1018,7 @@ main() {
        fi
     fi
 
-    if [ $download_only -eq 0 ]; then
+    if [ $download_only -eq 0 ] && [ $only_build_dependencies -eq 0 ]; then
         cd $cwd
     
         #fix libtool bug (prepends some '=' to certain paths)    

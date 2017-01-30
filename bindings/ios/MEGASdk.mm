@@ -63,7 +63,7 @@ using namespace mega;
 
 @implementation MEGASdk
 
-static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener(nil);
+static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListener(nil);
 
 #pragma mark - Properties
 
@@ -409,10 +409,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->logout();
 }
 
+- (void)invalidateCache {
+    self.megaApi->invalidateCache();
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
-
 
 - (void)fetchNodes {
     self.megaApi->fetchNodes();
@@ -707,10 +710,26 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAvatar((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath {
+    self.megaApi->getUserAvatar((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
+}
+
 - (NSString *)avatarColorForUser:(MEGAUser *)user {
-    if (user == nil) return nil;
-    
     const char *val = self.megaApi->getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
+    const char *val = self.megaApi->getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
@@ -1361,9 +1380,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSURL *)httpServerGetLocalLink:(MEGANode *)node {
-    char *localLink = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    if (!val) return nil;
     
-    return localLink ? [NSURL URLWithString:[NSString stringWithUTF8String:localLink]] : nil;
+    NSURL *ret = [NSURL URLWithString:[NSString stringWithUTF8String:val]];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)httpServerSetMaxBufferSize:(NSInteger)bufferSize {
@@ -1382,6 +1405,15 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
 }
 
+- (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+}
+
+- (void)registeriOSdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
+}
+
 #endif
 
 #pragma mark - Debug log messages
@@ -1391,7 +1423,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 + (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
-    DelegateMEGALogerListener *newLogger = new DelegateMEGALogerListener(delegate);
+    DelegateMEGALoggerListener *newLogger = new DelegateMEGALoggerListener(delegate);
     delete externalLogger;
     externalLogger = newLogger;
 }

@@ -1,5 +1,5 @@
 /**
- * @file DelegateMEGALogerListener.mm
+ * @file DelegateMEGALoggerListener.mm
  * @brief Listener to reveice and send logs to the app
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -23,12 +23,12 @@
 
 using namespace mega;
 
-DelegateMEGALogerListener::DelegateMEGALogerListener(id<MEGALoggerDelegate>listener) {
+DelegateMEGALoggerListener::DelegateMEGALoggerListener(id<MEGALoggerDelegate>listener) {
     this->listener = listener;
     MegaApi::setLoggerObject(this);
 }
 
-void DelegateMEGALogerListener::log(const char *time, int logLevel, const char *source, const char *message) {
+void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message) {
     if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {
         
         [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(NSInteger)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];

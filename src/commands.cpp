@@ -41,6 +41,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
         arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
     }
 
+    progressreported = 0;
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
 
@@ -124,6 +125,8 @@ void HttpReqCommandPutFA::procresult()
                     {
                         LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
+                        progressreported = 0;
+                        HttpReq::type = REQ_BINARY;
                         post(client, data->data(), data->size());
                     }
                     return;
@@ -139,7 +142,17 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
+m_off_t HttpReqCommandPutFA::transferred(MegaClient *client)
+{
+    if (httpiohandle)
+    {
+        return client->httpio->postpos(httpiohandle);
+    }
+
+    return 0;
+}
+
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
 {
     part = p;
 
@@ -151,10 +164,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunke
         arg("ssl", 2);
     }
 
-    if (chunked)
-    {
-        arg("r", 1);
-    }
+	arg("r", 1);
 }
 
 void CommandGetFA::procresult()
@@ -1165,7 +1175,7 @@ void CommandMoveNode::procresult()
                 }
                 rootnode = rootnode->parent;
             }
-            if (rootnode->type == RUBBISHNODE)
+            if (rootnode && rootnode->type == RUBBISHNODE)
             {
                 share_map::iterator it;
                 if (n->pendingshares)
@@ -1581,7 +1591,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t;
+    int t = 0;
 
     tag = client->restag;
 
@@ -1637,7 +1647,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     {
         arg("r", a);
 
-        if (u && u->pubk.isvalid())
+        if (u && u->pubk.isvalid() && t)
         {
             arg("k", asymmkey, t);
         }
@@ -2688,6 +2698,32 @@ void CommandDelUA::procresult()
 
 #endif
 
+CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
+{
+    cmd("uge");
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandGetUserEmail::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getuseremail_result(NULL, (error)client->json.getint());
+    }
+
+    string email;
+    if (!client->json.storeobject(&email))
+    {
+        return client->app->getuseremail_result(NULL, API_EINTERNAL);
+    }
+    else
+    {
+        return client->app->getuseremail_result(&email, API_OK);
+    }
+}
+
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 {
@@ -3629,12 +3665,16 @@ void CommandSetKeyPair::procresult()
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
 {
     cmd("f");
     arg("c", 1);
     arg("r", 1);
-    arg("ca", 1);
+
+    if (!nocache)
+    {
+        arg("ca", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -3642,6 +3682,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 // purge and rebuild node/user tree
 void CommandFetchNodes::procresult()
 {
+    WAIT_CLASS::bumpds();
+    client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+
     client->purgenodesusersabortsc();
 
     if (client->json.isnumeric())
@@ -3737,6 +3780,9 @@ void CommandFetchNodes::procresult()
                 client->initsc();
                 client->fetchnodestag = tag;
 
+                WAIT_CLASS::bumpds();
+                client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
+                client->fnstats.nodesCached = client->nodes.size();
                 return;
             }
             default:
@@ -4086,7 +4132,7 @@ void CommandQueryRecoveryLink::procresult()
 
     client->json.enterarray();
 
-    int type;
+    int type = API_EINTERNAL;
     string email;
     string ip;
     time_t ts;
@@ -4326,6 +4372,48 @@ void CommandConfirmEmailLink::procresult()
     }
 }
 
+CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
+{
+    this->client = client;
+    cmd("lv");
+    arg("a", appKey);
+    tag = client->reqtag;
+}
+
+void CommandGetVersion::procresult()
+{
+    int versioncode = 0;
+    string versionstring;
+
+    if (client->json.isnumeric())
+    {
+        client->app->getversion_result(0, NULL, (error)client->json.getint());
+        return;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'c':
+                versioncode = client->json.getint();
+                break;
+
+            case 's':
+                client->json.storeobject(&versionstring);
+                break;
+
+            case EOO:
+                return client->app->getversion_result(versioncode, versionstring.c_str(), API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->getversion_result(0, NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
@@ -4345,7 +4433,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
 
         handle uh = itupl->first;
         char uid[12];
-        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
         uid[11] = 0;
 
         privilege_t priv = itupl->second;
@@ -4359,6 +4447,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
     endarray();
 
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4445,6 +4534,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     {
         arg("ct", title);
     }
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4475,6 +4565,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const ch
         arg("u", uid);
     }
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4500,6 +4591,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4534,6 +4626,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4561,6 +4654,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4588,6 +4682,7 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("u", uid);
     arg("p", priv);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4615,6 +4710,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("m", (byte*)&messageid, MegaClient::CHATHANDLE);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4641,6 +4737,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("ct", title);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -4658,6 +4755,56 @@ void CommandChatSetTitle::procresult()
     }
 }
 
+CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
+{
+    this->client = client;
+    cmd("pu");
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatPresenceURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatpresenceurl_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        string url;
+        if (!client->json.storeobject(&url))
+        {
+            client->app->chatpresenceurl_result(NULL, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chatpresenceurl_result(&url, API_OK);
+        }
+    }
+}
+
+CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *client, int deviceType, const char *token)
+{
+    this->client = client;
+    cmd("spt");
+    arg("p", deviceType);
+    arg("t", token);
+
+    tag = client->reqtag;
+}
+
+void CommandRegisterPushNotification::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->registerpushnotification_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->registerpushnotification_result(API_EINTERNAL);
+    }
+}
 #endif
 
 

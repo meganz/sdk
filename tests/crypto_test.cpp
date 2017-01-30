@@ -140,7 +140,7 @@ TEST(Crypto, Ed25519_Signing)
 
 //    string fpEd255str   = "If4x36FUomFia/hUBG/SJxt77Us";                            // Base64
     string fpEd255str   = "If4x36FUomFia_hUBG_SJxt77Us";                            // Base64 url encoded
-    string fpEd255hex   = "21fe31dfa154a261626bf854046fd2271b7bed4b";
+    string fpEd255hex   = "21FE31DFA154A261626BF854046FD2271B7BED4B";
 
     string pqstr        = "1XJHwX9WYEVk7KOack5nhOgzgnYWrVdt0UY2yn5Lw38mPzkVn"
                           "kHCmguqWIfL5bzVpbHHhlG9yHumvyyu9r1gKUMz4Y/1cf69"

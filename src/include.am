@@ -80,7 +80,7 @@ else
 if DARWIN
 # MacOS specific
 src_libmega_la_SOURCES += src/osx/osxutils.mm
-src_libmega_la_LDFLAGS += -framework SystemConfiguration
+src_libmega_la_LDFLAGS += -framework SystemConfiguration -framework Foundation
 endif
 endif
 
@@ -93,6 +93,13 @@ src_libmega_la_SOURCES+= src/win32/console.cpp
 src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
+
+if HAVE_PTHREAD
+src_libmega_la_SOURCES += src/thread/posixthread.cpp
+else
+src_libmega_la_SOURCES+= src/thread/win32thread.cpp
+endif
+
 
 # posix sources
 else

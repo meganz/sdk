@@ -146,6 +146,8 @@ struct MEGA_API MegaApp
     virtual void delua_result(error) { }
 #endif
 
+    virtual void getuseremail_result(string *, error) { }
+
     // file node export result
     virtual void exportnode_result(error) { }
     virtual void exportnode_result(handle, handle) { }
@@ -160,7 +162,7 @@ struct MEGA_API MegaApp
 
     // pread result
     virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
-    virtual bool pread_data(byte*, m_off_t, m_off_t, void*) { return false; }
+    virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result
     virtual void reportevent_result(error) { }
@@ -193,6 +195,9 @@ struct MEGA_API MegaApp
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
+    // get version info
+    virtual void getversion_result(int, const char*, error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
@@ -204,18 +209,24 @@ struct MEGA_API MegaApp
     virtual void chatupdatepermissions_result(error) { }
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
+    virtual void chatpresenceurl_result(string*, error) { }
+    virtual void registerpushnotification_result(error) { }
 
     virtual void chats_updated(textchat_map *) { }
 #endif
 
-    // global transfer queue updates (separate signaling towards the queued objects)
+    // global transfer queue updates
+    virtual void file_added(File*) { }
+    virtual void file_removed(File*, error) { }
+    virtual void file_complete(File*) { }
+    virtual File* file_resume(string*, direction_t*) { return NULL; }
+
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
     virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
-    virtual void transfer_resume(string*) { }
 
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }
