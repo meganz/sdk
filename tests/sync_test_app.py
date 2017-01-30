@@ -57,18 +57,17 @@ class SyncTestApp(object):
         """
         cleans directories and call finish
         """
-        previous_local_folder_in= self.local_folder_in
+        if self.delete_tmp_files:
+            try:
+                shutil.rmtree(self.local_folder_in)
+            except OSError:
+                pass
+        time.sleep(0.2) # to prevent from sync algorithm interpreting we are renaming
         self.rnd_folder = get_random_str()
         self.local_folder_in = os.path.join(self.local_mount_in, self.rnd_folder)
         self.local_folder_out = os.path.join(self.local_mount_out, self.rnd_folder)
         self.work_folder = os.path.join(self.work_folder, self.rnd_folder) 
         
-        if self.delete_tmp_files:
-            try:
-                shutil.rmtree(previous_local_folder_in)
-            except OSError:
-                pass
-                        
         self.prepare_folders();          
 
     def __enter__(self):
