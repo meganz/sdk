@@ -639,6 +639,11 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
 
     delete [] iv;
 
+    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    {
+        return NULL;
+    }
+
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
     if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode
     {
