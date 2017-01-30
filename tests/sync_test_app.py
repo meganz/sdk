@@ -57,6 +57,8 @@ class SyncTestApp(object):
         """
         cleans directories and call finish
         """
+        time.sleep(0.2) # to prevent from sync algorithm interpreting we are renaming
+        
         if self.delete_tmp_files:
             try:
                 shutil.rmtree(self.local_folder_in)

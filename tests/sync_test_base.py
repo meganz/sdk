@@ -53,7 +53,21 @@ def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexi
                     name = name + unicodedata.normalize('NFC',c) #only normalized chars
                 else:
                     name = name + c
+ #           except UnicodeDecodeError:
+ #               print "UnicodeDecodeError con",c,repr(c),c.encode('utf-8')
+ #               c.decode('utf-8')
+ #               try:
+ #                   unicodedata.name(c)
+ #               except:
+ #                   pass
+ #               pass
             except ValueError:
+ #               try:
+ #                   unicodedata.name(c)
+#                    print "that one was valid!",c,repr(c)
+ #                   pass
+ #               except:
+ #                   pass
                 pass
     return name
 
@@ -118,6 +132,8 @@ def generate_unicode_name(first_symbol, i):
 def normalizeandescape(name):
     name=escapefsincompatible(name)
     name=unicodedata.normalize('NFC',unicode(name))
+    #name=unicodedata.normalize('NFC',name)
+    #name=escapefsincompatible(name)
     return name
 
 def escapefsincompatible(name):
@@ -147,6 +163,7 @@ class SyncTestBase(unittest.TestCase):
         self.nr_files = 10
         self.nr_dirs = 10
         self.nr_time_changes = 10
+        self.nr_changes = 10
         self.local_obj_nr = 5
         self.force_syncing = False
 
@@ -771,7 +788,7 @@ class SyncTestBase(unittest.TestCase):
         return True if success
         """
 
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_dirs):
             # Create a dir
             l_dir = []
             dname, ddname, l_files, l_dirs = self.local_tree_create_dir("")
@@ -783,8 +800,6 @@ class SyncTestBase(unittest.TestCase):
             # wait for a sync and compare
             if not self.local_tree_compare(l_dir):
                 return False
-
-            self.app.sync()
 
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
@@ -826,8 +841,6 @@ class SyncTestBase(unittest.TestCase):
                 f["ffname"] = os.path.join(new_ffname, f["name"])
             for d in l_dir[0]["dirs"]:
                 d["ffname"] = os.path.join(new_ffname, d["name"])
-
-            self.app.sync()
 
             # wait for a sync and compare
             if not self.local_tree_compare(l_tree):

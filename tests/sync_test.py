@@ -209,7 +209,7 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
-        for _ in range(0, 5):
+        for _ in range(0, self.nr_files):
             self.assertTrue(self.app.is_alive(), "Test application is not running")
             strlen = random.randint(10, 20)
             fname = get_random_str(size=strlen)
@@ -224,9 +224,9 @@ class SyncTest(SyncTestBase):
             with open(fname_out, 'a'):
                 os.utime(fname_out, None)
 
-            self.app.sync()
+            #self.app.sync()
 
-            for _ in range(10):
+            for _ in range(self.nr_changes):
                 with open(fname_in, 'a') as f_in:
                     f_in.write(get_random_str(100))
 
@@ -261,7 +261,7 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_local_operations test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
-        l_tree = self.local_tree_create("", 5)
+        l_tree = self.local_tree_create("", self.nr_dirs)
         self.assertIsNotNone(l_tree, "Failed to create directory tree!")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
         self.app.sync()
