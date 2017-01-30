@@ -86,7 +86,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 TransferSlot::~TransferSlot()
 {
     if (transfer->type == GET && !transfer->finished
-            && transfer->state != TRANSFERSTATE_RETRYING
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
     {
