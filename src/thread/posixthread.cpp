@@ -43,10 +43,10 @@ void PosixThread::join()
 
 uint64_t PosixThread::currentThreadId()
 {
-#ifndef __MINGW32__
-    return (uint64_t) pthread_self();
-#else
+#if defined(_WIN32) && !defined(__WINPTHREADS_VERSION)
     return (uint64_t) pthread_self().x;
+#else
+    return (uint64_t) pthread_self();
 #endif
 }
 
