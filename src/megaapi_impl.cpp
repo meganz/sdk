@@ -10359,7 +10359,7 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaE
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
-	activeTransfer = transfer;
+    activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
