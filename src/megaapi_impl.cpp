@@ -1297,6 +1297,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->state = STATE_NONE;
     this->priority = 0;
     this->meanSpeed = 0;
+    this->notificationNumber = 0;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -1339,6 +1340,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
+    this->setNotificationNumber(transfer->getNotificationNumber());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -1533,6 +1535,11 @@ void MegaTransferPrivate::setPriority(unsigned long long p)
 unsigned long long MegaTransferPrivate::getPriority() const
 {
     return priority;
+}
+
+long long MegaTransferPrivate::getNotificationNumber() const
+{
+    return notificationNumber;
 }
 
 bool MegaTransferPrivate::serialize(string *d)
@@ -1822,6 +1829,11 @@ void MegaTransferPrivate::setLastError(MegaError e)
 void MegaTransferPrivate::setFolderTransferTag(int tag)
 {
     this->folderTransferTag = tag;
+}
+
+void MegaTransferPrivate::setNotificationNumber(long long notificationNumber)
+{
+    this->notificationNumber = notificationNumber;
 }
 
 void MegaTransferPrivate::setListener(MegaTransferListener *listener)
@@ -3543,6 +3555,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waitingRequest = false;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
+    notificationNumber = 0;
     activeRequest = NULL;
     activeTransfer = NULL;
     activeError = NULL;
@@ -5422,7 +5435,7 @@ MegaTransferData *MegaApiImpl::getTransferData(MegaTransferListener *listener)
 {
     MegaTransferData *data;
     sdkMutex.lock();
-    data = new MegaTransferDataPrivate(&client->transferlist);
+    data = new MegaTransferDataPrivate(&client->transferlist, notificationNumber);
     if (listener)
     {
         transferListeners.insert(listener);
@@ -10347,6 +10360,8 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaE
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
@@ -10372,6 +10387,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	MegaError *megaError = new MegaError(e);
 	activeTransfer = transfer;
 	activeError = megaError;
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
 
     if(e.getErrorCode())
     {
@@ -10412,6 +10429,8 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 	MegaError *megaError = new MegaError(e);
 	activeTransfer = transfer;
 	activeError = megaError;
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
 
     transfer->setNumRetry(transfer->getNumRetry() + 1);
 
@@ -10444,6 +10463,8 @@ MegaClient *MegaApiImpl::getMegaClient()
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
@@ -10467,6 +10488,9 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
+
 	bool result = false;
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener)
@@ -17343,7 +17367,7 @@ vector<Node *> &PublicLinkProcessor::getNodes()
     return nodes;
 }
 
-MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList)
+MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
     this->numDownloads = transferList->transfers[GET].size();
     this->downloadTags.reserve(numDownloads);
@@ -17362,6 +17386,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList)
         this->uploadTags.push_back((*it)->tag);
         this->uploadPriorities.push_back((*it)->priority);
     }
+    this->notificationNumber = notificationNumber;
 }
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData)
@@ -17372,6 +17397,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(const MegaTransferDataPrivate *
     this->uploadTags = transferData->uploadTags;
     this->downloadPriorities = transferData->downloadPriorities;
     this->uploadPriorities = transferData->uploadPriorities;
+    this->notificationNumber = transferData->notificationNumber;
 }
 
 MegaTransferDataPrivate::~MegaTransferDataPrivate()
@@ -17412,6 +17438,11 @@ unsigned long long MegaTransferDataPrivate::getDownloadPriority(int i) const
 unsigned long long MegaTransferDataPrivate::getUploadPriority(int i) const
 {
     return uploadPriorities[i];
+}
+
+long long MegaTransferDataPrivate::getNotificationNumber() const
+{
+    return notificationNumber;
 }
 
 MegaSizeProcessor::MegaSizeProcessor()

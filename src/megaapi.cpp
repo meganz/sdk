@@ -830,6 +830,11 @@ unsigned long long MegaTransfer::getPriority() const
     return 0;
 }
 
+long long MegaTransfer::getNotificationNumber() const
+{
+    return 0;
+}
+
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
@@ -4221,6 +4226,11 @@ unsigned long long MegaTransferData::getDownloadPriority(int i) const
 }
 
 unsigned long long MegaTransferData::getUploadPriority(int i) const
+{
+    return 0;
+}
+
+long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
 }
