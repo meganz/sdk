@@ -4322,7 +4322,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     MegaNodeList *children = api->getChildren(baseNode);
                     if (children)
                     {
-                        bool found;
+                        bool found = false;
                         for (int i = 0; i < children->size(); i++)
                         {
                             MegaNode *child = children->get(i);

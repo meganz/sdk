@@ -1002,7 +1002,7 @@ const char * getUsageStr(const char *command)
 {
     if (!strcmp(command, "login"))
     {
-        return "login [email [password] | exportedfolderurl#key | session";
+        return "login [email [password]] | exportedfolderurl#key | session";
     }
     if (!strcmp(command, "begin"))
     {
@@ -1780,7 +1780,7 @@ void executecommand(char* ptr)
         if (getFlag(&clflags,"non-interactive"))
         {
             OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
-            OUTSTREAM << " - interactive: entering commands in this shell" << endl;
+            OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
             OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
             OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
 #ifdef _WIN32

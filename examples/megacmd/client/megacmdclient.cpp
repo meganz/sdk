@@ -195,7 +195,6 @@ string getAbsPath(string relativePath)
 string parseArgs(int argc, char* argv[])
 {
     vector<string> absolutedargs;
-    int itochange = -1;
     int totalRealArgs = 0;
     if (argc>1)
     {
