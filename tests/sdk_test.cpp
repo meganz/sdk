@@ -812,7 +812,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  *
  *
  */
-TEST_F(SdkTest, DISABLED_SdkTestNodeAttributes)
+TEST_F(SdkTest, SdkTestNodeAttributes)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
 
@@ -996,7 +996,7 @@ TEST_F(SdkTest, DISABLED_SdkTestNodeAttributes)
  *
  * It creates a local cache, logs out of the current session and tries to resume it later.
  */
-TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
+TEST_F(SdkTest, SdkTestResumeSession)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
 
@@ -1025,7 +1025,7 @@ TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
  * - Move a node to Rubbish bin
  * - Remove a node
  */
-TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
+TEST_F(SdkTest, SdkTestNodeOperations)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
 
@@ -1158,7 +1158,7 @@ TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
  * - Get size of a node
  * - Download a file
  */
-TEST_F(SdkTest, DISABLED_SdkTestTransfers)
+TEST_F(SdkTest, SdkTestTransfers)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
 
@@ -1326,7 +1326,7 @@ TEST_F(SdkTest, DISABLED_SdkTestTransfers)
  * - Invite a contact not registered in MEGA yet (requires validation of account)
  * - Remind an existing invitation (requires 2 weeks wait)
  */
-TEST_F(SdkTest, DISABLED_SdkTestContacts)
+TEST_F(SdkTest, SdkTestContacts)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
@@ -1591,7 +1591,7 @@ TEST_F(SdkTest, DISABLED_SdkTestContacts)
  * - Remove a public link
  * - Create a folder public link
  */
-TEST_F(SdkTest, DISABLED_SdkTestShares)
+TEST_F(SdkTest, SdkTestShares)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
