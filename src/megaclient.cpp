@@ -2831,6 +2831,11 @@ void MegaClient::disconnect()
         (*it)->errorcount = 0;
     }
 
+    if (badhostcs)
+    {
+        badhostcs->disconnect();
+    }
+
     httpio->lastdata = NEVER;
     httpio->disconnect();
 }
