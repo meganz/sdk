@@ -6410,8 +6410,9 @@ class MegaApi
          * See MegaApi::usingHttpsOnly
          *
          * @param httpsOnly True to use HTTPS communications only
+         * @param listener MegaRequestListener to track this request
          */
-        void useHttpsOnly(bool httpsOnly);
+        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if the SDK is using HTTPS communications only
