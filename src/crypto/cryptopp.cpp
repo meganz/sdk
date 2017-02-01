@@ -106,16 +106,16 @@ void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_e, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_e, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
 void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_d, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_d, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
@@ -146,31 +146,42 @@ void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 
 void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    if (taglen == 16)
+    try {
+        if (taglen == 16)
+        {
+            aesccm16_d.Resynchronize(iv, ivlen);
+            aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+        }
+        else if (taglen == 8)
+        {
+            aesccm8_d.Resynchronize(iv, ivlen);
+            aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        }
+    } catch (HashVerificationFilter::HashVerificationFailed e)
     {
-        aesccm16_d.Resynchronize(iv, ivlen);
-        aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
-    }
-    else if (taglen == 8)
-    {
-        aesccm8_d.Resynchronize(iv, ivlen);
-        aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        result->clear();
+        LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
     }
 }
 
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_e.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new CryptoPP::AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
 void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result),
-        AuthenticatedDecryptionFilter::DEFAULT_FLAGS, taglen));
+    try {
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
+    } catch (HashVerificationFilter::HashVerificationFailed e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
+    }
 }
 
 void SymmCipher::serializekeyforjs(string *d)

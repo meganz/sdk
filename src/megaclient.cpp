@@ -33,6 +33,18 @@ bool MegaClient::disablepkp = false;
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
+// maximum number of concurrent transfers (uploads + downloads)
+const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
+
+// maximum number of concurrent transfers (uploads or downloads)
+const unsigned MegaClient::MAXTRANSFERS = 20;
+
+// maximum number of queued putfa before halting the upload queue
+const int MegaClient::MAXQUEUEDFA = 24;
+
+// maximum number of concurrent putfa
+const int MegaClient::MAXPUTFA = 8;
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -3612,7 +3624,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
-    return tslots.size() < MAXTRANSFERS;
+    return tslots.size() < MAXTOTALTRANSFERS;
 }
 
 // returns 1 if more transfers of the requested type can be dispatched
@@ -3621,8 +3633,7 @@ bool MegaClient::slotavail() const
 // first place)
 bool MegaClient::moretransfers(direction_t d)
 {
-    m_off_t c = 0, r = 0;
-    dstime t = 0;
+    m_off_t r = 0;
     int total = 0;
 
     // don't dispatch if all tslots busy
@@ -3637,19 +3648,22 @@ bool MegaClient::moretransfers(direction_t d)
     {
         if ((*it)->transfer->type == d)
         {
-            if ((*it)->starttime)
-            {
-                t += Waiter::ds - (*it)->starttime;
-            }
-
-            c += (*it)->progressreported;
             r += (*it)->transfer->size - (*it)->progressreported;
             total++;
         }
     }
 
+    if (total >= MAXTRANSFERS)
+    {
+        return false;
+    }
+
+    m_off_t speed = (d == GET) ? httpio->downloadSpeed : httpio->uploadSpeed;
+
     // always blindly dispatch transfers up to MINPIPELINE
-    if (r < MINPIPELINE || r < total * 131072)
+    // dispatch more transfers if only a a little chunk per transfer left
+    // dispatch more if only two seconds of transfers left
+    if (r < MINPIPELINE || r < total * 131072 || (speed > 1024 && (r / speed) <= 2))
     {
         return true;
     }
@@ -3660,18 +3674,11 @@ bool MegaClient::moretransfers(direction_t d)
         return false;
     }
 
-    // dispatch more if less than two seconds of transfers left (at least
-    // 5 seconds must have elapsed for precise speed indication)
-    if (t > 50)
+    // dispatch a second transfer if less than 512KB left
+    if (r < 524288)
     {
-        int bpds = (int)(c / t);
-
-        if (bpds > 100 && r / bpds < 20)
-        {
-            return true;
-        }
+        return true;
     }
-
     return false;
 }
 
@@ -8375,39 +8382,46 @@ void MegaClient::initializekeys()
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
-
-        if (tlvRecords->find(EdDSA::TLV_KEY))
+        if (tlvRecords)
         {
-            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+
+            if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                signkey = new EdDSA((unsigned char *) prEd255.data());
-                if (!signkey->initializationOK)
+                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                 {
-                    delete signkey;
-                    signkey = NULL;
-                    clearKeys();
-                    return;
+                    signkey = new EdDSA((unsigned char *) prEd255.data());
+                    if (!signkey->initializationOK)
+                    {
+                        delete signkey;
+                        signkey = NULL;
+                        clearKeys();
+                        return;
+                    }
                 }
             }
-        }
 
-        if (tlvRecords->find(ECDH::TLV_KEY))
-        {
-            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            if (tlvRecords->find(ECDH::TLV_KEY))
             {
-                chatkey = new ECDH((unsigned char *) prCu255.data());
-                if (!chatkey->initializationOK)
+                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                 {
-                    delete chatkey;
-                    chatkey = NULL;
-                    clearKeys();
-                    return;
+                    chatkey = new ECDH((unsigned char *) prCu255.data());
+                    if (!chatkey->initializationOK)
+                    {
+                        delete chatkey;
+                        chatkey = NULL;
+                        clearKeys();
+                        return;
+                    }
                 }
             }
+            delete tlvRecords;
         }
-        delete tlvRecords;
+        else
+        {
+            LOG_warn << "Failed to decrypt keyring while initialization";
+        }
     }
 
     string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
@@ -8675,10 +8689,15 @@ void MegaClient::purgenodesusersabortsc()
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        it++;
         if (u->userhandle != me)
         {
-            discarduser(u->userhandle);
+            umindex.erase(u->email);
+            uhindex.erase(u->userhandle);
+            users.erase(it++);
+        }
+        else
+        {
+            it++;
         }
     }
 
@@ -10333,7 +10352,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                 }
             }
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             f->tag = reqtag;
             if (!f->dbid)
@@ -10425,7 +10444,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             f->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
 
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             if (!f->dbid)
             {

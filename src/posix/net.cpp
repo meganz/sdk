@@ -70,7 +70,11 @@ unsigned long CurlHttpIO::id_function()
 CurlHttpIO::CurlHttpIO()
 {
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
-    string curlssl = data->ssl_version;
+    string curlssl;
+    if (data->ssl_version)
+    {
+        curlssl = data->ssl_version;
+    }
     std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
@@ -162,6 +166,9 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
 
@@ -169,6 +176,10 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
+#endif
+
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 
@@ -666,13 +677,20 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
+
 
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETFUNCTION, upload_socket_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
+#ifdef _WIN32
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
+#endif
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 

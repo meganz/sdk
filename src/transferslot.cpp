@@ -41,11 +41,10 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152;
-#elif defined (__APPLE__)
-    // Unfortunately we don't have async fs reads / writes for Apple yet
-    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
-#else
+#elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216;
+#else
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304;
 #endif
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -96,7 +95,7 @@ TransferSlot::~TransferSlot()
         {
             for (int i = 0; i < connections; i++)
             {
-                if (reqs[i] && reqs[i]->status == REQ_ASYNCIO)
+                if (reqs[i] && reqs[i]->status == REQ_ASYNCIO && asyncIO[i])
                 {
                     asyncIO[i]->finish();
                     if (!asyncIO[i]->failed)
@@ -476,6 +475,8 @@ void TransferSlot::doio(MegaClient* client)
                                     downloadRequest->chunkmacs.clear();
                                     transfer->progresscompleted += downloadRequest->bufpos;
                                     LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                                    errorcount = 0;
+                                    transfer->failcount = 0;
                                 }
                                 else
                                 {
@@ -501,10 +502,7 @@ void TransferSlot::doio(MegaClient* client)
                                     if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                     {
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
                                         client->transfercacheadd(transfer);
-
                                         if (transfer->progresscompleted != progressreported)
                                         {
                                             progressreported = transfer->progresscompleted;
@@ -529,8 +527,6 @@ void TransferSlot::doio(MegaClient* client)
                                 client->transfercacheadd(transfer);
                                 reqs[i]->status = REQ_READY;
                             }
-                            errorcount = 0;
-                            transfer->failcount = 0;
                         }
                         else
                         {
@@ -587,6 +583,8 @@ void TransferSlot::doio(MegaClient* client)
                                 downloadRequest->chunkmacs.clear();
                                 transfer->progresscompleted += downloadRequest->bufpos;
                                 LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
+                                errorcount = 0;
+                                transfer->failcount = 0;
 
                                 if (transfer->progresscompleted == transfer->size)
                                 {
@@ -600,10 +598,7 @@ void TransferSlot::doio(MegaClient* client)
                                     if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                     {
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
                                         client->transfercacheadd(transfer);
-
                                         if (transfer->progresscompleted != progressreported)
                                         {
                                             progressreported = transfer->progresscompleted;
@@ -748,7 +743,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
+                    if (transfer->type == GET && transfer->size)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > MAX_DOWNLOAD_REQ_SIZE)
@@ -793,7 +788,7 @@ void TransferSlot::doio(MegaClient* client)
                     bool prepare = true;
                     if (transfer->type == PUT)
                     {
-                        unsigned pos = transfer->pos;
+                        m_off_t pos = transfer->pos;
                         unsigned size = (unsigned)(npos - pos);
 
                         if (fa->asyncavailable())

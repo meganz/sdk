@@ -272,6 +272,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("help" == thecommand)
     {
         validParams->insert("f");
+        validParams->insert("non-interactive");
     }
     else if ("version" == thecommand)
     {
@@ -1776,14 +1777,57 @@ void executecommand(char* ptr)
 
     if ( thecommand == "help" )
     {
-        OUTSTREAM << "Here is the list of available commands and their usage" << endl;
-        OUTSTREAM << "Use \"help\" -f to get a brief description of the commands" << endl;
-        OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
-        OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
-        OUTSTREAM << endl << "Commands:" << endl;
+        if (getFlag(&clflags,"non-interactive"))
+        {
+            OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
+            OUTSTREAM << " - interactive: entering commands in this shell" << endl;
+            OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
+            OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
+#ifdef _WIN32
 
-        printAvailableCommands(getFlag(&clflags,"f"));
-        OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+            OUTSTREAM << "Along with the interactive shell, there should be several mega-*.bat scripts" << endl;
+            OUTSTREAM << "installed with MEGAcmd. You can use them writting their absolute paths, " << endl;
+            OUTSTREAM << "or including their location into your environment PATH and execute simply with mega-*" << endl;
+            OUTSTREAM << "If you use PowerShell, you can add the the location of the scripts to the PATH with:" << endl;
+            OUTSTREAM << "  $env:PATH += \";$env:LOCALAPPDATA\\MEGAcmd\"" << endl;
+            OUTSTREAM << "Client commands completion requires bash, hence, it is not available for Windows. " << endl;
+            OUTSTREAM << endl;
+
+           OUTSTREAM << "  Security caveats:" << endl;
+           OUTSTREAM << "For the current Windows version of MEGAcmd, the server will be using network sockets " << endl;
+           OUTSTREAM << "for attending client commands. This socket is open for petitions on localhost, hence, " << endl;
+           OUTSTREAM << "you should not use it in a multiuser environment." << endl;
+#elif __MACH__
+            OUTSTREAM << "After installing the dmg, along with the interactive shell, client commands" << endl;
+            OUTSTREAM << "should be located at /Applications/MEGAcmd.app/Contents/MacOS" << endl;
+            OUTSTREAM << "If you wish to use the client commands from MacOS Terminal, open the Terminal and " << endl;
+            OUTSTREAM << "include the installation folder in the PATH. Typically:" << endl;
+            OUTSTREAM << endl;
+            OUTSTREAM << " export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH" << endl;
+            OUTSTREAM << endl;
+            OUTSTREAM << "And for bash completion, source megacmd_completion.sh:" << endl;
+            OUTSTREAM << " source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh" << endl;
+#else
+            OUTSTREAM << "If you have installed MEGAcmd using one of the available packages" << endl;
+            OUTSTREAM << "both the interactive shell (mega-cmd) and the different client commands (mega-*) " << endl;
+            OUTSTREAM << "will be in your PATH (you might need to open your shell again). " << endl;
+            OUTSTREAM << "If you are using bash, you should also have autocompletion for client commands working. " << endl;
+
+#endif
+        }
+        else
+        {
+            OUTSTREAM << "Here is the list of available commands and their usage" << endl;
+            OUTSTREAM << "Use \"help -f\" to get a brief description of the commands" << endl;
+            OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
+            OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
+            OUTSTREAM << "Use \"help --non-interactive\"  learn how to use MEGAcmd with scripts" << endl;
+
+            OUTSTREAM << endl << "Commands:" << endl;
+
+            printAvailableCommands(getFlag(&clflags,"f"));
+            OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+        }
         return;
     }
 
@@ -2152,6 +2196,7 @@ void printWelcomeMsg()
     printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
     printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
     printCenteredLine("have any suggestion concerning its functionalities.",width);
+    printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
 
     cout << "`";
     for (u_int i = 0; i < width; i++)
