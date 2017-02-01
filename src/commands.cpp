@@ -4464,6 +4464,7 @@ void CommandChatCreate::procresult()
         handle chatid = UNDEF;
         int shard = -1;
         bool group = false;
+        m_time_t ts = -1;
 
         for (;;)
         {
@@ -4485,6 +4486,10 @@ void CommandChatCreate::procresult()
                     group = client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = client->json.getint();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && !url.empty() && shard != -1)
                     {
@@ -4495,6 +4500,7 @@ void CommandChatCreate::procresult()
                         chat->shard = shard;
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
+                        chat->ts = ts;
 
                         client->app->chatcreate_result(chat, API_OK);
 

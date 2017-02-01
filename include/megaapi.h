@@ -1389,14 +1389,14 @@ public:
     virtual const char *getUrl() const;
 
     /**
-     * @brief setUrl Establish the URL to connect to chatd for this chat
+     * @brief Establish the URL to connect to chatd for this chat
      *
      * @param url The new URL for the MegaTextChat
      */
     virtual void setUrl(const char *url);
 
     /**
-     * @brief getShard Returns the chat shard
+     * @brief Returns the chat shard
      * @return
      */
     virtual int getShard() const;
@@ -1410,6 +1410,18 @@ public:
      * @return The list of peers in the chat.
      */
     virtual const MegaTextChatPeerList *getPeerList() const;
+
+    /**
+     * @brief Establish the list of peers participating on this chatroom
+     *
+     * If a peers list already exist, this function will delete it.
+     *
+     * The MegaTextChat does not take ownership of the list passed as parameter, it makes
+     * a local copy.
+     *
+     * @param peers List of peers
+     */
+    virtual void setPeerList(const MegaTextChatPeerList *peers);
 
     /**
      * @brief isGroup Returns whether this chat is a group chat or not
@@ -1436,6 +1448,15 @@ public:
      * @return The title of the chat as a byte array encoded in Base64URL, or NULL if not available.
      */
     virtual const char *getTitle() const;
+
+    /**
+     * @brief Returns the creation timestamp of the chat
+     *
+     * In seconds since the Epoch
+     *
+     * @return Creation date of the chat
+     */
+    virtual int64_t getCreationTime() const;
 
 };
 

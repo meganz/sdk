@@ -432,6 +432,7 @@ struct TextChat
     bool group;
     string title;   // byte array
     handle ou;
+    m_off_t ts;     // creation time
 
     TextChat()
     {
@@ -441,6 +442,7 @@ struct TextChat
         userpriv = NULL;
         group = false;
         ou = UNDEF;
+        ts = -1;
     }
 
     ~TextChat()

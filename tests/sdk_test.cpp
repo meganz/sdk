@@ -213,16 +213,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 }
                 privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {
@@ -253,16 +244,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                     }
                 }
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {
@@ -830,7 +812,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  *
  *
  */
-TEST_F(SdkTest, SdkTestNodeAttributes)
+TEST_F(SdkTest, DISABLED_SdkTestNodeAttributes)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
 
@@ -1014,7 +996,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
  *
  * It creates a local cache, logs out of the current session and tries to resume it later.
  */
-TEST_F(SdkTest, SdkTestResumeSession)
+TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
 
@@ -1043,7 +1025,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
  * - Move a node to Rubbish bin
  * - Remove a node
  */
-TEST_F(SdkTest, SdkTestNodeOperations)
+TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
 
@@ -1176,7 +1158,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  * - Get size of a node
  * - Download a file
  */
-TEST_F(SdkTest, SdkTestTransfers)
+TEST_F(SdkTest, DISABLED_SdkTestTransfers)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
 
@@ -1344,7 +1326,7 @@ TEST_F(SdkTest, SdkTestTransfers)
  * - Invite a contact not registered in MEGA yet (requires validation of account)
  * - Remind an existing invitation (requires 2 weeks wait)
  */
-TEST_F(SdkTest, SdkTestContacts)
+TEST_F(SdkTest, DISABLED_SdkTestContacts)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
 
@@ -1609,7 +1591,7 @@ TEST_F(SdkTest, SdkTestContacts)
  * - Remove a public link
  * - Create a folder public link
  */
-TEST_F(SdkTest, SdkTestShares)
+TEST_F(SdkTest, DISABLED_SdkTestShares)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
 
