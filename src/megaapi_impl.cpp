@@ -17411,7 +17411,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     }
     numUploads = uploadTags.size();
 
-    notificationNumber = notificationNumber;
+    this->notificationNumber = notificationNumber;
 }
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData)
