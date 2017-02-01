@@ -3657,6 +3657,32 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         return;
     }
+    else if (words[0] == "https")
+    {
+        if (words.size() > 1 && (words[1] == "on" || words[1] == "off"))
+        {
+            bool onlyhttps = words[1] == "on";
+            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+            api->useHttpsOnly(onlyhttps,megaCmdListener);
+            megaCmdListener->wait();
+            if (checkNoErrors(megaCmdListener->getError(), "change https"))
+            {
+                OUTSTREAM << "File transfer now uses " << (api->usingHttpsOnly()?"HTTPS":"HTTP") << endl;
+            }
+            return;
+        }
+        else if (words.size() > 1)
+        {
+            setCurrentOutCode(MCMD_EARGS);
+            LOG_err << "      " << getUsageStr("https");
+            return;
+        }
+        else
+        {
+            OUTSTREAM << "File transfer is done using " << (api->usingHttpsOnly()?"HTTPS":"HTTP") << endl;
+        }
+        return;
+    }
 #ifdef ENABLE_SYNC
     else if (words[0] == "sync")
     {

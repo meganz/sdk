@@ -108,7 +108,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear"};
+                             "history", "thumbnail", "preview", "find", "completion", "clear", "https"};
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -1104,6 +1104,10 @@ const char * getUsageStr(const char *command)
     {
         return "sync [localpath dstremotepath| [-ds] [ID|localpath]";
     }
+    if (!strcmp(command, "https"))
+    {
+        return "https [on|off]";
+    }
     if (!strcmp(command, "export"))
     {
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
@@ -1452,6 +1456,13 @@ string getHelpStr(const char *command)
         os << endl;
         os << "If the location exists and is a folder, the source will be copied there" << endl;
         os << "If the location doesn't exits, the file/folder will be renamed to the defined destiny" << endl;
+    }
+    else if (!strcmp(command, "https"))
+    {
+        os << "Shows if HTTPS is used for transfers. Use \"https on\" to enable it." << endl;
+        os << endl;
+        os << "HTTPS is not necesary since all data is stored and transfered encrypted." << endl;
+        os << "Enabling it will increase CPU usage and add network overhead." << endl;
     }
     else if (!strcmp(command, "sync"))
     {
@@ -2221,6 +2232,7 @@ void printWelcomeMsg()
     printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
     printCenteredLine("have any suggestion concerning its functionalities.",width);
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
+    printCenteredLine("Enter \"help\" to list the available commands.",width);
 
     cout << "`";
     for (u_int i = 0; i < width; i++)
