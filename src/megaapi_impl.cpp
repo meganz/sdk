@@ -11675,6 +11675,8 @@ void MegaApiImpl::sendPendingTransfers()
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             fireOnTransferStart(transfer);
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_FAILED);
                             fireOnTransferFinish(transfer, MegaError(API_EREAD));
                         }
@@ -11685,6 +11687,8 @@ void MegaApiImpl::sendPendingTransfers()
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(f->size);
                             fireOnTransferStart(transfer);
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
                             fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
@@ -11891,6 +11895,8 @@ void MegaApiImpl::sendPendingTransfers()
                             fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
                         }
 
+                        transfer->setStartTime(Waiter::ds);
+                        transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_CANCELLED);
                         fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                     }
@@ -11956,6 +11962,12 @@ void MegaApiImpl::sendPendingTransfers()
 
         if (e)
         {
+            transferMap[nextTag] = transfer;
+            transfer->setTag(nextTag);
+            transfer->setState(MegaTransfer::STATE_QUEUED);
+            fireOnTransferStart(transfer);
+            transfer->setStartTime(Waiter::ds);
+            transfer->setUpdateTime(Waiter::ds);
             transfer->setState(MegaTransfer::STATE_FAILED);
             fireOnTransferFinish(transfer, MegaError(e));
         }
