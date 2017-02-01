@@ -361,7 +361,12 @@ if (net)
         cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
         if (!number)
         {
+#ifdef __linux__
+            cerr << "Please ensure mega-cmd is running" << endl;
+#else
             cerr << "Please ensure MegaCMD is running" << endl;
+#endif
+
         }
         return INVALID_SOCKET;
     }
@@ -400,7 +405,11 @@ else
         cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
         if (!number)
         {
+#ifdef __linux__
+            cerr << "Please ensure mega-cmd is running" << endl;
+#else
             cerr << "Please ensure MegaCMD is running" << endl;
+#endif
         }
         return INVALID_SOCKET;
     }
