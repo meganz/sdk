@@ -17369,24 +17369,37 @@ vector<Node *> &PublicLinkProcessor::getNodes()
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
-    this->numDownloads = transferList->transfers[GET].size();
-    this->downloadTags.reserve(numDownloads);
-    this->downloadPriorities.reserve(numDownloads);
+    numDownloads = transferList->transfers[GET].size();
+    downloadTags.reserve(numDownloads);
+    downloadPriorities.reserve(numDownloads);
     for (transfer_list::iterator it = transferList->begin(GET); it != transferList->end(GET); it++)
     {
-        this->downloadTags.push_back((*it)->tag);
-        this->downloadPriorities.push_back((*it)->priority);
+        Transfer *transfer = (*it);
+        for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
+        {
+            File *file = (*fit);
+            downloadTags.push_back(file->tag);
+            downloadPriorities.push_back(transfer->priority);
+        }
     }
+    numDownloads = downloadTags.size();
 
-    this->numUploads = transferList->transfers[PUT].size();
-    this->uploadTags.reserve(numUploads);
-    this->uploadPriorities.reserve(numUploads);
+    numUploads = transferList->transfers[PUT].size();
+    uploadTags.reserve(numUploads);
+    uploadPriorities.reserve(numUploads);
     for (transfer_list::iterator it = transferList->begin(PUT); it != transferList->end(PUT); it++)
     {
-        this->uploadTags.push_back((*it)->tag);
-        this->uploadPriorities.push_back((*it)->priority);
+        Transfer *transfer = (*it);
+        for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
+        {
+            File *file = (*fit);
+            uploadTags.push_back(file->tag);
+            uploadPriorities.push_back(transfer->priority);
+        }
     }
-    this->notificationNumber = notificationNumber;
+    numUploads = uploadTags.size();
+
+    notificationNumber = notificationNumber;
 }
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData)

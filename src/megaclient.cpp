@@ -10352,7 +10352,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                 }
             }
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             f->tag = reqtag;
             if (!f->dbid)
@@ -10444,7 +10444,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             f->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
 
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             if (!f->dbid)
             {
