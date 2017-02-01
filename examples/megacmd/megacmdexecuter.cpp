@@ -247,8 +247,8 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    MegaNode* n;
-    MegaNode* nn;
+    MegaNode* n = NULL;
+    MegaNode* nn = NULL;
 
     // split path by / or :
     do
@@ -568,7 +568,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
     int l = 0;
     const char* bptr = ptr;
     int remote = 0; //shared
-    MegaNode* n;
+    MegaNode* n = NULL;
     bool isrelative = false;
 
     // split path by / or :
@@ -839,7 +839,7 @@ MegaNode * MegaCmdExecuter::getRootNodeByPath(const char *ptr, string* user)
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    MegaNode* n;
+    MegaNode* n = NULL;
 
     // split path by / or :
     do
@@ -2471,7 +2471,7 @@ bool MegaCmdExecuter::IsFolder(string path)
 
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
-    MegaNode* n;
+    MegaNode* n = NULL;
     if (words[0] == "ls")
     {
         if (!api->isFilesystemAvailable())
