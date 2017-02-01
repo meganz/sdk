@@ -4993,9 +4993,9 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::useHttpsOnly(bool usehttps)
+void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
     request->setFlag(usehttps);
     requestQueue.push(request);
     waiter->notify();
