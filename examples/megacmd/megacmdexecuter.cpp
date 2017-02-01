@@ -3669,6 +3669,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 OUTSTREAM << "File transfer now uses " << (api->usingHttpsOnly()?"HTTPS":"HTTP") << endl;
             }
+            delete megaCmdListener;
             return;
         }
         else if (words.size() > 1)
@@ -4238,6 +4239,44 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     if (!(( user->getVisibility() != MegaUser::VISIBILITY_VISIBLE ) && !getFlag(clflags, "h")))
                     {
+                        if (getFlag(clflags,"n"))
+                        {
+                            string name;
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                            api->getUserAttribute(user, ATTR_FIRSTNAME, megaCmdListener);
+                            megaCmdListener->wait();
+                            if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                            {
+                                if (megaCmdListener->getRequest()->getText() && strlen(megaCmdListener->getRequest()->getText()))
+                                {
+                                    name += megaCmdListener->getRequest()->getText();
+                                }
+                            }
+                            delete megaCmdListener;
+
+                            megaCmdListener = new MegaCmdListener(NULL);
+                            api->getUserAttribute(user, ATTR_LASTNAME, megaCmdListener);
+                            megaCmdListener->wait();
+                            if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                            {
+                                if (megaCmdListener->getRequest()->getText() && strlen(megaCmdListener->getRequest()->getText()))
+                                {
+                                    if (name.size())
+                                    {
+                                        name+=" ";
+                                    }
+                                    name+=megaCmdListener->getRequest()->getText();
+                                }
+                            }
+                            if (name.size())
+                            {
+                                OUTSTREAM << name << ": ";
+                            }
+
+                            delete megaCmdListener;
+                        }
+
+
                         OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
                         if (user->getTimestamp())
                         {

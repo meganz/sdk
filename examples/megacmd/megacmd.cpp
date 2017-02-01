@@ -332,6 +332,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("s");
         validParams->insert("h");
         validParams->insert("d");
+        validParams->insert("n");
     }
     else if ("killsession" == thecommand)
     {
@@ -1130,7 +1131,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "users"))
     {
-        return "users [-s] [-h] [-d contact@email]";
+        return "users [-s] [-h] [-n] [-d contact@email]";
     }
     if (!strcmp(command, "getua"))
     {
@@ -1561,6 +1562,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -s" << "\t" << "Show shared folders with listed contacts" << endl;
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
+        os << " -n" << "\t" << "Show users names" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
         os << endl;
         os << "Use \"invite\" to send/remove invitations to other users" << endl;
