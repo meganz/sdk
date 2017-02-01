@@ -1807,9 +1807,9 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
-void MegaApi::useHttpsOnly(bool httpsOnly)
+void MegaApi::useHttpsOnly(bool httpsOnly, MegaRequestListener *listener)
 {
-    pImpl->useHttpsOnly(httpsOnly);
+    pImpl->useHttpsOnly(httpsOnly, listener);
 }
 
 bool MegaApi::usingHttpsOnly()
