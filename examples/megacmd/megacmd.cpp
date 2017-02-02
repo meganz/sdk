@@ -2090,13 +2090,21 @@ void megacmd()
 
     rl_save_prompt();
 
-    int readline_fd = fileno(rl_instream);
+    int readline_fd = -1;
+    if (!consoleFailed)
+    {
+        readline_fd = fileno(rl_instream);
+    }
 
     for (;; )
     {
         if (prompt == COMMAND)
         {
-            rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+
+            if (!consoleFailed)
+            {
+                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+            }
 
             // display prompt
             if (saved_line)
@@ -2126,7 +2134,7 @@ void megacmd()
                     }
                     api->retryPendingConnections();
 
-                    if (cm->receivedReadlineInput(readline_fd))
+                    if (!consoleFailed && cm->receivedReadlineInput(readline_fd))
                     {
                         rl_callback_read_char();
                         if (doExit)
@@ -2325,6 +2333,22 @@ void initializeMacOSStuff(int argc, char* argv[])
 
 #endif
 
+bool runningInBackground()
+{
+    pid_t fg = tcgetpgrp(STDIN_FILENO);
+    if(fg == -1) {
+        // Piped:
+        return false;
+    }  else if (fg == getpgrp()) {
+        // foreground
+        return false;
+    } else {
+        // background
+        return true;
+    }
+}
+
+
 int main(int argc, char* argv[])
 {
 
@@ -2411,7 +2435,7 @@ int main(int argc, char* argv[])
     console = new CONSOLE_CLASS;
 #else
     struct termios term;
-    if (tcgetattr(STDIN_FILENO, &term) < 0) //try console
+    if ( ( tcgetattr(STDIN_FILENO, &term) < 0 ) || runningInBackground() ) //try console
     {
         consoleFailed = true;
         console = NULL;
@@ -2434,7 +2458,9 @@ int main(int argc, char* argv[])
      }
 #else
     // prevent CTRL+C exit
-    signal(SIGINT, sigint_handler);
+    if (!consoleFailed){
+        signal(SIGINT, sigint_handler);
+    }
 #endif
 
     atexit(finalize);
@@ -2444,14 +2470,21 @@ int main(int argc, char* argv[])
     rl_filename_quote_characters  = " ";
     rl_completer_word_break_characters = (char *)" ";
 
-
     rl_char_is_quoted_p = &quote_detector;
 
-    rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
-    // so that we can use rl_message or rl_resize_terminal safely before ever
-    // prompting anything.
+    if (!runningInBackground())
+    {
+        rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
+        // so that we can use rl_message or rl_resize_terminal safely before ever
+        // prompting anything.
+    }
+
 
     printWelcomeMsg();
+    if (consoleFailed)
+    {
+        LOG_warn << "Couldn't initialize interactive CONSOLE. Running as non-interactive ONLY";
+    }
 
     if (!ConfigurationManager::session.empty())
     {
