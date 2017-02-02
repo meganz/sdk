@@ -29,6 +29,7 @@
 #include "listeners.h"
 
 #include "megacmdplatform.h"
+#include "megacmdversion.h"
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -2334,6 +2335,9 @@ int main(int argc, char* argv[])
 
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
+    char userAgent[30];
+    sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
+
 #ifdef __MACH__
     int fd = -1;
     if (argc)
@@ -2347,19 +2351,19 @@ int main(int argc, char* argv[])
 
     if (fd >= 0)
     {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent", fd);
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent, fd);
     }
     else
     {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
     }
 #else
-    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
 #endif
 
     for (int i = 0; i < 5; i++)
     {
-        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, "MegaCMD User Agent");
+        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
         apiFolders.push(apiFolder);
         apiFolder->setLoggerObject(loggerCMD);
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);

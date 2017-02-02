@@ -15,7 +15,7 @@
 #define MEGACMD_CODE_VERSION (MEGACMD_MICRO_VERSION*100+MEGACMD_MINOR_VERSION*10000+MEGACMD_MAJOR_VERSION*1000000)
 #endif
 
-const char *megacmdchangelog =
+const char * const megacmdchangelog =
         "Initial version of megacmd""\n"
         "Features:""\n"
         "Interactive shell""\n"
