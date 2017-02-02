@@ -96,6 +96,7 @@ MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
     this->api = api;
     this->loggerCMD = loggerCMD;
     cwd = UNDEF;
+    nodeToConfirmDelete = NULL;
     fsAccessCMD = new MegaFileSystemAccess();
     mtxSyncMap.init(false);
     session = NULL;
@@ -104,6 +105,7 @@ MegaCmdExecuter::~MegaCmdExecuter()
 {
     delete fsAccessCMD;
     delete []session;
+    delete nodeToConfirmDelete;
 }
 
 // list available top-level nodes and contacts/incoming shares
@@ -2010,26 +2012,67 @@ int MegaCmdExecuter::actUponCreateFolder(SynchronousRequestListener *srl, int ti
     return 2;
 }
 
-void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive)
+
+
+void MegaCmdExecuter::confirmDelete()
+{
+    doDeleteNode(nodeToConfirmDelete,api);
+    nodeToConfirmDelete = NULL;
+}
+
+void MegaCmdExecuter::discardDelete()
+{
+    nodeToConfirmDelete = NULL;
+}
+
+
+
+void MegaCmdExecuter::doDeleteNode(MegaNode *nodeToDelete,MegaApi* api)
 {
     char *nodePath = api->getNodePath(nodeToDelete);
+    LOG_verbose << "Deleting: "<< nodePath;
+    MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+    api->remove(nodeToDelete, megaCmdListener);
+    megaCmdListener->wait();
+    string msj = "delete node ";
+    msj += nodePath;
+    checkNoErrors(megaCmdListener->getError(), msj);
+    delete megaCmdListener;
+    delete []nodePath;
+    delete nodeToDelete;
+
+}
+
+/**
+ * @brief MegaCmdExecuter::deleteNode
+ * @param nodeToDelete this function will delete this accordingly
+ * @param api
+ * @param recursive
+ * @param force
+ */
+void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive, int force)
+{
     if (( nodeToDelete->getType() == MegaNode::TYPE_FOLDER ) && !recursive)
     {
+        char *nodePath = api->getNodePath(nodeToDelete);
         setCurrentOutCode(MCMD_INVALIDTYPE);
         LOG_err << "Unable to delete folder: " << nodePath << ". Use -r to delete a folder recursively";
+        delete []nodePath;
     }
     else
     {
-        LOG_verbose << "Deleting: " << nodePath;
-        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-        api->remove(nodeToDelete, megaCmdListener);
-        megaCmdListener->wait();
-        string msj = "delete node ";
-        msj += nodePath;
-        checkNoErrors(megaCmdListener->getError(), msj);
-        delete megaCmdListener;
+        if (interactiveThread() && !force)
+        {
+            setprompt(AREYOUSURETODELETE);
+            nodeToConfirmDelete = nodeToDelete;
+            return;
+        }
+        else
+        {
+            doDeleteNode(nodeToDelete, api);
+        }
+
     }
-    delete []nodePath;
 }
 
 void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node)
@@ -2708,8 +2751,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             MegaNode * nodeToDelete = *it;
                             if (nodeToDelete)
                             {
-                                deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
-                                delete nodeToDelete;
+                                deleteNode(nodeToDelete, api, getFlag(clflags, "r"), getFlag(clflags, "f"));
                             }
                         }
                         nodesToDelete->clear();
@@ -2726,8 +2768,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     MegaNode * nodeToDelete = nodebypath(words[i].c_str());
                     if (nodeToDelete)
                     {
-                        deleteNode(nodeToDelete, api, getFlag(clflags, "r"));
-                        delete nodeToDelete;
+                        deleteNode(nodeToDelete, api, getFlag(clflags, "r"), getFlag(clflags, "f"));
                     }
                     else
                     {

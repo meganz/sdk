@@ -35,12 +35,12 @@ typedef struct sync_struct
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, AREYOUSURETODELETE
 };
 
 static const char* const prompts[] =
 {
-    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Are you sure to delete? "
 };
 
 enum

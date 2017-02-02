@@ -283,6 +283,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("rm" == thecommand)
     {
         validParams->insert("r");
+        validParams->insert("f");
     }
     else if ("speedlimit" == thecommand)
     {
@@ -1092,7 +1093,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "rm"))
     {
-        return "rm [-r] remotepath";
+        return "rm [-r] [-f] remotepath";
     }
     if (!strcmp(command, "mv"))
     {
@@ -1444,6 +1445,7 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -r" << "\t" << "Delete recursively (for folders)" << endl;
+        os << " -f" << "\t" << "Force (no asking)" << endl;
     }
     else if (!strcmp(command, "mv"))
     {
@@ -1882,6 +1884,23 @@ static bool process_line(char* l)
 {
     switch (prompt)
     {
+        case AREYOUSURETODELETE:
+            if (!strcmp(l,"yes") || !strcmp(l,"YES") || !strcmp(l,"y") || !strcmp(l,"Y"))
+            {
+                cmdexecuter->confirmDelete();
+                setprompt(COMMAND);
+            }
+            else if (!strcmp(l,"no") || !strcmp(l,"NO") || !strcmp(l,"n") || !strcmp(l,"N"))
+            {
+                cmdexecuter->discardDelete();
+                setprompt(COMMAND);
+            }
+            else
+            {
+                //Do nth, ask again
+                OUTSTREAM << "Please enter [y]es/[n]o: " << flush;
+            }
+        break;
         case LOGINPASSWORD:
         {
             if (!strlen(l))
@@ -2095,7 +2114,7 @@ void megacmd()
         {
             if (Waiter::HAVESTDIN)
             {
-                if (prompt == COMMAND)
+                if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
                 {
                     if (consoleFailed)
                     {
