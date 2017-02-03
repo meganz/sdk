@@ -33,7 +33,7 @@
 #endif
 
 #ifndef EADDRINUSE
-#define EADDRINUSE WSEADDRINUSE
+#define EADDRINUSE WSAEADDRINUSE
 #endif
 
 using namespace mega;
