@@ -4,7 +4,7 @@ MegaCMD provides non UI access to MEGA services. It intends to offer all the
 functionality with your MEGA account via commands. 
 
 Available packages for MEGAcmd in all supported platforms should be found 
-[here](https://mega.nz/#megacmd). 
+[here](https://mega.nz/cmd). 
 
 It features 2 modes of interaction: 
 
@@ -89,7 +89,7 @@ Ideally, you would like to have these commands in your PATH
 #Platforms
 
 ## Linux
-If you install using one of the available packages at [here](https://mega.nz/#megacmd), 
+If you install using one of the available packages at [here](https://mega.nz/cmd), 
 or have it built without `--prefix`, both the server (`mega-cmd`) and 
 the different client commands (`mega-*`) will be in your PATH 
 (you might need to open your shell again). If you are using bash, 
