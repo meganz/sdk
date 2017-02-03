@@ -32,6 +32,10 @@
 #define SOCKET_ERROR -1
 #endif
 
+#ifndef EADDRINUSE
+#define EADDRINUSE WSEADDRINUSE
+#endif
+
 using namespace mega;
 
 
