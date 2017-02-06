@@ -882,6 +882,18 @@ void TransferSlot::doio(MegaClient* client)
                             }
                         }
 
+                        unsigned size = (unsigned)(npos - transfer->pos);
+                        if (size > 16777216)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99434, "Invalid request size");
+                            client->reqtag = creqtag;
+
+                            transfer->chunkmacs.clear();
+                            return transfer->failed(API_EINTERNAL);
+                        }
+
                         reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
                                                                  &transfer->chunkmacs, transfer->ctriv,
                                                                  transfer->pos, npos);
