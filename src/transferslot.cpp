@@ -85,32 +85,38 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
     statex.dwLength = sizeof (statex);
-    GlobalMemoryStatusEx (&statex);
-    LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
-    if (statex.ullAvailPhys < 268435456 // 256 MB
-            || statex.ullAvailVirtual < 268435456)
+    if (GlobalMemoryStatusEx(&statex))
     {
-        if (statex.ullAvailPhys < 134217728 // 128 MB
-                || statex.ullAvailVirtual < 134217728)
+        LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
+        if (statex.ullAvailPhys < 268435456 // 256 MB
+                || statex.ullAvailVirtual < 268435456)
         {
-            if (statex.ullAvailPhys < 67108864 // 64 MB
-                    || statex.ullAvailVirtual < 67108864)
+            if (statex.ullAvailPhys < 134217728 // 128 MB
+                    || statex.ullAvailVirtual < 134217728)
             {
-                maxDownloadRequestSize = 2097152; // 2 MB
+                if (statex.ullAvailPhys < 67108864 // 64 MB
+                        || statex.ullAvailVirtual < 67108864)
+                {
+                    maxDownloadRequestSize = 2097152; // 2 MB
+                }
+                else
+                {
+                    maxDownloadRequestSize = 4194304; // 4 MB
+                }
             }
             else
             {
-                maxDownloadRequestSize = 4194304; // 4 MB
+                maxDownloadRequestSize = 8388608; // 8 MB
             }
         }
         else
         {
-            maxDownloadRequestSize = 8388608; // 8 MB
+            maxDownloadRequestSize = 16777216; // 16 MB
         }
     }
     else
     {
-        maxDownloadRequestSize = 16777216; // 16 MB
+        LOG_warn << "Error getting RAM usage info";
     }
 #endif
 }
