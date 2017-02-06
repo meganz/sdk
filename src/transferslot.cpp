@@ -40,11 +40,11 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
-    m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152; // 2 MB
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
-    m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216; // 16 MB
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216; // 16 MB
 #else
-    m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304; // 4 MB
+    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304; // 4 MB
 #endif
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -80,6 +80,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     slots_it = transfer->client->tslots.end();
 
+    maxDownloadRequestSize = MAX_DOWNLOAD_REQ_SIZE;
 #ifdef _WIN32
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
@@ -95,21 +96,21 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
             if (statex.ullAvailPhys < 67108864 // 64 MB
                     || statex.ullAvailVirtual < 67108864)
             {
-                MAX_DOWNLOAD_REQ_SIZE = 2097152; // 2 MB
+                maxDownloadRequestSize = 2097152; // 2 MB
             }
             else
             {
-                MAX_DOWNLOAD_REQ_SIZE = 4194304; // 4 MB
+                maxDownloadRequestSize = 4194304; // 4 MB
             }
         }
         else
         {
-            MAX_DOWNLOAD_REQ_SIZE = 8388608; // 8 MB
+            maxDownloadRequestSize = 8388608; // 8 MB
         }
     }
     else
     {
-        MAX_DOWNLOAD_REQ_SIZE = 16777216; // 16 MB
+        maxDownloadRequestSize = 16777216; // 16 MB
     }
 #endif
 }
@@ -778,11 +779,10 @@ void TransferSlot::doio(MegaClient* client)
                 {
                     if (transfer->type == GET && transfer->size)
                     {
-                        m_off_t maxDownRequestSize = MAX_DOWNLOAD_REQ_SIZE;
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
-                        if (maxReqSize > maxDownRequestSize)
+                        if (maxReqSize > maxDownloadRequestSize)
                         {
-                            maxReqSize = maxDownRequestSize;
+                            maxReqSize = maxDownloadRequestSize;
                         }
 
                         if (maxReqSize > 0x100000)

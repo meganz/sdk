@@ -47,7 +47,8 @@ struct MEGA_API TransferSlot
     static const dstime PROGRESSTIMEOUT;
 
     // max request size for downloads
-    static m_off_t MAX_DOWNLOAD_REQ_SIZE;
+    static const m_off_t MAX_DOWNLOAD_REQ_SIZE;
+    m_off_t maxDownloadRequestSize;
 
     m_off_t progressreported;
 
