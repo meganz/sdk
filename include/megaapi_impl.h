@@ -758,6 +758,25 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringMap *stringMap;
 };
 
+class MegaEventPrivate : public MegaEvent
+{
+public:
+    MegaEventPrivate(int type);
+    MegaEventPrivate(MegaEventPrivate *event);
+    virtual ~MegaEventPrivate();
+    MegaEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getText() const;
+
+    void setText(const char* text);
+
+protected:
+    int type;
+    const char* text;
+
+};
+
 class MegaAccountBalancePrivate : public MegaAccountBalance
 {
 public:
@@ -1293,6 +1312,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *getSequenceNumber();
         char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
@@ -1631,6 +1651,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        MegaTextChatList *getChatList();
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1662,6 +1683,7 @@ protected:
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
+        void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -1887,7 +1909,7 @@ protected:
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
 
-        virtual void chats_updated(textchat_map *);
+        virtual void chats_updated(textchat_map *, int);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1923,6 +1945,9 @@ protected:
 
         // failed request retry notification
         virtual void notify_retry(dstime);
+
+        // notify about db commit
+        virtual void notify_dbcommit();
 
         void sendPendingRequests();
         void sendPendingTransfers();

@@ -422,7 +422,7 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
@@ -433,20 +433,11 @@ struct TextChat
     string title;   // byte array
     handle ou;
 
-    TextChat()
-    {
-        id = UNDEF;
-        priv = PRIV_UNKNOWN;
-        shard = -1;
-        userpriv = NULL;
-        group = false;
-        ou = UNDEF;
-    }
+    TextChat();
+    ~TextChat();
 
-    ~TextChat()
-    {
-        delete userpriv;
-    }
+    bool serialize(string *d);
+    static TextChat* unserialize(class MegaClient *client, string *d);
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;
