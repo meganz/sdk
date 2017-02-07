@@ -4503,8 +4503,6 @@ void CommandChatCreate::procresult()
                         chat->group = group;
 
                         client->app->chatcreate_result(chat, API_OK);
-
-                        delete chat;
                     }
                     else
                     {
