@@ -59,7 +59,7 @@ bool TextChat::serialize(string *d)
 
     d->append((char*)&shard, sizeof shard);
 
-    ll = userpriv ? (unsigned char)userpriv->size() : 0;
+    ll = userpriv ? userpriv->size() : 0;
     d->append((char*)&ll, sizeof ll);
     if (userpriv)
     {
