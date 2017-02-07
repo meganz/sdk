@@ -59,8 +59,8 @@ bool TextChat::serialize(string *d)
 
     d->append((char*)&shard, sizeof shard);
 
-    l = userpriv ? (unsigned char)userpriv->size() : 0;
-    d->append((char*)&l, sizeof l);
+    ll = userpriv ? (unsigned char)userpriv->size() : 0;
+    d->append((char*)&ll, sizeof ll);
     if (userpriv)
     {
         userpriv_vector::iterator it = userpriv->begin();
@@ -136,17 +136,18 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     shard = MemAccess::get<int>(ptr);
     ptr += sizeof shard;
 
-    l = *ptr++;
-    if (l)
+    ll = MemAccess::get<short>(ptr);
+    ptr += sizeof ll;
+    if (ll)
     {
-        if (ptr + l * (sizeof(handle) + sizeof(privilege_t)) > end)
+        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
         {
             return NULL;
         }
 
-        userpriv = new userpriv_vector;
+        userpriv = new userpriv_vector();
 
-        for (int i = 0; i < l; i++)
+        for (unsigned short i = 0; i < ll; i++)
         {
             handle uh = MemAccess::get<handle>(ptr);
             ptr += sizeof uh;
