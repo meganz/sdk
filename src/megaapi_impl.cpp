@@ -8373,11 +8373,6 @@ void MegaApiImpl::registerpushnotification_result(error e)
 
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
-    if(!count)
-    {
-        return;
-    }
-
     if (chats)
     {
         MegaTextChatList *chatList = new MegaTextChatListPrivate(chats);
