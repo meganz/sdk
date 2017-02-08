@@ -81,7 +81,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     slots_it = transfer->client->tslots.end();
 
     maxDownloadRequestSize = MAX_DOWNLOAD_REQ_SIZE;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
     statex.dwLength = sizeof (statex);
