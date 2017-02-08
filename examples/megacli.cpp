@@ -903,7 +903,7 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
         else
         {
             char buffer[12];
-            Base64::btoa((byte*)&h, sizeof(h), buffer);
+            Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
             cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
         }
     }
@@ -4104,7 +4104,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->targetemail;
 
                                 char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4121,7 +4121,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->originatoremail;
 
                                 char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4636,7 +4636,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     }
 }
 
-bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
+bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* appdata)
 {
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);
@@ -4847,7 +4847,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
 
                 char id[12];
-                Base64::btoa((byte*)&(it->id), sizeof(it->id), id);
+                Base64::btoa((byte*)&(it->id), MegaClient::SESSIONHANDLE, id);
 
                 if (it->current)
                 {
@@ -4900,7 +4900,7 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     else
     {
         char id[12];
-        Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
+        Base64::btoa((byte*)&(sessionid), MegaClient::SESSIONHANDLE, id);
         cout << "Session with id " << id << " has been killed" << endl;
     }
 }

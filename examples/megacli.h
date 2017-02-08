@@ -179,7 +179,7 @@ struct DemoApp : public MegaApp
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*);
 
     dstime pread_failure(error, int, void*);
-    bool pread_data(byte*, m_off_t, m_off_t, void*);
+    bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*);
 
     void transfer_added(Transfer*);
     void transfer_removed(Transfer*);

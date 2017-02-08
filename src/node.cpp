@@ -337,6 +337,16 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         return NULL;
     }
 
+    // It's needed to re-normalize node names because
+    // the updated version of utf8proc doesn't provide
+    // exactly the same output as the previous one that
+    // we were using
+    attr_map::iterator it = n->attrs.map.find('n');
+    if (it != n->attrs.map.end())
+    {
+        client->fsaccess->normalize(&(it->second));
+    }
+
     PublicLink *plink = NULL;
     if (isExported)
     {
@@ -1103,6 +1113,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     else
     {
         localname = *cfullpath;
+        sync->client->fsaccess->local2path(&localname, &name);
     }
 
     scanseqno = sync->scanseqno;

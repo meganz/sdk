@@ -57,6 +57,12 @@ PosixWaiter::PosixWaiter()
     maxfd = -1;
 }
 
+PosixWaiter::~PosixWaiter()
+{
+    close(m_pipe[0]);
+    close(m_pipe[1]);
+}
+
 void PosixWaiter::init(dstime ds)
 {
     Waiter::init(ds);

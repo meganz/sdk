@@ -36,6 +36,7 @@ File::File()
     syncxfer = false;
     temporaryfile = false;
     h = UNDEF;
+    tag = 0;
 }
 
 File::~File()
@@ -124,6 +125,7 @@ File *File::unserialize(string *d)
     if (ptr + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - serialized string too short";
+        delete fp;
         return NULL;
     }
 
@@ -133,6 +135,7 @@ File *File::unserialize(string *d)
     if (ptr + namelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - name too long";
+        delete fp;
         return NULL;
     }
     const char *name = ptr;
@@ -144,6 +147,7 @@ File *File::unserialize(string *d)
     if (ptr + localnamelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - localname too long";
+        delete fp;
         return NULL;
     }
     const char *localname = ptr;
@@ -155,6 +159,7 @@ File *File::unserialize(string *d)
     if (ptr + targetuserlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - targetuser too long";
+        delete fp;
         return NULL;
     }
     const char *targetuser = ptr;
@@ -166,6 +171,7 @@ File *File::unserialize(string *d)
     if (ptr + privauthlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - private auth too long";
+        delete fp;
         return NULL;
     }
     const char *privauth = ptr;
@@ -177,6 +183,7 @@ File *File::unserialize(string *d)
             + sizeof(bool) + sizeof(bool) + 10 > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
+        delete fp;
         return NULL;
     }
     const char *pubauth = ptr;
@@ -184,6 +191,7 @@ File *File::unserialize(string *d)
 
     File *file = new File();
     *(FileFingerprint *)file = *(FileFingerprint *)fp;
+    delete fp;
 
     file->name.assign(name, namelen);
     file->localname.assign(localname, localnamelen);
@@ -279,7 +287,7 @@ void File::completed(Transfer* t, LocalNode* l)
         {
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
-            t->client->reqtag = t->tag;
+            t->client->reqtag = tag;
             t->client->putnodes(targetuser.c_str(), newnode, 1);
             t->client->reqtag = creqtag;
         }
@@ -301,7 +309,7 @@ void File::completed(Transfer* t, LocalNode* l)
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
-                                                                  t->tag,
+                                                                  tag,
 #ifdef ENABLE_SYNC
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP));
 #else
@@ -320,8 +328,28 @@ void File::terminated()
 // failuresup to 16 times, except I/O errors (6 times)
 bool File::failed(error e)
 {
-    return (e != API_EKEY && e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16) &&
-            !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
+    if (e == API_EKEY)
+    {
+        if (!transfer->hascurrentmetamac)
+        {
+            // several integrity check errors uploading chunks
+            return transfer->failcount < 1;
+        }
+
+        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
+        {
+            // integrity check failed after download, two times with the same value
+            return false;
+        }
+
+        // integrity check failed once, try again
+        transfer->prevmetamac = transfer->currentmetamac;
+        transfer->hasprevmetamac = true;
+        return transfer->failcount < 16;
+    }
+
+    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16)
+            && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
 void File::displayname(string* dname)
@@ -361,7 +389,10 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
 
 SyncFileGet::~SyncFileGet()
 {
-    n->syncget = NULL;
+    if (n)
+    {
+        n->syncget = NULL;
+    }
 }
 
 // create sync-specific temp download directory and set unique filename
@@ -434,17 +465,26 @@ void SyncFileGet::prepare()
 
 bool SyncFileGet::failed(error e)
 {
+    bool retry = File::failed(e);
+
     if (n->parent && n->parent->localnode)
     {
         n->parent->localnode->treestate(TREESTATE_PENDING);
 
-        if (e == API_EBLOCKED)
+        if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
+            if (e == API_EKEY)
+            {
+                int creqtag = n->parent->client->reqtag;
+                n->parent->client->reqtag = 0;
+                n->parent->client->sendevent(99433, "Undecryptable file");
+                n->parent->client->reqtag = creqtag;
+            }
             n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
         }
     }
 
-    return File::failed(e);
+    return retry;
 }
 
 void SyncFileGet::progress()
@@ -479,7 +519,16 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname);
+    if (ll && ll != (LocalNode*)~0 && n
+            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    {
+        LOG_debug << "LocalNode created, associating with remote Node";
+        ll->setnode(n);
+        ll->treestate(TREESTATE_SYNCED);
+        ll->sync->statecacheadd(ll);
+        ll->sync->cachenodes();
+    }
     delete this;
 }
 

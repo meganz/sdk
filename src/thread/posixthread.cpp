@@ -41,6 +41,15 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
+uint64_t PosixThread::currentThreadId()
+{
+#if defined(_WIN32) && !defined(__WINPTHREADS_VERSION)
+    return (uint64_t) pthread_self().x;
+#else
+    return (uint64_t) pthread_self();
+#endif
+}
+
 PosixThread::~PosixThread()
 {
     delete thread;

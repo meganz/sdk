@@ -27,6 +27,7 @@
 #include "gfx.h"
 #include "filefingerprint.h"
 #include "request.h"
+#include "transfer.h"
 #include "treeproc.h"
 #include "sharenodekeys.h"
 #include "account.h"
@@ -36,6 +37,136 @@
 #include "pendingcontactrequest.h"
 
 namespace mega {
+
+class MEGA_API FetchNodesStats
+{
+public:
+    enum {
+        MODE_DB = 0,
+        MODE_API = 1,
+        MODE_NONE = 2
+    };
+
+    enum {
+        TYPE_ACCOUNT = 0,
+        TYPE_FOLDER = 1,
+        TYPE_NONE = 2
+    };
+
+    FetchNodesStats();
+    void init();
+    void toJsonArray(string *json);
+
+    //////////////////
+    // General info //
+    //////////////////
+    int mode; // DB = 0, API = 1
+    int type; // Account = 0, Folder = 1
+    dstime startTime; // startup time (ds)
+
+    /**
+     * \brief Number of nodes in the cached filesystem
+     *
+     * From DB: number on nodes in the local database
+     * From API: number of nodes in the response to the fetchnodes command
+     */
+    long long nodesCached;
+
+    /**
+     * @brief Number of nodes in the current filesystem, after the reception of action packets
+     */
+    long long nodesCurrent;
+
+    /**
+     * @brief Number of action packets to complete the cached filesystem
+     *
+     * From DB: Number of action packets to complete the local cache
+     * From API: Number of action packets to complete the server-side cache
+     */
+    int actionPackets;
+
+    ////////////
+    // Errors //
+    ////////////
+
+    /**
+     * @brief Number of error -3 or -4 received during the process (including cs and sc requests)
+     */
+    int eAgainCount;
+
+    /**
+     * @brief Number of HTTP 500 errors received during the process (including cs and sc requests)
+     */
+    int e500Count;
+
+    /**
+     * @brief Number of other errors received during the process (including cs and sc requests)
+     *
+     * The most common source of these errors are connectivity problems (no Internet, timeouts...)
+     */
+    int eOthersCount;
+
+    ////////////////////////////////////////////////////////////////////
+    // Time elapsed until different steps since the startup time (ds) //
+    ////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Time until the first byte read
+     *
+     * From DB: time until the first record read from the database
+     * From API: time until the first byte read in response to the fetchnodes command (errors excluded)
+     */
+    dstime timeToFirstByte;
+
+    /**
+     * @brief Time until the last byte read
+     *
+     * From DB: time until the last record is read from the database
+     * From API: time until the whole response to the fetchnodes command has been received
+     */
+    dstime timeToLastByte;
+
+    /**
+     * @brief Time until the cached filesystem is ready
+     *
+     * From DB: time until the database has been read and processed
+     * From API: time until the fetchnodes command is processed
+     */
+    dstime timeToCached;
+
+    /**
+     * @brief Time until the filesystem is ready to be used
+     *
+     * From DB: this time is the same as timeToCached
+     * From API: time until action packets have been processed
+     * It's needed to wait until the reception of action packets due to
+     * server-side caches.
+     */
+    dstime timeToResult;
+
+    /**
+     * @brief Time until synchronizations have been resumed
+     *
+     * This involves the load of the local cache and the scan of known
+     * files. Files that weren't cached are scanned later.
+     */
+    dstime timeToSyncsResumed;
+
+    /**
+     * @brief Time until the filesystem is current
+     *
+     * From DB: time until action packets have been processed
+     * From API: this time is the same as timeToResult
+     */
+    dstime timeToCurrent;
+
+    /**
+     * @brief Time until the resumption of transfers has finished
+     *
+     * The resumption of transfers is done after the filesystem is current
+     */
+    dstime timeToTransfersResumed;
+};
 
 class MEGA_API MegaClient
 {
@@ -127,7 +258,10 @@ public:
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes();
+    void fetchnodes(bool nocache = false);
+
+    // fetchnodes stats
+    FetchNodesStats fnstats;
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
@@ -179,7 +313,6 @@ public:
 #ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
-    bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
@@ -223,6 +356,9 @@ public:
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
+    // retrieve the email address of a user
+    void getUserEmail(const char *uid);
+
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
@@ -263,6 +399,9 @@ public:
 
     // SDK version
     const char* version();
+
+    // get the last available version of the app
+    void getlastversion(const char *appKey);
 
     // maximum outbound throughput (per target server)
     int putmbpscap;
@@ -312,6 +451,9 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+    // determine if more transfers fit in the pipeline
+    bool moretransfers(direction_t);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -343,6 +485,12 @@ public:
 
     // set title of the chat
     void setChatTitle(handle chatid, const char *title = NULL);
+
+    // get the URL of the presence server
+    void getChatPresenceUrl();
+
+    // register a token device to route push notifications
+    void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
 
     // toggle global debug flag
@@ -352,6 +500,18 @@ public:
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
+
+    // set max download speed
+    bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    m_off_t getmaxuploadspeed();
 
     // use HTTPS for all communications
     bool usehttps;
@@ -367,6 +527,9 @@ public:
 
     // select the upload port automatically
     bool autoupport;
+
+    // finish downloaded chunks in order
+    bool orderdownloadedchunks;
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
@@ -386,8 +549,14 @@ public:
     // account auth for public folders
     string accountauth;
 
+    // file that is blocking the sync engine
+    string blockedfile;
+
     // stats id
     static char* statsid;
+
+    // number of ongoing asynchronous fopen
+    int asyncfopens;
 
 private:
     BackoffTimer btcs;
@@ -430,20 +599,23 @@ private:
     // next internal upload handle
     handle nextuh;
 
-    // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 24;
+    // maximum number of concurrent transfers (uploads + downloads)
+    static const unsigned MAXTOTALTRANSFERS;
 
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
+    // maximum number of concurrent transfers (uploads or downloads)
+    static const unsigned MAXTRANSFERS;
+
+    // maximum number of queued putfa before halting the upload queue
+    static const int MAXQUEUEDFA;
+
+    // maximum number of concurrent putfa
+    static const int MAXPUTFA;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
     // a TransferSlot chunk failed
     bool chunkfailed;
-
-    // open/create state cache database table
-    void opensctable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
@@ -545,10 +717,10 @@ public:
     bool statecurrent;
 
     // pending file attribute writes
-    putfa_list newfa;
+    putfa_list queuedfa;
 
-    // current attribute being sent
-    putfa_list::iterator curfa;
+    // current file attributes being sent
+    putfa_list activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -557,6 +729,9 @@ public:
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+
+    // open/create state cache database table
+    void opensctable();
 
     // initialize/update state cache referenced sctable
     void initsc();
@@ -619,6 +794,9 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+
+    // transfer list to manage the priority of transfers
+    TransferList transferlist;
 
     // cached transfers (PUT/GET)
     transfer_map cachedtransfers[2];
@@ -730,6 +908,8 @@ public:
 
     // scan required flag
     bool syncdownrequired;
+
+    bool syncuprequired;
 
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;

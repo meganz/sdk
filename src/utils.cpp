@@ -162,7 +162,7 @@ m_off_t ChunkedHash::chunkfloor(m_off_t p)
 }
 
 // end of chunk (== start of next chunk)
-m_off_t ChunkedHash::chunkceil(m_off_t p)
+m_off_t ChunkedHash::chunkceil(m_off_t p, m_off_t limit)
 {
     m_off_t cp, np;
 
@@ -174,13 +174,14 @@ m_off_t ChunkedHash::chunkceil(m_off_t p)
 
         if ((p >= cp) && (p < np))
         {
-            return np;
+            return (limit < 0 || np < limit) ? np : limit;
         }
 
         cp = np;
     }
 
-    return ((p - cp) & - (8 * SEGSIZE)) + cp + 8 * SEGSIZE;
+    np = ((p - cp) & - (8 * SEGSIZE)) + cp + 8 * SEGSIZE;
+    return (limit < 0 || np < limit) ? np : limit;
 }
 
 
@@ -637,6 +638,11 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     }
 
     delete [] iv;
+
+    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    {
+        return NULL;
+    }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
     if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode
