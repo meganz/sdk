@@ -48,6 +48,7 @@ struct MEGA_API TransferSlot
 
     // max request size for downloads
     static const m_off_t MAX_DOWNLOAD_REQ_SIZE;
+    m_off_t maxDownloadRequestSize;
 
     m_off_t progressreported;
 

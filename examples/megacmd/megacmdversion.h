@@ -8,23 +8,21 @@
 #define MEGACMD_MINOR_VERSION 9
 #endif
 #ifndef MEGACMD_MICRO_VERSION
-#define MEGACMD_MICRO_VERSION 1
+#define MEGACMD_MICRO_VERSION 3
 #endif
 
 #ifndef MEGACMD_CODE_VERSION
 #define MEGACMD_CODE_VERSION (MEGACMD_MICRO_VERSION*100+MEGACMD_MINOR_VERSION*10000+MEGACMD_MAJOR_VERSION*1000000)
 #endif
 
-const char *megacmdchangelog =
-        "Initial version of megacmd""\n"
-        "Features:""\n"
-        "Interactive shell""\n"
-        "Non interactive mode""\n"
-        "Regular expresions""\n"
-        "Contacts management""\n"
-        "Public folders management""\n"
-        "Files management""\n"
-        "Synching"
+const char * const megacmdchangelog =
+        "fixed mkdir in MacOS""\n"
+        "added command \"https\" to force HTTPS for file transfers""\n"
+        "added -n to \"users\" to show users names""\n"
+        "modified greeting""\n"
+        "fixed \"clear\" for Windows""\n"
+        "fixed download >4GB files""\n"
+        "fixed bug in asynchronous transfers""\n"
         ;
 
 

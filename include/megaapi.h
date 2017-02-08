@@ -2809,6 +2809,16 @@ class MegaTransfer
          * @return Priority of the transfer
          */
         virtual unsigned long long getPriority() const;
+
+        /**
+         * @brief Returns the notification number of the SDK when this MegaTransfer was generated
+         *
+         * The notification number of the SDK is increased every time the SDK sends a callback
+         * to the app.
+         *
+         * @return Notification number
+         */
+        virtual long long getNotificationNumber() const;
 };
 
 /**
@@ -2877,6 +2887,16 @@ public:
      * @return Priority of the upload at index i
      */
     virtual unsigned long long getUploadPriority(int i) const;
+
+    /**
+     * @brief Returns the notification number of the SDK when this MegaTransferData was generated
+     *
+     * The notification number of the SDK is increased every time the SDK sends a callback
+     * to the app.
+     *
+     * @return Notification number
+     */
+    virtual long long getNotificationNumber() const;
 };
 
 
@@ -6494,8 +6514,9 @@ class MegaApi
          * See MegaApi::usingHttpsOnly
          *
          * @param httpsOnly True to use HTTPS communications only
+         * @param listener MegaRequestListener to track this request
          */
-        void useHttpsOnly(bool httpsOnly);
+        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if the SDK is using HTTPS communications only

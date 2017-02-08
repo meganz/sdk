@@ -247,8 +247,8 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    MegaNode* n;
-    MegaNode* nn;
+    MegaNode* n = NULL;
+    MegaNode* nn = NULL;
 
     // split path by / or :
     do
@@ -568,7 +568,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
     int l = 0;
     const char* bptr = ptr;
     int remote = 0; //shared
-    MegaNode* n;
+    MegaNode* n = NULL;
     bool isrelative = false;
 
     // split path by / or :
@@ -839,7 +839,7 @@ MegaNode * MegaCmdExecuter::getRootNodeByPath(const char *ptr, string* user)
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    MegaNode* n;
+    MegaNode* n = NULL;
 
     // split path by / or :
     do
@@ -2471,7 +2471,7 @@ bool MegaCmdExecuter::IsFolder(string path)
 
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
-    MegaNode* n;
+    MegaNode* n = NULL;
     if (words[0] == "ls")
     {
         if (!api->isFilesystemAvailable())
@@ -3657,6 +3657,33 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
         return;
     }
+    else if (words[0] == "https")
+    {
+        if (words.size() > 1 && (words[1] == "on" || words[1] == "off"))
+        {
+            bool onlyhttps = words[1] == "on";
+            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+            api->useHttpsOnly(onlyhttps,megaCmdListener);
+            megaCmdListener->wait();
+            if (checkNoErrors(megaCmdListener->getError(), "change https"))
+            {
+                OUTSTREAM << "File transfer now uses " << (api->usingHttpsOnly()?"HTTPS":"HTTP") << endl;
+            }
+            delete megaCmdListener;
+            return;
+        }
+        else if (words.size() > 1)
+        {
+            setCurrentOutCode(MCMD_EARGS);
+            LOG_err << "      " << getUsageStr("https");
+            return;
+        }
+        else
+        {
+            OUTSTREAM << "File transfer is done using " << (api->usingHttpsOnly()?"HTTPS":"HTTP") << endl;
+        }
+        return;
+    }
 #ifdef ENABLE_SYNC
     else if (words[0] == "sync")
     {
@@ -4212,6 +4239,44 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     if (!(( user->getVisibility() != MegaUser::VISIBILITY_VISIBLE ) && !getFlag(clflags, "h")))
                     {
+                        if (getFlag(clflags,"n"))
+                        {
+                            string name;
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                            api->getUserAttribute(user, ATTR_FIRSTNAME, megaCmdListener);
+                            megaCmdListener->wait();
+                            if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                            {
+                                if (megaCmdListener->getRequest()->getText() && strlen(megaCmdListener->getRequest()->getText()))
+                                {
+                                    name += megaCmdListener->getRequest()->getText();
+                                }
+                            }
+                            delete megaCmdListener;
+
+                            megaCmdListener = new MegaCmdListener(NULL);
+                            api->getUserAttribute(user, ATTR_LASTNAME, megaCmdListener);
+                            megaCmdListener->wait();
+                            if (megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                            {
+                                if (megaCmdListener->getRequest()->getText() && strlen(megaCmdListener->getRequest()->getText()))
+                                {
+                                    if (name.size())
+                                    {
+                                        name+=" ";
+                                    }
+                                    name+=megaCmdListener->getRequest()->getText();
+                                }
+                            }
+                            if (name.size())
+                            {
+                                OUTSTREAM << name << ": ";
+                            }
+
+                            delete megaCmdListener;
+                        }
+
+
                         OUTSTREAM << user->getEmail() << ", " << visibilityToString(user->getVisibility());
                         if (user->getTimestamp())
                         {
@@ -4322,7 +4387,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     MegaNodeList *children = api->getChildren(baseNode);
                     if (children)
                     {
-                        bool found;
+                        bool found = false;
                         for (int i = 0; i < children->size(); i++)
                         {
                             MegaNode *child = children->get(i);

@@ -29,6 +29,7 @@
 #include "listeners.h"
 
 #include "megacmdplatform.h"
+#include "megacmdversion.h"
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -108,7 +109,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear"};
+                             "history", "thumbnail", "preview", "find", "completion", "clear", "https"};
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -332,6 +333,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("s");
         validParams->insert("h");
         validParams->insert("d");
+        validParams->insert("n");
     }
     else if ("killsession" == thecommand)
     {
@@ -1002,7 +1004,7 @@ const char * getUsageStr(const char *command)
 {
     if (!strcmp(command, "login"))
     {
-        return "login [email [password] | exportedfolderurl#key | session";
+        return "login [email [password]] | exportedfolderurl#key | session";
     }
     if (!strcmp(command, "begin"))
     {
@@ -1104,6 +1106,10 @@ const char * getUsageStr(const char *command)
     {
         return "sync [localpath dstremotepath| [-ds] [ID|localpath]";
     }
+    if (!strcmp(command, "https"))
+    {
+        return "https [on|off]";
+    }
     if (!strcmp(command, "export"))
     {
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
@@ -1126,7 +1132,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "users"))
     {
-        return "users [-s] [-h] [-d contact@email]";
+        return "users [-s] [-h] [-n] [-d contact@email]";
     }
     if (!strcmp(command, "getua"))
     {
@@ -1453,6 +1459,13 @@ string getHelpStr(const char *command)
         os << "If the location exists and is a folder, the source will be copied there" << endl;
         os << "If the location doesn't exits, the file/folder will be renamed to the defined destiny" << endl;
     }
+    else if (!strcmp(command, "https"))
+    {
+        os << "Shows if HTTPS is used for transfers. Use \"https on\" to enable it." << endl;
+        os << endl;
+        os << "HTTPS is not necesary since all data is stored and transfered encrypted." << endl;
+        os << "Enabling it will increase CPU usage and add network overhead." << endl;
+    }
     else if (!strcmp(command, "sync"))
     {
         os << "Controls synchronizations" << endl;
@@ -1550,6 +1563,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -s" << "\t" << "Show shared folders with listed contacts" << endl;
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
+        os << " -n" << "\t" << "Show users names" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
         os << endl;
         os << "Use \"invite\" to send/remove invitations to other users" << endl;
@@ -1780,7 +1794,7 @@ void executecommand(char* ptr)
         if (getFlag(&clflags,"non-interactive"))
         {
             OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
-            OUTSTREAM << " - interactive: entering commands in this shell" << endl;
+            OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
             OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
             OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
 #ifdef _WIN32
@@ -1833,7 +1847,31 @@ void executecommand(char* ptr)
 
     if ( thecommand == "clear" )
     {
+#ifdef _WIN32
+        HANDLE hStdOut;
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        DWORD count;
+
+        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
+        if (hStdOut == INVALID_HANDLE_VALUE) return;
+
+        /* Get the number of cells in the current buffer */
+        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
+        /* Fill the entire buffer with spaces */
+        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
+        {
+            return;
+        }
+        /* Fill the entire buffer with the current colors and attributes */
+        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
+        {
+            return;
+        }
+        /* Move the cursor home */
+        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
+#else
         rl_clear_screen(0,0);
+#endif
         return;
     }
     cmdexecuter->executecommand(words, &clflags, &cloptions);
@@ -2197,6 +2235,7 @@ void printWelcomeMsg()
     printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
     printCenteredLine("have any suggestion concerning its functionalities.",width);
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
+    printCenteredLine("Enter \"help\" to list the available commands.",width);
 
     cout << "`";
     for (u_int i = 0; i < width; i++)
@@ -2296,6 +2335,9 @@ int main(int argc, char* argv[])
 
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
+    char userAgent[30];
+    sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
+
 #ifdef __MACH__
     int fd = -1;
     if (argc)
@@ -2309,19 +2351,19 @@ int main(int argc, char* argv[])
 
     if (fd >= 0)
     {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent", fd);
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent, fd);
     }
     else
     {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
     }
 #else
-    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
 #endif
 
     for (int i = 0; i < 5; i++)
     {
-        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, "MegaCMD User Agent");
+        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
         apiFolders.push(apiFolder);
         apiFolder->setLoggerObject(loggerCMD);
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);

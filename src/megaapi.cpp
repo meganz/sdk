@@ -830,6 +830,11 @@ unsigned long long MegaTransfer::getPriority() const
     return 0;
 }
 
+long long MegaTransfer::getNotificationNumber() const
+{
+    return 0;
+}
+
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
@@ -1811,9 +1816,9 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
-void MegaApi::useHttpsOnly(bool httpsOnly)
+void MegaApi::useHttpsOnly(bool httpsOnly, MegaRequestListener *listener)
 {
-    pImpl->useHttpsOnly(httpsOnly);
+    pImpl->useHttpsOnly(httpsOnly, listener);
 }
 
 bool MegaApi::usingHttpsOnly()
@@ -4235,6 +4240,11 @@ unsigned long long MegaTransferData::getDownloadPriority(int i) const
 }
 
 unsigned long long MegaTransferData::getUploadPriority(int i) const
+{
+    return 0;
+}
+
+long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
 }
