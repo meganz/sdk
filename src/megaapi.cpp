@@ -1178,6 +1178,8 @@ void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestLi
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
+void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -1207,6 +1209,8 @@ void MegaListener::onAccountUpdate(MegaApi *)
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaListener::onReloadNeeded(MegaApi *)
+{ }
+void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 
 #ifdef ENABLE_SYNC
@@ -1405,6 +1409,11 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
 char *MegaApi::dumpSession()
 {
     return pImpl->dumpSession();
+}
+
+char *MegaApi::getSequenceNumber()
+{
+    return pImpl->getSequenceNumber();
 }
 
 char *MegaApi::dumpXMPPSession()
@@ -3490,6 +3499,11 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
+MegaTextChatList* MegaApi::getChatList()
+{
+    return pImpl->getChatList();
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -4122,6 +4136,11 @@ const MegaTextChatPeerList *MegaTextChat::getPeerList() const
     return NULL;
 }
 
+void MegaTextChat::setPeerList(const MegaTextChatPeerList *)
+{
+
+}
+
 bool MegaTextChat::isGroup() const
 {
     return false;
@@ -4135,6 +4154,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
 const char * MegaTextChat::getTitle() const
 {
     return NULL;
+}
+
+int64_t MegaTextChat::getCreationTime() const
+{
+    return 0;
 }
 
 MegaTextChatList::~MegaTextChatList()
@@ -4233,4 +4257,20 @@ unsigned long long MegaTransferData::getUploadPriority(int i) const
 long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
+}
+
+MegaEvent::~MegaEvent() { }
+MegaEvent *MegaEvent::copy()
+{
+    return NULL;
+}
+
+int MegaEvent::getType()
+{
+    return 0;
+}
+
+char *MegaEvent::getText()
+{
+    return NULL;
 }

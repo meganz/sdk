@@ -638,19 +638,19 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_map *chats)
+void DemoApp::chats_updated(textchat_map *chats, int count)
 {
+    if (count == 1)
+    {
+        cout << "1 chat received or updated" << endl;
+    }
+    else
+    {
+        cout << count << " chats received or updated" << endl;
+    }
+
     if (chats)
     {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat updated or created" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats updated or created" << endl;
-        }
-
         textchat_map::iterator it;
         for (it = chats->begin(); it != chats->end(); it++)
         {
@@ -671,6 +671,7 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "Chat ID: " << hstr << endl;
     cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
     cout << "\tURL: " << chat->url << endl;
     if (chat->group)
