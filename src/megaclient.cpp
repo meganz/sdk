@@ -7606,7 +7606,7 @@ void MegaClient::procmcf(JSON *j)
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1 && ts != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
                         if (chats.find(chatid) == chats.end())
                         {
@@ -7620,7 +7620,7 @@ void MegaClient::procmcf(JSON *j)
                         chat->shard = shard;
                         chat->group = group;
                         chat->title = title;
-                        chat->ts = ts;
+                        chat->ts = (ts != -1) ? ts : 0;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)
