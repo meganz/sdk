@@ -7606,7 +7606,7 @@ void MegaClient::procmcf(JSON *j)
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
+                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1 && ts != -1)
                     {
                         if (chats.find(chatid) == chats.end())
                         {
