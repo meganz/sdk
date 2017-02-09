@@ -4818,7 +4818,10 @@ void MegaClient::sc_chatupdate()
                     chat->url = ""; // not received in action packets
                     chat->ou = ou;
                     chat->title = title;
-                    chat->ts = ts;   // only in APs related to chat creation or when you're added to
+                    if (ts != -1)
+                    {
+                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
