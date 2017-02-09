@@ -183,6 +183,11 @@ public:
     // all users
     user_map users;
 
+#ifdef ENABLE_CHAT
+    // all chats
+    textchat_map chats;
+#endif
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -728,7 +733,7 @@ public:
     HttpReq* pendingcs;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
 
     // open/create state cache database table
     void opensctable();

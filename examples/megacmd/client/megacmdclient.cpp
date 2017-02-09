@@ -195,7 +195,6 @@ string getAbsPath(string relativePath)
 string parseArgs(int argc, char* argv[])
 {
     vector<string> absolutedargs;
-    int itochange = -1;
     int totalRealArgs = 0;
     if (argc>1)
     {
@@ -362,7 +361,12 @@ if (net)
         cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
         if (!number)
         {
+#ifdef __linux__
+            cerr << "Please ensure mega-cmd is running" << endl;
+#else
             cerr << "Please ensure MegaCMD is running" << endl;
+#endif
+
         }
         return INVALID_SOCKET;
     }
@@ -401,7 +405,11 @@ else
         cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
         if (!number)
         {
+#ifdef __linux__
+            cerr << "Please ensure mega-cmd is running" << endl;
+#else
             cerr << "Please ensure MegaCMD is running" << endl;
+#endif
         }
         return INVALID_SOCKET;
     }

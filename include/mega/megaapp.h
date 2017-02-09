@@ -212,7 +212,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
 
-    virtual void chats_updated(textchat_map *) { }
+    virtual void chats_updated(textchat_map *, int) { }
 #endif
 
     // global transfer queue updates
@@ -268,6 +268,8 @@ struct MEGA_API MegaApp
 
     // failed request retry notification
     virtual void notify_retry(dstime) { }
+
+    virtual void notify_dbcommit() { }
 
     virtual ~MegaApp() { }
 };

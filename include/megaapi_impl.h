@@ -429,6 +429,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
+        void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
 
 		virtual int getType() const;
@@ -470,6 +471,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual int getState() const;
         virtual void setPriority(unsigned long long p);
         virtual unsigned long long getPriority() const;
+        virtual long long getNotificationNumber() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -495,6 +497,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         long long speed;
         long long meanSpeed;
         long long deltaSize;
+        long long notificationNumber;
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
         const char* path;
@@ -517,7 +520,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 class MegaTransferDataPrivate : public MegaTransferData
 {
 public:
-    MegaTransferDataPrivate(TransferList *transferList);
+    MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber);
     MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData);
 
     virtual ~MegaTransferDataPrivate();
@@ -528,10 +531,12 @@ public:
     virtual int getUploadTag(int i) const;
     virtual unsigned long long getDownloadPriority(int i) const;
     virtual unsigned long long getUploadPriority(int i) const;
+    virtual long long getNotificationNumber() const;
 
 protected:
     int numDownloads;
     int numUploads;
+    long long notificationNumber;
     vector<int> downloadTags;
     vector<int> uploadTags;
     vector<uint64_t> downloadPriorities;
@@ -756,6 +761,25 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
+};
+
+class MegaEventPrivate : public MegaEvent
+{
+public:
+    MegaEventPrivate(int type);
+    MegaEventPrivate(MegaEventPrivate *event);
+    virtual ~MegaEventPrivate();
+    MegaEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getText() const;
+
+    void setText(const char* text);
+
+protected:
+    int type;
+    const char* text;
+
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1296,6 +1320,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *getSequenceNumber();
         char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
@@ -1400,7 +1425,7 @@ class MegaApiImpl : public MegaApp
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
-        void useHttpsOnly(bool httpsOnly);
+        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
 
         //Transfers
@@ -1634,6 +1659,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        MegaTextChatList *getChatList();
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1665,6 +1691,7 @@ protected:
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
+        void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -1719,6 +1746,7 @@ protected:
         int totalDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
+        long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
 
@@ -1890,7 +1918,7 @@ protected:
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
 
-        virtual void chats_updated(textchat_map *);
+        virtual void chats_updated(textchat_map *, int);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1926,6 +1954,9 @@ protected:
 
         // failed request retry notification
         virtual void notify_retry(dstime);
+
+        // notify about db commit
+        virtual void notify_dbcommit();
 
         void sendPendingRequests();
         void sendPendingTransfers();

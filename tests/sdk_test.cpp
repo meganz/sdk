@@ -375,7 +375,15 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     {
         apiIndex = 0;
 
-        MegaTextChatList *list = chats->copy();
+        MegaTextChatList *list = NULL;
+        if (chats)
+        {
+            list = chats->copy();
+        }
+        else
+        {
+            list = megaApi[0]->getChatList();
+        }
         for (int i = 0; i < list->size(); i++)
         {
             handle chatid = list->get(i)->getHandle();
@@ -389,6 +397,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
                 this->chats[chatid] = list->get(i)->copy();
             }
         }
+        delete list;
     }
     else if (api == megaApi[1])
     {
@@ -1004,6 +1013,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 
     delete session;
 }

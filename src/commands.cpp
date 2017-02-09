@@ -2307,44 +2307,50 @@ void CommandPutMultipleUAVer::procresult()
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-
-                if (tlvRecords->find(EdDSA::TLV_KEY))
+                if (tlvRecords)
                 {
-                    string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                    if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                    if (tlvRecords->find(EdDSA::TLV_KEY))
                     {
-                        client->signkey = new EdDSA((unsigned char *) prEd255.data());
+                        string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        {
+                            client->signkey = new EdDSA((unsigned char *) prEd255.data());
+                        }
                     }
-                }
 
-                if (tlvRecords->find(ECDH::TLV_KEY))
-                {
-                    string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                    if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                    if (tlvRecords->find(ECDH::TLV_KEY))
                     {
-                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                        string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        {
+                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                        }
                     }
-                }
 
-                if (!client->chatkey || !client->chatkey->initializationOK ||
-                        !client->signkey || !client->signkey->initializationOK)
-                {
-                    client->resetKeyring();
+                    if (!client->chatkey || !client->chatkey->initializationOK ||
+                            !client->signkey || !client->signkey->initializationOK)
+                    {
+                        client->resetKeyring();
 
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->sendevent(99418, "Failed to load attached keys");
-                    client->reqtag = creqtag;
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99418, "Failed to load attached keys");
+                        client->reqtag = creqtag;
+                    }
+                    else
+                    {
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99420, "Signing and chat keys attached OK");
+                        client->reqtag = creqtag;
+                    }
+
+                    delete tlvRecords;
                 }
                 else
                 {
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->sendevent(99420, "Signing and chat keys attached OK");
-                    client->reqtag = creqtag;
+                    LOG_warn << "Failed to decrypt keyring after putua";
                 }
-
-                delete tlvRecords;
             }
 #endif
         }
@@ -4493,18 +4499,22 @@ void CommandChatCreate::procresult()
                 case EOO:
                     if (chatid != UNDEF && !url.empty() && shard != -1)
                     {
-                        TextChat *chat = new TextChat();
+                        if (client->chats.find(chatid) == client->chats.end())
+                        {
+                            client->chats[chatid] = new TextChat();
+                        }
+
+                        TextChat *chat = client->chats[chatid];
                         chat->id = chatid;
                         chat->priv = PRIV_MODERATOR;
                         chat->url = url;
                         chat->shard = shard;
+                        delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = ts;
 
                         client->app->chatcreate_result(chat, API_OK);
-
-                        delete chat;
                     }
                     else
                     {

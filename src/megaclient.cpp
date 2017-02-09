@@ -2831,6 +2831,11 @@ void MegaClient::disconnect()
         (*it)->errorcount = 0;
     }
 
+    if (badhostcs)
+    {
+        badhostcs->disconnect();
+    }
+
     httpio->lastdata = NEVER;
     httpio->disconnect();
 }
@@ -3009,6 +3014,7 @@ bool MegaClient::procsc()
                             {
                                 sctable->commit();
                                 sctable->begin();
+                                app->notify_dbcommit();
                             }
 
                             WAIT_CLASS::bumpds();
@@ -3073,7 +3079,9 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, nodes.size());
                         app->users_updated(NULL, users.size());
                         app->pcrs_updated(NULL, pcrindex.size());
-
+#ifdef ENABLE_CHAT
+                        app->chats_updated(NULL, chats.size());
+#endif
                         for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
                         {
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
@@ -3091,6 +3099,7 @@ bool MegaClient::procsc()
                     {
                         sctable->commit();
                         sctable->begin();
+                        app->notify_dbcommit();
                     }
                     break;
                     
@@ -3363,7 +3372,23 @@ void MegaClient::initsc()
             }
         }
 
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
+#ifdef ENABLE_CHAT
+        if (complete)
+        {
+            // 5. write new or modified chats
+            for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
+            {
+                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                {
+                    break;
+                }
+            }
+        }
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+#else
+
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+ #endif
         finalizesc(complete);
     }
 }
@@ -3461,7 +3486,24 @@ void MegaClient::updatesc()
             }
         }
 
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
+#ifdef ENABLE_CHAT
+        if (complete)
+        {
+            // 5. write new or modified chats
+            for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
+            {
+                char base64[12];
+                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
+                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                {
+                    break;
+                }
+            }
+        }
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+#else
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+#endif
         finalizesc(complete);
     }
 }
@@ -4763,7 +4805,12 @@ void MegaClient::sc_chatupdate()
                 }
                 else
                 {
-                    TextChat *chat = new TextChat();
+                    if (chats.find(chatid) == chats.end())
+                    {
+                        chats[chatid] = new TextChat();
+                    }
+
+                    TextChat *chat = chats[chatid];
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
@@ -4807,6 +4854,7 @@ void MegaClient::sc_chatupdate()
                             }
                         }
                     }
+                    delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
                     notifychat(chat);
@@ -4962,13 +5010,16 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
-        // chats are notified even during fetchingnodes
-        app->chats_updated(&chatnotify);
-
-        for (i = 0; i < t; i++)
+        if (!fetchingnodes)
         {
-            delete chatnotify[i];
+            app->chats_updated(&chatnotify, t);
         }
+
+        for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
+        {
+            it->second->notified = false;
+        }
+
         chatnotify.clear();
     }
 #endif
@@ -7338,9 +7389,12 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
 #ifdef ENABLE_CHAT
 void MegaClient::notifychat(TextChat *chat)
 {
-    chatnotify[chat->id] = chat;
+    if (!chat->notified)
+    {
+        chat->notified = true;
+        chatnotify[chat->id] = chat;
+    }
 }
-
 #endif
 
 // process request for share node keys
@@ -7551,7 +7605,12 @@ void MegaClient::procmcf(JSON *j)
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
-                        TextChat *chat = new TextChat();
+                        if (chats.find(chatid) == chats.end())
+                        {
+                            chats[chatid] = new TextChat();
+                        }
+
+                        TextChat *chat = chats[chatid];
                         chat->id = chatid;
                         chat->priv = priv;
                         chat->url = url;
@@ -7578,8 +7637,8 @@ void MegaClient::procmcf(JSON *j)
                                 }
                             }
                         }
+                        delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = userpriv;
-                        notifychat(chat);
                     }
                     else
                     {
@@ -8073,6 +8132,24 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     LOG_err << "Failed - user record read error";
                     return false;
                 }
+                break;
+
+            case CACHEDCHAT:
+#ifdef ENABLE_CHAT
+                {
+                    TextChat *chat;
+                    if ((chat = TextChat::unserialize(this, &data)))
+                    {
+                        chat->dbid = id;
+                    }
+                    else
+                    {
+                        LOG_err << "Failed - chat record read error";
+                        return false;
+                    }
+                }
+#endif
+                break;
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -8321,15 +8398,15 @@ void MegaClient::fetchnodes(bool nocache)
         restag = reqtag;
         statecurrent = false;
 
-        app->fetchnodes_result(API_OK);
-
-        WAIT_CLASS::bumpds();
-        fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-
         sctable->begin();
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+
+        app->fetchnodes_result(API_OK);
+
+        WAIT_CLASS::bumpds();
+        fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
     else if (!fetchingnodes)
     {
@@ -8393,39 +8470,46 @@ void MegaClient::initializekeys()
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
-
-        if (tlvRecords->find(EdDSA::TLV_KEY))
+        if (tlvRecords)
         {
-            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+
+            if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                signkey = new EdDSA((unsigned char *) prEd255.data());
-                if (!signkey->initializationOK)
+                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                 {
-                    delete signkey;
-                    signkey = NULL;
-                    clearKeys();
-                    return;
+                    signkey = new EdDSA((unsigned char *) prEd255.data());
+                    if (!signkey->initializationOK)
+                    {
+                        delete signkey;
+                        signkey = NULL;
+                        clearKeys();
+                        return;
+                    }
                 }
             }
-        }
 
-        if (tlvRecords->find(ECDH::TLV_KEY))
-        {
-            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            if (tlvRecords->find(ECDH::TLV_KEY))
             {
-                chatkey = new ECDH((unsigned char *) prCu255.data());
-                if (!chatkey->initializationOK)
+                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                 {
-                    delete chatkey;
-                    chatkey = NULL;
-                    clearKeys();
-                    return;
+                    chatkey = new ECDH((unsigned char *) prCu255.data());
+                    if (!chatkey->initializationOK)
+                    {
+                        delete chatkey;
+                        chatkey = NULL;
+                        clearKeys();
+                        return;
+                    }
                 }
             }
+            delete tlvRecords;
         }
-        delete tlvRecords;
+        else
+        {
+            LOG_warn << "Failed to decrypt keyring while initialization";
+        }
     }
 
     string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
@@ -8690,13 +8774,19 @@ void MegaClient::purgenodesusersabortsc()
     uhindex.clear();
     umindex.clear();
 #else
+    chatnotify.clear();
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        it++;
         if (u->userhandle != me)
         {
-            discarduser(u->userhandle);
+            umindex.erase(u->email);
+            uhindex.erase(u->userhandle);
+            users.erase(it++);
+        }
+        else
+        {
+            it++;
         }
     }
 
@@ -10351,7 +10441,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                 }
             }
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             f->tag = reqtag;
             if (!f->dbid)
@@ -10443,7 +10533,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             f->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
 
-            f->file_it = t->files.insert(t->files.begin(), f);
+            f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             if (!f->dbid)
             {

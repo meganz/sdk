@@ -1,3 +1,15 @@
+megacmd (0.9.3) stable; urgency=low
+
+  * fixed mkdir in MacOS
+  * added command \
+  * added -n to \
+  * modified greeting
+  * fixed \
+  * fixed download >4GB files
+  * fixed bug in asynchronous transfers
+
+ -- MEGA Team <linux@mega.co.nz>  Thu, 02 Feb 2017 11:32:38 +0100
+
 megacmd (0.9.1) stable; urgency=low
 
   * Initial version of megacmd
