@@ -81,6 +81,7 @@ mega-share foreign -a --with=$MEGA_EMAIL
 mega-logout
 
 mega-login $MEGA_EMAIL $MEGA_PWD
+mega-ipc -a $MEGA_EMAIL_AUX
 
 mega-put cloud0* /
 mega-put bin0* //bin
