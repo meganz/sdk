@@ -819,8 +819,8 @@ if test "x$WIN32" = "xno" ; then
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
     LDFLAGS="-lrt $LDFLAGS"
     if test "$HAVE_PTHREAD" = "yes"; then
-        SAVE_LDFLAGS="-lpthread $SAVE_LDFLAGS"
-        LDFLAGS="-lpthread $LDFLAGS"
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
     fi    
 #    LIBRT_CXXFLAGS="-lrt "
 #    LIBRT_CPPFLAGS="-lrt "
