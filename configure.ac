@@ -232,7 +232,6 @@ else
 fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
-    LDFLAGS="-lpthread $LDFLAGS"
 fi
 AM_CONDITIONAL([HAVE_PTHREAD], [test "${HAVE_PTHREAD}" = "yes"])
 
@@ -819,6 +818,10 @@ if test "x$WIN32" = "xno" ; then
     AC_CHECK_LIB([rt], [aio_write], [
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
     LDFLAGS="-lrt $LDFLAGS"
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-lpthread $SAVE_LDFLAGS"
+        LDFLAGS="-lpthread $LDFLAGS"
+    fi    
 #    LIBRT_CXXFLAGS="-lrt "
 #    LIBRT_CPPFLAGS="-lrt "
 #    LIBRT_LDFLAGS="-lrt "
