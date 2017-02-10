@@ -724,7 +724,6 @@ public:
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
-    MegaClient *client;
     userpriv_vector *chatPeers;
 
 public:
@@ -735,7 +734,10 @@ public:
 
 class MEGA_API CommandChatInvite : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+    privilege_t priv;
+    const char *title;
 
 public:
     void procresult();
@@ -745,7 +747,9 @@ public:
 
 class MEGA_API CommandChatRemove : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+
 public:
     void procresult();
 
@@ -754,7 +758,7 @@ public:
 
 class MEGA_API CommandChatURL : public Command
 {
-    MegaClient *client;
+    handle chatid;
 
 public:
     void procresult();
@@ -764,7 +768,6 @@ public:
 
 class MEGA_API CommandChatGrantAccess : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -774,7 +777,6 @@ public:
 
 class MEGA_API CommandChatRemoveAccess : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -784,7 +786,9 @@ public:
 
 class MEGA_API CommandChatUpdatePermissions : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+    privilege_t priv;
 
 public:
     void procresult();
@@ -794,7 +798,6 @@ public:
 
 class MEGA_API CommandChatTruncate : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -804,7 +807,8 @@ public:
 
 class MEGA_API CommandChatSetTitle : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    const char *title;
 
 public:
     void procresult();
@@ -814,7 +818,6 @@ public:
 
 class MEGA_API CommandChatPresenceURL : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -824,8 +827,6 @@ public:
 
 class MEGA_API CommandRegisterPushNotification : public Command
 {
-    MegaClient *client;
-
 public:
     void procresult();
 
