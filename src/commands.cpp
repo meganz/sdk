@@ -4814,6 +4814,7 @@ void CommandChatUpdatePermissions::procresult()
                 return;
             }
 
+            bool found = false;
             userpriv_vector::iterator upvit;
             for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
             {
@@ -4821,8 +4822,16 @@ void CommandChatUpdatePermissions::procresult()
                 {
                     chat->userpriv->erase(upvit);
                     chat->userpriv->push_back(userpriv_pair(uh, priv));
+                    found = true;
                     break;
                 }
+            }
+
+            if (!found)
+            {
+                // the update succeed, but that peer is not included in the chatroom
+                client->app->chatupdatepermissions_result(API_EINTERNAL);
+                return;
             }
         }
 
