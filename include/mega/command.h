@@ -742,7 +742,7 @@ class MEGA_API CommandChatInvite : public Command
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, const char *, privilege_t, const char *);
+    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *);
 };
 
 class MEGA_API CommandChatRemove : public Command
@@ -753,7 +753,7 @@ class MEGA_API CommandChatRemove : public Command
 public:
     void procresult();
 
-    CommandChatRemove(MegaClient*, handle, const char * = NULL);
+    CommandChatRemove(MegaClient*, handle, handle uh);
 };
 
 class MEGA_API CommandChatURL : public Command

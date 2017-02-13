@@ -465,10 +465,10 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
 
     // remove a user from a chat
-    void removeFromChat(handle chatid, const char *uid = NULL);
+    void removeFromChat(handle chatid, handle uh);
 
     // get the URL of a chat
     void getUrlChat(handle chatid);

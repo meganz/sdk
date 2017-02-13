@@ -10761,14 +10761,14 @@ void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
-void MegaClient::inviteToChat(handle chatid, const char *uid, int priv, const char *title)
+void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv, title));
+    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, title));
 }
 
-void MegaClient::removeFromChat(handle chatid, const char *uid)
+void MegaClient::removeFromChat(handle chatid, handle uh)
 {
-    reqs.add(new CommandChatRemove(this, chatid, uid));
+    reqs.add(new CommandChatRemove(this, chatid, uh));
 }
 
 void MegaClient::getUrlChat(handle chatid)

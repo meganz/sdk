@@ -4530,13 +4530,17 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char* title)
 {
     this->client = client;
     this->chatid = chatid;
-    Base64::atob(uid, (byte*)&this->uh, sizeof this->uh);
+    this->uh = uh;
     this->priv = priv;
     this->title = title ? string(title) : "";
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
 
     cmd("mci");
 
@@ -4591,18 +4595,22 @@ void CommandChatInvite::procresult()
     }
 }
 
-CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const char *uid)
+CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
     this->client = client;
     this->chatid = chatid;
-    Base64::atob(uid, (byte*)&this->uh, sizeof this->uh);
+    this->uh = uh;
 
     cmd("mcr");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    if (uid)
+    if (uh != client->me)
     {
+        char uid[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+        uid[11] = 0;
+
         arg("u", uid);
     }
     arg("v", 1);
