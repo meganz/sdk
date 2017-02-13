@@ -4634,25 +4634,30 @@ void CommandChatRemove::procresult()
             }
 
             TextChat *chat = client->chats[chatid];
-            if (!chat->userpriv)
+            if (chat->userpriv)
             {
-                // the removal succeed, but the list of peers is empty
-                client->app->chatremove_result(API_EINTERNAL);
-                return;
-            }
-
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
+                userpriv_vector::iterator upvit;
+                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
                 {
-                    chat->userpriv->erase(upvit);
-                    if (chat->userpriv->empty())
+                    if (upvit->first == uh)
                     {
-                        delete chat->userpriv;
-                        chat->userpriv = NULL;
+                        chat->userpriv->erase(upvit);
+                        if (chat->userpriv->empty())
+                        {
+                            delete chat->userpriv;
+                            chat->userpriv = NULL;
+                        }
+                        break;
                     }
-                    break;
+                }
+            }
+            else
+            {
+                if (uh != client->me)
+                {
+                    // the removal succeed, but the list of peers is empty
+                    client->app->chatremove_result(API_EINTERNAL);
+                    return;
                 }
             }
         }
