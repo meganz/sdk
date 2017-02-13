@@ -483,7 +483,7 @@ public:
     void removeAccessInChat(handle chatid, handle h, const char *uid);
 
     // update permissions of a peer in a chat
-    void updateChatPermissions(handle chatid, const char *uid, int priv);
+    void updateChatPermissions(handle chatid, handle uh, int priv);
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);

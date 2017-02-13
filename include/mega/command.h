@@ -793,7 +793,7 @@ class MEGA_API CommandChatUpdatePermissions : public Command
 public:
     void procresult();
 
-    CommandChatUpdatePermissions(MegaClient*, handle, const char *, privilege_t);
+    CommandChatUpdatePermissions(MegaClient*, handle, handle, privilege_t);
 };
 
 class MEGA_API CommandChatTruncate : public Command

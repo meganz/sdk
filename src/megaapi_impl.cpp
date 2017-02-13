@@ -14033,11 +14033,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            char uid[12];
-            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-            uid[11] = 0;
-
-            client->updateChatPermissions(chatid, uid, access);
+            client->updateChatPermissions(chatid, uh, access);
             break;
         }
         case MegaRequest::TYPE_CHAT_TRUNCATE:

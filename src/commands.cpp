@@ -4765,12 +4765,16 @@ void CommandChatRemoveAccess::procresult()
     }
 }
 
-CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
     this->client = client;
     this->chatid = chatid;
-    Base64::atob(uid, (byte*)&this->uh, sizeof this->uh);
+    this->uh = uh;
     this->priv = priv;
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
 
     cmd("mcup");
     arg("v", 1);
