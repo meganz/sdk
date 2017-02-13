@@ -99,7 +99,17 @@ macx {
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
     LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
+    QMAKE_CXXFLAGS += -g
 }
 else {
     LIBS += -lfreeimage
+}
+
+win32 {
+    QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
+    QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
+}
+
+release {
+    DEFINES += NDEBUG
 }
