@@ -47,6 +47,7 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_delete_files test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+        self.app.change_folders();
 
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
@@ -81,6 +82,7 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_rename_delete_files test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+        self.app.change_folders();        
 
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
@@ -125,6 +127,8 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_delete_dirs test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+        self.app.change_folders();
+        
 
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
@@ -161,6 +165,8 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_rename_delete_dirs test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        self.app.change_folders();
 
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
@@ -205,11 +211,12 @@ class SyncTest(SyncTestBase):
 
         logging.info("Launching test_sync_files_write test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+        self.app.change_folders();
 
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
-        for _ in range(0, 5):
+        for _ in range(0, self.nr_files):
             self.assertTrue(self.app.is_alive(), "Test application is not running")
             strlen = random.randint(10, 20)
             fname = get_random_str(size=strlen)
@@ -224,17 +231,17 @@ class SyncTest(SyncTestBase):
             with open(fname_out, 'a'):
                 os.utime(fname_out, None)
 
-            self.app.sync()
+            #self.app.sync()
 
-            for _ in range(10):
+            for _ in range(self.nr_changes):
                 with open(fname_in, 'a') as f_in:
                     f_in.write(get_random_str(100))
 
                 with open(fname_out, 'a') as f_out:
                     f_out.write(get_random_str(100))
 
-                for _ in range(50):
-                    self.app.sync()
+                for r in range(self.app.nr_retries):
+                    self.app.attempt=r
                     md5_in = "INPUT FILE NOT READABLE";
                     md5_out = "OUTPUT FILE NOT READABLE";
 
@@ -246,11 +253,13 @@ class SyncTest(SyncTestBase):
 
                     if md5_in == md5_out:
                         break
+                    self.app.sync()
 
                 logging.debug("File %s md5: %s" % (fname_in, md5_in))
                 logging.debug("File %s md5: %s" % (fname_out, md5_out))
 
                 self.assertEqual(md5_in, md5_out, "Files do not match")
+
 
     def test_local_operations(self):
         """
@@ -259,7 +268,9 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_local_operations test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
-        l_tree = self.local_tree_create("", 5)
+        self.app.change_folders();
+        
+        l_tree = self.local_tree_create("", self.nr_dirs)
         self.assertIsNotNone(l_tree, "Failed to create directory tree!")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
         self.app.sync()
@@ -276,6 +287,8 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_update_mtime test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
+        
+        self.app.change_folders();
 
         in_file = os.path.join(self.app.local_folder_in, "mtime_test")
         out_file = os.path.join(self.app.local_folder_out, "mtime_test")
@@ -292,7 +305,7 @@ class SyncTest(SyncTestBase):
             atime=0
             mtime=0
             for r in range(self.app.nr_retries):
-                self.app.sync()
+                self.app.attempt=r
                 try:
                     mtime = os.path.getmtime(out_file)
                 except OSError:
@@ -307,6 +320,7 @@ class SyncTest(SyncTestBase):
                 
                 if (mtime==now): #all good
                     break;
+                self.app.sync()
                 logging.debug("Comparing time for %s failed! Retrying [%d/%d] .." % (out_file, r + 1, self.nr_retries))
 
             
@@ -326,7 +340,9 @@ class SyncTest(SyncTestBase):
         """
         logging.info("Launching test_create_rename_delete_unicode_files_dirs test")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
-
+        
+        self.app.change_folders();
+        
         # make sure remote folders are empty
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
@@ -360,7 +376,7 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
-        # make sure remote folders are empty
+        # make sure remote folders are empty #TODO: why is this twice?
         self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
