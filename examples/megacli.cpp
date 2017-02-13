@@ -3515,7 +3515,7 @@ static void process_line(char* l)
 
                             if (words.size() == 2)
                             {
-                                client->removeFromChat(chatid);
+                                client->removeFromChat(chatid, client->me);
                             }
                             else if (words.size() == 3)
                             {
