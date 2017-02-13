@@ -4536,7 +4536,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
     this->chatid = chatid;
     Base64::atob(uid, (byte*)&this->uh, sizeof this->uh);
     this->priv = priv;
-    this->title = title;
+    this->title = title ? string(title) : "";
 
     cmd("mci");
 
@@ -4576,9 +4576,9 @@ void CommandChatInvite::procresult()
 
             chat->userpriv->push_back(userpriv_pair(uh, priv));
 
-            if (title)  // only if title was set for this chatroom, update it
+            if (!title.empty())  // only if title was set for this chatroom, update it
             {
-                chat->title.assign(title);
+                chat->title = title;
             }
         }
 
@@ -4850,7 +4850,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
 {
     this->client = client;
     this->chatid = chatid;
-    this->title = title;
+    this->title = title ? string(title) : "";
 
     cmd("mcst");
     arg("v", 1);
@@ -4876,14 +4876,7 @@ void CommandChatSetTitle::procresult()
                 return;
             }
 
-            if (title)
-            {
-                client->chats[chatid]->title.assign(title);
-            }
-            else
-            {
-                client->chats[chatid]->title = "";
-            }
+            client->chats[chatid]->title = title;
         }
 
         client->app->chatsettitle_result(e);

@@ -737,7 +737,7 @@ class MEGA_API CommandChatInvite : public Command
     handle chatid;
     handle uh;
     privilege_t priv;
-    const char *title;
+    string title;
 
 public:
     void procresult();
@@ -808,7 +808,7 @@ public:
 class MEGA_API CommandChatSetTitle : public Command
 {
     handle chatid;
-    const char *title;
+    string title;
 
 public:
     void procresult();
