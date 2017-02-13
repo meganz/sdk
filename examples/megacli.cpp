@@ -3496,7 +3496,7 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+                            client->inviteToChat(chatid, u->userhandle, priv);
                             return;
                         }
                         else
@@ -3515,7 +3515,7 @@ static void process_line(char* l)
 
                             if (words.size() == 2)
                             {
-                                client->removeFromChat(chatid);
+                                client->removeFromChat(chatid, client->me);
                             }
                             else if (words.size() == 3)
                             {
@@ -3527,7 +3527,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                client->removeFromChat(chatid, u->uid.c_str());
+                                client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
                             else
