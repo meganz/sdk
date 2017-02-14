@@ -212,8 +212,12 @@ BOOL CtrlHandler( DWORD fdwCtrlType )
 }
 #endif
 
+prompttype getprompt()
+{
+    return prompt;
+}
 
-void setprompt(prompttype p)
+void setprompt(prompttype p, string arg)
 {
     prompt = p;
 
@@ -224,7 +228,15 @@ void setprompt(prompttype p)
     else
     {
         pw_buf_pos = 0;
-        OUTSTREAM << prompts[p] << flush;
+        if (arg.size())
+        {
+            OUTSTREAM << arg << flush;
+        }
+        else
+        {
+            OUTSTREAM << prompts[p] << flush;
+        }
+
         console->setecho(false);
     }
 }
@@ -1888,12 +1900,10 @@ static bool process_line(char* l)
             if (!strcmp(l,"yes") || !strcmp(l,"YES") || !strcmp(l,"y") || !strcmp(l,"Y"))
             {
                 cmdexecuter->confirmDelete();
-                setprompt(COMMAND);
             }
             else if (!strcmp(l,"no") || !strcmp(l,"NO") || !strcmp(l,"n") || !strcmp(l,"N"))
             {
                 cmdexecuter->discardDelete();
-                setprompt(COMMAND);
             }
             else
             {

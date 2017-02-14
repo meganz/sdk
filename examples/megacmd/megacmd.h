@@ -45,7 +45,7 @@ static const char* const prompts[] =
 
 enum
 {
-    MCMD_OK = 0,                ///< Everything OK
+    MCMD_OK = 0,              ///< Everything OK
 
     MCMD_EARGS = -51,         ///< Wrong arguments
     MCMD_INVALIDEMAIL = -52,  ///< Invalid email
@@ -68,7 +68,9 @@ const char * getUsageStr(const char *command);
 
 void unescapeifRequired(std::string &what);
 
-void setprompt(prompttype p);
+void setprompt(prompttype p, std::string arg = "");
+
+prompttype getprompt();
 
 void printHistory();
 

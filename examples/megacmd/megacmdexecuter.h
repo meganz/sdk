@@ -44,7 +44,8 @@ private:
     std::string link;
 
     //delete confirmation
-    mega::MegaNode *nodeToConfirmDelete;
+    std::vector<mega::MegaNode *> nodesToConfirmDelete;
+
 
     void updateprompt(mega::MegaApi *api, mega::MegaHandle handle);
 
