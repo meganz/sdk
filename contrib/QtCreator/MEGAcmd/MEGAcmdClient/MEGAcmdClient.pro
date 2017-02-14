@@ -16,6 +16,16 @@ CONFIG += console
 SOURCES += ../../../../examples/megacmd/client/megacmdclient.cpp
 
 win32 {
-LIBS +=  -lshlwapi -lws2_32
-RC_FILE = icon.rc
+    LIBS +=  -lshlwapi -lws2_32
+    RC_FILE = icon.rc
+    QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
+    QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
+}
+
+macx {
+    QMAKE_CXXFLAGS += -g
+}
+
+release {
+    DEFINES += NDEBUG
 }
