@@ -390,7 +390,7 @@ void Transfer::failed(error e, dstime timeleft)
         ultoken = NULL;
         pos = 0;
 
-        if (slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
         {
             LOG_warn << "Modification detected during active upload";
             File *f = files.front();
