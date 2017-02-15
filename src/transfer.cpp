@@ -389,6 +389,28 @@ void Transfer::failed(error e, dstime timeleft)
         delete [] ultoken;
         ultoken = NULL;
         pos = 0;
+
+        if (slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        {
+            LOG_warn << "Modification detected during active upload";
+            File *f = files.front();
+#ifdef ENABLE_SYNC
+            if (f->syncxfer)
+            {
+                client->syncdownrequired = true;
+            }
+#endif
+            client->filecachedel(f);
+            files.erase(f->file_it);
+            client->app->file_removed(f, API_EREAD);
+            f->transfer = NULL;
+            f->terminated();
+
+            if (!files.size())
+            {
+                defer = false;
+            }
+        }
     }
 
     if (defer && !(e == API_EOVERQUOTA && !timeleft))
@@ -795,19 +817,51 @@ void Transfer::complete()
     else
     {
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        delete slot->fa;
+        slot->fa = NULL;
 
         // files must not change during a PUT transfer
-        if (slot->fa->asyncavailable())
+        for (file_list::iterator it = files.begin(); it != files.end(); )
         {
-            delete slot->fa;
-            slot->fa = client->fsaccess->newfileaccess();
-            if (!slot->fa->fopen(&localfilename))
+            File *f = (*it);
+            bool isOpen = true;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if (!fa->fopen(&f->localname))
             {
-                return failed(API_EREAD);
+                isOpen = false;
+                if (client->fsaccess->transient_error)
+                {
+                    LOG_warn << "Retrying upload completion due to a transient error";
+                    slot->retrying = true;
+                    slot->retrybt.backoff(11);
+                    delete fa;
+                    return;
+                }
             }
+
+            if (!isOpen || f->genfingerprint(fa))
+            {
+                LOG_warn << "Modification detected after upload";
+#ifdef ENABLE_SYNC
+                if (f->syncxfer)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->filecachedel(f);
+                files.erase(it++);
+                client->app->file_removed(f, API_EREAD);
+                f->transfer = NULL;
+                f->terminated();
+            }
+            else
+            {
+                it++;
+            }
+            delete fa;
         }
 
-        if (genfingerprint(slot->fa, true))
+        if (!files.size())
         {
             return failed(API_EREAD);
         }

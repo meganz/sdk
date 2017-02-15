@@ -2596,7 +2596,12 @@ bool MegaClient::dispatch(direction_t d)
 
                 if (d == PUT)
                 {
-                    nexttransfer->size = ts->fa->size;
+                    if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
+                    {
+                        LOG_warn << "Modification detected starting upload";
+                        nexttransfer->failed(API_EREAD);
+                        continue;
+                    }
 
                     // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
                     if (gfx && nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
@@ -10483,7 +10488,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 {
                     if (d == PUT)
                     {
-                        if (t->genfingerprint(fa))
+                        if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
                             t->cachedtempurl.clear();
@@ -10514,7 +10519,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 t = new Transfer(this, d);
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
-                t->size = f->size;
             }
 
             t->lastaccesstime = time(NULL);
