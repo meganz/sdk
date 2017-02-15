@@ -222,13 +222,14 @@ DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
 FileAccess::FileAccess(Waiter *waiter)
 {
     this->waiter = waiter;
-    this->numops = 0;
+    this->isAsyncOpened = false;
+    this->numAsyncReads = 0;
 }
 
 FileAccess::~FileAccess()
 {
     // All AsyncIOContext objects must be deleted before
-    assert(!numops);
+    assert(!numAsyncReads && !isAsyncOpened);
 }
 
 // open file for reading
@@ -309,22 +310,24 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
 
 bool FileAccess::asyncopenf()
 {
+    numAsyncReads++;
     if (!localname.size())
     {
         return true;
     }
 
-    if (numops)
+    if (isAsyncOpened)
     {
-        numops++;
         return true;
     }
 
-    m_time_t curr_mtime;
-    m_off_t curr_size;
-
+    m_time_t curr_mtime = 0;
+    m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
     {
+        LOG_warn << "Error opening async file handle (sysstat) "
+                 << curr_mtime << " - " << mtime
+                 << curr_size  << " - " << size;
         return false;
     }
 
@@ -332,21 +335,22 @@ bool FileAccess::asyncopenf()
     bool result = sysopen(true);
     if (result)
     {
-        numops++;
+        isAsyncOpened = true;
     }
     else
     {
-        LOG_err << "Error opening async file handle";
+        LOG_warn << "Error opening async file handle (sysopen)";
     }
     return result;
 }
 
 void FileAccess::asyncclosef()
 {
-    numops--;
-    if (localname.size() && !numops)
+    numAsyncReads--;
+    if (isAsyncOpened && !numAsyncReads)
     {
         LOG_debug << "Closing async file handle";
+        isAsyncOpened = false;
         sysclose();
     }
 }
