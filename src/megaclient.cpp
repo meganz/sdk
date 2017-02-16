@@ -8763,7 +8763,13 @@ void MegaClient::purgenodesusersabortsc()
     uhindex.clear();
     umindex.clear();
 #else
+    for (textchat_map::iterator it = chats.begin(); it != chats.end();)
+    {
+        delete it->second;
+        chats.erase(it++);
+    }
     chatnotify.clear();
+
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
