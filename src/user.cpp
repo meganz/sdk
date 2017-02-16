@@ -159,7 +159,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
-    u->setTag(-1);
+    u->resetTag();
 
     if (attrVersion == '\0')
     {

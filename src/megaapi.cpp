@@ -4141,6 +4141,11 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+int MegaTextChat::isOwnChange() const
+{
+    return 0;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 

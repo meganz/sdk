@@ -17236,9 +17236,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->group = chat->isGroup();
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
+    this->tag = chat->isOwnChange();
 }
 
-MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title)
+MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title, int tag)
 {
     this->id = id;
     this->priv = priv;
@@ -17247,6 +17248,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, int shard, const M
     this->group = group;
     this->ou = ou;
     this->title = title;
+    this->tag = tag;
 }
 
 MegaTextChat *MegaTextChatPrivate::copy() const
@@ -17292,6 +17294,11 @@ MegaHandle MegaTextChatPrivate::getOriginatingUser() const
 const char *MegaTextChatPrivate::getTitle() const
 {
     return !title.empty() ? title.c_str() : NULL;
+}
+
+int MegaTextChatPrivate::isOwnChange() const
+{
+    return tag;
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
@@ -17356,7 +17363,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
     {
         chat = it->second;
         chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
-        megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->shard, chatPeers, chat->group, chat->ou, chat->title);
+        megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->shard, chatPeers, chat->group, chat->ou, chat->title, chat->tag);
 
         this->list.push_back(megaChat);
     }

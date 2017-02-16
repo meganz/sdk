@@ -4851,6 +4851,7 @@ void MegaClient::sc_chatupdate()
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
+                    chat->setTag(0);    // external change
                     notifychat(chat);
                 }
 
@@ -5014,6 +5015,7 @@ void MegaClient::notifypurge(void)
             TextChat *chat = it->second;
 
             chat->notified = false;
+            chat->resetTag();
         }
 
         chatnotify.clear();

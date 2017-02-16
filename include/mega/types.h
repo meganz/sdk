@@ -432,11 +432,17 @@ struct TextChat : public Cachable
     string title;   // byte array
     handle ou;
 
+    int tag;    // source tag, to identify own changes
+
     TextChat();
     ~TextChat();
 
     bool serialize(string *d);
     static TextChat* unserialize(class MegaClient *client, string *d);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

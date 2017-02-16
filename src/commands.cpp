@@ -4503,6 +4503,7 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
 
+                        chat->setTag(tag ? tag : -1);
                         client->notifychat(chat);
 
                         client->app->chatcreate_result(chat, API_OK);
@@ -4580,6 +4581,8 @@ void CommandChatInvite::procresult()
             {
                 chat->title = title;
             }
+
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
 
@@ -4658,6 +4661,7 @@ void CommandChatRemove::procresult()
                 }
             }
 
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
 
@@ -4822,6 +4826,8 @@ void CommandChatUpdatePermissions::procresult()
                 client->app->chatupdatepermissions_result(API_EINTERNAL);
                 return;
             }
+
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
 
@@ -4865,6 +4871,7 @@ void CommandChatTruncate::procresult()
             }
 
             TextChat *chat = client->chats[chatid];
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
 
@@ -4910,6 +4917,7 @@ void CommandChatSetTitle::procresult()
             TextChat *chat = client->chats[chatid];
             chat->title = title;
 
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
 

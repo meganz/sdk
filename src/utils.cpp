@@ -38,6 +38,7 @@ TextChat::TextChat()
     userpriv = NULL;
     group = false;
     ou = UNDEF;
+    resetTag();
 }
 
 TextChat::~TextChat()
@@ -201,8 +202,27 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->group = group;
     chat->title = title;
     chat->ou = ou;
+    chat->resetTag();
 
     return chat;
+}
+
+void TextChat::setTag(int tag)
+{
+    if (this->tag != 0)    // external changes prevail
+    {
+        this->tag = tag;
+    }
+}
+
+int TextChat::getTag()
+{
+    return tag;
+}
+
+void TextChat::resetTag()
+{
+    tag = -1;
 }
 #endif
 
