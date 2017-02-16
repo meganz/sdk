@@ -426,7 +426,6 @@ struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
-    string url;
     int shard;
     userpriv_vector *userpriv;
     bool group;

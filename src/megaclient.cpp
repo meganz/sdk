@@ -4811,7 +4811,6 @@ void MegaClient::sc_chatupdate()
                     chat->shard = shard;
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
-                    chat->url = ""; // not received in action packets
                     chat->ou = ou;
                     chat->title = title;
 
@@ -7553,7 +7552,6 @@ void MegaClient::procmcf(JSON *j)
         {
             handle chatid = UNDEF;
             privilege_t priv = PRIV_UNKNOWN;
-            string url;
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
@@ -7570,10 +7568,6 @@ void MegaClient::procmcf(JSON *j)
 
                 case 'p':
                     priv = (privilege_t) j->getint();
-                    break;
-
-                case MAKENAMEID3('u','r','l'):
-                    j->storeobject(&url);
                     break;
 
                 case MAKENAMEID2('c','s'):
@@ -7603,7 +7597,6 @@ void MegaClient::procmcf(JSON *j)
                         TextChat *chat = chats[chatid];
                         chat->id = chatid;
                         chat->priv = priv;
-                        chat->url = url;
                         chat->shard = shard;
                         chat->group = group;
                         chat->title = title;

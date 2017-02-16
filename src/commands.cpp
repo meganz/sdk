@@ -4700,15 +4700,6 @@ void CommandChatURL::procresult()
         }
         else
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chaturl_result(NULL, API_EINTERNAL);
-                return;
-            }
-
-            client->chats[chatid]->url = url;
-
             client->app->chaturl_result(&url, API_OK);
         }
     }
