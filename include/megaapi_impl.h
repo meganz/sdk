@@ -958,15 +958,13 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
+    MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaTextChat *copy() const;
 
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
-    virtual const char *getUrl() const;
-    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;

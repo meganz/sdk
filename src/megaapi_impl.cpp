@@ -17231,7 +17231,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 {
     this->id = chat->getHandle();
     this->priv = chat->getOwnPrivilege();
-    this->url = chat->getUrl() ? chat->getUrl() : "";
     this->shard = chat->getShard();
     this->peers = chat->getPeerList() ? chat->getPeerList()->copy() : NULL;
     this->group = chat->isGroup();
@@ -17239,11 +17238,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->title = chat->getTitle() ? chat->getTitle() : "";
 }
 
-MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title)
+MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title)
 {
     this->id = id;
     this->priv = priv;
-    this->url = url;
     this->shard = shard;
     this->peers = peers ? peers->copy() : NULL;
     this->group = group;
@@ -17269,23 +17267,6 @@ MegaHandle MegaTextChatPrivate::getHandle() const
 int MegaTextChatPrivate::getOwnPrivilege() const
 {
     return priv;
-}
-
-const char *MegaTextChatPrivate::getUrl() const
-{
-    return !url.empty() ? url.c_str() : NULL;
-}
-
-void MegaTextChatPrivate::setUrl(const char *url)
-{
-    if (url)
-    {
-        this->url.assign(url);
-    }
-    else
-    {
-        this->url.clear();
-    }
 }
 
 int MegaTextChatPrivate::getShard() const
@@ -17375,7 +17356,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
     {
         chat = it->second;
         chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
-        megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->url, chat->shard, chatPeers, chat->group, chat->ou, chat->title);
+        megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->shard, chatPeers, chat->group, chat->ou, chat->title);
 
         this->list.push_back(megaChat);
     }

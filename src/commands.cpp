@@ -4467,7 +4467,6 @@ void CommandChatCreate::procresult()
     }
     else
     {
-        string url;
         handle chatid = UNDEF;
         int shard = -1;
         bool group = false;
@@ -4476,10 +4475,6 @@ void CommandChatCreate::procresult()
         {
             switch (client->json.getnameid())
             {
-                case MAKENAMEID3('u','r','l'):
-                    client->json.storeobject(&url);
-                    break;
-
                 case MAKENAMEID2('i','d'):
                     chatid = client->json.gethandle(MegaClient::CHATHANDLE);
                     break;
@@ -4493,7 +4488,7 @@ void CommandChatCreate::procresult()
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && !url.empty() && shard != -1)
+                    if (chatid != UNDEF && shard != -1)
                     {
                         if (client->chats.find(chatid) == client->chats.end())
                         {
@@ -4503,7 +4498,6 @@ void CommandChatCreate::procresult()
                         TextChat *chat = client->chats[chatid];
                         chat->id = chatid;
                         chat->priv = PRIV_MODERATOR;
-                        chat->url = url;
                         chat->shard = shard;
                         delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = this->chatPeers;

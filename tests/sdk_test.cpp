@@ -216,7 +216,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
                 MegaTextChatPrivate *buf = new MegaTextChatPrivate(
                             chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
+                            chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
                             chat->getTitle() ? chat->getTitle() : "");
@@ -256,7 +256,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
                 MegaTextChatPrivate *buf = new MegaTextChatPrivate(
                             chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
+                            chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
                             chat->getTitle() ? chat->getTitle() : "");
