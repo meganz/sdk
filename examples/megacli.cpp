@@ -696,6 +696,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << " no peers (only you as participant)" << endl;
     }
+    if (chat->tag)
+    {
+        cout << "\tIs own change: yes" << endl;
+    }
+    else
+    {
+        cout << "\tIs own change: no" << endl;
+    }
     if (!chat->title.empty())
     {
         char *tstr = new char[chat->title.size() * 4 / 3 + 4];
