@@ -4509,6 +4509,8 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
 
+                        client->notifychat(chat);
+
                         client->app->chatcreate_result(chat, API_OK);
                     }
                     else
@@ -4584,6 +4586,7 @@ void CommandChatInvite::procresult()
             {
                 chat->title = title;
             }
+            client->notifychat(chat);
         }
 
         client->app->chatinvite_result(e);
@@ -4660,6 +4663,8 @@ void CommandChatRemove::procresult()
                     return;
                 }
             }
+
+            client->notifychat(chat);
         }
 
         client->app->chatremove_result(e);
@@ -4674,7 +4679,6 @@ void CommandChatRemove::procresult()
 CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 {
     this->client = client;
-    this->chatid = chatid;
 
     cmd("mcurl");
 
@@ -4824,6 +4828,7 @@ void CommandChatUpdatePermissions::procresult()
                 client->app->chatupdatepermissions_result(API_EINTERNAL);
                 return;
             }
+            client->notifychat(chat);
         }
 
         client->app->chatupdatepermissions_result(e);
@@ -4839,6 +4844,7 @@ void CommandChatUpdatePermissions::procresult()
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
     this->client = client;
+    this->chatid = chatid;
 
     cmd("mct");
     arg("v", 1);
@@ -4854,7 +4860,21 @@ void CommandChatTruncate::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chattruncate_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the truncation succeed for a non-existing chatroom
+                client->app->chattruncate_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            client->notifychat(chat);
+        }
+
+        client->app->chattruncate_result(e);
     }
     else
     {
@@ -4893,7 +4913,10 @@ void CommandChatSetTitle::procresult()
                 return;
             }
 
-            client->chats[chatid]->title = title;
+            TextChat *chat = client->chats[chatid];
+            chat->title = title;
+
+            client->notifychat(chat);
         }
 
         client->app->chatsettitle_result(e);

@@ -5011,7 +5011,9 @@ void MegaClient::notifypurge(void)
 
         for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
         {
-            it->second->notified = false;
+            TextChat *chat = it->second;
+
+            chat->notified = false;
         }
 
         chatnotify.clear();
