@@ -6667,16 +6667,15 @@ void MegaClient::mapuser(handle uh, const char* email)
         // yes: add email reference
         u = &users[hit->second];
 
-        if (strcmp(u->email.c_str(), email))
-        { 
-            if (u->email.size())
-            {
-                umindex.erase(u->email);
-            }
-
-            Node::copystring(&u->email, email);
-            umindex[nuid] = hit->second;
+        um_map::iterator mit = umindex.find(nuid);
+        if (mit != umindex.end() && mit->second != hit->second)
+        {
+            assert(!users[mit->second].sharing.size());
+            users.erase(mit->second);
         }
+
+        Node::copystring(&u->email, email);
+        umindex[nuid] = hit->second;
 
         return;
     }
