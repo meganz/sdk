@@ -525,9 +525,13 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
         if (buf)
         {
             delete[] buf;
+            buf = NULL;
         }
 
-        buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+        if (size)
+        {
+            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+        }
         buflen = size;
     }
 }
