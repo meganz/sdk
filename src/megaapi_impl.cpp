@@ -5135,7 +5135,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#880E4F"
     };
 
-    int index = userhandle % sizeof(colors)/sizeof(colors[0]);
+    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
