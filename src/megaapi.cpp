@@ -3585,6 +3585,11 @@ bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
     return pImpl->createPreview(imagePath, dstPath);
 }
 
+bool MegaApi::createAvatar(const char *imagePath, const char *dstPath) {
+    
+    return pImpl->createAvatar(imagePath, dstPath);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

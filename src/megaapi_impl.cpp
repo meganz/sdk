@@ -6217,6 +6217,28 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     return result;
 }
 
+bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
+{
+    if (!gfxAccess)
+    {
+        return false;
+    }
+    
+    string utf8ImagePath = imagePath;
+    string localImagePath;
+    fsAccess->path2local(&utf8ImagePath, &localImagePath);
+    
+    string utf8DstPath = dstPath;
+    string localDstPath;
+    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    
+    sdkMutex.lock();
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::AVATAR250X250, &localDstPath);
+    sdkMutex.unlock();
+    
+    return result;
+}
+
 bool MegaApiImpl::isOnline()
 {
     return !client->httpio->noinetds;

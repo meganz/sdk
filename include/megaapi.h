@@ -8753,6 +8753,14 @@ class MegaApi
          * @return True if the preview was successfully created, otherwise false.
          */
         bool createPreview(const char *imagePath, const char *dstPath);
+    
+        /**
+         * @brief Create an avatar for an image
+         * @param imagePath Image path
+         * @param dstPath Destination path for the avatar (including the file name)
+         * @return True if the avatar was successfully created, otherwise false.
+         */
+        bool createAvatar(const char *imagePath, const char *dstPath);
 
         /**
          * @brief Convert a Base64 string to Base32
