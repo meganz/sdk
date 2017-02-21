@@ -195,7 +195,6 @@
 		940BF03F19EDBCAD007E7FA2 /* backofftimer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = backofftimer.h; sourceTree = "<group>"; };
 		940BF04019EDBCAD007E7FA2 /* base64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = base64.h; sourceTree = "<group>"; };
 		940BF04119EDBCAD007E7FA2 /* command.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = command.h; sourceTree = "<group>"; };
-		940BF04219EDBCAD007E7FA2 /* config-android.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "config-android.h"; sourceTree = "<group>"; };
 		940BF04419EDBCAD007E7FA2 /* console.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = console.h; sourceTree = "<group>"; };
 		940BF04619EDBCAD007E7FA2 /* cryptopp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cryptopp.h; sourceTree = "<group>"; };
 		940BF04A19EDBCAD007E7FA2 /* sqlite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite.h; sourceTree = "<group>"; };
@@ -447,7 +446,6 @@
 				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
 				940BF04019EDBCAD007E7FA2 /* base64.h */,
 				940BF04119EDBCAD007E7FA2 /* command.h */,
-				940BF04219EDBCAD007E7FA2 /* config-android.h */,
 				940BF04419EDBCAD007E7FA2 /* console.h */,
 				940BF04519EDBCAD007E7FA2 /* crypto */,
 				940BF04819EDBCAD007E7FA2 /* db */,
