@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.50.3"
+CURL_VERSION="7.51.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -70,8 +70,6 @@ if [ "${ARCH}" == "arm64" ]; then
 else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 fi
-
-sed -i '' $'s/\#define HAVE_CLOCK_GETTIME_MONOTONIC 1/\/* \#undef HAVE_CLOCK_GETTIME_MONOTONIC 1 *\//' lib/curl_config.h
 
 make -j8
 cp -f lib/.libs/libcurl.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
