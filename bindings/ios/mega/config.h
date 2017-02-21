@@ -7,9 +7,6 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
 
-/* Define to 1 if you have the `clock_gettime' function. */
-#define HAVE_CLOCK_GETTIME 1
-
 /* Define to 1 if you have the <cryptopp/cryptlib.h> header file. */
 #define HAVE_CRYPTOPP_CRYPTLIB_H 1
 
