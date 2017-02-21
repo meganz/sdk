@@ -44,6 +44,7 @@ static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
+static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 

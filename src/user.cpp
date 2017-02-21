@@ -225,40 +225,44 @@ User* User::unserialize(MegaClient* client, string* d)
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
-
-        if (tlvRecords->find(EdDSA::TLV_KEY))
+        if (tlvRecords)
         {
-            client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
-            if (!client->signkey->initializationOK)
+            if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                delete client->signkey;
-                client->signkey = NULL;
-                LOG_warn << "Failed to load chat key from local cache.";
+                client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                if (!client->signkey->initializationOK)
+                {
+                    delete client->signkey;
+                    client->signkey = NULL;
+                    LOG_warn << "Failed to load chat key from local cache.";
+                }
+                else
+                {
+                    LOG_info << "Signing key loaded from local cache.";
+                }
             }
-            else
-            {
-                LOG_info << "Signing key loaded from local cache.";
-            }
-        }
 
-        if (tlvRecords->find(ECDH::TLV_KEY))
+            if (tlvRecords->find(ECDH::TLV_KEY))
+            {
+                client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+                if (!client->chatkey->initializationOK)
+                {
+                    delete client->chatkey;
+                    client->chatkey = NULL;
+                    LOG_warn << "Failed to load chat key from local cache.";
+                }
+                else
+                {
+                    LOG_info << "Chat key succesfully loaded from local cache.";
+                }
+            }
+
+            delete tlvRecords;
+        }
+        else
         {
-            client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
-            if (!client->chatkey->initializationOK)
-            {
-                delete client->chatkey;
-                client->chatkey = NULL;
-                LOG_warn << "Failed to load chat key from local cache.";
-            }
-            else
-            {
-                LOG_info << "Chat key succesfully loaded from local cache.";
-            }
+            LOG_warn << "Failed to decrypt keyring from cache";
         }
-
-        delete tlvRecords;
-
-
     }
 #endif
 

@@ -40,6 +40,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
+    asyncopencontext = NULL;
     progresscompleted = 0;
     hasprevmetamac = false;
     hascurrentmetamac = false;
@@ -84,6 +85,13 @@ Transfer::~Transfer()
         delete slot;
     }
 
+    if (asyncopencontext)
+    {
+        delete asyncopencontext;
+        asyncopencontext = NULL;
+        client->asyncfopens--;
+    }
+
     if (ultoken)
     {
         delete [] ultoken;
@@ -91,7 +99,7 @@ Transfer::~Transfer()
 
     if (finished)
     {
-        if(type == GET && localfilename.size())
+        if (type == GET && localfilename.size())
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
@@ -320,11 +328,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-        if (chunkceil > t->size)
-        {
-            chunkceil = t->size;
-        }
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
 
         if (t->pos == it->first && it->second.finished)
         {
@@ -382,13 +386,8 @@ void Transfer::failed(error e, dstime timeleft)
     {
         chunkmacs.clear();
         progresscompleted = 0;
-
-        if (ultoken)
-        {
-            delete [] ultoken;
-            ultoken = NULL;
-        }
-
+        delete [] ultoken;
+        ultoken = NULL;
         pos = 0;
     }
 
@@ -409,7 +408,13 @@ void Transfer::failed(error e, dstime timeleft)
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
-            client->app->file_removed(*it, API_EFAILED);
+#ifdef ENABLE_SYNC
+            if((*it)->syncxfer)
+            {
+                client->syncdownrequired = true;
+            }
+#endif
+            client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
         delete this;
@@ -572,7 +577,7 @@ void Transfer::complete()
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(&localname))
+                    if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -654,7 +659,7 @@ void Transfer::complete()
                                 suffix = oss.str();
                                 newname = name + suffix + extension;
                                 client->fsaccess->path2local(&newname, &localnewname);
-                            } while (fa->fopen(&localnewname));
+                            } while (fa->fopen(&localnewname) || fa->type == FOLDERNODE);
 
 
                             (*it)->localname = localnewname;
@@ -734,7 +739,13 @@ void Transfer::complete()
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f);
-                            client->app->file_removed(*it, API_EFAILED);
+#ifdef ENABLE_SYNC
+                            if (f->syncxfer)
+                            {
+                                client->syncdownrequired = true;
+                            }
+#endif
+                            client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -786,6 +797,16 @@ void Transfer::complete()
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         // files must not change during a PUT transfer
+        if (slot->fa->asyncavailable())
+        {
+            delete slot->fa;
+            slot->fa = client->fsaccess->newfileaccess();
+            if (!slot->fa->fopen(&localfilename))
+            {
+                return failed(API_EREAD);
+            }
+        }
+
         if (genfingerprint(slot->fa, true))
         {
             return failed(API_EREAD);
@@ -1062,6 +1083,7 @@ bool DirectReadSlot::doio()
 
             speed = speedController.calculateSpeed(t);
             meanSpeed = speedController.getMeanSpeed();
+            dr->drn->client->httpio->updatedownloadspeed(t);
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;
@@ -1559,8 +1581,8 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 {
     if (!transfer)
     {
-        LOG_warn << "Getting iterator of a NULL transfer";
-        return transfers[transfer->type].end();
+        LOG_err << "Getting iterator of a NULL transfer";
+        return transfer_list::iterator();
     }
 
     transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
@@ -1577,7 +1599,9 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && isReady(transfer))
+        if ((!transfer->slot && isReady(transfer))
+                || (transfer->asyncopencontext
+                    && transfer->asyncopencontext->finished))
         {
             return transfer;
         }

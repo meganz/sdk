@@ -1,5 +1,5 @@
 /**
- * @file examples/megacmd/megacmd.cpp
+ * @file examples/megacmd/megacmdutils.cpp
  * @brief MegaCMD: Auxiliary methods
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
@@ -313,27 +313,27 @@ const char * getLogLevelStr(int loglevel)
 
 int getLogLevelNum(const char* level)
 {
-    if (!strcmp(level, "FATAL"))
+    if (!strcmp(level, "FATAL") || !strcmp(level, "fatal"))
     {
         return MegaApi:: LOG_LEVEL_FATAL;
     }
-    if (!strcmp(level, "ERROR"))
+    if (!strcmp(level, "ERROR") || !strcmp(level, "error"))
     {
         return MegaApi:: LOG_LEVEL_ERROR;
     }
-    if (!strcmp(level, "WARNING"))
+    if (!strcmp(level, "WARNING") || !strcmp(level, "warning"))
     {
         return MegaApi:: LOG_LEVEL_WARNING;
     }
-    if (!strcmp(level, "INFO"))
+    if (!strcmp(level, "INFO") || !strcmp(level, "info"))
     {
         return MegaApi:: LOG_LEVEL_INFO;
     }
-    if (!strcmp(level, "DEBUG"))
+    if (!strcmp(level, "DEBUG") || !strcmp(level, "debug"))
     {
         return MegaApi:: LOG_LEVEL_DEBUG;
     }
-    if (!strcmp(level, "VERBOSE"))
+    if (!strcmp(level, "VERBOSE") || !strcmp(level, "verbose"))
     {
         return MegaApi:: LOG_LEVEL_MAX;
     }
@@ -406,6 +406,11 @@ int getShareLevelNum(const char* level)
     return atoi(level);
 }
 
+/**
+ * @brief tests if a path is writable
+ * @param path
+ * @return
+ */
 bool canWrite(string path) //TODO: move to fsAccess
 {
 #ifdef _WIN32
@@ -602,17 +607,45 @@ vector<string> getlistOfWords(char *ptr)
                 }
             }
         }
+        else if (*ptr == '\'') // quoted arg / regular arg
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '\'' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '\'' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
         else
         {
             wptr = ptr;
 
-            while ((unsigned char)*ptr > ' ')
+            char *prev = ptr;
+            //while ((unsigned char)*ptr > ' ')
+            while ((*ptr != '\0') && !(*ptr ==' ' && *prev !='\\'))
             {
                 if (*ptr == '"')
                 {
                     while (*++ptr != '"' && *ptr != '\0')
                     { }
                 }
+                prev=ptr;
                 ptr++;
             }
 
@@ -679,6 +712,36 @@ bool isRegExp(string what)
         return false;
     }
 
+    while (true){
+        if (what.find("./") == 0)
+        {
+            what=what.substr(2);
+        }
+        else if(what.find("../") == 0)
+        {
+            what=what.substr(3);
+        }
+        else if(what.size()>=3 && (what.find("/..") == what.size()-3))
+        {
+            what=what.substr(0,what.size()-3);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
+        else
+        {
+            break;
+        }
+    }
+    replaceAll(what, "/../", "/");
+    replaceAll(what, "/./", "/");
+    replaceAll(what, "/", "");
+
     string s = pcrecpp::RE::QuoteMeta(what);
     string ns = s;
     replaceAll(ns, "\\\\\\", "\\");
@@ -698,10 +761,32 @@ string unquote(string what)
     {
         return what;
     }
+    string pref="";
+    while (true){
+        if (what.find("./") == 0)
+        {
+            what=what.substr(2);
+            pref+="./";
+        }
+        else if(what.find("../") == 0)
+        {
+            what=what.substr(3);
+            pref+="../";
+        }
+        else
+        {
+            break;
+        }
+    }
+
     string s = pcrecpp::RE::QuoteMeta(what.c_str());
     string ns = s;
     replaceAll(ns, "\\\\\\", "\\");
-    return ns;
+
+    replaceAll(ns, "\\/\\.\\.\\/", "/../");
+    replaceAll(ns, "\\/\\.\\/", "/./");
+
+    return pref+ns;
 
 #endif
     return what;
@@ -711,7 +796,7 @@ bool patternMatches(const char *what, const char *pattern)
 {
 #ifdef USE_PCRE
     pcrecpp::RE re(pattern);
-    if (re.error().length() > 0)
+    if (re.error().length())
     {
         //In case the user supplied non-pcre regexp with * or ? in it.
         string newpattern(pattern);
@@ -720,7 +805,7 @@ bool patternMatches(const char *what, const char *pattern)
         re=pcrecpp::RE(newpattern);
     }
 
-    if (!re.error().length() > 0)
+    if (!re.error().length())
     {
         bool toret = re.FullMatch(what);
 
@@ -853,7 +938,7 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
         {
             if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
             {
-                for (int i = 1; i < w.length(); i++)
+                for (u_int i = 1; i < w.length(); i++)
                 {
                     string optname = w.substr(i, 1);
                     if (vvalidOptions.find(optname) != vvalidOptions.end())
@@ -916,11 +1001,11 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
 string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreadable)
 {
     ostringstream os;
-    os.precision(3);
+    os.precision(2);
     if (humanreadable)
     {
         double reducedSize = ( totalSize > 1048576 * 2 ? totalSize / 1048576.0 : ( totalSize > 1024 * 2 ? totalSize / 1024.0 : totalSize ));
-        os << reducedSize;
+        os << fixed << reducedSize;
         os << ( totalSize > 1048576 * 2 ? " MB" : ( totalSize > 1024 * 2 ? " KB" : ( equalizeUnitsLength ? "  B" : " B" )));
     }
     else

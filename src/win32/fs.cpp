@@ -22,7 +22,7 @@
 #include "mega.h"
 
 namespace mega {
-WinFileAccess::WinFileAccess()
+WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
     hFile = INVALID_HANDLE_VALUE;
     hFind = INVALID_HANDLE_VALUE;
@@ -35,6 +35,7 @@ WinFileAccess::~WinFileAccess()
     if (hFile != INVALID_HANDLE_VALUE)
     {
         CloseHandle(hFile);
+        assert(hFind == INVALID_HANDLE_VALUE);
     }
     else if (hFind != INVALID_HANDLE_VALUE)
     {
@@ -48,10 +49,27 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for reading. Error: " << e;
         return false;
     }
 
-    return ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL) && dwRead == len;
+    if (!ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "ReadFile failed. Error: " << e;
+        return false;
+    }
+
+    if (dwRead != len)
+    {
+        retry = false;
+        LOG_err << "ReadFile failed (dwRead) " << dwRead << " - " << len;
+        return false;
+    }
+    return true;
 }
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -60,12 +78,35 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for writting. Error: " << e;
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL)
-            && dwWritten == len
-            && FlushFileBuffers(hFile);
+    if (!WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "WriteFile failed. Error: " << e;
+        return false;
+    }
+
+     if (dwWritten != len)
+     {
+         retry = false;
+         LOG_err << "WriteFile failed (dwWritten) " << dwWritten << " - " << len;
+         return false;
+     }
+
+     if (!FlushFileBuffers(hFile))
+     {
+         DWORD e = GetLastError();
+         retry = WinFileSystemAccess::istransient(e);
+         LOG_err << "FlushFileBuffers failed. Error: " << e;
+         return false;
+     }
+     return true;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -114,7 +155,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return true;
 }
 
-bool WinFileAccess::sysopen()
+bool WinFileAccess::sysopen(bool async)
 {
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
@@ -123,7 +164,7 @@ bool WinFileAccess::sysopen()
 #else
     hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        NULL, OPEN_EXISTING, 0, NULL);
+                        NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
 
     if (hFile == INVALID_HANDLE_VALUE)
@@ -141,10 +182,199 @@ void WinFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // hFile will always be valid at this point
-        CloseHandle(hFile);
-        hFile = INVALID_HANDLE_VALUE;
+        assert (hFile != INVALID_HANDLE_VALUE);
+        if (hFile != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(hFile);
+            hFile = INVALID_HANDLE_VALUE;
+        }
     }
+}
+
+#ifndef WINDOWS_PHONE
+
+WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
+{
+    overlapped = NULL;
+}
+
+WinAsyncIOContext::~WinAsyncIOContext()
+{
+    LOG_verbose << "Deleting WinAsyncIOContext";
+    finish();
+}
+
+void WinAsyncIOContext::finish()
+{
+    if (overlapped)
+    {
+        if (!finished)
+        {
+            LOG_debug << "Synchronously waiting for async operation";
+            AsyncIOContext::finish();
+        }
+
+        delete overlapped;
+        overlapped = NULL;
+    }
+    assert(finished);
+}
+
+AsyncIOContext *WinFileAccess::newasynccontext()
+{
+    return new WinAsyncIOContext();
+}
+
+VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
+{
+    WinAsyncIOContext *context = (WinAsyncIOContext *)(lpOverlapped->hEvent);
+    context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->len;
+    if (!context->failed)
+    {
+        if (context->op == AsyncIOContext::READ)
+        {
+            memset((void *)(((char *)(context->buffer)) + context->len), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
+        }
+    }
+    else
+    {
+        LOG_warn << "Async operation finished with error: " << dwErrorCode;
+    }
+
+    context->retry = WinFileSystemAccess::istransient(dwErrorCode);
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+#endif
+
+bool WinFileAccess::asyncavailable()
+{
+#ifdef WINDOWS_PHONE
+	return false;
+#endif
+    return true;
+}
+
+void WinFileAccess::asyncsysopen(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    string path;
+    path.assign((char *)context->buffer, context->len);
+    bool read = context->access & AsyncIOContext::ACCESS_READ;
+    bool write = context->access & AsyncIOContext::ACCESS_WRITE;
+
+    context->failed = !fopen(&path, read, write, true);
+    context->retry = retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+#endif
+}
+
+void WinFileAccess::asyncsysread(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
+
+    if (!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
+        winContext->failed = true;
+        winContext->finished = true;
+        winContext->overlapped = NULL;
+        delete overlapped;
+
+        LOG_warn << "Async read failed at startup: " << e;
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+#endif
+}
+
+void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
+
+    if (!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
+        winContext->failed = true;
+        winContext->finished = true;
+        winContext->overlapped = NULL;
+        delete overlapped;
+
+        LOG_warn << "Async write failed at startup: "  << e;
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+#endif
 }
 
 // update local name
@@ -172,7 +402,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(string* name, bool read, bool write)
+bool WinFileAccess::fopen(string *name, bool read, bool write)
+{
+    return fopen(name, read, write, false);
+}
+
+bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
 {
     WIN32_FIND_DATA fad = { 0 };
 
@@ -294,6 +529,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     {
         ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
     }
+    else if (async)
+    {
+        ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
+    }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
                         read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
@@ -306,7 +545,8 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
-                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS
+                                             : (async ? FILE_FLAG_OVERLAPPED : 0),
                         NULL);
 #endif
 
@@ -860,6 +1100,17 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 {
     string localpath = *path;
     localpath.append("", 1);
+
+#ifdef WINDOWS_PHONE
+    wchar_t full[_MAX_PATH];
+    if (_wfullpath(full, (wchar_t *)localpath.data(), _MAX_PATH))
+    {
+        absolutepath->assign((char *)full, wcslen(full) * sizeof(wchar_t));
+        return true;
+    }
+    *absolutepath = *path;
+    return false;
+#else
     if (!PathIsRelativeW((LPCWSTR)localpath.data()))
     {
         *absolutepath = *path;
@@ -891,6 +1142,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
+#endif
 }
 
 void WinFileSystemAccess::osversion(string* u) const
@@ -1006,7 +1258,7 @@ void WinDirNotify::process(DWORD dwBytes)
         readchanges();
 
         // ensure accuracy of the notification timestamps
-        Waiter::bumpds();
+		WAIT_CLASS::bumpds();
 
         // we trust the OS to always return conformant data
         for (;;)
@@ -1157,7 +1409,7 @@ WinDirNotify::~WinDirNotify()
 
 FileAccess* WinFileSystemAccess::newfileaccess()
 {
-    return new WinFileAccess();
+    return new WinFileAccess(waiter);
 }
 
 DirAccess* WinFileSystemAccess::newdiraccess()

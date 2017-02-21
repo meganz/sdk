@@ -146,6 +146,8 @@ struct MEGA_API MegaApp
     virtual void delua_result(error) { }
 #endif
 
+    virtual void getuseremail_result(string *, error) { }
+
     // file node export result
     virtual void exportnode_result(error) { }
     virtual void exportnode_result(handle, handle) { }
@@ -193,6 +195,9 @@ struct MEGA_API MegaApp
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
+    // get version info
+    virtual void getversion_result(int, const char*, error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
@@ -205,8 +210,9 @@ struct MEGA_API MegaApp
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
     virtual void chatpresenceurl_result(string*, error) { }
+    virtual void registerpushnotification_result(error) { }
 
-    virtual void chats_updated(textchat_map *) { }
+    virtual void chats_updated(textchat_map *, int) { }
 #endif
 
     // global transfer queue updates
@@ -262,6 +268,8 @@ struct MEGA_API MegaApp
 
     // failed request retry notification
     virtual void notify_retry(dstime) { }
+
+    virtual void notify_dbcommit() { }
 
     virtual ~MegaApp() { }
 };

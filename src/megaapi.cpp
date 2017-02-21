@@ -830,6 +830,11 @@ unsigned long long MegaTransfer::getPriority() const
     return 0;
 }
 
+long long MegaTransfer::getNotificationNumber() const
+{
+    return 0;
+}
+
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
@@ -1173,6 +1178,8 @@ void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestLi
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
+void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -1202,6 +1209,8 @@ void MegaListener::onAccountUpdate(MegaApi *)
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaListener::onReloadNeeded(MegaApi *)
+{ }
+void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 
 #ifdef ENABLE_SYNC
@@ -1400,6 +1409,11 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
 char *MegaApi::dumpSession()
 {
     return pImpl->dumpSession();
+}
+
+char *MegaApi::getSequenceNumber()
+{
+    return pImpl->getSequenceNumber();
 }
 
 char *MegaApi::dumpXMPPSession()
@@ -1647,6 +1661,11 @@ void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
 }
 
+void MegaApi::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->getUserEmail(handle, listener);
+}
+
 void MegaApi::getUserAttribute(const char *email_or_handle, int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute(email_or_handle, type, listener);
@@ -1797,9 +1816,9 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
-void MegaApi::useHttpsOnly(bool httpsOnly)
+void MegaApi::useHttpsOnly(bool httpsOnly, MegaRequestListener *listener)
 {
-    pImpl->useHttpsOnly(httpsOnly);
+    pImpl->useHttpsOnly(httpsOnly, listener);
 }
 
 bool MegaApi::usingHttpsOnly()
@@ -1933,6 +1952,11 @@ MegaTransferData *MegaApi::getTransferData(MegaTransferListener *listener)
     return pImpl->getTransferData(listener);
 }
 
+MegaTransfer *MegaApi::getFirstTransfer(int type)
+{
+    return pImpl->getFirstTransfer(type);
+}
+
 void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
 {
     pImpl->notifyTransfer(transfer ? transfer->getTag() : 0, listener);
@@ -2016,6 +2040,11 @@ void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
+{
+    pImpl->retryTransfer(transfer, listener);
 }
 
 void MegaApi::moveTransferUp(MegaTransfer *transfer, MegaRequestListener *listener)
@@ -2370,6 +2399,11 @@ MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
     return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
+void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
+{
+    return pImpl->getLastAvailableVersion(appKey, listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
@@ -2706,6 +2740,11 @@ void MegaApi::update()
 bool MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
+}
+
+bool MegaApi::areServersBusy()
+{
+    return pImpl->areServersBusy();
 }
 
 void MegaApi::removeRecursively(const char *path)
@@ -3454,6 +3493,17 @@ void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
 {
     pImpl->getChatPresenceURL(listener);
 }
+
+void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener)
+{
+    pImpl->registerPushNotification(deviceType, token, listener);
+}
+
+MegaTextChatList* MegaApi::getChatList()
+{
+    return pImpl->getChatList();
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -4197,4 +4247,25 @@ unsigned long long MegaTransferData::getDownloadPriority(int i) const
 unsigned long long MegaTransferData::getUploadPriority(int i) const
 {
     return 0;
+}
+
+long long MegaTransferData::getNotificationNumber() const
+{
+    return 0;
+}
+
+MegaEvent::~MegaEvent() { }
+MegaEvent *MegaEvent::copy()
+{
+    return NULL;
+}
+
+int MegaEvent::getType()
+{
+    return 0;
+}
+
+char *MegaEvent::getText()
+{
+    return NULL;
 }

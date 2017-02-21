@@ -91,8 +91,7 @@ public:
     static const int SPEED_MAX_VALUES;
 
 protected:
-    list<m_time_t> transferTimes;
-    list<m_off_t> transferBytes;
+    map<dstime, m_off_t> transferBytes;
     m_off_t partialBytes;
 
     m_off_t meanSpeed;
@@ -112,9 +111,6 @@ struct MEGA_API HttpIO : public EventTrigger
     // cancel request
     virtual void cancel(HttpReq*) = 0;
 
-    // send queued chunked data
-    virtual void sendchunked(HttpReq*) = 0;
-
     // real-time POST progress information
     virtual m_off_t postpos(void*) = 0;
 
@@ -132,10 +128,6 @@ struct MEGA_API HttpIO : public EventTrigger
     bool inetback;
     void inetstatus(bool);
     bool inetisback();
-
-    // is HTTP chunked transfer encoding supported?
-    // (WinHTTP on XP does not)
-    bool chunkedok;
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
@@ -196,7 +188,6 @@ struct MEGA_API HttpReq
 
     string posturl;
 
-    bool chunked;
     bool protect;
 
     bool sslcheckfailed;
@@ -205,9 +196,9 @@ struct MEGA_API HttpReq
     string* out;
     string in;
     size_t inpurge;
+    size_t outpos;
 
     string outbuf;
-    string chunkedout;
 
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;
@@ -230,7 +221,6 @@ struct MEGA_API HttpReq
 
     // post request to the network
     void post(MegaClient*, const char* = NULL, unsigned = 0);
-    void postchunked(MegaClient*);
 
     // store chunk of incoming data with optional purging
     void put(void*, unsigned, bool = false);
@@ -270,8 +260,8 @@ struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
-    virtual bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
-    virtual void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
+    virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
+    virtual void finalize(Transfer*) { }
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -282,7 +272,7 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
     // size (in bytes) of the CRC of uploaded chunks
     static const int CRCSIZE;
 
-    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
@@ -293,9 +283,10 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
 struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
+    chunkmac_map chunkmacs;
 
-    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
-    void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void finalize(Transfer *transfer);
 
     ~HttpReqDL() { }
 };

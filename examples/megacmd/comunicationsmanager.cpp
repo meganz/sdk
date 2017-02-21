@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/comunicationsmanager.cpp
- * @brief MegaCMD: Communications manager
+ * @brief MegaCMD: Communications manager non supporting non-interactive mode
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -96,4 +96,14 @@ string ComunicationsManager::get_petition_details(CmdPetition *inf)
 
 ComunicationsManager::~ComunicationsManager()
 {
+}
+
+MegaThread *CmdPetition::getPetitionThread() const
+{
+    return petitionThread;
+}
+
+void CmdPetition::setPetitionThread(MegaThread *value)
+{
+    petitionThread = value;
 }

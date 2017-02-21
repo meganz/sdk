@@ -39,7 +39,7 @@ struct MEGA_API ChunkedHash
     static const int SEGSIZE = 131072;
 
     static m_off_t chunkfloor(m_off_t);
-    static m_off_t chunkceil(m_off_t);
+    static m_off_t chunkceil(m_off_t, m_off_t limit = -1);
 };
 
 /**

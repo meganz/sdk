@@ -1,5 +1,5 @@
 /**
- * @file examples/megacmd/megacmd.cpp
+ * @file examples/megacmd/megacmdlogger.cpp
  * @brief MegaCMD: Controls message logging
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
@@ -106,7 +106,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
     {
         if (loglevel <= cmdLoggerLevel)
         {
-            *output << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
+            *output << "[" << SimpleLogger::toStr(LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
 
         int currentThreadLogLevel = getCurrentThreadLogLevel();
@@ -116,7 +116,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         }
         if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output ))
         {
-            OUTSTREAM << "[" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
+            OUTSTREAM << "[" << SimpleLogger::toStr(LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
     }
     else
@@ -132,7 +132,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
                 return;
             }
 
-            *output << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
+            *output << "[API:" << SimpleLogger::toStr(LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
 
         int currentThreadLogLevel = getCurrentThreadLogLevel();
@@ -143,7 +143,7 @@ void MegaCMDLogger::log(const char *time, int loglevel, const char *source, cons
         }
         if (( loglevel <= currentThreadLogLevel ) && ( &OUTSTREAM != output )) //since it happens in the sdk thread, this shall be false
         {
-            OUTSTREAM << "[API:" << SimpleLogger::toStr(mega::LogLevel(loglevel)) << ": " << time << "] " << message << endl;
+            OUTSTREAM << "[API:" << SimpleLogger::toStr(LogLevel(loglevel)) << ": " << time << "] " << message << endl;
         }
     }
 }

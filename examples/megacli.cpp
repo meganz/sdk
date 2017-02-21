@@ -638,19 +638,19 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_map *chats)
+void DemoApp::chats_updated(textchat_map *chats, int count)
 {
+    if (count == 1)
+    {
+        cout << "1 chat received or updated" << endl;
+    }
+    else
+    {
+        cout << count << " chats received or updated" << endl;
+    }
+
     if (chats)
     {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat updated or created" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats updated or created" << endl;
-        }
-
         textchat_map::iterator it;
         for (it = chats->begin(); it != chats->end(); it++)
         {
@@ -903,7 +903,7 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
         else
         {
             char buffer[12];
-            Base64::btoa((byte*)&h, sizeof(h), buffer);
+            Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
             cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
         }
     }
@@ -3496,7 +3496,7 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+                            client->inviteToChat(chatid, u->userhandle, priv);
                             return;
                         }
                         else
@@ -3515,7 +3515,7 @@ static void process_line(char* l)
 
                             if (words.size() == 2)
                             {
-                                client->removeFromChat(chatid);
+                                client->removeFromChat(chatid, client->me);
                             }
                             else if (words.size() == 3)
                             {
@@ -3527,7 +3527,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                client->removeFromChat(chatid, u->uid.c_str());
+                                client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
                             else
@@ -4104,7 +4104,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->targetemail;
 
                                 char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4121,7 +4121,7 @@ static void process_line(char* l)
                                 os << setw(34) << it->second->originatoremail;
 
                                 char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
                                 os << buffer;
                                 
@@ -4847,7 +4847,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
 
                 char id[12];
-                Base64::btoa((byte*)&(it->id), sizeof(it->id), id);
+                Base64::btoa((byte*)&(it->id), MegaClient::SESSIONHANDLE, id);
 
                 if (it->current)
                 {
@@ -4900,7 +4900,7 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     else
     {
         char id[12];
-        Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
+        Base64::btoa((byte*)&(sessionid), MegaClient::SESSIONHANDLE, id);
         cout << "Session with id " << id << " has been killed" << endl;
     }
 }

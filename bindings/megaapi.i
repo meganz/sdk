@@ -1,12 +1,44 @@
 #ifdef SWIGJAVA
-#define __ANDROID__
-#define USE_LIBUV
 #define ENABLE_CHAT
 #endif
 
 %module(directors="1") mega
 %{
+#define ENABLE_CHAT
 #include "megaapi.h"
+
+JavaVM *MEGAjvm = NULL;
+
+#ifdef __ANDROID__
+jstring strEncodeUTF8;
+jclass clsString;
+jmethodID ctorString;
+int sdkVersion = 100;
+#endif
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
+{
+    MEGAjvm = jvm;
+#ifdef __ANDROID__
+    JNIEnv* jenv = NULL;
+    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
+    jclass buildVersionClass = jenv->FindClass("android/os/Build$VERSION");
+    jfieldID sdkVersionField = jenv->GetStaticFieldID(buildVersionClass, "SDK_INT", "I");
+    sdkVersion = jenv->GetStaticIntField(buildVersionClass, sdkVersionField);
+    if (sdkVersion < 23)
+    {
+        jclass clsStringLocal = jenv->FindClass("java/lang/String");
+        clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
+        jenv->DeleteLocalRef(clsStringLocal);
+        ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
+        jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
+        strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
+        jenv->DeleteLocalRef(strEncodeUTF8Local);
+    }
+#endif
+    return JNI_VERSION_1_4;
+}
+
 %}
 
 #ifdef SWIGJAVA
@@ -59,6 +91,52 @@
 %typemap(javaclassmodifiers) mega::ShareList "class";
 %typemap(javaclassmodifiers) mega::UserList "class";
 
+
+%typemap(out) char*
+%{
+    if ($1)
+    {
+#ifdef __ANDROID__
+        if (sdkVersion < 23)
+        {
+            int len = strlen($1);
+            jbyteArray $1_array = jenv->NewByteArray(len);
+            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+            $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+            jenv->DeleteLocalRef($1_array);
+        }
+        else
+#endif
+        {
+            $result = jenv->NewStringUTF($1);
+        }
+    }
+%}
+
+%typemap(directorin,descriptor="Ljava/lang/String;") char *
+%{
+    $input = 0;
+    if ($1)
+    {
+#ifdef __ANDROID__
+        if (sdkVersion < 23)
+        {
+            int len = strlen($1);
+            jbyteArray $1_array = jenv->NewByteArray(len);
+            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+            $input = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+            jenv->DeleteLocalRef($1_array);
+        }
+        else
+#endif
+        {
+            $input = jenv->NewStringUTF($1);
+        }
+    }
+    Swig::LocalRefGuard $1_refguard(jenv, $input);
+%}
+
+
 //Make the "delete" method protected
 %typemap(javadestruct, methodname="delete", methodmodifiers="protected synchronized") SWIGTYPE 
 {   
@@ -104,17 +182,6 @@
 
 
 #ifdef SWIGJAVA
-
-%runtime
-%{
-    JavaVM *MEGAjvm = NULL;
-%}
-
-%typemap(check) const char *appKey
-%{
-    jenv->GetJavaVM(&MEGAjvm);
-%}
-
 
 #if SWIG_VERSION < 0x030000
 %typemap(directorargout) (const char* path)

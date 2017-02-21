@@ -73,11 +73,11 @@
 #include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
-#include <shlwapi.h>
 
 #ifndef WINDOWS_PHONE
  #include <wincrypt.h>
  #include <winhttp.h>
+ #include <shlwapi.h>
 #endif
 
 #include <shellapi.h>

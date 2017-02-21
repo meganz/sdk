@@ -106,7 +106,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -325,7 +325,7 @@ typedef map<handle, FileAttributeFetch*> faf_map;
 typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
-typedef enum { GET, PUT, API, NONE } direction_t;
+typedef enum { GET = 0, PUT, API, NONE } direction_t;
 
 typedef set<pair<int, handle> > fareq_set;
 
@@ -422,7 +422,7 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
@@ -433,20 +433,11 @@ struct TextChat
     string title;   // byte array
     handle ou;
 
-    TextChat()
-    {
-        id = UNDEF;
-        priv = PRIV_UNKNOWN;
-        shard = -1;
-        userpriv = NULL;
-        group = false;
-        ou = UNDEF;
-    }
+    TextChat();
+    ~TextChat();
 
-    ~TextChat()
-    {
-        delete userpriv;
-    }
+    bool serialize(string *d);
+    static TextChat* unserialize(class MegaClient *client, string *d);
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

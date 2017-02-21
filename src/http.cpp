@@ -30,7 +30,7 @@
 namespace mega {
 
 // interval to calculate the mean speed (ds)
-const int SpeedController::SPEED_MEAN_INTERVAL_DS = 10;
+const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
 
 // max time to calculate the mean speed
 const int SpeedController::SPEED_MAX_VALUES = 10000;
@@ -89,7 +89,6 @@ HttpIO::HttpIO()
     noinetds = 0;
     inetback = false;
     lastdata = NEVER;
-    chunkedok = true;
     downloadSpeed = 0;
     uploadSpeed = 0;
 }
@@ -310,12 +309,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
-bool HttpIO::setmaxdownloadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
 }
 
-bool HttpIO::setmaxuploadspeed(m_off_t bpslimit)
+bool HttpIO::setmaxuploadspeed(m_off_t)
 {
     return false;
 }
@@ -341,29 +340,13 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 
     httpio = client->httpio;
     bufpos = 0;
+    outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
-}
-
-// attempt to send chunked data, remove from out
-void HttpReq::postchunked(MegaClient* client)
-{
-    if (!chunked)
-    {
-        chunked = true;
-        post(client);
-    }
-    else
-    {
-        if (httpio)
-        {
-            httpio->sendchunked(this);
-        }
-    }
 }
 
 void HttpReq::disconnect()
@@ -374,8 +357,6 @@ void HttpReq::disconnect()
         httpio = NULL;
         init();
     }
-
-    chunked = false;
 }
 
 HttpReq::HttpReq(bool b)
@@ -386,7 +367,6 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
-    chunked = false;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -414,6 +394,7 @@ void HttpReq::init()
     contentlength = 0;
     timeleft = -1;
     lastdata = NEVER;
+    outpos = 0;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -526,7 +507,7 @@ m_off_t HttpReq::transferred(MegaClient*)
 }
 
 // prepare file chunk download
-bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*key*/,
+void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
@@ -544,69 +525,67 @@ bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*k
         if (buf)
         {
             delete[] buf;
+            buf = NULL;
         }
 
-        buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+        if (size)
+        {
+            buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
+        }
         buflen = size;
     }
-
-    return true;
 }
 
 // decrypt, mac and write downloaded chunk
-void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
-                         uint64_t ctriv, m_off_t startpos, m_off_t endpos)
+void HttpReqDL::finalize(Transfer *transfer)
 {
-    ChunkMAC &chunkmac = (*macs)[pos];
-    key->ctr_crypt(buf, bufpos, dlpos, ctriv, chunkmac.mac, 0,
-            !chunkmac.finished && !chunkmac.offset);
-
-    unsigned skip;
-    unsigned prune;
-
-    if (endpos == -1)
+    byte *chunkstart = buf;
+    m_off_t startpos = dlpos;
+    m_off_t finalpos = startpos + bufpos;
+    assert(finalpos <= transfer->size);
+    if (finalpos != transfer->size)
     {
-        skip = 0;
-        prune = 0;
-    }
-    else
-    {
-        if (startpos > dlpos)
-        {
-            skip = (unsigned)(startpos - dlpos);
-        }
-        else
-        {
-            skip = 0;
-        }
-
-        if (dlpos + bufpos > endpos)
-        {
-            prune = (unsigned)(dlpos + bufpos - endpos);
-        }
-        else
-        {
-            prune = 0;
-        }
+        finalpos &= -SymmCipher::BLOCKSIZE;
+        bufpos &= -SymmCipher::BLOCKSIZE;
     }
 
-    fa->fwrite(buf + skip, bufpos - skip - prune, dlpos + skip);
-
-    chunkmac.finished = true;
-    chunkmac.offset = 0;
+    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
+    m_off_t chunksize = endpos - startpos;
+    while (chunksize)
+    {
+        m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
+        ChunkMAC &chunkmac = chunkmacs[chunkid];
+        if (!chunkmac.finished)
+        {
+            chunkmac = transfer->chunkmacs[chunkid];
+            transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
+                                    chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+            if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
+            {
+                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                chunkmac.finished = true;
+                chunkmac.offset = 0;
+            }
+            else
+            {
+                LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                chunkmac.finished = false;
+                chunkmac.offset += chunksize;
+            }
+        }
+        chunkstart += chunksize;
+        startpos = endpos;
+        endpos = ChunkedHash::chunkceil(startpos, finalpos);
+        chunksize = endpos - startpos;
+    }
 }
 
 // prepare chunk for uploading: mac and encrypt
-bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
+void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
                         chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
                         m_off_t npos)
 {
     size = (unsigned)(npos - pos);
-
-    if (!fa->fread(out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos))
-    {
-        return false;
-    }
 
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
@@ -617,7 +596,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 
     // unpad for POSTing
     out->resize(size);
-
 
     const char *data = out->data();
     byte c[CRCSIZE];
@@ -652,7 +630,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     Base64::btoa(c, CRCSIZE, crc);
     snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
     setreq(buf, REQ_BINARY);
-    return true;
 }
 
 // number of bytes sent in this request
@@ -684,31 +661,33 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 
     while (transferBytes.size())
     {
-        dstime deltaTime = currentTime - transferTimes.front();
-        if (deltaTime <= SPEED_MEAN_INTERVAL_DS)
+        map<dstime, m_off_t>::iterator it = transferBytes.begin();
+        dstime deltaTime = currentTime - it->first;
+        if (deltaTime < SPEED_MEAN_INTERVAL_DS)
         {
             break;
         }
 
-        partialBytes -= transferBytes.front();
-        transferBytes.erase(transferBytes.begin());
-        transferTimes.erase(transferTimes.begin());
+        partialBytes -= it->second;
+        transferBytes.erase(it);
     }
 
     if (numBytes > 0)
     {
-        transferBytes.push_back(numBytes);
-        transferTimes.push_back(currentTime);
+        transferBytes[currentTime] += numBytes;
         partialBytes += numBytes;
     }
 
     m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
-    meanSpeed = meanSpeed * speedCounter + speed;
-    speedCounter++;
-    meanSpeed /= speedCounter;
-    if (speedCounter > SPEED_MAX_VALUES)
+    if (numBytes)
     {
-        speedCounter = SPEED_MAX_VALUES;
+        meanSpeed = meanSpeed * speedCounter + speed;
+        speedCounter++;
+        meanSpeed /= speedCounter;
+        if (speedCounter > SPEED_MAX_VALUES)
+        {
+            speedCounter = SPEED_MAX_VALUES;
+        }
     }
     lastUpdate = currentTime;
     return speed;

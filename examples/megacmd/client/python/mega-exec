@@ -64,7 +64,10 @@ try:
 	commandArgs=parseArgs(sys.argv[1:])
 
 
-	sock.send(" ".join(commandArgs))
+	if (sys.version_info[0] == 3):
+		sock.send(" ".join(commandArgs).encode(sys.stdin.encoding))
+	else:
+		sock.send(" ".join(commandArgs))
 
 	data = sock.recv(100);
 	sockOutId, = struct.unpack('H', data[:2])
@@ -79,13 +82,17 @@ try:
 	data = sockout.recv(100);
 	commandOutput=""
 	while (len(data)):
-		commandOutput+=data
+		if (sys.version_info[0] == 3):
+			commandOutput+=data.decode(sys.stdout.encoding)
+		else:
+			commandOutput+=data
 		data = sockout.recv(100);
 
 	sockout.close()
 
 	if "" != commandOutput:
-		print commandOutput,
+		sys.stdout.write(commandOutput)
+		sys.stdout.flush()
 
 	if (outCode <0): exit(-outCode)
 	exit(outCode)

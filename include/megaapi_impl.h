@@ -114,14 +114,11 @@ class MegaGfxProc : public GfxProcExternal {};
     #else
     class MegaHttpIO : public WinHttpIO {};
     #endif
-
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinWaiter {};
     #else
     class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinPhoneWaiter {};
     #endif
+	class MegaFileSystemAccess : public WinFileSystemAccess {};
+	class MegaWaiter : public WinWaiter {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
@@ -432,6 +429,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
+        void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
 
 		virtual int getType() const;
@@ -473,6 +471,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual int getState() const;
         virtual void setPriority(unsigned long long p);
         virtual unsigned long long getPriority() const;
+        virtual long long getNotificationNumber() const;
 
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
@@ -498,6 +497,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         long long speed;
         long long meanSpeed;
         long long deltaSize;
+        long long notificationNumber;
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
         const char* path;
@@ -520,7 +520,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 class MegaTransferDataPrivate : public MegaTransferData
 {
 public:
-    MegaTransferDataPrivate(TransferList *transferList);
+    MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber);
     MegaTransferDataPrivate(const MegaTransferDataPrivate *transferData);
 
     virtual ~MegaTransferDataPrivate();
@@ -531,10 +531,12 @@ public:
     virtual int getUploadTag(int i) const;
     virtual unsigned long long getDownloadPriority(int i) const;
     virtual unsigned long long getUploadPriority(int i) const;
+    virtual long long getNotificationNumber() const;
 
 protected:
     int numDownloads;
     int numUploads;
+    long long notificationNumber;
     vector<int> downloadTags;
     vector<int> uploadTags;
     vector<uint64_t> downloadPriorities;
@@ -759,6 +761,25 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
+};
+
+class MegaEventPrivate : public MegaEvent
+{
+public:
+    MegaEventPrivate(int type);
+    MegaEventPrivate(MegaEventPrivate *event);
+    virtual ~MegaEventPrivate();
+    MegaEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getText() const;
+
+    void setText(const char* text);
+
+protected:
+    int type;
+    const char* text;
+
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1296,6 +1317,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *getSequenceNumber();
         char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
@@ -1364,6 +1386,7 @@ class MegaApiImpl : public MegaApp
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
+        void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
@@ -1399,7 +1422,7 @@ class MegaApiImpl : public MegaApp
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
-        void useHttpsOnly(bool httpsOnly);
+        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
 
         //Transfers
@@ -1410,7 +1433,7 @@ class MegaApiImpl : public MegaApp
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
-        void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+        void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
@@ -1438,6 +1461,7 @@ class MegaApiImpl : public MegaApp
         int getDownloadMethod();
         int getUploadMethod();
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
+        MegaTransfer *getFirstTransfer(int type);
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
@@ -1469,6 +1493,7 @@ class MegaApiImpl : public MegaApp
 #endif
         void update();
         bool isWaiting();
+        bool areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -1557,6 +1582,7 @@ class MegaApiImpl : public MegaApp
         void authorizeMegaNodePrivate(MegaNodePrivate *node);
 
         const char *getVersion();
+        void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -1630,6 +1656,8 @@ class MegaApiImpl : public MegaApp
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
+        void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        MegaTextChatList *getChatList();
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1661,6 +1689,7 @@ protected:
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
+        void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -1715,6 +1744,7 @@ protected:
         int totalDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
+        long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
 
@@ -1737,6 +1767,7 @@ protected:
         MegaNodeList *activeNodes;
         MegaUserList *activeUsers;
         MegaContactRequestList *activeContactRequests;
+        string appKey;
 
         int threadExit;
         void loop();
@@ -1831,6 +1862,8 @@ protected:
         virtual void delua_result(error);
 #endif
 
+        virtual void getuseremail_result(string *, error);
+
         // file node export result
         virtual void exportnode_result(error);
         virtual void exportnode_result(handle, handle);
@@ -1866,6 +1899,7 @@ protected:
         virtual void validatepassword_result(error);
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
+        virtual void getversion_result(int, const char*, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -1880,8 +1914,9 @@ protected:
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
         virtual void chatpresenceurl_result(string*, error);
+        virtual void registerpushnotification_result(error);
 
-        virtual void chats_updated(textchat_map *);
+        virtual void chats_updated(textchat_map *, int);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1917,6 +1952,9 @@ protected:
 
         // failed request retry notification
         virtual void notify_retry(dstime);
+
+        // notify about db commit
+        virtual void notify_dbcommit();
 
         void sendPendingRequests();
         void sendPendingTransfers();

@@ -38,6 +38,11 @@ enum prompttype
     COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
 };
 
+static const char* const prompts[] =
+{
+    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+};
+
 enum
 {
     MCMD_OK = 0,                ///< Everything OK
@@ -53,10 +58,6 @@ enum
     MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
 };
 
-static const char* prompts[] =
-{
-    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
-};
 
 void changeprompt(const char *newprompt);
 
@@ -64,6 +65,8 @@ mega::MegaApi* getFreeApiFolder();
 void freeApiFolder(mega::MegaApi *apiFolder);
 
 const char * getUsageStr(const char *command);
+
+void unescapeifRequired(std::string &what);
 
 void setprompt(prompttype p);
 

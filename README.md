@@ -42,6 +42,8 @@ For platforms with Autotools, the generic way to build and install it is:
     make
     sudo make install
 
+Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
+
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`) and also [MegaCMD](examples/megacmd). 
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
@@ -63,7 +65,7 @@ The new intermediate layer has been documented using Doxygen. The only public he
 to include to use is `include/megaapi.h`. You can read the documentation in that header file,
 or download the same documentation in HTML format from this link:
 
-https://mega.co.nz/#!c5FzhBJL!HUVjsOJTylwkmXPZ0AxT66Wuu4YvZInyHbWGYgvTHt4
+https://mega.nz/#!7glwEQBT!Fy9cwPpCmuaVdEkW19qwBLaiMeyufB1kseqisOAxfi8
 
 Additional info
 ---------------

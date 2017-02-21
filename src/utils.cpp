@@ -29,6 +29,203 @@ Cachable::Cachable()
     notified = 0;
 }
 
+#ifdef ENABLE_CHAT
+TextChat::TextChat()
+{
+    id = UNDEF;
+    priv = PRIV_UNKNOWN;
+    shard = -1;
+    userpriv = NULL;
+    group = false;
+    ou = UNDEF;
+}
+
+TextChat::~TextChat()
+{
+    delete userpriv;
+}
+
+bool TextChat::serialize(string *d)
+{
+    unsigned char l;
+    unsigned short ll;
+
+    d->append((char*)&id, sizeof id);
+    d->append((char*)&priv, sizeof priv);
+
+    l = (unsigned char)url.size();
+    d->append((char*)&l, sizeof l);
+    d->append(url.c_str(), l);
+
+    d->append((char*)&shard, sizeof shard);
+
+    ll = userpriv ? userpriv->size() : 0;
+    d->append((char*)&ll, sizeof ll);
+    if (userpriv)
+    {
+        userpriv_vector::iterator it = userpriv->begin();
+        while (it != userpriv->end())
+        {
+            handle uh = it->first;
+            d->append((char*)&uh, sizeof uh);
+
+            privilege_t priv = it->second;
+            d->append((char*)&priv, sizeof priv);
+
+            it++;
+        }
+    }
+
+    d->append((char*)&group, sizeof group);
+
+    // title is a binary array
+    ll = title.size();
+    d->append((char*)&ll, sizeof ll);
+    d->append(title.data(), ll);
+
+    d->append((char*)&ou, sizeof ou);
+
+    d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
+
+    return true;
+}
+
+TextChat* TextChat::unserialize(class MegaClient *client, string *d)
+{
+    handle id;
+    privilege_t priv;
+    string url;
+    int shard;
+    userpriv_vector *userpriv = NULL;
+    bool group;
+    string title;   // byte array
+    handle ou;
+
+    unsigned char l;
+    unsigned short ll;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(handle) + sizeof(privilege_t) + 1 > end)
+    {
+        return NULL;
+    }
+
+    id = MemAccess::get<handle>(ptr);
+    ptr += sizeof id;
+
+    priv = MemAccess::get<privilege_t>(ptr);
+    ptr += sizeof priv;
+
+    l = *ptr++;
+    if (l)
+    {
+        if (ptr + l > end)
+        {
+            return NULL;
+        }
+        url.assign(ptr, l);
+    }
+    ptr += l;
+
+    if (ptr + sizeof(int) + 1 > end)
+    {
+        return NULL;
+    }
+
+    shard = MemAccess::get<int>(ptr);
+    ptr += sizeof shard;
+
+    ll = MemAccess::get<short>(ptr);
+    ptr += sizeof ll;
+    if (ll)
+    {
+        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
+        {
+            return NULL;
+        }
+
+        userpriv = new userpriv_vector();
+
+        for (unsigned short i = 0; i < ll; i++)
+        {
+            handle uh = MemAccess::get<handle>(ptr);
+            ptr += sizeof uh;
+
+            privilege_t priv = MemAccess::get<privilege_t>(ptr);
+            ptr += sizeof priv;
+
+            userpriv->push_back(userpriv_pair(uh, priv));
+        }
+    }
+
+    if (ptr + sizeof(bool) + 1 > end)
+    {
+        delete userpriv;
+        return NULL;
+    }
+
+    group = MemAccess::get<bool>(ptr);
+    ptr += sizeof group;
+
+    ll = MemAccess::get<short>(ptr);
+    ptr += sizeof ll;
+    if (ll)
+    {
+        if (ptr + ll > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+        title.assign(ptr, ll);
+    }
+    ptr += ll;
+
+    if (ptr + sizeof(handle) + 10 > end)
+    {
+        delete userpriv;
+        return NULL;
+    }
+
+    ou = MemAccess::get<handle>(ptr);
+    ptr += sizeof ou;
+
+    for (int i = 10; i--;)
+    {
+        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
+        {
+            ptr += MemAccess::get<unsigned char>(ptr) + 1;
+        }
+    }
+
+    if (ptr < end)
+    {
+        delete userpriv;
+        return NULL;
+    }
+
+    if (client->chats.find(id) == client->chats.end())
+    {
+        client->chats[id] = new TextChat();
+    }
+    else
+    {
+        LOG_warn << "Unserialized a chat already in RAM";
+    }
+    TextChat* chat = client->chats[id];
+    chat->id = id;
+    chat->priv = priv;
+    chat->url = url;
+    chat->shard = shard;
+    chat->userpriv = userpriv;
+    chat->group = group;
+    chat->title = title;
+    chat->ou = ou;
+
+    return chat;
+}
+#endif
+
 /**
  * @brief Encrypts a string after padding it to block length.
  *
@@ -162,7 +359,7 @@ m_off_t ChunkedHash::chunkfloor(m_off_t p)
 }
 
 // end of chunk (== start of next chunk)
-m_off_t ChunkedHash::chunkceil(m_off_t p)
+m_off_t ChunkedHash::chunkceil(m_off_t p, m_off_t limit)
 {
     m_off_t cp, np;
 
@@ -174,13 +371,14 @@ m_off_t ChunkedHash::chunkceil(m_off_t p)
 
         if ((p >= cp) && (p < np))
         {
-            return np;
+            return (limit < 0 || np < limit) ? np : limit;
         }
 
         cp = np;
     }
 
-    return ((p - cp) & - (8 * SEGSIZE)) + cp + 8 * SEGSIZE;
+    np = ((p - cp) & - (8 * SEGSIZE)) + cp + 8 * SEGSIZE;
+    return (limit < 0 || np < limit) ? np : limit;
 }
 
 
@@ -637,6 +835,11 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     }
 
     delete [] iv;
+
+    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    {
+        return NULL;
+    }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
     if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode

@@ -1,5 +1,5 @@
 /**
- * @file DelegateMEGALogerListener.h
+ * @file DelegateMEGALoggerListener.h
  * @brief Listener to reveice and send logs to the app
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -21,10 +21,10 @@
 #import "megaapi.h"
 #import "MEGASdk.h"
 
-class DelegateMEGALogerListener : public mega::MegaLogger {
+class DelegateMEGALoggerListener : public mega::MegaLogger {
     
 public:
-    DelegateMEGALogerListener(id<MEGALoggerDelegate> listener);
+    DelegateMEGALoggerListener(id<MEGALoggerDelegate> listener);
     void log(const char *time, int logLevel, const char *source, const char *message);
     
 private:

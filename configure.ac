@@ -190,7 +190,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
   *-apple-darwin*)
@@ -269,11 +269,66 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([yes])],
+    [
+     AC_MSG_RESULT([no])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
+	[JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+
+    # on Fedora / CentOS jni_md.h header is not included
+    if test -d "$JAVA_INCLUDE_DIR/linux"; then
+        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
+        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
+        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
+    fi
+
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 # Chat
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" ; then
+    enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
 
@@ -759,6 +814,21 @@ openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
 
+    # librt #TODO: allow --with-rt=...
+    AC_CHECK_LIB([rt], [aio_write], [
+    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+    LDFLAGS="-lrt $LDFLAGS"
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi    
+#    LIBRT_CXXFLAGS="-lrt "
+#    LIBRT_CPPFLAGS="-lrt "
+#    LIBRT_LDFLAGS="-lrt "
+    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
+    ],
+    )
+
     # OpenSSL
     AC_MSG_CHECKING(for OpenSSL)
     AC_ARG_WITH([openssl],
@@ -1111,7 +1181,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" ; then
+if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
@@ -1464,60 +1534,6 @@ if test "x$enable_php" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
-# Java
-AC_MSG_CHECKING([if building Java bindings])
-AC_ARG_ENABLE(java,
-    AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([yes])],
-    [
-     AC_MSG_RESULT([no])
-     enable_java=no]
-)
-AC_ARG_WITH(java-include-dir,
-    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
-	[JAVA_INCLUDE_DIR=$withval],)
-AC_SUBST(JAVA_INCLUDE_DIR)
-
-if test "x$enable_java" = "xyes" ; then
-    AX_PKG_SWIG(2.0.0, [], [
-        AC_MSG_ERROR([SWIG executable not found!])
-    ])
-    AX_SWIG_ENABLE_CXX
-    AX_SWIG_MULTI_MODULE_SUPPORT
-
-    if test -z "$SWIG"; then
-        AC_MSG_ERROR([SWIG executable not found!])
-    fi
-
-    AC_CHECK_PROG(JAVA, java, yes, no)
-    if test "x$JAVA" = "xno"; then
-      AC_MSG_ERROR([no java binary in PATH])
-    fi
-    AC_CHECK_PROG(JAVAC, javac, yes, no)
-    if test "x$JAVAC" = "xno"; then
-      AC_MSG_ERROR([no javac binary in PATH])
-    fi
-    AC_CHECK_PROG(JAR, jar, yes, no)
-    if test "x$JAR" = "xno"; then
-      AC_MSG_ERROR([no jar binary in PATH])
-    fi
-
-    SAVE_CPPFLAGS=$CPPFLAGS
-    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
-
-    # on Fedora / CentOS jni_md.h header is not included
-    if test -d "$JAVA_INCLUDE_DIR/linux"; then
-        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
-        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
-        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
-    fi
-
-    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
-    CPPFLAGS=$SAVE_CPPFLAGS
-fi
-AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
-
-
 dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################
@@ -1550,10 +1566,12 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
+  LDFLAGS:          $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
-  sync subsystem    $enable_sync
+  sync subsystem:   $enable_sync
+  chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
   megacmd app:      $enable_megacmd

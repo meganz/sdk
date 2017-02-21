@@ -33,7 +33,6 @@
 
 namespace mega {
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
 struct MEGA_API SockInfo
 {
     enum
@@ -46,9 +45,10 @@ struct MEGA_API SockInfo
     SockInfo();
     int fd;
     int mode;
+#if defined(_WIN32)
     HANDLE handle;
-};
 #endif
+};
 
 struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
@@ -58,9 +58,8 @@ protected:
     static MUTEX_CLASS curlMutex;
 
     string useragent;
-    CURLM* curlmapi;
-    CURLM* curlmdownload;
-    CURLM* curlmupload;
+    CURLM* curlm[3];
+
     CURLSH* curlsh;
     ares_channel ares;
     string proxyurl;
@@ -85,15 +84,14 @@ protected:
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
     static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int timer_callback(CURLM *multi, long timeout_ms, void *userp, direction_t d);
     static int api_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
-#endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     static MUTEX_CLASS **sslMutexes;
@@ -128,35 +126,31 @@ protected:
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
 
-    // download speed limit
-    m_off_t maxdownloadspeed;
-
-    // upload speed limit
-    m_off_t maxuploadspeed;
-
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    void addaresevents(WinWaiter *waiter);
-    void addcurlevents(WinWaiter *waiter, direction_t d);
+    void addaresevents(Waiter *waiter);
+    void addcurlevents(Waiter *waiter, direction_t d);
+    void closearesevents();
     void closecurlevents(direction_t d);
+    void processaresevents();
     void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlapisockets;
-    std::map<int, SockInfo> curldownloadsockets;
-    std::map<int, SockInfo> curluploadsockets;
-    m_time_t curlapitimeoutreset;
-    m_time_t curldownloadtimeoutreset;
-    m_time_t curluploadtimeoutreset;
-#endif
+    std::map<int, SockInfo> curlsockets[3];
+    m_time_t curltimeoutreset[3];
+    bool arerequestspaused[3];
+    int numconnections[3];
+    set<CURL *>pausedrequests[3];
+    m_off_t partialdata[2];
+    m_off_t maxspeed[2];
+    bool curlsocketsprocessed;
+    m_time_t arestimeout;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
     void cancel(HttpReq*);
-    void sendchunked(HttpReq*);
 
     m_off_t postpos(void*);
 
     bool doio(void);
-    bool multidoio(CURLM *curlm);
+    bool multidoio(CURLM *curlmhandle);
 
     void addevents(Waiter*, int);
 
@@ -184,6 +178,7 @@ public:
 struct MEGA_API CurlHttpContext
 {
     CURL* curl;
+    direction_t d;
 
     HttpReq* req;
     CurlHttpIO* httpio;

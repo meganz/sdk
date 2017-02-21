@@ -111,15 +111,6 @@
    */
 #define LT_OBJDIR ".libs/"
 
-/* MEGA SDK major version. */
-#define MEGA_MAJOR_VERSION 2
-
-/* MEGA SDK micro version. */
-#define MEGA_MICRO_VERSION 0
-
-/* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 6
-
 /* Name of package */
 #define PACKAGE "libmega"
 
@@ -129,17 +120,11 @@
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "libmega"
 
-/* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libmega 0.2.3"
-
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libmega"
 
 /* Define to the home page for this package. */
 #define PACKAGE_URL ""
-
-/* Define to the version of this package. */
-#define PACKAGE_VERSION "0.2.3"
 
 /* The size of `uint64_t', as computed by sizeof. */
 #define SIZEOF_UINT64_T 8

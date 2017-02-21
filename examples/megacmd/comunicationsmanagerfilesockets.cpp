@@ -1,6 +1,6 @@
 /**
- * @file examples/megacmd/comunicationsmanagerposix.cpp
- * @brief MegaCMD: Communications manager
+ * @file examples/megacmd/comunicationsmanagerfilesockets.cpp
+ * @brief MegaCMD: Communications manager using Network Sockets
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *

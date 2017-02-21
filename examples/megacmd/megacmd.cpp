@@ -28,6 +28,9 @@
 #include "comunicationsmanager.h"
 #include "listeners.h"
 
+#include "megacmdplatform.h"
+#include "megacmdversion.h"
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -38,7 +41,8 @@
 
 
 #ifdef _WIN32
-#define COMUNICATIONMANAGER ComunicationsManager
+#include "comunicationsmanagerportsockets.h"
+#define COMUNICATIONMANAGER ComunicationsManagerPortSockets
 #else
 #include "comunicationsmanagerfilesockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerFileSockets
@@ -61,7 +65,10 @@ MegaMutex mutexapiFolders;
 
 MegaCMDLogger *loggerCMD;
 
+MegaMutex mutexEndedPetitionThreads;
 std::vector<MegaThread *> petitionThreads;
+std::vector<MegaThread *> endedPetitionThreads;
+
 
 //Comunications Manager
 ComunicationsManager * cm;
@@ -78,7 +85,7 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotefolderpatterncommands [] = {"sync"};
 vector<string> localremotefolderpatterncommands(alocalremotefolderpatterncommands, alocalremotefolderpatterncommands + sizeof alocalremotefolderpatterncommands / sizeof alocalremotefolderpatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "find"};
+string aremotepatterncommands[] = {"export", "find", "attr"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string aremotefolderspatterncommands[] = {"cd", "share"};
@@ -102,7 +109,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion" };
+                             "history", "thumbnail", "preview", "find", "completion", "clear", "https"};
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -128,6 +135,8 @@ Console* console;
 MegaMutex mutexHistory;
 
 map<int, string> threadline;
+
+void printWelcomeMsg();
 
 string getCurrentThreadLine()
 {
@@ -264,10 +273,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("help" == thecommand)
     {
         validParams->insert("f");
+        validParams->insert("non-interactive");
     }
     else if ("version" == thecommand)
     {
         validParams->insert("l");
+        validParams->insert("c");
     }
     else if ("rm" == thecommand)
     {
@@ -322,6 +333,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("s");
         validParams->insert("h");
         validParams->insert("d");
+        validParams->insert("n");
     }
     else if ("killsession" == thecommand)
     {
@@ -369,45 +381,20 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("c");
     }
-}
-
-char* generic_completion(const char* text, int state, vector<string> validOptions)
-{
-    static size_t list_index, len;
-    string name;
-
-    if (!state)
+    else if ("get" == thecommand)
     {
-        list_index = 0;
-        len = strlen(text);
+        validParams->insert("m");
     }
-    while (list_index < validOptions.size())
-    {
-        name = validOptions.at(list_index);
-        list_index++;
-
-        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
-        {
-            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
-            {
-                rl_completion_suppress_append = 1;
-            }
-
-            return dupstr((char*)name.c_str());
-        }
-    }
-
-    return((char*)NULL );
 }
 
-char* commands_completion(const char* text, int state)
+void escapeEspace(string &orig)
 {
-    return generic_completion(text, state, validCommands);
+    replaceAll(orig," ", "\\ ");
 }
 
-char* local_completion(const char* text, int state)
+void unescapeEspace(string &orig)
 {
-    return((char*)NULL );  //matches will be NULL: readline will use local completion
+    replaceAll(orig,"\\ ", " ");
 }
 
 char* empty_completion(const char* text, int state)
@@ -422,6 +409,59 @@ char* empty_completion(const char* text, int state)
         return strdup(text);
     }
     return NULL;
+}
+
+char* generic_completion(const char* text, int state, vector<string> validOptions)
+{
+    static size_t list_index, len;
+    static bool foundone;
+    string name;
+    if (!validOptions.size()) // no matches
+    {
+        return empty_completion(text,state); //dont fall back to filenames
+    }
+    if (!state)
+    {
+        list_index = 0;
+        foundone = false;
+        len = strlen(text);
+    }
+    while (list_index < validOptions.size())
+    {
+        name = validOptions.at(list_index);
+        if (!rl_completion_quote_character && interactiveThread()) {
+            escapeEspace(name);
+        }
+
+        list_index++;
+
+        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
+        {
+            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
+            {
+                rl_completion_suppress_append = 1;
+            }
+            foundone = true;
+            return dupstr((char*)name.c_str());
+        }
+    }
+
+    if (!foundone)
+    {
+        return empty_completion(text,state); //dont fall back to filenames
+    }
+
+    return((char*)NULL );
+}
+
+char* commands_completion(const char* text, int state)
+{
+    return generic_completion(text, state, validCommands);
+}
+
+char* local_completion(const char* text, int state)
+{
+    return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
 void addGlobalFlags(set<string> *setvalidparams)
@@ -521,27 +561,45 @@ char * flags_value_completion(const char*text, int state)
             {
                 if (currentFlag.find("--level=") == 0)
                 {
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READ));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_READWRITE));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_FULL));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_OWNER));
-                    validValues.push_back(getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    string prefix = strncmp(text, "--level=", strlen("--level="))?"":"--level=";
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READ));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READWRITE));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_FULL));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_OWNER));
+                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
                 }
                 if (currentFlag.find("--with=") == 0)
                 {
                     validValues = cmdexecuter->getlistusers();
+                    string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
+                    for (u_int i=0;i<validValues.size();i++)
+                    {
+                        validValues.at(i)=prefix+validValues.at(i);
+                    }
                 }
             }
             if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
             {
                 validValues = cmdexecuter->getlistusers();
+                string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
+                for (u_int i=0;i<validValues.size();i++)
+                {
+                    validValues.at(i)=prefix+validValues.at(i);
+                }
             }
         }
     }
 
     char *toret = generic_completion(text, state, validValues);
     return toret;
+}
+
+void unescapeifRequired(string &what)
+{
+    if (!rl_completion_quote_character && interactiveThread() ) {
+        return unescapeEspace(what);
+    }
 }
 
 char* remotepaths_completion(const char* text, int state)
@@ -557,6 +615,9 @@ char* remotepaths_completion(const char* text, int state)
 #endif
         wildtext += "*";
 
+        if (!rl_completion_quote_character) {
+            unescapeEspace(wildtext);
+        }
         validpaths = cmdexecuter->listpaths(wildtext);
     }
     return generic_completion(text, state, validpaths);
@@ -820,6 +881,8 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
 
 static char** getCompletionMatches(const char * text, int start, int end)
 {
+    rl_filename_quoting_desired = 1;
+
     char **matches;
 
     matches = (char**)NULL;
@@ -834,6 +897,7 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
+
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
@@ -940,7 +1004,7 @@ const char * getUsageStr(const char *command)
 {
     if (!strcmp(command, "login"))
     {
-        return "login [email [password] | exportedfolderurl#key | session";
+        return "login [email [password]] | exportedfolderurl#key | session";
     }
     if (!strcmp(command, "begin"))
     {
@@ -1004,7 +1068,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
-        return "get exportedlink#key|remotepath [localpath]";
+        return "get exportedlink#key|remotepath [-m] [localpath]";
     }
     if (!strcmp(command, "getq"))
     {
@@ -1042,6 +1106,10 @@ const char * getUsageStr(const char *command)
     {
         return "sync [localpath dstremotepath| [-ds] [ID|localpath]";
     }
+    if (!strcmp(command, "https"))
+    {
+        return "https [on|off]";
+    }
     if (!strcmp(command, "export"))
     {
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
@@ -1064,7 +1132,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "users"))
     {
-        return "users [-s] [-h] [-d contact@email]";
+        return "users [-s] [-h] [-n] [-d contact@email]";
     }
     if (!strcmp(command, "getua"))
     {
@@ -1112,7 +1180,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "version"))
     {
-        return "version [-l]";
+        return "version [-l][-c]";
     }
     if (!strcmp(command, "debug"))
     {
@@ -1170,6 +1238,10 @@ const char * getUsageStr(const char *command)
     {
         return "help [-f]";
     }
+    if (!strcmp(command, "clear"))
+    {
+        return "clear";
+    }
     return "command not found";
 }
 
@@ -1197,8 +1269,9 @@ string getHelpStr(const char *command)
     if (!strcmp(command, "login"))
     {
         os << "Logs into a mega" << endl;
-        os << " You can log in either with email and password, with session ID, or into an exportedfolder" << endl;
-        os << " If loging into an exported folder indicate url#key" << endl;
+        os << " You can log in either with email and password, with session ID," << endl;
+        os << " or into a folder (an exported/public folder)" << endl;
+        os << " If loging into a folder indicate url#key" << endl;
     }
     else if (!strcmp(command, "signup"))
     {
@@ -1207,7 +1280,13 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " --name=\"Your Name\"" << "\t" << "Name to register. e.g. \"John Smith\"" << endl;
         os << endl;
-        os << " You will receive an email to confirm your account. Once you have received the email, please proceed to confirm the link included in that email with \"confirm\"." << endl;
+        os << " You will receive an email to confirm your account. " << endl;
+        os << " Once you have received the email, please proceed to confirm the link " << endl;
+        os << " included in that email with \"confirm\"." << endl;
+    }
+    else if (!strcmp(command, "clear"))
+    {
+        os << "Clear screen" << endl;
     }
     else if (!strcmp(command, "help"))
     {
@@ -1256,8 +1335,17 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the current logs level" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -c" << "\t" << "CMD log level (higher level messages). Messages captured by the command line." << endl;
-        os << " -s" << "\t" << "SDK log level (lower level messages). Messages captured by the engine and libs" << endl;
+        os << " -c" << "\t" << "CMD log level (higher level messages). " << endl;
+        os << "   " << "\t" << " Messages captured by the command line." << endl;
+        os << " -s" << "\t" << "SDK log level (lower level messages)." << endl;
+        os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
+
+        os << endl;
+        os << "Verbosity in non-interactive mode: Regardless of the log level of the" << endl;
+        os << " interactive shell, you can increase the amount of information given" <<  endl;
+        os << "   by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+
+
     }
     else if (!strcmp(command, "du"))
     {
@@ -1278,7 +1366,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "It will be used for uploads and downloads" << endl;
         os << endl;
-        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+        os << "If not using interactive console, the current local folder will be " << endl;
+        os << " that of the shell executing mega comands" << endl;
     }
     else if (!strcmp(command, "lpwd"))
     {
@@ -1286,7 +1375,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "It will be used for uploads and downloads" << endl;
         os << endl;
-        os << "If not using interactive console, the current local folder will be that of the shell executing mega comands" << endl;
+        os << "If not using interactive console, the current local folder will be " << endl;
+        os << " that of the shell executing mega comands" << endl;
     }
     else if (!strcmp(command, "logout"))
     {
@@ -1312,11 +1402,18 @@ string getHelpStr(const char *command)
     {
         os << "Downloads a remote file/folder or a public link " << endl;
         os << endl;
-        os << "In case it is a file, the file will be downloaded at the specified folder (or at the current folder if none specified) " << endl;
-        os << "If the file already exists, it will create a new one (e.g. \"file (1).txt\")" << endl;
+        os << "In case it is a file, the file will be downloaded at the specified folder " << endl;
+        os << "                             (or at the current folder if none specified)." << endl;
+        os << "  If the localpath(destiny) already exists and is the same (same contents)" << endl;
+        os << "  nothing will be done. If differs, it will create a new file appending \" (NUM)\" " << endl;
+        os << "  if the localpath(destiny) is a folder with a file with the same name on it, " << endl;
+        os << "         it will preserve the, it will create a new file appending \" (NUM)\" " << endl;
         os << endl;
-        os << "For folders, the entire contents (and the root folder itself) will be downloaded into the destination folder" << endl;
-        os << "If the folder already exists, the contents will be merged with the downloaded one (preserving the existing files)" << endl;
+        os << "For folders, the entire contents (and the root folder itself) will be" << endl;
+        os << "                    by default downloaded into the destination folder" << endl;
+        os << "Options:" << endl;
+        os << " -m" << "\t" << "if the folder already exists, the contents will be merged with the " << endl;
+        os << "                     downloaded one (preserving the existing files)" << endl;
     }
     if (!strcmp(command, "attr"))
     {
@@ -1362,15 +1459,25 @@ string getHelpStr(const char *command)
         os << "If the location exists and is a folder, the source will be copied there" << endl;
         os << "If the location doesn't exits, the file/folder will be renamed to the defined destiny" << endl;
     }
+    else if (!strcmp(command, "https"))
+    {
+        os << "Shows if HTTPS is used for transfers. Use \"https on\" to enable it." << endl;
+        os << endl;
+        os << "HTTPS is not necesary since all data is stored and transfered encrypted." << endl;
+        os << "Enabling it will increase CPU usage and add network overhead." << endl;
+    }
     else if (!strcmp(command, "sync"))
     {
         os << "Controls synchronizations" << endl;
         os << endl;
-        os << "If no argument is provided, it lists current synchronization with their IDs and their state" << endl;
+        os << "If no argument is provided, it lists current synchronization with their IDs " << endl;
+        os << "                                                             and their state" << endl;
         os << endl;
-        os << "If provided local and remote paths, it will start synchronizing a local folder into a remote folder" << endl;
+        os << "If provided local and remote paths, it will start synchronizing a local folder " << endl;
+        os << "                                                           into a remote folder" << endl;
         os << endl;
-        os << "If an ID is provided, it will list such synchronization with its state, unless an option is specified:" << endl;
+        os << "If an ID is provided, it will list such synchronization with its state, " << endl;
+        os << "                                          unless an option is specified:" << endl;
         os << "-d" << " " << "ID|localpath" << "\t" << "deletes a synchronization" << endl;
         os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) or resumes a synchronization" << endl;
     }
@@ -1381,8 +1488,10 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -a" << "\t" << "Adds an export (or modifies it if existing)" << endl;
         os << " --expire=TIMEDELAY" << "\t" << "Determines the expiration time of a node." << endl;
-        os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), minutes(M), seconds(s), months(m) or years(y)" << endl;
-        os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, 12 days and 3 hours after the current moment" << endl;
+        os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), " << endl;
+        os << "                   " << "\t"  << "   minutes(M), seconds(s), months(m) or years(y)" << endl;
+        os << "                   " << "\t" << "   e.g. \"1m12d3h\" stablish an expiration time 1 month, " << endl;
+        os << "                   " << "\t"  << "   12 days and 3 hours after the current moment" << endl;
         os << " -d" << "\t" << "Deletes an export" << endl;
         os << endl;
         os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
@@ -1403,8 +1512,16 @@ string getHelpStr(const char *command)
         os << "              " << "\t" << "2: " << "Full access" << endl;
         os << "              " << "\t" << "3: " << "Owner access" << endl;
         os << endl;
-        os << "If a remote path is given it'll be used to add/delete or in case of no option selected," << endl;
-        os << " it will display all the shares existing in the tree of that path" << endl;
+        os << "If a remote path is given it'll be used to add/delete or in case " << endl;
+        os << " of no option selected, it will display all the shares existing " << endl;
+        os << " in the tree of that path" << endl;
+        os << endl;
+        os << "When sharing a folder with a user that is not a contact (see \"users\" help)" << endl;
+        os << "  the share will be in a pending state. You can list pending shares with" << endl;
+        os << " \"share -p\". He would need to accept your invitation (see \"ipc\")" << endl;
+        os << endl;
+        os << "If someone has shared somethin with you, it will be listed as a root folder" << endl;
+        os << " Use \"mount\" to list folders shared with you" << endl;
     }
     else if (!strcmp(command, "invite"))
     {
@@ -1446,6 +1563,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -s" << "\t" << "Show shared folders with listed contacts" << endl;
         os << " -h" << "\t" << "Show all contacts (hidden, blocked, ...)" << endl;
+        os << " -n" << "\t" << "Show users names" << endl;
         os << " -d" << "\tcontact@email " << "Deletes the specified contact" << endl;
         os << endl;
         os << "Use \"invite\" to send/remove invitations to other users" << endl;
@@ -1478,7 +1596,8 @@ string getHelpStr(const char *command)
         os << "Print info of the user" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder (see mount), pro level, account balance, and also the active sessions" << endl;
+        os << " -l" << "\t" << "Show extended info: total storage used, storage per main folder " << endl;
+        os << "   " << "\t" << "(see mount), pro level, account balance, and also the active sessions" << endl;
     }
     if (!strcmp(command, "passwd"))
     {
@@ -1493,6 +1612,7 @@ string getHelpStr(const char *command)
         os << "Prints MEGA versioning info" << endl;
         os << endl;
         os << "Options:" << endl;
+        os << " -c" << "\t" << "Shows changelog for the current version" << endl;
         os << " -l" << "\t" << "Show extended info: MEGA SDK version and features enabled" << endl;
     }
     else if (!strcmp(command, "thumbnail"))
@@ -1536,23 +1656,72 @@ string getHelpStr(const char *command)
     return os.str();
 }
 
-
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
 void printAvailableCommands(int extensive = 0)
 {
     vector<string> validCommandsOrdered = validCommands;
     sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
-    for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+    if (!extensive)
     {
-        if (validCommandsOrdered.at(i)!="completion")
+        size_t i = 0;
+        size_t j = (validCommandsOrdered.size()/3)+((validCommandsOrdered.size()%3>0)?1:0);
+        size_t k = 2*(validCommandsOrdered.size()/3)+validCommandsOrdered.size()%3;
+        for (i = 0; i < validCommandsOrdered.size() && j < validCommandsOrdered.size()  && k < validCommandsOrdered.size(); i++, j++, k++)
         {
-            OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str());
-            if (extensive)
+            OUTSTREAM << "      " << setw(20) << left << validCommandsOrdered.at(i) <<  setw(20) << validCommandsOrdered.at(j)  <<  "      " << validCommandsOrdered.at(k) << endl;
+        }
+        if (validCommandsOrdered.size()%3)
+        {
+            OUTSTREAM << "      " << setw(20) <<  validCommandsOrdered.at(i);
+            if (validCommandsOrdered.size()%3 > 1 )
             {
-                string helpstr = getHelpStr(validCommandsOrdered.at(i).c_str());
-                helpstr=string(helpstr,helpstr.find_first_of("\n")+1);
-                OUTSTREAM << ": " << string(helpstr,0,helpstr.find_first_of("\n"));
+                OUTSTREAM << setw(20) <<  validCommandsOrdered.at(j);
             }
             OUTSTREAM << endl;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+        {
+            if (validCommandsOrdered.at(i)!="completion")
+            {
+                if (extensive > 1)
+                {
+                    u_int width = 90;
+                    int rows = 1, cols = width;
+
+                    #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+                        if (RL_ISSTATE(RL_STATE_INITIALIZED))
+                        {
+                            rl_resize_terminal();
+                            rl_get_screen_size(&rows, &cols);
+                        }
+                    #endif
+
+                    if (cols)
+                    {
+                        width = min((int)width,cols-2);
+                    }
+
+                    OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
+                    OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
+                    for (u_int j = 0; j< width; j++) OUTSTREAM << "-";
+                    OUTSTREAM << endl;
+
+
+                }
+                else
+                {
+                    OUTSTREAM << "      " << getUsageStr(validCommandsOrdered.at(i).c_str());
+                    string helpstr = getHelpStr(validCommandsOrdered.at(i).c_str());
+                    helpstr=string(helpstr,helpstr.find_first_of("\n")+1);
+                    OUTSTREAM << ": " << string(helpstr,0,helpstr.find_first_of("\n"));
+
+                    OUTSTREAM << endl;
+                }
+            }
         }
     }
 }
@@ -1622,15 +1791,89 @@ void executecommand(char* ptr)
 
     if ( thecommand == "help" )
     {
-        OUTSTREAM << "Here is the list of available commands and their usage" << endl;
-        OUTSTREAM << "Use \"help\" -f to get a brief description of the commands" << endl;
-        OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
-        OUTSTREAM << endl << "Commands:" << endl;
+        if (getFlag(&clflags,"non-interactive"))
+        {
+            OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
+            OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
+            OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
+            OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
+#ifdef _WIN32
 
-        printAvailableCommands(getFlag(&clflags,"f"));
+            OUTSTREAM << "Along with the interactive shell, there should be several mega-*.bat scripts" << endl;
+            OUTSTREAM << "installed with MEGAcmd. You can use them writting their absolute paths, " << endl;
+            OUTSTREAM << "or including their location into your environment PATH and execute simply with mega-*" << endl;
+            OUTSTREAM << "If you use PowerShell, you can add the the location of the scripts to the PATH with:" << endl;
+            OUTSTREAM << "  $env:PATH += \";$env:LOCALAPPDATA\\MEGAcmd\"" << endl;
+            OUTSTREAM << "Client commands completion requires bash, hence, it is not available for Windows. " << endl;
+            OUTSTREAM << endl;
+
+           OUTSTREAM << "  Security caveats:" << endl;
+           OUTSTREAM << "For the current Windows version of MEGAcmd, the server will be using network sockets " << endl;
+           OUTSTREAM << "for attending client commands. This socket is open for petitions on localhost, hence, " << endl;
+           OUTSTREAM << "you should not use it in a multiuser environment." << endl;
+#elif __MACH__
+            OUTSTREAM << "After installing the dmg, along with the interactive shell, client commands" << endl;
+            OUTSTREAM << "should be located at /Applications/MEGAcmd.app/Contents/MacOS" << endl;
+            OUTSTREAM << "If you wish to use the client commands from MacOS Terminal, open the Terminal and " << endl;
+            OUTSTREAM << "include the installation folder in the PATH. Typically:" << endl;
+            OUTSTREAM << endl;
+            OUTSTREAM << " export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH" << endl;
+            OUTSTREAM << endl;
+            OUTSTREAM << "And for bash completion, source megacmd_completion.sh:" << endl;
+            OUTSTREAM << " source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh" << endl;
+#else
+            OUTSTREAM << "If you have installed MEGAcmd using one of the available packages" << endl;
+            OUTSTREAM << "both the interactive shell (mega-cmd) and the different client commands (mega-*) " << endl;
+            OUTSTREAM << "will be in your PATH (you might need to open your shell again). " << endl;
+            OUTSTREAM << "If you are using bash, you should also have autocompletion for client commands working. " << endl;
+
+#endif
+        }
+        else
+        {
+            OUTSTREAM << "Here is the list of available commands and their usage" << endl;
+            OUTSTREAM << "Use \"help -f\" to get a brief description of the commands" << endl;
+            OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
+            OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
+            OUTSTREAM << "Use \"help --non-interactive\"  learn how to use MEGAcmd with scripts" << endl;
+
+            OUTSTREAM << endl << "Commands:" << endl;
+
+            printAvailableCommands(getFlag(&clflags,"f"));
+            OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+        }
         return;
     }
 
+    if ( thecommand == "clear" )
+    {
+#ifdef _WIN32
+        HANDLE hStdOut;
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        DWORD count;
+
+        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
+        if (hStdOut == INVALID_HANDLE_VALUE) return;
+
+        /* Get the number of cells in the current buffer */
+        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
+        /* Fill the entire buffer with spaces */
+        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
+        {
+            return;
+        }
+        /* Fill the entire buffer with the current colors and attributes */
+        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
+        {
+            return;
+        }
+        /* Move the cursor home */
+        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
+#else
+        rl_clear_screen(0,0);
+#endif
+        return;
+    }
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
@@ -1739,6 +1982,7 @@ void * doProcessLine(void *pointer)
 
     LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
+    MegaThread * petitionThread = inf->getPetitionThread();
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
     semaphoreClients.release();
@@ -1746,27 +1990,41 @@ void * doProcessLine(void *pointer)
     {
         exit(0);
     }
+
+    mutexEndedPetitionThreads.lock();
+    endedPetitionThreads.push_back(petitionThread);
+    mutexEndedPetitionThreads.unlock();
+
     return NULL;
 }
 
 
 void delete_finished_threads()
 {
-    for (std::vector<MegaThread *>::iterator it = petitionThreads.begin(); it != petitionThreads.end(); )
+    mutexEndedPetitionThreads.lock();
+    for (std::vector<MegaThread *>::iterator it = endedPetitionThreads.begin(); it != endedPetitionThreads.end(); )
     {
-        /* std::cout << *it; ... */
         MegaThread *mt = (MegaThread*)*it;
-#ifdef USE_QT
-        if (mt->isFinished())
+        for (std::vector<MegaThread *>::iterator it2 = petitionThreads.begin(); it2 != petitionThreads.end(); )
         {
-            delete mt;
-            it = petitionThreads.erase(it);
+            if (mt == (MegaThread*)*it2)
+            {
+                it2 = petitionThreads.erase(it2);
+            }
+            else
+            {
+                ++it2;
+            }
         }
-        else
-#endif
-        ++it;
+
+        mt->join();
+        delete mt;
+        it = endedPetitionThreads.erase(it);
     }
+    mutexEndedPetitionThreads.unlock();
 }
+
+
 
 void finalize()
 {
@@ -1871,6 +2129,7 @@ void megacmd()
                         //append new one
                         MegaThread * petitionThread = new MegaThread();
                         petitionThreads.push_back(petitionThread);
+                        inf->setPetitionThread(petitionThread);
 
                         LOG_debug << "starting processing: " << *inf;
 
@@ -1907,6 +2166,8 @@ void megacmd()
         }
         if (doExit)
         {
+            if (saved_line != NULL)
+                free(saved_line);
             return;
         }
     }
@@ -1921,7 +2182,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, int width, bool encapsulated = true)
+void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1941,7 +2202,16 @@ void printCenteredLine(string msj, int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    int width = 75;
+    u_int width = 75;
+    int rows = 1, cols = width;
+    rl_get_screen_size(&rows, &cols);
+
+    if (cols)
+    {
+        width = cols-2;
+    }
+
+    cout << endl;
     cout << ".";
     for (u_int i = 0; i < width; i++)
         cout << "=" ;
@@ -1964,6 +2234,8 @@ void printWelcomeMsg()
     printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
     printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
     printCenteredLine("have any suggestion concerning its functionalities.",width);
+    printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
+    printCenteredLine("Enter \"help\" to list the available commands.",width);
 
     cout << "`";
     for (u_int i = 0; i < width; i++)
@@ -1973,19 +2245,83 @@ void printWelcomeMsg()
 
 }
 
+int quote_detector(char *line, int index)
+{
+    return (
+        index > 0 &&
+        line[index - 1] == '\\' &&
+        !quote_detector(line, index - 1)
+    );
+}
+
+
+#ifdef __MACH__
+
+
+bool enableSetuidBit()
+{
+    char *response = runWithRootPrivileges("do shell script \"chown root /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && chmod 4755 /Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader && echo true\"");
+    if (!response)
+    {
+        return NULL;
+    }
+    bool result = strlen(response) >= 4 && !strncmp(response, "true", 4);
+    delete response;
+    return result;
+}
+
+
+void initializeMacOSStuff(int argc, char* argv[])
+{
+#ifdef QT_DEBUG
+        return;
+#endif
+
+    int fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd < 0)
+    {
+        if (!enableSetuidBit())
+        {
+            ::exit(0);
+        }
+
+        //Reboot
+        if (fork() )
+        {
+            execv("/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader",argv);
+        }
+        sleep(10); // TODO: remove
+        ::exit(0);
+    }
+}
+
+#endif
+
 int main(int argc, char* argv[])
 {
+
+#ifdef __MACH__
+    initializeMacOSStuff(argc,argv);
+#endif
+
     NullBuffer null_buffer;
     std::ostream null_stream(&null_buffer);
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
-    printWelcomeMsg();
-
     loggerCMD = new MegaCMDLogger(&cout);
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
 
     if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
     {
@@ -1995,12 +2331,39 @@ int main(int argc, char* argv[])
 
     mutexHistory.init(false);
 
+    mutexEndedPetitionThreads.init(false);
+
     ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
-    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), "MegaCMD User Agent");
+    char userAgent[30];
+    sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
+
+#ifdef __MACH__
+    int fd = -1;
+    if (argc)
+    {
+        long int value = strtol(argv[argc-1], NULL, 10);
+        if (value > 0 && value < INT_MAX)
+        {
+            fd = value;
+        }
+    }
+
+    if (fd >= 0)
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent, fd);
+    }
+    else
+    {
+        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
+    }
+#else
+    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
+#endif
+
     for (int i = 0; i < 5; i++)
     {
-        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, "MegaCMD User Agent");
+        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
         apiFolders.push(apiFolder);
         apiFolder->setLoggerObject(loggerCMD);
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
@@ -2041,8 +2404,7 @@ int main(int argc, char* argv[])
 #endif
     cm = new COMUNICATIONMANAGER();
 
-
-#ifdef _WIN32
+#if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
      {
         LOG_debug << "Control handler set";
@@ -2059,10 +2421,18 @@ int main(int argc, char* argv[])
     atexit(finalize);
 
     rl_attempted_completion_function = getCompletionMatches;
+    rl_completer_quote_characters = "\"'";
+    rl_filename_quote_characters  = " ";
+    rl_completer_word_break_characters = (char *)" ";
+
+
+    rl_char_is_quoted_p = &quote_detector;
 
     rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
     // so that we can use rl_message or rl_resize_terminal safely before ever
     // prompting anything.
+
+    printWelcomeMsg();
 
     if (!ConfigurationManager::session.empty())
     {

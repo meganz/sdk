@@ -61,6 +61,7 @@ class MegaContactRequest;
 class MegaShare;
 class MegaError;
 class MegaRequest;
+class MegaEvent;
 class MegaTransfer;
 class MegaSync;
 class MegaStringList;
@@ -1812,7 +1813,8 @@ class MegaRequest
             TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL
+            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
+            TYPE_GET_USER_EMAIL,TYPE_APP_VERSION
         };
 
         virtual ~MegaRequest();
@@ -2382,6 +2384,52 @@ class MegaRequest
 };
 
 /**
+ * @brief Provides information about an event
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the event
+ * when the object is created, they are immutable.
+ */
+class MegaEvent
+{
+public:
+
+    enum {
+        EVENT_COMMIT_DB = 0
+    };
+
+    virtual ~MegaEvent();
+
+    /**
+     * @brief Creates a copy of this MegaEvent object
+     *
+     * The resulting object is fully independent of the source MegaEvent,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaEvent object
+     */
+    virtual MegaEvent *copy();
+
+    /**
+     * @brief Returns the type of the event associated with the object
+     * @return Type of the event associated with the object
+     */
+    virtual int getType();
+
+    /**
+     * @brief Returns a text relative to this event
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaEvent object is deleted.
+     *
+     * @return Text relative to this event
+     */
+    virtual char *getText();
+};
+
+/**
  * @brief Provides information about a transfer
  *
  * Developers can use listeners (MegaListener, MegaTransferListener)
@@ -2761,6 +2809,16 @@ class MegaTransfer
          * @return Priority of the transfer
          */
         virtual unsigned long long getPriority() const;
+
+        /**
+         * @brief Returns the notification number of the SDK when this MegaTransfer was generated
+         *
+         * The notification number of the SDK is increased every time the SDK sends a callback
+         * to the app.
+         *
+         * @return Notification number
+         */
+        virtual long long getNotificationNumber() const;
 };
 
 /**
@@ -2829,6 +2887,16 @@ public:
      * @return Priority of the upload at index i
      */
     virtual unsigned long long getUploadPriority(int i) const;
+
+    /**
+     * @brief Returns the notification number of the SDK when this MegaTransferData was generated
+     *
+     * The notification number of the SDK is increased every time the SDK sends a callback
+     * to the app.
+     *
+     * @return Notification number
+     */
+    virtual long long getNotificationNumber() const;
 };
 
 
@@ -3854,6 +3922,30 @@ class MegaGlobalListener
          */
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
+        /**
+         *
+         * The details about the event, like the type of event and optionally any
+         * additional parameter, is received in the \c params parameter.
+         *
+         * Currently, the following type of events are notified:
+         *
+         *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+         *  This event can be used to keep synchronization between the SDK cache and the
+         *  cache managed by the app thanks to the sequence number.
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+         *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param event Details about the event
+         */
+        virtual void onEvent(MegaApi* api, MegaEvent *event);
+
         virtual ~MegaGlobalListener();
 };
 
@@ -4137,6 +4229,26 @@ class MegaListener
      */
     virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
+
+        /**
+         *
+         * The details about the event, like the type of event and optionally any
+         * additional parameter, is received in the \c params parameter.
+         *
+         * Currently, the following type of events are notified:
+         *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+         *  This event can be used to keep synchronization between the SDK cache and the
+         *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param event Details about the event
+         */
+        virtual void onEvent(MegaApi* api, MegaEvent *event);
 
         virtual ~MegaListener();
 };
@@ -4785,6 +4897,19 @@ class MegaApi
         char *dumpSession();
 
         /**
+         * @brief Returns the current sequence number
+         *
+         * The sequence number indicates the state of a MEGA account known by the SDK.
+         * When external changes are received via actionpackets, the sequence number is
+         * updated and changes are commited to the local cache.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The current sequence number
+         */
+        char *getSequenceNumber();
+
+        /**
          * @brief Returns the current XMPP session key
          *
          * You have to be logged in to get a valid session key. Otherwise,
@@ -5202,6 +5327,7 @@ class MegaApi
          */
         char* getMyFingerprint();
 #endif
+
         /**
          * @brief Set the active log level
          *
@@ -5754,6 +5880,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the email address of any user in MEGA.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_EMAIL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the user (the provided one as parameter)
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Returns the email address
+         *
+         * @param handle Handle of the user to get the attribute.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail
@@ -6372,8 +6514,9 @@ class MegaApi
          * See MegaApi::usingHttpsOnly
          *
          * @param httpsOnly True to use HTTPS communications only
+         * @param listener MegaRequestListener to track this request
          */
-        void useHttpsOnly(bool httpsOnly);
+        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if the SDK is using HTTPS communications only
@@ -6532,6 +6675,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Retry a transfer
+         *
+         * This function allows to start a transfer based on a MegaTransfer object. It can be used,
+         * for example, to retry transfers that finished with an error. To do it, you can retain the
+         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+         * and use it later with this function.
+         *
+         * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
+         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
+         * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * @param transfer Transfer to be retried
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Move a transfer one position up in the transfer queue
@@ -7090,6 +7250,16 @@ class MegaApi
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
 
         /**
+         * @brief Get the first transfer in a transfer queue
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param Transfer queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+         * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
+         */
+        MegaTransfer *getFirstTransfer(int type);
+
+        /**
          * @brief Force an onTransferUpdate callback for the specified transfer
          *
          * The callback will be received by transfer listeners registered to receive all
@@ -7469,10 +7639,16 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for the server
+         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
          * @return true if the SDK is waiting for the server to complete a request
          */
         bool isWaiting();
+
+        /**
+         * @brief Check if the SDK is waiting for the server
+         * @return true if the SDK is waiting for the server to complete a request
+         */
+        bool areServersBusy();
 
         /**
          * @brief Get the number of pending uploads
@@ -8395,6 +8571,29 @@ class MegaApi
         const char *getVersion();
 
         /**
+         * @brief Get the last available version of the app
+         *
+         * It returns the last available version corresponding to an app token
+         *
+         * The associated request type with this request is MegaRequest::TYPE_APP_VERSION
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the app token
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the last available version code of the app
+         * - MegaRequest::getName - Returns the last available version string of the app
+         *
+         * Usually, the version code is used to internally control updates, and the version
+         * string is intended to be shown to final users.
+         *
+         * @param appKey Token of the app to check or NULL to use the same value as in the
+         * initialization of the MegaApi object
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLastAvailableVersion(const char *appKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get the User-Agent header used by the SDK
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -9168,6 +9367,32 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Register a token for push notifications
+         *
+         * This function attach a token to the current session, which is intended to get push notifications
+         * on mobile platforms like Android and iOS.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the token provided.
+         * - MegaRequest::getNumber - Returns the device type provided.
+         *
+         * @param deviceType Integer id for the provider. 1 for Android, 2 for iOS
+         * @param token Character array representing the token to be registered.
+         * @param listener MegaRequestListener to track this request
+         */
+        void registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the list of chatrooms for this account
+         *
+         * You take the ownership of the returned value
+         *
+         * @return A list of MegaTextChat objects with detailed information about each chatroom.
+         */
+        MegaTextChatList *getChatList();
 #endif
 
 private:

@@ -219,7 +219,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
@@ -259,7 +259,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                             chat->getUrl(), chat->getShard(),
                             privs, chat->isGroup(),
                             chat->getOriginatingUser(),
-                            chat->getTitle());
+                            chat->getTitle() ? chat->getTitle() : "");
 
                 delete chats[chatid];
                 chats[chatid] = buf;
@@ -393,7 +393,15 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     {
         apiIndex = 0;
 
-        MegaTextChatList *list = chats->copy();
+        MegaTextChatList *list = NULL;
+        if (chats)
+        {
+            list = chats->copy();
+        }
+        else
+        {
+            list = megaApi[0]->getChatList();
+        }
         for (int i = 0; i < list->size(); i++)
         {
             handle chatid = list->get(i)->getHandle();
@@ -407,6 +415,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
                 this->chats[chatid] = list->get(i)->copy();
             }
         }
+        delete list;
     }
     else if (api == megaApi[1])
     {
@@ -1022,6 +1031,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 
     delete session;
 }
@@ -1271,10 +1281,49 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_FALSE(null_pointer) << "Cannot download node";
     ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
 
+
+    // --- Upload a 0-bytes file ---
+
+    string filename3 = EMPTYFILE;
+    FILE *fp = fopen(filename3.c_str(), "w");
+    fclose(fp);
+
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename3.c_str(), rootnode);
+
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 600) )
+            << "Upload 0-byte file failed after " << 600 << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload file (error: " << lastError[0] << ")";
+
+    MegaNode *n4 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n4 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError[0] << ")";
+    ASSERT_STREQ(filename3.data(), n4->getName()) << "Uploaded file with wrong name (error: " << lastError[0] << ")";
+
+
+    // --- Download a 0-byte file ---
+
+    filename3 = "./" + EMPTYFILE;
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(n4, filename3.c_str());
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download 0-byte file failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
+
+    MegaNode *n5 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n5 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot download node";
+    ASSERT_EQ(n4->getHandle(), n5->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
+
+
     delete rootnode;
     delete n1;
     delete n2;
     delete n3;
+    delete n4;
+    delete n5;
 }
 
 /**
@@ -1324,6 +1373,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    // if there were too many invitations within a short period of time, the invitation can be rejected by
+    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
 
     // --- Check the sent contact request ---
@@ -1939,7 +1990,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Remove a peer from the chat ---
 
-    chatUpdated[0] = false;
+    chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;
     megaApi[0]->removeFromChat(chatid, h);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]) )
@@ -1947,7 +1998,7 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Removal of chat peer failed (error: " << lastError[0] << ")";
     int numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
     ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&chatUpdated[0]) )   // at the target side (auxiliar account)
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
 
 
