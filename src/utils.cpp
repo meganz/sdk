@@ -38,7 +38,7 @@ TextChat::TextChat()
     userpriv = NULL;
     group = false;
     ou = UNDEF;
-    ts = -1;
+    ts = 0;
 }
 
 TextChat::~TextChat()

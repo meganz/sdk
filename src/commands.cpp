@@ -4512,7 +4512,7 @@ void CommandChatCreate::procresult()
                         delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
-                        chat->ts = ts;
+                        chat->ts = (ts != -1) ? ts : 0;
 
                         client->app->chatcreate_result(chat, API_OK);
                     }
