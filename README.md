@@ -42,6 +42,8 @@ For platforms with Autotools, the generic way to build and install it is:
     make
     sudo make install
 
+Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
+
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`) and also [MegaCMD](examples/megacmd). 
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)

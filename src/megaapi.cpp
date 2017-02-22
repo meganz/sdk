@@ -1277,6 +1277,10 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+MegaHandle MegaApi::getMyUserHandleBinary()
+{
+    return pImpl->getMyUserHandleBinary();
+}
 MegaUser *MegaApi::getMyUser()
 {
     return pImpl->getMyUser();
@@ -4126,6 +4130,11 @@ const MegaTextChatPeerList *MegaTextChat::getPeerList() const
     return NULL;
 }
 
+void MegaTextChat::setPeerList(const MegaTextChatPeerList *)
+{
+
+}
+
 bool MegaTextChat::isGroup() const
 {
     return false;
@@ -4142,6 +4151,11 @@ const char * MegaTextChat::getTitle() const
 }
 
 int MegaTextChat::isOwnChange() const
+{
+    return 0;
+}
+
+int64_t MegaTextChat::getCreationTime() const
 {
     return 0;
 }

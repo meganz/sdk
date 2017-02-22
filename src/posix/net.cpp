@@ -1172,6 +1172,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_URL, httpctx->posturl.c_str());
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
         curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_SEEKFUNCTION, seek_data);
+        curl_easy_setopt(curl, CURLOPT_SEEKDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
@@ -2113,6 +2115,49 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     }
 
     return len;
+}
+
+int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
+{
+    HttpReq *req = (HttpReq*)userp;
+    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+    curl_off_t newoffset;
+    size_t totalsize;
+
+    if (httpctx->data)
+    {
+        totalsize = httpctx->len;
+    }
+    else
+    {
+        totalsize = req->out->size();
+    }
+
+    switch (origin)
+    {
+    case SEEK_SET:
+        newoffset = offset;
+        break;
+    case SEEK_CUR:
+        newoffset = req->outpos + offset;
+        break;
+    case SEEK_END:
+        newoffset = totalsize + offset;
+        break;
+    default:
+        LOG_err << "Invalid origin in seek function: " << origin;
+        return CURL_SEEKFUNC_FAIL;
+    }
+
+    if (newoffset > totalsize || newoffset < 0)
+    {
+        LOG_err << "Invalid offset " << origin << " " << offset << " " << totalsize
+                << " " << req->outbuf << " " << newoffset;
+        return CURL_SEEKFUNC_FAIL;
+    }
+    req->outpos = newoffset;
+    LOG_debug << "Successful seek to position " << newoffset << " of " << totalsize;
+    return CURL_SEEKFUNC_OK;
 }
 
 int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)

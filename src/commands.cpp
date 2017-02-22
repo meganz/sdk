@@ -4470,6 +4470,7 @@ void CommandChatCreate::procresult()
         handle chatid = UNDEF;
         int shard = -1;
         bool group = false;
+        m_time_t ts = -1;
 
         for (;;)
         {
@@ -4487,6 +4488,10 @@ void CommandChatCreate::procresult()
                     group = client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = client->json.getint();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1)
                     {
@@ -4502,6 +4507,7 @@ void CommandChatCreate::procresult()
                         delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
+                        chat->ts = (ts != -1) ? ts : 0;
 
                         chat->setTag(tag ? tag : -1);
                         client->notifychat(chat);

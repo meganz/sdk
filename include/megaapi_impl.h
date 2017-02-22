@@ -958,7 +958,7 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title, int tag);
+    MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaTextChat *copy() const;
@@ -967,9 +967,11 @@ public:
     virtual int getOwnPrivilege() const;
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
+    virtual void setPeerList(const MegaTextChatPeerList *peers);
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
+    virtual int64_t getCreationTime() const;
 
     virtual int isOwnChange() const;
 
@@ -983,6 +985,7 @@ private:
     handle ou;
     string title;
     int tag;
+    int64_t ts;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1348,6 +1351,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         char* getMyEmail();
         char* getMyUserHandle();
+        MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
 #ifdef ENABLE_CHAT

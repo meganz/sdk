@@ -4749,6 +4749,7 @@ void MegaClient::sc_chatupdate()
     bool group = false;
     handle ou = UNDEF;
     string title;
+    m_time_t ts = -1;
 
     bool done = false;
     while (!done)
@@ -4783,6 +4784,9 @@ void MegaClient::sc_chatupdate()
                 jsonsc.storeobject(&title);
                 break;
 
+            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                ts = jsonsc.getint();
+                break;
 
             case EOO:
                 done = true;
@@ -4813,6 +4817,10 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->ou = ou;
                     chat->title = title;
+                    if (ts != -1)
+                    {
+                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -7560,6 +7568,7 @@ void MegaClient::procmcf(JSON *j)
             userpriv_vector *userpriv = NULL;
             bool group = false;
             string title;
+            m_time_t ts = -1;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -7590,6 +7599,10 @@ void MegaClient::procmcf(JSON *j)
                     j->storeobject(&title);
                     break;
 
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = j->getint();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
@@ -7604,6 +7617,7 @@ void MegaClient::procmcf(JSON *j)
                         chat->shard = shard;
                         chat->group = group;
                         chat->title = title;
+                        chat->ts = (ts != -1) ? ts : 0;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)
@@ -8760,7 +8774,13 @@ void MegaClient::purgenodesusersabortsc()
     uhindex.clear();
     umindex.clear();
 #else
+    for (textchat_map::iterator it = chats.begin(); it != chats.end();)
+    {
+        delete it->second;
+        chats.erase(it++);
+    }
     chatnotify.clear();
+
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);

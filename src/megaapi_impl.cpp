@@ -3701,6 +3701,15 @@ char *MegaApiImpl::getMyUserHandle()
     return result;
 }
 
+MegaHandle MegaApiImpl::getMyUserHandleBinary()
+{
+    MegaHandle me;
+    sdkMutex.lock();
+    me = client->me;
+    sdkMutex.unlock();
+    return me;
+}
+
 MegaUser *MegaApiImpl::getMyUser()
 {
     sdkMutex.lock();
@@ -5135,7 +5144,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#880E4F"
     };
 
-    int index = userhandle % sizeof(colors)/sizeof(colors[0]);
+    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -17236,19 +17245,21 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->group = chat->isGroup();
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
+    this->ts = chat->getCreationTime();
     this->tag = chat->isOwnChange();
 }
 
-MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title, int tag)
+MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
 {
-    this->id = id;
-    this->priv = priv;
-    this->shard = shard;
-    this->peers = peers ? peers->copy() : NULL;
-    this->group = group;
-    this->ou = ou;
-    this->title = title;
-    this->tag = tag;
+    this->id = chat->id;
+    this->priv = chat->priv;
+    this->shard = chat->shard;
+    this->peers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
+    this->group = chat->group;
+    this->ou = chat->ou;
+    this->title = chat->title;
+    this->tag = chat->tag;
+    this->ts = chat->ts;
 }
 
 MegaTextChat *MegaTextChatPrivate::copy() const
@@ -17281,6 +17292,15 @@ const MegaTextChatPeerList *MegaTextChatPrivate::getPeerList() const
     return peers;
 }
 
+void MegaTextChatPrivate::setPeerList(const MegaTextChatPeerList *peers)
+{
+    if (this->peers)
+    {
+        delete this->peers;
+    }
+    this->peers = peers ? peers->copy() : NULL;
+}
+
 bool MegaTextChatPrivate::isGroup() const
 {
     return group;
@@ -17299,6 +17319,11 @@ const char *MegaTextChatPrivate::getTitle() const
 int MegaTextChatPrivate::isOwnChange() const
 {
     return tag;
+}
+
+int64_t MegaTextChatPrivate::getCreationTime() const
+{
+    return ts;
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
@@ -17355,16 +17380,11 @@ MegaTextChatListPrivate::MegaTextChatListPrivate()
 MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 {
     MegaTextChatPrivate *megaChat;
-    MegaTextChatPeerListPrivate *chatPeers;
-    TextChat *chat;
 
     textchat_map::iterator it;
     for (it = list->begin(); it != list->end(); it++)
     {
-        chat = it->second;
-        chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
-        megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->shard, chatPeers, chat->group, chat->ou, chat->title, chat->tag);
-
+        megaChat = new MegaTextChatPrivate(it->second);
         this->list.push_back(megaChat);
     }
 }

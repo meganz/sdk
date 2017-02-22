@@ -577,7 +577,7 @@ void Transfer::complete()
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(&localname))
+                    if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -659,7 +659,7 @@ void Transfer::complete()
                                 suffix = oss.str();
                                 newname = name + suffix + extension;
                                 client->fsaccess->path2local(&newname, &localnewname);
-                            } while (fa->fopen(&localnewname));
+                            } while (fa->fopen(&localnewname) || fa->type == FOLDERNODE);
 
 
                             (*it)->localname = localnewname;

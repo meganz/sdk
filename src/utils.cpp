@@ -39,6 +39,7 @@ TextChat::TextChat()
     group = false;
     ou = UNDEF;
     resetTag();
+    ts = 0;
 }
 
 TextChat::~TextChat()
@@ -79,6 +80,7 @@ bool TextChat::serialize(string *d)
     d->append(title.data(), ll);
 
     d->append((char*)&ou, sizeof ou);
+    d->append((char*)&ts, sizeof(ts));
 
     d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
 
@@ -94,6 +96,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     bool group;
     string title;   // byte array
     handle ou;
+    m_time_t ts;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -172,6 +175,9 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ou = MemAccess::get<handle>(ptr);
     ptr += sizeof ou;
 
+    ts = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
+
     for (int i = 10; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
@@ -203,6 +209,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->title = title;
     chat->ou = ou;
     chat->resetTag();
+    chat->ts = ts;
 
     return chat;
 }
