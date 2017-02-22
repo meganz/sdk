@@ -30,7 +30,24 @@ namespace mega
 	using namespace Windows::Foundation;
 	using Platform::String;
 
-	public enum class MTransferType { TYPE_DOWNLOAD = 0, TYPE_UPLOAD };
+	public enum class MTransferType 
+	{ 
+		TYPE_DOWNLOAD       = 0, 
+		TYPE_UPLOAD         = 1 
+	};
+
+	public enum class MTransferState
+	{
+		STATE_NONE          = 0,
+		STATE_QUEUED        = 1,
+		STATE_ACTIVE        = 2,
+		STATE_PAUSED        = 3,
+		STATE_RETRYING      = 4,
+		STATE_COMPLETING    = 5,
+		STATE_COMPLETED     = 6,
+		STATE_CANCELLED     = 7,
+		STATE_FAILED        = 8
+	};
 
 	public ref class MTransfer sealed
 	{
@@ -68,7 +85,7 @@ namespace mega
         bool isFolderTransfer();
         int getFolderTransferTag();
         String^ getAppData();
-		int getState();
+		MTransferState getState();
 		uint64 getPriority();
 		uint64 getNotificationNumber();
 
