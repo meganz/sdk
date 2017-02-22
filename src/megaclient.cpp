@@ -6675,7 +6675,7 @@ void MegaClient::mapuser(handle uh, const char* email)
             users.erase(mit->second);
         }
         // if mapping a different email, remove old index
-        if (strcmp(u->email, email))
+        if (strcmp(u->email.c_str(), email))
         {
             umindex.erase(u->email);
         }
