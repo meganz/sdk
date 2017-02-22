@@ -1,6 +1,6 @@
 #!/bin/sh
 		
-CARES_VERSION="1.11.0"													      
+CARES_VERSION="1.12.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  
 
 
@@ -70,8 +70,7 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared
 fi
 
-sed -i '' $'s/\#define CARES_SIZEOF_LONG 8/\#ifdef __LP64__\\\n\#define CARES_SIZEOF_LONG 8\\\n#else\\\n\#define CARES_SIZEOF_LONG 4\\\n\#endif/' ares_build.h
-sed -i '' $'s/\#define HAVE_CLOCK_GETTIME_MONOTONIC 1//' ares_config.h
+sed -i '' $'s/\#define HAVE_CLOCK_GETTIME_MONOTONIC 1/\/* \#undef HAVE_CLOCK_GETTIME_MONOTONIC 1 *\//' ares_config.h
 
 make -j8
 cp -f .libs/libcares.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
