@@ -4140,6 +4140,11 @@ const MegaTextChatPeerList *MegaTextChat::getPeerList() const
     return NULL;
 }
 
+void MegaTextChat::setPeerList(const MegaTextChatPeerList *)
+{
+
+}
+
 bool MegaTextChat::isGroup() const
 {
     return false;
@@ -4153,6 +4158,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
 const char * MegaTextChat::getTitle() const
 {
     return NULL;
+}
+
+int64_t MegaTextChat::getCreationTime() const
+{
+    return 0;
 }
 
 MegaTextChatList::~MegaTextChatList()

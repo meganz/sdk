@@ -213,16 +213,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 }
                 privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {
@@ -253,16 +244,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                     }
                 }
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {

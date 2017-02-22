@@ -432,6 +432,7 @@ struct TextChat : public Cachable
     bool group;
     string title;   // byte array
     handle ou;
+    m_time_t ts;     // creation time
 
     TextChat();
     ~TextChat();
