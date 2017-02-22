@@ -209,9 +209,9 @@ String^ MTransfer::getAppData()
     return ref new String((wchar_t *)utf16appData.data());
 }
 
-int MTransfer::getState()
+MTransferState MTransfer::getState()
 {
-	return megaTransfer ? megaTransfer->getState() : 0;
+	return (MTransferState) (megaTransfer ? megaTransfer->getState() : 0);
 }
 
 uint64 MTransfer::getPriority()
