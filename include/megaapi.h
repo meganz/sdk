@@ -5290,6 +5290,16 @@ class MegaApi
         char* getMyUserHandle();
 
         /**
+         * @brief Returns the user handle of the currently open account
+         *
+         * If the MegaApi object isn't logged in,
+         * this function returns INVALID_HANDLE
+         *
+         * @return User handle of the account
+         */
+        MegaHandle getMyUserHandleBinary();
+
+        /**
          * @brief Get the MegaUser of the currently open account
          *
          * If the MegaApi object isn't logged in, this function returns NULL.

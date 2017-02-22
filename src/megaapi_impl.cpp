@@ -3701,6 +3701,15 @@ char *MegaApiImpl::getMyUserHandle()
     return result;
 }
 
+MegaHandle MegaApiImpl::getMyUserHandleBinary()
+{
+    MegaHandle me;
+    sdkMutex.lock();
+    me = client->me;
+    sdkMutex.unlock();
+    return me;
+}
+
 MegaUser *MegaApiImpl::getMyUser()
 {
     sdkMutex.lock();
