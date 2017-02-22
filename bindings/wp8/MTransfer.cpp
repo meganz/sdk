@@ -155,6 +155,11 @@ uint64 MTransfer::getSpeed()
 	return megaTransfer ? megaTransfer->getSpeed() : 0;
 }
 
+uint64 MTransfer::getMeanSpeed()
+{
+	return megaTransfer ? megaTransfer->getMeanSpeed() : 0;
+}
+
 uint64 MTransfer::getDeltaSize()
 {
 	return megaTransfer ? megaTransfer->getDeltaSize() : 0;
@@ -202,4 +207,19 @@ String^ MTransfer::getAppData()
     MegaApi::utf8ToUtf16(utf8appData, &utf16appData);
 
     return ref new String((wchar_t *)utf16appData.data());
+}
+
+int MTransfer::getState()
+{
+	return megaTransfer ? megaTransfer->getState() : 0;
+}
+
+uint64 MTransfer::getPriority()
+{
+	return megaTransfer ? megaTransfer->getPriority() : 0;
+}
+
+uint64 MTransfer::getNotificationNumber()
+{
+	return megaTransfer ? megaTransfer->getNotificationNumber() : 0;
 }

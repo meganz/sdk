@@ -59,6 +59,7 @@ namespace mega
 		int getMaxRetries();
 		int getTag();
 		uint64 getSpeed();
+		uint64 getMeanSpeed();
 		uint64 getDeltaSize();
 		uint64 getUpdateTime();
 		MNode^ getPublicMegaNode();
@@ -67,6 +68,9 @@ namespace mega
         bool isFolderTransfer();
         int getFolderTransferTag();
         String^ getAppData();
+		int getState();
+		uint64 getPriority();
+		uint64 getNotificationNumber();
 
 	private:
 		MTransfer(MegaTransfer *megaTransfer, bool cMemoryOwn);
