@@ -4806,31 +4806,38 @@ void CommandChatUpdatePermissions::procresult()
             }
 
             TextChat *chat = client->chats[chatid];
-            if (!chat->userpriv)
+            if (uh != client->me)
             {
-                // the update succeed, but that peer is not included in the chatroom
-                client->app->chatupdatepermissions_result(API_EINTERNAL);
-                return;
-            }
-
-            bool found = false;
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
+                if (!chat->userpriv)
                 {
-                    chat->userpriv->erase(upvit);
-                    chat->userpriv->push_back(userpriv_pair(uh, priv));
-                    found = true;
-                    break;
+                    // the update succeed, but that peer is not included in the chatroom
+                    client->app->chatupdatepermissions_result(API_EINTERNAL);
+                    return;
+                }
+
+                bool found = false;
+                userpriv_vector::iterator upvit;
+                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
+                {
+                    if (upvit->first == uh)
+                    {
+                        chat->userpriv->erase(upvit);
+                        chat->userpriv->push_back(userpriv_pair(uh, priv));
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    // the update succeed, but that peer is not included in the chatroom
+                    client->app->chatupdatepermissions_result(API_EINTERNAL);
+                    return;
                 }
             }
-
-            if (!found)
+            else
             {
-                // the update succeed, but that peer is not included in the chatroom
-                client->app->chatupdatepermissions_result(API_EINTERNAL);
-                return;
+                chat->priv = priv;
             }
 
             chat->setTag(tag ? tag : -1);
