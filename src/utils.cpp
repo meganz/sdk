@@ -193,8 +193,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ou = MemAccess::get<handle>(ptr);
     ptr += sizeof ou;
 
-    ts = (uint32_t)MemAccess::get<time_t>(ptr);
-    ptr += sizeof(time_t);
+    ts = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
 
     for (int i = 10; i--;)
     {
