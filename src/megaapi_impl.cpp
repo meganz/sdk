@@ -17240,25 +17240,25 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 {
     this->id = chat->getHandle();
     this->priv = chat->getOwnPrivilege();
-    this->url = chat->getUrl() ? chat->getUrl() : "";
     this->shard = chat->getShard();
     this->peers = chat->getPeerList() ? chat->getPeerList()->copy() : NULL;
     this->group = chat->isGroup();
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
+    this->tag = chat->isOwnChange();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
 {
     this->id = chat->id;
     this->priv = chat->priv;
-    this->url = chat->url;
     this->shard = chat->shard;
     this->peers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
     this->group = chat->group;
     this->ou = chat->ou;
     this->title = chat->title;
+    this->tag = chat->tag;
     this->ts = chat->ts;
 }
 
@@ -17280,23 +17280,6 @@ MegaHandle MegaTextChatPrivate::getHandle() const
 int MegaTextChatPrivate::getOwnPrivilege() const
 {
     return priv;
-}
-
-const char *MegaTextChatPrivate::getUrl() const
-{
-    return !url.empty() ? url.c_str() : NULL;
-}
-
-void MegaTextChatPrivate::setUrl(const char *url)
-{
-    if (url)
-    {
-        this->url.assign(url);
-    }
-    else
-    {
-        this->url.clear();
-    }
 }
 
 int MegaTextChatPrivate::getShard() const
@@ -17331,6 +17314,11 @@ MegaHandle MegaTextChatPrivate::getOriginatingUser() const
 const char *MegaTextChatPrivate::getTitle() const
 {
     return !title.empty() ? title.c_str() : NULL;
+}
+
+int MegaTextChatPrivate::isOwnChange() const
+{
+    return tag;
 }
 
 int64_t MegaTextChatPrivate::getCreationTime() const

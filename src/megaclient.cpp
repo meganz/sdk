@@ -4815,7 +4815,6 @@ void MegaClient::sc_chatupdate()
                     chat->shard = shard;
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
-                    chat->url = ""; // not received in action packets
                     chat->ou = ou;
                     chat->title = title;
                     if (ts != -1)
@@ -4860,6 +4859,7 @@ void MegaClient::sc_chatupdate()
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
+                    chat->setTag(0);    // external change
                     notifychat(chat);
                 }
 
@@ -5020,7 +5020,10 @@ void MegaClient::notifypurge(void)
 
         for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
         {
-            it->second->notified = false;
+            TextChat *chat = it->second;
+
+            chat->notified = false;
+            chat->resetTag();
         }
 
         chatnotify.clear();
@@ -7561,7 +7564,6 @@ void MegaClient::procmcf(JSON *j)
         {
             handle chatid = UNDEF;
             privilege_t priv = PRIV_UNKNOWN;
-            string url;
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
@@ -7579,10 +7581,6 @@ void MegaClient::procmcf(JSON *j)
 
                 case 'p':
                     priv = (privilege_t) j->getint();
-                    break;
-
-                case MAKENAMEID3('u','r','l'):
-                    j->storeobject(&url);
                     break;
 
                 case MAKENAMEID2('c','s'):
@@ -7616,7 +7614,6 @@ void MegaClient::procmcf(JSON *j)
                         TextChat *chat = chats[chatid];
                         chat->id = chatid;
                         chat->priv = priv;
-                        chat->url = url;
                         chat->shard = shard;
                         chat->group = group;
                         chat->title = title;

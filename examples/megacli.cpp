@@ -673,7 +673,6 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tURL: " << chat->url << endl;
     if (chat->group)
     {
         cout << "\tGroup chat: yes" << endl;
@@ -697,6 +696,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << " no peers (only you as participant)" << endl;
+    }
+    if (chat->tag)
+    {
+        cout << "\tIs own change: yes" << endl;
+    }
+    else
+    {
+        cout << "\tIs own change: no" << endl;
     }
     if (!chat->title.empty())
     {

@@ -1380,25 +1380,8 @@ public:
     virtual int getOwnPrivilege() const;
 
     /**
-     * @brief Returns your URL to connect to chatd for this chat
-     *
-     * The MegaTextChat retains the ownership of the returned string. It will
-     * be only valid until the MegaTextChat is deleted.
-     *
-     * @return The URL of the chatd server, or NULL if not available.
-     */
-    virtual const char *getUrl() const;
-
-    /**
-     * @brief Establish the URL to connect to chatd for this chat
-     *
-     * @param url The new URL for the MegaTextChat
-     */
-    virtual void setUrl(const char *url);
-
-    /**
      * @brief Returns the chat shard
-     * @return
+     * @return The chat shard
      */
     virtual int getShard() const;
 
@@ -1451,6 +1434,18 @@ public:
     virtual const char *getTitle() const;
 
     /**
+     * @brief Indicates if the chat is changed by yourself or by another client.
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * @return 0 if the change is external. >0 if the change is the result of an
+     * explicit request, -1 if the change is the result of an implicit request
+     * made by the SDK internally.
+     */
+    virtual int isOwnChange() const;
+
+    /**
      * @brief Returns the creation timestamp of the chat
      *
      * In seconds since the Epoch
@@ -1458,7 +1453,6 @@ public:
      * @return Creation date of the chat
      */
     virtual int64_t getCreationTime() const;
-
 };
 
 /**

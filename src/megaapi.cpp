@@ -4120,16 +4120,6 @@ int MegaTextChat::getOwnPrivilege() const
     return PRIV_UNKNOWN;
 }
 
-const char *MegaTextChat::getUrl() const
-{
-    return NULL;
-}
-
-void MegaTextChat::setUrl(const char *)
-{
-
-}
-
 int MegaTextChat::getShard() const
 {
     return -1;
@@ -4158,6 +4148,11 @@ MegaHandle MegaTextChat::getOriginatingUser() const
 const char * MegaTextChat::getTitle() const
 {
     return NULL;
+}
+
+int MegaTextChat::isOwnChange() const
+{
+    return 0;
 }
 
 int64_t MegaTextChat::getCreationTime() const

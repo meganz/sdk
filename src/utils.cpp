@@ -38,6 +38,7 @@ TextChat::TextChat()
     userpriv = NULL;
     group = false;
     ou = UNDEF;
+    resetTag();
     ts = 0;
 }
 
@@ -48,16 +49,10 @@ TextChat::~TextChat()
 
 bool TextChat::serialize(string *d)
 {
-    unsigned char l;
     unsigned short ll;
 
     d->append((char*)&id, sizeof id);
     d->append((char*)&priv, sizeof priv);
-
-    l = (unsigned char)url.size();
-    d->append((char*)&l, sizeof l);
-    d->append(url.c_str(), l);
-
     d->append((char*)&shard, sizeof shard);
 
     ll = userpriv ? userpriv->size() : 0;
@@ -96,7 +91,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 {
     handle id;
     privilege_t priv;
-    string url;
     int shard;
     userpriv_vector *userpriv = NULL;
     bool group;
@@ -104,7 +98,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     handle ou;
     m_time_t ts;
 
-    unsigned char l;
     unsigned short ll;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -119,17 +112,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     priv = MemAccess::get<privilege_t>(ptr);
     ptr += sizeof priv;
-
-    l = *ptr++;
-    if (l)
-    {
-        if (ptr + l > end)
-        {
-            return NULL;
-        }
-        url.assign(ptr, l);
-    }
-    ptr += l;
 
     if (ptr + sizeof(int) + 1 > end)
     {
@@ -221,15 +203,33 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     TextChat* chat = client->chats[id];
     chat->id = id;
     chat->priv = priv;
-    chat->url = url;
     chat->shard = shard;
     chat->userpriv = userpriv;
     chat->group = group;
     chat->title = title;
     chat->ou = ou;
+    chat->resetTag();
     chat->ts = ts;
 
     return chat;
+}
+
+void TextChat::setTag(int tag)
+{
+    if (this->tag != 0)    // external changes prevail
+    {
+        this->tag = tag;
+    }
+}
+
+int TextChat::getTag()
+{
+    return tag;
+}
+
+void TextChat::resetTag()
+{
+    tag = -1;
 }
 #endif
 

@@ -965,8 +965,6 @@ public:
 
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
-    virtual const char *getUrl() const;
-    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual void setPeerList(const MegaTextChatPeerList *peers);
@@ -974,6 +972,8 @@ public:
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
+
+    virtual int isOwnChange() const;
 
 private:
     handle id;
@@ -984,6 +984,7 @@ private:
     bool group;
     handle ou;
     string title;
+    int tag;
     int64_t ts;
 };
 

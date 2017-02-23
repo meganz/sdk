@@ -758,8 +758,6 @@ public:
 
 class MEGA_API CommandChatURL : public Command
 {
-    handle chatid;
-
 public:
     void procresult();
 
@@ -798,6 +796,7 @@ public:
 
 class MEGA_API CommandChatTruncate : public Command
 {
+    handle chatid;
 
 public:
     void procresult();
