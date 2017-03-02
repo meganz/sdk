@@ -718,8 +718,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->getUserAvatar((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-- (NSString *)avatarColorForUser:(MEGAUser *)user {
-    const char *val = self.megaApi->getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
++ (NSString *)avatarColorForUser:(MEGAUser *)user {
+    const char *val = MegaApi::getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
@@ -728,8 +728,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return ret;
 }
 
-- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
-    const char *val = self.megaApi->getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
++ (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
+    const char *val = MegaApi::getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];

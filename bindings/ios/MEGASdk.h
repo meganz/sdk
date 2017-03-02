@@ -1903,7 +1903,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-- (NSString *)avatarColorForUser:(MEGAUser *)user;
++ (NSString *)avatarColorForUser:(MEGAUser *)user;
 
 /**
  * @brief Get the default color for the avatar.
@@ -1915,7 +1915,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
++ (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.
