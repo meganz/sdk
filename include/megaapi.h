@@ -5754,12 +5754,10 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
-         *  is obtained for the active account.
+         * @param user MegaUser to get the color of the avatar.
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
-         * If the user is not found, this function always returns the same color.
          */
-        char *getUserAvatarColor(MegaUser *user);
+        static char *getUserAvatarColor(MegaUser *user);
 
         /**
          * @brief Get the default color for the avatar.
@@ -5768,12 +5766,10 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
-         * set to NULL, the avatar is obtained for the active account.
+         * @param userhandle User handle (Base64 encoded) to get the avatar.
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
-         * If the user is not found, this function  always returns the same color.
          */
-        char *getUserAvatarColor(const char *userhandle);
+        static char *getUserAvatarColor(const char *userhandle);
 
         /**
          * @brief Get an attribute of a MegaUser.
