@@ -4264,12 +4264,12 @@ MegaEvent *MegaEvent::copy()
     return NULL;
 }
 
-int MegaEvent::getType()
+int MegaEvent::getType() const
 {
     return 0;
 }
 
-char *MegaEvent::getText()
+char *MegaEvent::getText() const
 {
     return NULL;
 }
