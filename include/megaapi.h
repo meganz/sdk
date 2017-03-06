@@ -2441,7 +2441,7 @@ public:
      *
      * @return Text relative to this event
      */
-    virtual char *getText() const;
+    virtual const char *getText() const;
 };
 
 /**

@@ -4269,7 +4269,7 @@ int MegaEvent::getType() const
     return 0;
 }
 
-char *MegaEvent::getText() const
+const char *MegaEvent::getText() const
 {
     return NULL;
 }
