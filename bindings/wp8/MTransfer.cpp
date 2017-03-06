@@ -157,7 +157,7 @@ uint64 MTransfer::getSpeed()
 
 uint64 MTransfer::getMeanSpeed()
 {
-	return megaTransfer ? megaTransfer->getMeanSpeed() : 0;
+    return megaTransfer ? megaTransfer->getMeanSpeed() : 0;
 }
 
 uint64 MTransfer::getDeltaSize()
@@ -211,15 +211,15 @@ String^ MTransfer::getAppData()
 
 MTransferState MTransfer::getState()
 {
-	return (MTransferState) (megaTransfer ? megaTransfer->getState() : 0);
+    return (MTransferState) (megaTransfer ? megaTransfer->getState() : 0);
 }
 
 uint64 MTransfer::getPriority()
 {
-	return megaTransfer ? megaTransfer->getPriority() : 0;
+    return megaTransfer ? megaTransfer->getPriority() : 0;
 }
 
 uint64 MTransfer::getNotificationNumber()
 {
-	return megaTransfer ? megaTransfer->getNotificationNumber() : 0;
+    return megaTransfer ? megaTransfer->getNotificationNumber() : 0;
 }

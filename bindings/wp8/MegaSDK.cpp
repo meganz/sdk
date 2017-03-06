@@ -2195,30 +2195,30 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
 
 void MegaSDK::startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener)
 {
-	megaApi->startStreaming((node != nullptr) ? node->getCPtr() : NULL,
-		startPos, size, createDelegateMTransferListener(listener));
+    megaApi->startStreaming((node != nullptr) ? node->getCPtr() : NULL,
+        startPos, size, createDelegateMTransferListener(listener));
 }
 
 void MegaSDK::retryTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener)
 {
-	megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
-		createDelegateMTransferListener(listener));
+    megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        createDelegateMTransferListener(listener));
 }
 
 void MegaSDK::retryTransfer(MTransfer^ transfer)
 {
-	megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::cancelTransfer(MTransfer^ transfer)
 {
-	megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener)
@@ -2233,22 +2233,22 @@ void MegaSDK::cancelTransferByTag(int transferTag)
 
 void MegaSDK::cancelTransfers(int direction, MRequestListenerInterface^ listener)
 {
-	megaApi->cancelTransfers(direction, createDelegateMRequestListener(listener));
+    megaApi->cancelTransfers(direction, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::cancelTransfers(int direction)
 {
-	megaApi->cancelTransfers(direction);
+    megaApi->cancelTransfers(direction);
 }
 
 void MegaSDK::pauseTransfers(bool pause, MRequestListenerInterface^ listener)
 {
-	megaApi->pauseTransfers(pause, createDelegateMRequestListener(listener));
+    megaApi->pauseTransfers(pause, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::pauseTransfers(bool pause)
 {
-	megaApi->pauseTransfers(pause);
+    megaApi->pauseTransfers(pause);
 }
 
 void MegaSDK::pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener)
@@ -2263,130 +2263,130 @@ void MegaSDK::pauseTransfersDirection(bool pause, int direction)
 
 void MegaSDK::pauseTransfer(MTransfer^ transfer, bool pause, MRequestListenerInterface^ listener)
 {
-	megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		pause, createDelegateMRequestListener(listener));
+    megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        pause, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::pauseTransfer(MTransfer^ transfer, bool pause)
 {
-	megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, pause);
+    megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, pause);
 }
 
 void MegaSDK::pauseTransferByTag(int transferTag, bool pause, MRequestListenerInterface^ listener)
 {
-	megaApi->pauseTransferByTag(transferTag, pause, createDelegateMRequestListener(listener));
+    megaApi->pauseTransferByTag(transferTag, pause, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::pauseTransferByTag(int transferTag, bool pause)
 {
-	megaApi->pauseTransferByTag(transferTag, pause);
+    megaApi->pauseTransferByTag(transferTag, pause);
 }
 
 void MegaSDK::moveTransferUp(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferUp(MTransfer^ transfer)
 {
-	megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::moveTransferUpByTag(int transferTag, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferUpByTag(transferTag, createDelegateMRequestListener(listener));
+    megaApi->moveTransferUpByTag(transferTag, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferUpByTag(int transferTag)
 {
-	megaApi->moveTransferUpByTag(transferTag);
+    megaApi->moveTransferUpByTag(transferTag);
 }
 
 void MegaSDK::moveTransferDown(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferDown(MTransfer^ transfer)
 {
-	megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::moveTransferDownByTag(int transferTag, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferDownByTag(transferTag, createDelegateMRequestListener(listener));
+    megaApi->moveTransferDownByTag(transferTag, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferDownByTag(int transferTag)
 {
-	megaApi->moveTransferDownByTag(transferTag);
+    megaApi->moveTransferDownByTag(transferTag);
 }
 
 void MegaSDK::moveTransferToFirst(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferToFirst(MTransfer^ transfer)
 {
-	megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::moveTransferToFirstByTag(int transferTag, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferToFirstByTag(transferTag, createDelegateMRequestListener(listener));
+    megaApi->moveTransferToFirstByTag(transferTag, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferToFirstByTag(int transferTag)
 {
-	megaApi->moveTransferToFirstByTag(transferTag);
+    megaApi->moveTransferToFirstByTag(transferTag);
 }
 
 void MegaSDK::moveTransferToLast(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferToLast(MTransfer^ transfer)
 {
-	megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::moveTransferToLastByTag(int transferTag, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferToLastByTag(transferTag, createDelegateMRequestListener(listener));
+    megaApi->moveTransferToLastByTag(transferTag, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferToLastByTag(int transferTag)
 {
-	megaApi->moveTransferToLastByTag(transferTag);
+    megaApi->moveTransferToLastByTag(transferTag);
 }
 
 void MegaSDK::moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		(prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        (prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer)
 {
-	megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		(prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL);
+    megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        (prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL);
 }
 
 void MegaSDK::moveTransferBeforeByTag(int transferTag, int prevTransferTag, MRequestListenerInterface^ listener)
 {
-	megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag, createDelegateMRequestListener(listener));
+    megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::moveTransferBeforeByTag(int transferTag, int prevTransferTag)
 {
-	megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag);
+    megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag);
 }
 
 void MegaSDK::enableTransferResumption(String^ loggedOutId)
@@ -2439,37 +2439,37 @@ void MegaSDK::setUploadMethod(int method)
 
 bool MegaSDK::setMaxDownloadSpeed(int64 bpslimit)
 {
-	return megaApi->setMaxDownloadSpeed(bpslimit);
+    return megaApi->setMaxDownloadSpeed(bpslimit);
 }
 
 bool MegaSDK::setMaxUploadSpeed(int64 bpslimit)
 {
-	return megaApi->setMaxUploadSpeed(bpslimit);
+    return megaApi->setMaxUploadSpeed(bpslimit);
 }
 
 int MegaSDK::getMaxDownloadSpeed()
 {
-	return megaApi->getMaxDownloadSpeed();
+    return megaApi->getMaxDownloadSpeed();
 }
 
 int MegaSDK::getMaxUploadSpeed()
 {
-	return megaApi->getMaxUploadSpeed();
+    return megaApi->getMaxUploadSpeed();
 }
 
 int MegaSDK::getCurrentDownloadSpeed()
 {
-	return megaApi->getCurrentDownloadSpeed();
+    return megaApi->getCurrentDownloadSpeed();
 }
 
 int MegaSDK::getCurrentUploadSpeed()
 {
-	return megaApi->getCurrentUploadSpeed();
+    return megaApi->getCurrentUploadSpeed();
 }
 
 int MegaSDK::getCurrentSpeed(int type)
 {
-	return megaApi->getCurrentSpeed(type);
+    return megaApi->getCurrentSpeed(type);
 }
 
 int MegaSDK::getDownloadMethod()
@@ -2484,48 +2484,48 @@ int MegaSDK::getUploadMethod()
 
 MTransferData^ MegaSDK::getTransferData(MTransferListenerInterface^ listener)
 {
-	return ref new MTransferData(megaApi->getTransferData(createDelegateMTransferListener(listener)), true);
+    return ref new MTransferData(megaApi->getTransferData(createDelegateMTransferListener(listener)), true);
 }
 
 MTransferData^ MegaSDK::getTransferData()
 {
-	return ref new MTransferData(megaApi->getTransferData(), true);
+    return ref new MTransferData(megaApi->getTransferData(), true);
 }
 
 MTransfer^ MegaSDK::getFirstTransfer(int type)
 {
-	return ref new MTransfer(megaApi->getFirstTransfer(type), true);
+    return ref new MTransfer(megaApi->getFirstTransfer(type), true);
 }
 
 void MegaSDK::notifyTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener)
 {
-	megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
-		createDelegateMTransferListener(listener));
+    megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMTransferListener(listener));
 }
 
 void MegaSDK::notifyTransfer(MTransfer^ transfer)
 {
-	megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::notifyTransferByTag(int transferTag, MTransferListenerInterface^ listener)
 {
-	megaApi->notifyTransferByTag(transferTag, createDelegateMTransferListener(listener));
+    megaApi->notifyTransferByTag(transferTag, createDelegateMTransferListener(listener));
 }
 
 void MegaSDK::notifyTransferByTag(int transferTag)
 {
-	megaApi->notifyTransferByTag(transferTag);
+    megaApi->notifyTransferByTag(transferTag);
 }
 
 MTransferList^ MegaSDK::getTransfers()
 {
-	return ref new MTransferList(megaApi->getTransfers(), true);
+    return ref new MTransferList(megaApi->getTransfers(), true);
 }
 
 MTransferList^ MegaSDK::getStreamingTransfers()
 {
-	return ref new MTransferList(megaApi->getStreamingTransfers(), true);
+    return ref new MTransferList(megaApi->getStreamingTransfers(), true);
 }
 
 MTransfer^ MegaSDK::getTransferByTag(int transferTag)
@@ -2535,12 +2535,12 @@ MTransfer^ MegaSDK::getTransferByTag(int transferTag)
 
 MTransferList^ MegaSDK::getTransfers(MTransferType type)
 {
-	return ref new MTransferList(megaApi->getTransfers((int)type), true);
+    return ref new MTransferList(megaApi->getTransfers((int)type), true);
 }
 
 MTransferList^ MegaSDK::getChildTransfers(int transferTag)
 {
-	return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
+    return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
 }
 
 bool MegaSDK::isWaiting()

@@ -26,57 +26,57 @@ using namespace Platform;
 
 MTransferData::MTransferData(MegaTransferData *megaTransferData, bool cMemoryOwn)
 {
-	this->megaTransferData = megaTransferData;
-	this->cMemoryOwn = cMemoryOwn;
+    this->megaTransferData = megaTransferData;
+    this->cMemoryOwn = cMemoryOwn;
 }
 
 MTransferData::~MTransferData()
 {
-	if (cMemoryOwn)
-		delete megaTransferData;
+    if (cMemoryOwn)
+        delete megaTransferData;
 }
 
 MegaTransferData * MTransferData::getCPtr()
 {
-	return megaTransferData;
+    return megaTransferData;
 }
 
 MTransferData^ MTransferData::copy()
 {
-	return megaTransferData ? ref new MTransferData(megaTransferData->copy(), true) : nullptr;
+    return megaTransferData ? ref new MTransferData(megaTransferData->copy(), true) : nullptr;
 }
 
 int MTransferData::getNumDownloads()
 {
-	return megaTransferData ? megaTransferData->getNumDownloads() : 0;
+    return megaTransferData ? megaTransferData->getNumDownloads() : 0;
 }
 
 int MTransferData::getNumUploads()
 {
-	return megaTransferData ? megaTransferData->getNumUploads() : 0;
+    return megaTransferData ? megaTransferData->getNumUploads() : 0;
 }
 
 int MTransferData::getDownloadTag(int i)
 {
-	return megaTransferData ? megaTransferData->getDownloadTag(i) : 0;
+    return megaTransferData ? megaTransferData->getDownloadTag(i) : 0;
 }
 
 int MTransferData::getUploadTag(int i)
 {
-	return megaTransferData ? megaTransferData->getUploadTag(i) : 0;
+    return megaTransferData ? megaTransferData->getUploadTag(i) : 0;
 }
 
 unsigned long long MTransferData::getDownloadPriority(int i)
 {
-	return megaTransferData ? megaTransferData->getDownloadPriority(i) : 0;
+    return megaTransferData ? megaTransferData->getDownloadPriority(i) : 0;
 }
 
 unsigned long long MTransferData::getUploadPriority(int i)
 {
-	return megaTransferData ? megaTransferData->getUploadPriority(i) : 0;
+    return megaTransferData ? megaTransferData->getUploadPriority(i) : 0;
 }
 
 long long MTransferData::getNotificationNumber()
 {
-	return megaTransferData ? megaTransferData->getNotificationNumber() : 0;
+    return megaTransferData ? megaTransferData->getNotificationNumber() : 0;
 }

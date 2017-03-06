@@ -25,28 +25,28 @@
 
 namespace mega
 {
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	public ref class MTransferData sealed
-	{
-		friend ref class MegaSDK;
+    public ref class MTransferData sealed
+    {
+        friend ref class MegaSDK;
 
-	public:
-		virtual ~MTransferData();
-		MTransferData^ copy();
-		int getNumDownloads();
-		int getNumUploads();
-		int getDownloadTag(int i);
-		int getUploadTag(int i);
-		unsigned long long getDownloadPriority(int i);
-		unsigned long long getUploadPriority(int i);
-		long long getNotificationNumber();
+    public:
+        virtual ~MTransferData();
+        MTransferData^ copy();
+        int getNumDownloads();
+        int getNumUploads();
+        int getDownloadTag(int i);
+        int getUploadTag(int i);
+        unsigned long long getDownloadPriority(int i);
+        unsigned long long getUploadPriority(int i);
+        long long getNotificationNumber();
 
-	private:
-		MTransferData(MegaTransferData *megaTransferData, bool cMemoryOwn);
-		MegaTransferData *megaTransferData;
-		MegaTransferData *getCPtr();
-		bool cMemoryOwn;
-	};
+    private:
+        MTransferData(MegaTransferData *megaTransferData, bool cMemoryOwn);
+        MegaTransferData *megaTransferData;
+        MegaTransferData *getCPtr();
+        bool cMemoryOwn;
+    };
 }
