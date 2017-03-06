@@ -2431,7 +2431,7 @@ public:
      * @brief Returns the type of the event associated with the object
      * @return Type of the event associated with the object
      */
-    virtual int getType();
+    virtual int getType() const;
 
     /**
      * @brief Returns a text relative to this event
@@ -2441,7 +2441,7 @@ public:
      *
      * @return Text relative to this event
      */
-    virtual char *getText();
+    virtual char *getText() const;
 };
 
 /**
