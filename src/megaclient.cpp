@@ -6674,13 +6674,18 @@ void MegaClient::mapuser(handle uh, const char* email)
             assert(!users[mit->second].sharing.size());
             users.erase(mit->second);
         }
+
+        string useremail;
+        Node::copystring(&useremail, u->email.c_str());
+        transform(useremail.begin(), useremail.end(), useremail.begin(), ::tolower);
+
         // if mapping a different email, remove old index
-        if (strcmp(u->email.c_str(), email))
+        if (strcmp(useremail.c_str(), nuid.c_str()))
         {
             umindex.erase(u->email);
         }
 
-        Node::copystring(&u->email, email);
+        Node::copystring(&u->email, nuid.c_str());
         umindex[nuid] = hit->second;
 
         return;
