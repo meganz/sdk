@@ -34,7 +34,7 @@ namespace mega
     { 
         TYPE_DOWNLOAD       = 0, 
         TYPE_UPLOAD         = 1 
-	};
+    };
 
     public enum class MTransferState
     {
@@ -94,5 +94,5 @@ namespace mega
         MegaTransfer *megaTransfer;
         MegaTransfer *getCPtr();
         bool cMemoryOwn;
-	};
+    };
 }
