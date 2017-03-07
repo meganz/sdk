@@ -6682,9 +6682,10 @@ void MegaClient::mapuser(handle uh, const char* email)
             {
                 umindex.erase(u->email);
             }
+
+            Node::copystring(&u->email, nuid.c_str());
         }
 
-        Node::copystring(&u->email, nuid.c_str());
         umindex[nuid] = hit->second;
 
         return;
