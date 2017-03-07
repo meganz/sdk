@@ -6648,7 +6648,7 @@ User *MegaClient::ownuser()
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
 {
-    if (!*email)
+    if (!email || !*email)
     {
         return;
     }
@@ -6678,7 +6678,10 @@ void MegaClient::mapuser(handle uh, const char* email)
         // if mapping a different email, remove old index
         if (strcmp(u->email.c_str(), nuid.c_str()))
         {
-            umindex.erase(u->email);
+            if (u->email.size())
+            {
+                umindex.erase(u->email);
+            }
         }
 
         Node::copystring(&u->email, nuid.c_str());
