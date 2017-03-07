@@ -3014,7 +3014,6 @@ bool MegaClient::procsc()
                             {
                                 sctable->commit();
                                 sctable->begin();
-                                app->notify_dbcommit();
                             }
 
                             WAIT_CLASS::bumpds();
@@ -3024,6 +3023,7 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
+                            app->notify_dbcommit();
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
