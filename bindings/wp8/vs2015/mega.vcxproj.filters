@@ -268,6 +268,9 @@
     <ClInclude Include="..\..\..\include\mega\win32\megawaiter.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\MTransferData.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\DelegateMGfxProcessor.cpp">
@@ -482,6 +485,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\win32\waiter.cpp">
       <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransferData.cpp">
+      <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
