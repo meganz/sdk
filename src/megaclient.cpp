@@ -6603,7 +6603,7 @@ User* MegaClient::finduser(const char* uid, int add)
         // add user by lowercase e-mail address
         u = &users[++userid];
         u->uid = nuid;
-        Node::copystring(&u->email, uid);
+        Node::copystring(&u->email, nuid.c_str());
         umindex[nuid] = userid;
 
         return u;
@@ -6659,7 +6659,7 @@ User *MegaClient::ownuser()
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
 {
-    if (!*email)
+    if (!email || !*email)
     {
         return;
     }
@@ -6678,16 +6678,26 @@ void MegaClient::mapuser(handle uh, const char* email)
         // yes: add email reference
         u = &users[hit->second];
 
-        if (strcmp(u->email.c_str(), email))
-        { 
+        um_map::iterator mit = umindex.find(nuid);
+        if (mit != umindex.end() && mit->second != hit->second)
+        {
+            // duplicated user: one by email, one by handle
+            assert(!users[mit->second].sharing.size());
+            users.erase(mit->second);
+        }
+
+        // if mapping a different email, remove old index
+        if (strcmp(u->email.c_str(), nuid.c_str()))
+        {
             if (u->email.size())
             {
                 umindex.erase(u->email);
             }
 
-            Node::copystring(&u->email, email);
-            umindex[nuid] = hit->second;
+            Node::copystring(&u->email, nuid.c_str());
         }
+
+        umindex[nuid] = hit->second;
 
         return;
     }
@@ -8784,7 +8794,7 @@ void MegaClient::purgenodesusersabortsc()
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        if (u->userhandle != me)
+        if (u->userhandle != me || u->userhandle == UNDEF)
         {
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);
