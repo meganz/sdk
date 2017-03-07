@@ -6592,7 +6592,7 @@ User* MegaClient::finduser(const char* uid, int add)
         // add user by lowercase e-mail address
         u = &users[++userid];
         u->uid = nuid;
-        Node::copystring(&u->email, uid);
+        Node::copystring(&u->email, nuid.c_str());
         umindex[nuid] = userid;
 
         return u;
@@ -6675,12 +6675,8 @@ void MegaClient::mapuser(handle uh, const char* email)
             users.erase(mit->second);
         }
 
-        string useremail;
-        Node::copystring(&useremail, u->email.c_str());
-        transform(useremail.begin(), useremail.end(), useremail.begin(), ::tolower);
-
         // if mapping a different email, remove old index
-        if (strcmp(useremail.c_str(), nuid.c_str()))
+        if (strcmp(u->email.c_str(), nuid.c_str()))
         {
             umindex.erase(u->email);
         }
