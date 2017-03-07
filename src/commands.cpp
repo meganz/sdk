@@ -4665,6 +4665,8 @@ void CommandChatRemove::procresult()
                     client->app->chatremove_result(API_EINTERNAL);
                     return;
                 }
+
+                chat->priv = PRIV_RM;
             }
 
             chat->setTag(tag ? tag : -1);
