@@ -3796,12 +3796,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-int MegaPricing::getGBStorage(int)
+unsigned int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-int MegaPricing::getGBTransfer(int)
+unsigned int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
