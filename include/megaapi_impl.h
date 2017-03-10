@@ -672,7 +672,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
         void setProxy(Proxy *proxy);
@@ -906,8 +906,8 @@ public:
     virtual int getNumProducts();
     virtual MegaHandle getHandle(int productIndex);
     virtual int getProLevel(int productIndex);
-    virtual int getGBStorage(int productIndex);
-    virtual int getGBTransfer(int productIndex);
+    virtual unsigned int getGBStorage(int productIndex);
+    virtual unsigned int getGBTransfer(int productIndex);
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
@@ -916,13 +916,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                     int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
-    vector<int> gbStorage;
-    vector<int> gbTransfer;
+    vector<unsigned int> gbStorage;
+    vector<unsigned int> gbTransfer;
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
