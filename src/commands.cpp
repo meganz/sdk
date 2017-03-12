@@ -4439,6 +4439,7 @@ void CommandGetLocalSSLCertificate::procresult()
 
     string certdata;
     m_time_t ts = 0;
+    int numelements = 0;
 
     for (;;)
     {
@@ -4452,15 +4453,14 @@ void CommandGetLocalSSLCertificate::procresult()
             case 'd':
             {
                 string data;
-                bool first = true;
                 client->json.enterarray();
                 while (client->json.storeobject(&data))
                 {
-                    if (!first)
+                    if (numelements)
                     {
                         certdata.append(";");
                     }
-                    first = false;
+                    numelements++;
                     certdata.append(data);
                 }
                 client->json.leavearray();
@@ -4468,6 +4468,10 @@ void CommandGetLocalSSLCertificate::procresult()
             }
             case EOO:
             {
+                if (numelements < 2 || numelements > 11)
+                {
+                    return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
+                }
                 return client->app->getlocalsslcertificate_result(ts, &certdata, API_OK);
             }
 

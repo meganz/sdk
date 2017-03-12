@@ -8258,6 +8258,12 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
         string result;
         const char *data = certdata->data();
         const char *end = strstr(data, ";");
+        if (!end)
+        {
+            delete datamap;
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            return;
+        }
 
         result.append("-----BEGIN PRIVATE KEY-----\n");
         while (data < end)
@@ -8285,9 +8291,15 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
             if (!end)
             {
                 end = data + strlen(data);
+                if (data == end)
+                {
+                    delete datamap;
+                    fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                    return;
+                }
             }
             result = "-----BEGIN CERTIFICATE-----\n";
-            while (data < end && i < 10)
+            while (data < end)
             {
                 int remaining = end - data;
                 if (remaining > 64)
@@ -8314,6 +8326,12 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
                 datamap->set(key.c_str(), result.c_str());
             }
             i++;
+            if (i >= 10 && *data)
+            {
+                delete datamap;
+                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                return;
+            }
         }
 
         request->setNumber(ts);
