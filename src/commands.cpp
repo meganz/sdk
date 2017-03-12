@@ -4437,7 +4437,7 @@ void CommandGetLocalSSLCertificate::procresult()
         return;
     }
 
-    ostringstream certdata;
+    string certdata;
     m_time_t ts = 0;
 
     for (;;)
@@ -4458,16 +4458,18 @@ void CommandGetLocalSSLCertificate::procresult()
                 {
                     if (!first)
                     {
-                        certdata << ";";
+                        certdata.append(";");
                     }
                     first = false;
-                    certdata << data;
+                    certdata.append(data);
                 }
                 client->json.leavearray();
                 break;
             }
             case EOO:
-                return client->app->getlocalsslcertificate_result(ts, &certdata.str(), API_OK);
+            {
+                return client->app->getlocalsslcertificate_result(ts, &certdata, API_OK);
+            }
 
             default:
                 if (!client->json.storeobject())
