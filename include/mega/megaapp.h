@@ -198,6 +198,9 @@ struct MEGA_API MegaApp
     // get version info
     virtual void getversion_result(int, const char*, error) {}
 
+    // get local SSL certificate
+    virtual void getlocalsslcertificate_result(m_time_t, string*, error){ }
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

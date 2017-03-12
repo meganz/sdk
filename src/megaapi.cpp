@@ -2408,6 +2408,11 @@ void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *l
     return pImpl->getLastAvailableVersion(appKey, listener);
 }
 
+void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
+{
+    pImpl->getLocalSSLCertificate(listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);

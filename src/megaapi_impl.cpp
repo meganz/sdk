@@ -2672,6 +2672,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REGISTER_PUSH_NOTIFICATION: return "REGISTER_PUSH_NOTIFICATION";
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
         case TYPE_APP_VERSION: return "APP_VERSION";
+        case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
     }
     return "UNKNOWN";
 }
@@ -7173,6 +7174,13 @@ void MegaApiImpl::getLastAvailableVersion(const char *appKey, MegaRequestListene
     waiter->notify();
 }
 
+void MegaApiImpl::getLocalSSLCertificate(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_LOCAL_SSL_CERT, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -8234,6 +8242,85 @@ void MegaApiImpl::getversion_result(int versionCode, const char *versionString, 
     }
 
     fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_LOCAL_SSL_CERT)) return;
+
+    if (!e)
+    {
+        MegaStringMapPrivate *datamap = new MegaStringMapPrivate();
+
+        string result;
+        const char *data = certdata->data();
+        const char *end = strstr(data, ";");
+
+        result.append("-----BEGIN PRIVATE KEY-----\n");
+        while (data < end)
+        {
+            int remaining = end - data;
+            if (remaining > 64)
+            {
+                result.append(data, 64);
+                data += 64;
+            }
+            else
+            {
+                result.append(data, remaining);
+                data += remaining;
+            }
+            result.append("\n");
+        }
+        result.append("-----END PRIVATE KEY-----\n");
+        datamap->set("key", result.c_str());
+
+        int i = 0;
+        while (*data++)
+        {
+            end = strstr(data, ";");
+            if (!end)
+            {
+                end = data + strlen(data);
+            }
+            result = "-----BEGIN CERTIFICATE-----\n";
+            while (data < end && i < 10)
+            {
+                int remaining = end - data;
+                if (remaining > 64)
+                {
+                    result.append(data, 64);
+                    data += 64;
+                }
+                else
+                {
+                    result.append(data, remaining);
+                    data += remaining;
+                }
+                result.append("\n");
+            }
+            result.append("-----END CERTIFICATE-----\n");
+            if (!i)
+            {
+                datamap->set("cert", result.c_str());
+            }
+            else
+            {
+                string key = "intermediate_";
+                key.append(1, '0' + i);
+                datamap->set(key.c_str(), result.c_str());
+            }
+            i++;
+        }
+
+        request->setNumber(ts);
+        request->setMegaStringMap(datamap);
+        delete datamap;
+    }
+    fireOnRequestFinish(request, megaError);
 }
 
 #ifdef ENABLE_CHAT
@@ -13922,6 +14009,21 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
+        case MegaRequest::TYPE_APP_VERSION:
+        {
+            const char *appKey = request->getText();
+            if (!appKey)
+            {
+                appKey = this->appKey.c_str();
+            }
+            client->getlastversion(appKey);
+            break;
+        }
+        case MegaRequest::TYPE_GET_LOCAL_SSL_CERT:
+        {
+            client->getlocalsslcertificate();
+            break;
+        }
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_CHAT_CREATE:
         {
@@ -14088,16 +14190,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->registerPushNotification(deviceType, token);
-            break;
-        }
-        case MegaRequest::TYPE_APP_VERSION:
-        {
-            const char *appKey = request->getText();
-            if (!appKey)
-            {
-                appKey = this->appKey.c_str();
-            }
-            client->getlastversion(appKey);
             break;
         }
 #endif
