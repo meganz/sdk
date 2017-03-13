@@ -363,7 +363,7 @@ sodium_pkg() {
     if [ $use_dynamic -eq 1 ]; then
         local sodium_params="--enable-shared"
     else
-        local sodium_params="--disable-shared --enable-static"
+        local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
     package_download $name $sodium_url $sodium_file $sodium_md5
