@@ -219,6 +219,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -242,6 +243,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeRequestListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -265,6 +267,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeTransferListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -289,6 +292,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeGlobalListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 
 }
