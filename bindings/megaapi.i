@@ -7,6 +7,7 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
+#ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
 
 #ifdef __ANDROID__
@@ -38,7 +39,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #endif
     return JNI_VERSION_1_4;
 }
-
+#endif
 %}
 
 #ifdef SWIGJAVA
