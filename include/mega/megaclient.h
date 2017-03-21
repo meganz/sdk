@@ -599,7 +599,9 @@ private:
     // next local user record identifier to use
     int userid;
 
+    // backoff for file attributes
     BackoffTimer btpfa;
+    bool faretrying;
 
     // next internal upload handle
     handle nextuh;
