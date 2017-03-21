@@ -70,6 +70,9 @@ namespace mega
         bool hasCustomAttrs();
         MStringList^ getCustomAttrNames();
         String^ getCustomAttr(String^ attrName);
+        int getDuration();
+        double getLatitude();
+        double getLongitude();
         String^ getBase64Handle();
         uint64 getSize();
         uint64 getCreationTime();

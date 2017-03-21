@@ -101,6 +101,21 @@ String^ MNode::getCustomAttr(String^ attrName)
     return ref new String((wchar_t *)utf16customAttr.c_str());
 }
 
+int MNode::getDuration()
+{
+    return megaNode ? megaNode->getDuration() : MegaNode::INVALID_DURATION;
+}
+
+double MNode::getLatitude()
+{
+    return megaNode ? megaNode->getLatitude() : MegaNode::INVALID_COORDINATE;
+}
+
+double MNode::getLongitude()
+{
+    return megaNode ? megaNode->getLongitude() : MegaNode::INVALID_COORDINATE;
+}
+
 String^ MNode::getBase64Handle()
 {
     if (!megaNode) return nullptr;
