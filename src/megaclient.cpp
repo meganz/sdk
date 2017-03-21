@@ -739,6 +739,7 @@ void MegaClient::init()
     syncfsopsfailed = false;
     syncdownretry = false;
     syncnagleretry = false;
+    faretrying = false;
     syncsup = true;
     syncdownrequired = false;
     syncuprequired = false;
@@ -1054,6 +1055,7 @@ void MegaClient::exec()
                         curfa = activefa.erase(curfa);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
+                        faretrying = false;
                         break;
 
                     case REQ_FAILURE:
@@ -1063,6 +1065,7 @@ void MegaClient::exec()
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
                         btpfa.backoff();
+                        faretrying = true;
                         break;
 
                     default:
@@ -1073,6 +1076,7 @@ void MegaClient::exec()
 
         if (btpfa.armed())
         {
+            faretrying = false;
             while (queuedfa.size() && activefa.size() < MAXPUTFA)
             {
                 // dispatch most recent file attribute put
@@ -2158,7 +2162,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed file attribute puts
-        if (activefa.size() < MAXPUTFA)
+        if (faretrying)
         {
             btpfa.update(&nds);
         }
