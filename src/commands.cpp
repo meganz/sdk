@@ -4665,7 +4665,10 @@ void CommandChatRemove::procresult()
                     client->app->chatremove_result(API_EINTERNAL);
                     return;
                 }
+            }
 
+            if (uh == client->me)
+            {
                 chat->priv = PRIV_RM;
             }
 
