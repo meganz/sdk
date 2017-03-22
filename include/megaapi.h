@@ -61,6 +61,7 @@ class MegaContactRequest;
 class MegaShare;
 class MegaError;
 class MegaRequest;
+class MegaEvent;
 class MegaTransfer;
 class MegaSync;
 class MegaStringList;
@@ -1379,25 +1380,8 @@ public:
     virtual int getOwnPrivilege() const;
 
     /**
-     * @brief Returns your URL to connect to chatd for this chat
-     *
-     * The MegaTextChat retains the ownership of the returned string. It will
-     * be only valid until the MegaTextChat is deleted.
-     *
-     * @return The URL of the chatd server, or NULL if not available.
-     */
-    virtual const char *getUrl() const;
-
-    /**
-     * @brief setUrl Establish the URL to connect to chatd for this chat
-     *
-     * @param url The new URL for the MegaTextChat
-     */
-    virtual void setUrl(const char *url);
-
-    /**
-     * @brief getShard Returns the chat shard
-     * @return
+     * @brief Returns the chat shard
+     * @return The chat shard
      */
     virtual int getShard() const;
 
@@ -1410,6 +1394,18 @@ public:
      * @return The list of peers in the chat.
      */
     virtual const MegaTextChatPeerList *getPeerList() const;
+
+    /**
+     * @brief Establish the list of peers participating on this chatroom
+     *
+     * If a peers list already exist, this function will delete it.
+     *
+     * The MegaTextChat does not take ownership of the list passed as parameter, it makes
+     * a local copy.
+     *
+     * @param peers List of peers
+     */
+    virtual void setPeerList(const MegaTextChatPeerList *peers);
 
     /**
      * @brief isGroup Returns whether this chat is a group chat or not
@@ -1437,6 +1433,26 @@ public:
      */
     virtual const char *getTitle() const;
 
+    /**
+     * @brief Indicates if the chat is changed by yourself or by another client.
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * @return 0 if the change is external. >0 if the change is the result of an
+     * explicit request, -1 if the change is the result of an implicit request
+     * made by the SDK internally.
+     */
+    virtual int isOwnChange() const;
+
+    /**
+     * @brief Returns the creation timestamp of the chat
+     *
+     * In seconds since the Epoch
+     *
+     * @return Creation date of the chat
+     */
+    virtual int64_t getCreationTime() const;
 };
 
 /**
@@ -2380,6 +2396,52 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+};
+
+/**
+ * @brief Provides information about an event
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the event
+ * when the object is created, they are immutable.
+ */
+class MegaEvent
+{
+public:
+
+    enum {
+        EVENT_COMMIT_DB = 0
+    };
+
+    virtual ~MegaEvent();
+
+    /**
+     * @brief Creates a copy of this MegaEvent object
+     *
+     * The resulting object is fully independent of the source MegaEvent,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaEvent object
+     */
+    virtual MegaEvent *copy();
+
+    /**
+     * @brief Returns the type of the event associated with the object
+     * @return Type of the event associated with the object
+     */
+    virtual int getType() const;
+
+    /**
+     * @brief Returns a text relative to this event
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaEvent object is deleted.
+     *
+     * @return Text relative to this event
+     */
+    virtual const char *getText() const;
 };
 
 /**
@@ -3875,6 +3937,30 @@ class MegaGlobalListener
          */
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
+        /**
+         *
+         * The details about the event, like the type of event and optionally any
+         * additional parameter, is received in the \c params parameter.
+         *
+         * Currently, the following type of events are notified:
+         *
+         *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+         *  This event can be used to keep synchronization between the SDK cache and the
+         *  cache managed by the app thanks to the sequence number.
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+         *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param event Details about the event
+         */
+        virtual void onEvent(MegaApi* api, MegaEvent *event);
+
         virtual ~MegaGlobalListener();
 };
 
@@ -4158,6 +4244,26 @@ class MegaListener
      */
     virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
+
+        /**
+         *
+         * The details about the event, like the type of event and optionally any
+         * additional parameter, is received in the \c params parameter.
+         *
+         * Currently, the following type of events are notified:
+         *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+         *  This event can be used to keep synchronization between the SDK cache and the
+         *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param event Details about the event
+         */
+        virtual void onEvent(MegaApi* api, MegaEvent *event);
 
         virtual ~MegaListener();
 };
@@ -4806,6 +4912,19 @@ class MegaApi
         char *dumpSession();
 
         /**
+         * @brief Returns the current sequence number
+         *
+         * The sequence number indicates the state of a MEGA account known by the SDK.
+         * When external changes are received via actionpackets, the sequence number is
+         * updated and changes are commited to the local cache.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The current sequence number
+         */
+        char *getSequenceNumber();
+
+        /**
          * @brief Returns the current XMPP session key
          *
          * You have to be logged in to get a valid session key. Otherwise,
@@ -5184,6 +5303,16 @@ class MegaApi
          * @return User handle of the account
          */
         char* getMyUserHandle();
+
+        /**
+         * @brief Returns the user handle of the currently open account
+         *
+         * If the MegaApi object isn't logged in,
+         * this function returns INVALID_HANDLE
+         *
+         * @return User handle of the account
+         */
+        MegaHandle getMyUserHandleBinary();
 
         /**
          * @brief Get the MegaUser of the currently open account
@@ -5625,12 +5754,10 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param user MegaUser to get the color of the avatar. If this parameter is set to NULL, the color
-         *  is obtained for the active account.
+         * @param user MegaUser to get the color of the avatar.
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
-         * If the user is not found, this function always returns the same color.
          */
-        char *getUserAvatarColor(MegaUser *user);
+        static char *getUserAvatarColor(MegaUser *user);
 
         /**
          * @brief Get the default color for the avatar.
@@ -5639,12 +5766,10 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param userhandle User handle (Base64 encoded) to get the avatar. If this parameter is
-         * set to NULL, the avatar is obtained for the active account.
+         * @param userhandle User handle (Base64 encoded) to get the avatar.
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
-         * If the user is not found, this function  always returns the same color.
          */
-        char *getUserAvatarColor(const char *userhandle);
+        static char *getUserAvatarColor(const char *userhandle);
 
         /**
          * @brief Get an attribute of a MegaUser.
@@ -9272,6 +9397,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the list of chatrooms for this account
+         *
+         * You take the ownership of the returned value
+         *
+         * @return A list of MegaTextChat objects with detailed information about each chatroom.
+         */
+        MegaTextChatList *getChatList();
 #endif
 
 private:
@@ -9836,14 +9970,14 @@ public:
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return number of GB of storage
      */
-    virtual int getGBStorage(int productIndex);
+    virtual unsigned int getGBStorage(int productIndex);
 
     /**
      * @brief Get the number of GB of bandwidth associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return number of GB of bandwidth
      */
-    virtual int getGBTransfer(int productIndex);
+    virtual unsigned int getGBTransfer(int productIndex);
 
     /**
      * @brief Get the duration of the product (in months)

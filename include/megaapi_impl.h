@@ -672,7 +672,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
         void setProxy(Proxy *proxy);
@@ -761,6 +761,25 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
+};
+
+class MegaEventPrivate : public MegaEvent
+{
+public:
+    MegaEventPrivate(int type);
+    MegaEventPrivate(MegaEventPrivate *event);
+    virtual ~MegaEventPrivate();
+    MegaEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getText() const;
+
+    void setText(const char* text);
+
+protected:
+    int type;
+    const char* text;
+
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -887,8 +906,8 @@ public:
     virtual int getNumProducts();
     virtual MegaHandle getHandle(int productIndex);
     virtual int getProLevel(int productIndex);
-    virtual int getGBStorage(int productIndex);
-    virtual int getGBTransfer(int productIndex);
+    virtual unsigned int getGBStorage(int productIndex);
+    virtual unsigned int getGBTransfer(int productIndex);
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
@@ -897,13 +916,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                     int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
-    vector<int> gbStorage;
-    vector<int> gbTransfer;
+    vector<unsigned int> gbStorage;
+    vector<unsigned int> gbTransfer;
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
@@ -939,20 +958,22 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
+    MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaTextChat *copy() const;
 
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
-    virtual const char *getUrl() const;
-    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
+    virtual void setPeerList(const MegaTextChatPeerList *peers);
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
+    virtual int64_t getCreationTime() const;
+
+    virtual int isOwnChange() const;
 
 private:
     handle id;
@@ -963,6 +984,8 @@ private:
     bool group;
     handle ou;
     string title;
+    int tag;
+    int64_t ts;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1298,6 +1321,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *getSequenceNumber();
         char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
@@ -1327,6 +1351,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         char* getMyEmail();
         char* getMyUserHandle();
+        MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
 #ifdef ENABLE_CHAT
@@ -1360,8 +1385,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        char* getUserAvatarColor(MegaUser *user);
-        char *getUserAvatarColor(const char *userhandle);
+        static char* getUserAvatarColor(MegaUser *user);
+        static char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
@@ -1636,6 +1661,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        MegaTextChatList *getChatList();
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1667,6 +1693,7 @@ protected:
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
+        void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -1893,7 +1920,7 @@ protected:
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
 
-        virtual void chats_updated(textchat_map *);
+        virtual void chats_updated(textchat_map *, int);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1930,6 +1957,9 @@ protected:
         // failed request retry notification
         virtual void notify_retry(dstime);
 
+        // notify about db commit
+        virtual void notify_dbcommit();
+
         void sendPendingRequests();
         void sendPendingTransfers();
         char *stringToArray(string &buffer);
@@ -1945,7 +1975,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
-        char *getAvatarColor(handle userhandle);
+        static char *getAvatarColor(handle userhandle);
 };
 
 class MegaHashSignatureImpl

@@ -638,19 +638,19 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_map *chats)
+void DemoApp::chats_updated(textchat_map *chats, int count)
 {
+    if (count == 1)
+    {
+        cout << "1 chat received or updated" << endl;
+    }
+    else
+    {
+        cout << count << " chats received or updated" << endl;
+    }
+
     if (chats)
     {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat updated or created" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats updated or created" << endl;
-        }
-
         textchat_map::iterator it;
         for (it = chats->begin(); it != chats->end(); it++)
         {
@@ -671,8 +671,8 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "Chat ID: " << hstr << endl;
     cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tURL: " << chat->url << endl;
     if (chat->group)
     {
         cout << "\tGroup chat: yes" << endl;
@@ -696,6 +696,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << " no peers (only you as participant)" << endl;
+    }
+    if (chat->tag)
+    {
+        cout << "\tIs own change: yes" << endl;
+    }
+    else
+    {
+        cout << "\tIs own change: no" << endl;
     }
     if (!chat->title.empty())
     {
@@ -3496,7 +3504,7 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+                            client->inviteToChat(chatid, u->userhandle, priv);
                             return;
                         }
                         else
@@ -3515,7 +3523,7 @@ static void process_line(char* l)
 
                             if (words.size() == 2)
                             {
-                                client->removeFromChat(chatid);
+                                client->removeFromChat(chatid, client->me);
                             }
                             else if (words.size() == 3)
                             {
@@ -3527,7 +3535,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                client->removeFromChat(chatid, u->uid.c_str());
+                                client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
                             else

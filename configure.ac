@@ -818,6 +818,10 @@ if test "x$WIN32" = "xno" ; then
     AC_CHECK_LIB([rt], [aio_write], [
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
     LDFLAGS="-lrt $LDFLAGS"
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi    
 #    LIBRT_CXXFLAGS="-lrt "
 #    LIBRT_CPPFLAGS="-lrt "
 #    LIBRT_LDFLAGS="-lrt "
@@ -1562,7 +1566,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
-  LDFLAGS:         $LDFLAGS
+  LDFLAGS:          $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static

@@ -1178,6 +1178,8 @@ void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestLi
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
+void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -1207,6 +1209,8 @@ void MegaListener::onAccountUpdate(MegaApi *)
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaListener::onReloadNeeded(MegaApi *)
+{ }
+void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 
 #ifdef ENABLE_SYNC
@@ -1273,6 +1277,10 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+MegaHandle MegaApi::getMyUserHandleBinary()
+{
+    return pImpl->getMyUserHandleBinary();
+}
 MegaUser *MegaApi::getMyUser()
 {
     return pImpl->getMyUser();
@@ -1405,6 +1413,11 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
 char *MegaApi::dumpSession()
 {
     return pImpl->dumpSession();
+}
+
+char *MegaApi::getSequenceNumber()
+{
+    return pImpl->getSequenceNumber();
 }
 
 char *MegaApi::dumpXMPPSession()
@@ -1629,12 +1642,12 @@ void MegaApi::getUserAvatar(const char *dstFilePath, MegaRequestListener *listen
 
 char *MegaApi::getUserAvatarColor(MegaUser *user)
 {
-    return pImpl->getUserAvatarColor(user);
+    return MegaApiImpl::getUserAvatarColor(user);
 }
 
 char *MegaApi::getUserAvatarColor(const char *userhandle)
 {
-    return pImpl->getUserAvatarColor(userhandle);
+    return MegaApiImpl::getUserAvatarColor(userhandle);
 }
 
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
@@ -3490,6 +3503,11 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
+MegaTextChatList* MegaApi::getChatList()
+{
+    return pImpl->getChatList();
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -3778,12 +3796,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-int MegaPricing::getGBStorage(int)
+unsigned int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-int MegaPricing::getGBTransfer(int)
+unsigned int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
@@ -4102,16 +4120,6 @@ int MegaTextChat::getOwnPrivilege() const
     return PRIV_UNKNOWN;
 }
 
-const char *MegaTextChat::getUrl() const
-{
-    return NULL;
-}
-
-void MegaTextChat::setUrl(const char *)
-{
-
-}
-
 int MegaTextChat::getShard() const
 {
     return -1;
@@ -4120,6 +4128,11 @@ int MegaTextChat::getShard() const
 const MegaTextChatPeerList *MegaTextChat::getPeerList() const
 {
     return NULL;
+}
+
+void MegaTextChat::setPeerList(const MegaTextChatPeerList *)
+{
+
 }
 
 bool MegaTextChat::isGroup() const
@@ -4135,6 +4148,16 @@ MegaHandle MegaTextChat::getOriginatingUser() const
 const char * MegaTextChat::getTitle() const
 {
     return NULL;
+}
+
+int MegaTextChat::isOwnChange() const
+{
+    return 0;
+}
+
+int64_t MegaTextChat::getCreationTime() const
+{
+    return 0;
 }
 
 MegaTextChatList::~MegaTextChatList()
@@ -4233,4 +4256,20 @@ unsigned long long MegaTransferData::getUploadPriority(int i) const
 long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
+}
+
+MegaEvent::~MegaEvent() { }
+MegaEvent *MegaEvent::copy()
+{
+    return NULL;
+}
+
+int MegaEvent::getType() const
+{
+    return 0;
+}
+
+const char *MegaEvent::getText() const
+{
+    return NULL;
 }

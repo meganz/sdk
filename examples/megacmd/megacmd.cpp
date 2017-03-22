@@ -2338,7 +2338,7 @@ int main(int argc, char* argv[])
     char userAgent[30];
     sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
 
-#ifdef __MACH__
+#if defined(__MACH__) && defined(ENABLE_SYNC)
     int fd = -1;
     if (argc)
     {
