@@ -422,6 +422,21 @@ void MegaSDK::login(String^ email, String^ password, MRequestListenerInterface^ 
 		createDelegateMRequestListener(listener));
 }
 
+String^ MegaSDK::getSequenceNumber()
+{
+    const char *utf8sequenceNumber = megaApi->getSequenceNumber();
+    if (!utf8sequenceNumber)
+    {
+        return nullptr;
+    }
+
+    std::string utf16sequenceNumber;
+    MegaApi::utf8ToUtf16(utf8sequenceNumber, &utf16sequenceNumber);
+    delete[] utf8sequenceNumber;
+
+    return ref new String((wchar_t *)utf16sequenceNumber.c_str());
+}
+
 String^ MegaSDK::dumpSession()
 {
 	const char *utf8session = megaApi->dumpSession();
@@ -548,6 +563,30 @@ void MegaSDK::getUserData(MUser^ user, MRequestListenerInterface^ listener)
 void MegaSDK::getUserData(MUser^ user)
 {
 	megaApi->getUserData((user != nullptr) ? user->getCPtr() : NULL);
+}
+
+String^ MegaSDK::getAccountAuth()
+{
+    const char *utf8accountAuth = megaApi->getAccountAuth();
+    if (!utf8accountAuth)
+    {
+        return nullptr;
+    }
+
+    std::string utf16accountAuth;
+    MegaApi::utf8ToUtf16(utf8accountAuth, &utf16accountAuth);
+    delete[] utf8accountAuth;
+
+    return ref new String((wchar_t *)utf16accountAuth.c_str());
+}
+
+void MegaSDK::setAccountAuth(String^ auth)
+{
+    std::string utf8auth;
+    if (auth != nullptr)
+        MegaApi::utf16ToUtf8(auth->Data(), auth->Length(), &utf8auth);
+
+    megaApi->setAccountAuth((auth != nullptr) ? utf8auth.c_str() : NULL);
 }
 
 void MegaSDK::getUserDataById(String^ user, MRequestListenerInterface^ listener)
@@ -850,6 +889,25 @@ void MegaSDK::cancelAccount()
     megaApi->cancelAccount();
 }
 
+void MegaSDK::queryCancelLink(String^ link, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    megaApi->queryCancelLink((link != nullptr) ? utf8link.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryCancelLink(String^ link)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    megaApi->queryCancelLink((link != nullptr) ? utf8link.c_str() : NULL);
+}
+
 void MegaSDK::confirmCancelAccount(String^ link, String^ pwd, MRequestListenerInterface^ listener)
 {
     std::string utf8link;
@@ -983,6 +1041,11 @@ String^ MegaSDK::getMyUserHandle()
     return ref new String((wchar_t *)utf16userHandle.c_str());
 }
 
+MegaHandle MegaSDK::getMyUserHandleBinary()
+{
+    return megaApi->getMyUserHandleBinary();
+}
+
 MUser^ MegaSDK::getMyUser()
 {
     return ref new MUser(megaApi->getMyUser(), true);
@@ -1054,6 +1117,15 @@ void MegaSDK::createFolder(String^ name, MNode^ parent)
 
 	megaApi->createFolder((name != nullptr) ? utf8name.c_str() : NULL,
 		(parent != nullptr) ? parent->getCPtr() : NULL);
+}
+
+bool MegaSDK::createLocalFolder(String^ localPath)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    return megaApi->createLocalFolder((localPath != nullptr) ? utf8localPath.c_str() : NULL);
 }
 
 void MegaSDK::moveNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener)
@@ -1484,6 +1556,20 @@ void MegaSDK::getUserAttribute(MUser^ user, int type)
     megaApi->getUserAttribute((user != nullptr) ? user->getCPtr() : NULL, type);
 }
 
+void MegaSDK::getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener)
+{
+    if (handle == ::mega::INVALID_HANDLE) return;
+
+    megaApi->getUserEmail(handle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserEmail(MegaHandle handle)
+{
+    if (handle == ::mega::INVALID_HANDLE) return;
+
+    megaApi->getUserEmail(handle);
+}
+
 void MegaSDK::getOwnUserAttribute(int type, MRequestListenerInterface^ listener)
 {
     megaApi->getUserAttribute(type, createDelegateMRequestListener(listener));
@@ -1511,6 +1597,59 @@ void MegaSDK::setUserAttribute(int type, String^ value)
         MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
 
     megaApi->setUserAttribute(type, (value != nullptr) ? utf8value.c_str() : NULL);
+}
+
+void MegaSDK::setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value, MRequestListenerInterface^ listener)
+{
+    std::string utf8attrName;
+    if (attrName != nullptr)
+        MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    std::string utf8value;
+    if (value != nullptr)
+        MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
+
+    megaApi->setCustomNodeAttribute((node != nullptr) ? node->getCPtr() : NULL,
+        (attrName != nullptr) ? utf8attrName.c_str() : NULL,
+        (value != nullptr) ? utf8value.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value)
+{
+    std::string utf8attrName;
+    if (attrName != nullptr)
+        MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    std::string utf8value;
+    if (value != nullptr)
+        MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
+
+    megaApi->setCustomNodeAttribute((node != nullptr) ? node->getCPtr() : NULL,
+        (attrName != nullptr) ? utf8attrName.c_str() : NULL,
+        (value != nullptr) ? utf8value.c_str() : NULL);
+}
+
+void MegaSDK::setNodeDuration(MNode^ node, int duration, MRequestListenerInterface^ listener)
+{
+    megaApi->setNodeDuration((node != nullptr) ? node->getCPtr() : NULL,
+        duration, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setNodeDuration(MNode^ node, int duration)
+{
+    megaApi->setNodeDuration((node != nullptr) ? node->getCPtr() : NULL, duration);
+}
+
+void MegaSDK::setNodeCoordinates(MNode^ node, double latitude, double longitude, MRequestListenerInterface^ listener)
+{
+    megaApi->setNodeCoordinates((node != nullptr) ? node->getCPtr() : NULL,
+        latitude, longitude, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setNodeCoordinates(MNode^ node, double latitude, double longitude)
+{
+    megaApi->setNodeCoordinates((node != nullptr) ? node->getCPtr() : NULL, latitude, longitude);
 }
 
 void MegaSDK::exportNode(MNode^ node, MRequestListenerInterface^ listener)
