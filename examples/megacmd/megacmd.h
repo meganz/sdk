@@ -35,17 +35,17 @@ typedef struct sync_struct
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, AREYOUSURETODELETE
 };
 
 static const char* const prompts[] =
 {
-    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+    "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Are you sure to delete? "
 };
 
 enum
 {
-    MCMD_OK = 0,                ///< Everything OK
+    MCMD_OK = 0,              ///< Everything OK
 
     MCMD_EARGS = -51,         ///< Wrong arguments
     MCMD_INVALIDEMAIL = -52,  ///< Invalid email
@@ -68,7 +68,9 @@ const char * getUsageStr(const char *command);
 
 void unescapeifRequired(std::string &what);
 
-void setprompt(prompttype p);
+void setprompt(prompttype p, std::string arg = "");
+
+prompttype getprompt();
 
 void printHistory();
 

@@ -1,10 +1,10 @@
 megacmd (0.9.3) stable; urgency=low
 
   * fixed mkdir in MacOS
-  * added command \
-  * added -n to \
+  * added command "https" to force HTTPS for file transfers
+  * added -n to "users" to show users names
   * modified greeting
-  * fixed \
+  * fixed "clear" for Windows
   * fixed download >4GB files
   * fixed bug in asynchronous transfers
 

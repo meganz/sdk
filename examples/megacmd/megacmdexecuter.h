@@ -43,6 +43,10 @@ private:
     // link to confirm
     std::string link;
 
+    //delete confirmation
+    std::vector<mega::MegaNode *> nodesToConfirmDelete;
+
+
     void updateprompt(mega::MegaApi *api, mega::MegaHandle handle);
 
 public:
@@ -86,7 +90,7 @@ public:
     void actUponLogin(mega::SynchronousRequestListener  *srl, int timeout = -1);
     void actUponLogout(mega::SynchronousRequestListener  *srl, bool deletedSession, int timeout = 0);
     int actUponCreateFolder(mega::SynchronousRequestListener  *srl, int timeout = 0);
-    void deleteNode(mega::MegaNode *nodeToDelete, mega::MegaApi* api, int recursive);
+    void deleteNode(mega::MegaNode *nodeToDelete, mega::MegaApi* api, int recursive, int force = 0);
     void downloadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node);
     void uploadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, std::string newname);
     void exportNode(mega::MegaNode *n, int expireTime);
@@ -115,6 +119,10 @@ public:
 
     int makedir(std::string remotepath, bool recursive, mega::MegaNode *parentnode = NULL);
     bool IsFolder(std::string path);
+    void doDeleteNode(mega::MegaNode *nodeToDelete, mega::MegaApi* api);
+
+    void confirmDelete();
+    void discardDelete();
 };
 
 #endif // MEGACMDEXECUTER_H
