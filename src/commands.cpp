@@ -2835,7 +2835,8 @@ void CommandPubKeyRequest::procresult()
     }
     else
     {
-        for (;;)
+        bool finished = false;
+        while (!finished)
         {
             switch (client->json.getnameid())
             {
@@ -2865,6 +2866,7 @@ void CommandPubKeyRequest::procresult()
                     {
                         len_pubk = 0;
                     }
+                    finished = true;
                     break;
 
                 default:
@@ -2873,6 +2875,7 @@ void CommandPubKeyRequest::procresult()
                         continue;
                     }
                     len_pubk = 0;
+                    finished = true;
                     break;
             }
         }
