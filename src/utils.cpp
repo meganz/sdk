@@ -102,7 +102,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
 
-    if (ptr + sizeof(handle) + sizeof(privilege_t) + 1 > end)
+    if (ptr + sizeof(handle) + sizeof(privilege_t) + sizeof(int) + sizeof(short) > end)
     {
         return NULL;
     }
@@ -112,11 +112,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     priv = MemAccess::get<privilege_t>(ptr);
     ptr += sizeof priv;
-
-    if (ptr + sizeof(int) + 1 > end)
-    {
-        return NULL;
-    }
 
     shard = MemAccess::get<int>(ptr);
     ptr += sizeof shard;
@@ -144,7 +139,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
     }
 
-    if (ptr + sizeof(bool) + 1 > end)
+    if (ptr + sizeof(bool) + sizeof(short) > end)
     {
         delete userpriv;
         return NULL;
@@ -166,7 +161,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     }
     ptr += ll;
 
-    if (ptr + sizeof(handle) + 10 > end)
+    if (ptr + sizeof(handle) + sizeof(m_time_t) + 10 > end)
     {
         delete userpriv;
         return NULL;
