@@ -1053,6 +1053,8 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
+
+        virtual void addNode(MegaNode* node);
 	
 	protected:
 		MegaNode** list;

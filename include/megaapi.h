@@ -71,6 +71,7 @@ class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
 class MegaApi;
+class MegaClient;
 
 class MegaSemaphore;
 
@@ -1630,6 +1631,12 @@ class MegaNodeList
          * @return Number of MegaNode objects in the list
          */
         virtual int size();
+
+        /**
+         * @brief Add new node to list
+         * @param MegaNode to be added. The node inserted is a copy from 'node'
+         */
+        virtual void addNode(MegaNode* node);
 };
 
 /**
@@ -9406,6 +9413,8 @@ class MegaApi
          * @return A list of MegaTextChat objects with detailed information about each chatroom.
          */
         MegaTextChatList *getChatList();
+
+        MegaClient *getMegaClient();
 #endif
 
 private:
