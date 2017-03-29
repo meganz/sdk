@@ -8253,52 +8253,27 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
 
     if (!e)
     {
-        MegaStringMapPrivate *datamap = new MegaStringMapPrivate();
-
         string result;
         const char *data = certdata->data();
-        const char *end = strstr(data, ";");
-        if (!end)
+        const char *enddata = certdata->data() + certdata->size();
+        MegaStringMapPrivate *datamap = new MegaStringMapPrivate();
+        for (int i = 0; data < enddata; i++)
         {
-            delete datamap;
-            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
-            return;
-        }
+            result = i ? "-----BEGIN CERTIFICATE-----\n"
+                       : "-----BEGIN PRIVATE KEY-----\n";
 
-        result.append("-----BEGIN PRIVATE KEY-----\n");
-        while (data < end)
-        {
-            int remaining = end - data;
-            if (remaining > 64)
-            {
-                result.append(data, 64);
-                data += 64;
-            }
-            else
-            {
-                result.append(data, remaining);
-                data += remaining;
-            }
-            result.append("\n");
-        }
-        result.append("-----END PRIVATE KEY-----\n");
-        datamap->set("key", result.c_str());
-
-        int i = 0;
-        while (*data++)
-        {
-            end = strstr(data, ";");
+            const char *end = strstr(data, ";");
             if (!end)
             {
-                end = data + strlen(data);
-                if (data == end)
+                if (!i)
                 {
                     delete datamap;
                     fireOnRequestFinish(request, MegaError(API_EINTERNAL));
                     return;
                 }
+                end = enddata;
             }
-            result = "-----BEGIN CERTIFICATE-----\n";
+
             while (data < end)
             {
                 int remaining = end - data;
@@ -8314,24 +8289,31 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
                 }
                 result.append("\n");
             }
-            result.append("-----END CERTIFICATE-----\n");
-            if (!i)
+
+            switch (i)
             {
-                datamap->set("cert", result.c_str());
+                case 0:
+                {
+                    result.append("-----END PRIVATE KEY-----\n");
+                    datamap->set("key", result.c_str());
+                    break;
+                }
+                case 1:
+                {
+                    result.append("-----END CERTIFICATE-----\n");
+                    datamap->set("cert", result.c_str());
+                    break;
+                }
+                default:
+                {
+                    result.append("-----END CERTIFICATE-----\n");
+                    std::ostringstream oss;
+                    oss << "intermediate_" << (i - 1);
+                    datamap->set(oss.str().c_str(), result.c_str());
+                    break;
+                }
             }
-            else
-            {
-                string key = "intermediate_";
-                key.append(1, '0' + i);
-                datamap->set(key.c_str(), result.c_str());
-            }
-            i++;
-            if (i >= 10 && *data)
-            {
-                delete datamap;
-                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
-                return;
-            }
+            data++;
         }
 
         request->setNumber(ts);

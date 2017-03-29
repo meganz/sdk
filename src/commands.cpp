@@ -4468,7 +4468,7 @@ void CommandGetLocalSSLCertificate::procresult()
             }
             case EOO:
             {
-                if (numelements < 2 || numelements > 11)
+                if (numelements < 2)
                 {
                     return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
                 }
