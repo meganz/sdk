@@ -8277,17 +8277,10 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
             while (data < end)
             {
                 int remaining = end - data;
-                if (remaining > 64)
-                {
-                    result.append(data, 64);
-                    data += 64;
-                }
-                else
-                {
-                    result.append(data, remaining);
-                    data += remaining;
-                }
+                int dataSize = (remaining > 64) ? 64 : remaining;
+                result.append(data, dataSize);
                 result.append("\n");
+                data += dataSize;
             }
 
             switch (i)
