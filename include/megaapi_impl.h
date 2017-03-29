@@ -1588,6 +1588,7 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
+        void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -1904,6 +1905,7 @@ protected:
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
+        virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

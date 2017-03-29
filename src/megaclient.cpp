@@ -2989,6 +2989,11 @@ void MegaClient::getlastversion(const char *appKey)
     reqs.add(new CommandGetVersion(this, appKey));
 }
 
+void MegaClient::getlocalsslcertificate()
+{
+    reqs.add(new CommandGetLocalSSLCertificate(this));
+}
+
 // process server-client request
 bool MegaClient::procsc()
 {
