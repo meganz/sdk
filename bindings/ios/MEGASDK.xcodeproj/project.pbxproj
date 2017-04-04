@@ -82,6 +82,7 @@
 		940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */; };
 		940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MEGAUser.mm */; };
 		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
+		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -263,6 +264,8 @@
 		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
 		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
 		9472044319ED916F00F6805F /* libMEGASDK.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMEGASDK.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		A8FD7B611E93B3ED0031FC50 /* osxutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osxutils.h; path = osx/osxutils.h; sourceTree = "<group>"; };
+		A8FD7B631E93B40E0031FC50 /* osxutils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = osxutils.mm; path = ../../src/osx/osxutils.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -288,6 +291,7 @@
 		940BEF9719ED9259007E7FA2 /* sdk */ = {
 			isa = PBXGroup;
 			children = (
+				A8FD7B651E93B4100031FC50 /* osx */,
 				940BF03919EDBCAD007E7FA2 /* include */,
 				940BEFD619ED9351007E7FA2 /* crypto */,
 				940BEFD919ED9351007E7FA2 /* db */,
@@ -441,6 +445,7 @@
 		940BF03C19EDBCAD007E7FA2 /* mega */ = {
 			isa = PBXGroup;
 			children = (
+				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
 				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
 				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
@@ -591,6 +596,22 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A8FD7B621E93B3FB0031FC50 /* osx */ = {
+			isa = PBXGroup;
+			children = (
+				A8FD7B611E93B3ED0031FC50 /* osxutils.h */,
+			);
+			name = osx;
+			sourceTree = "<group>";
+		};
+		A8FD7B651E93B4100031FC50 /* osx */ = {
+			isa = PBXGroup;
+			children = (
+				A8FD7B631E93B40E0031FC50 /* osxutils.mm */,
+			);
+			name = osx;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -651,6 +672,7 @@
 				940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */,
 				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
 				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
+				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
 				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
