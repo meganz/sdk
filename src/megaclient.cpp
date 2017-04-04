@@ -5017,6 +5017,15 @@ void MegaClient::notifypurge(void)
 
             if (u->show == INACTIVE && u->userhandle != me)
             {
+                // delete any remaining shares with this user
+                for (handle_set::iterator it = u->sharing.begin(); it != u->sharing.end(); it++)
+                {
+                    Node *n = nodebyhandle(*it);
+                    nodes.erase(n->nodehandle);
+                    delete n;
+                }
+                u->sharing.clear();
+
                 discarduser(u->userhandle);
             }
         }
