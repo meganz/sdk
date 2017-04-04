@@ -1,5 +1,5 @@
 #include "mega/osx/osxutils.h"
-#ifdef TARGET_OS_OSX
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include <Cocoa/Cocoa.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #elif TARGET_OS_IOS
@@ -20,14 +20,14 @@ void path2localMac(string* path, string* local)
         return;
     }
     // Compatibility with new APFS filesystem
-    // Use the fileSystemRepresentation property of NSURL objects when creating and opening
+    // Use the fileSystemRepresentation property of NSString objects when creating and opening
     // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
     NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
     const char *pathRepresentation = [tempPath fileSystemRepresentation];
     *local = pathRepresentation ? pathRepresentation : "";
 }
 
-#ifdef TARGET_OS_OSX
+#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 
 CFTypeRef getValueFromKey(CFDictionaryRef dict, const void *key, CFTypeID type)
 {
