@@ -1,10 +1,33 @@
 #include "mega/osx/osxutils.h"
+#ifdef TARGET_OS_OSX
 #include <Cocoa/Cocoa.h>
 #include <SystemConfiguration/SystemConfiguration.h>
+#elif TARGET_OS_IOS
+#include <Foundation/Foundation.h>
+#endif
+
 
 using namespace mega;
+using namespace std;
 
 enum { HTTP_PROXY = 0, HTTPS_PROXY };
+
+void path2localMac(string* path, string* local)
+{
+    if (!path->size())
+    {
+        *local = "";
+        return;
+    }
+    // Compatibility with new APFS filesystem
+    // Use the fileSystemRepresentation property of NSURL objects when creating and opening
+    // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
+    NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
+    const char *pathRepresentation = [tempPath fileSystemRepresentation];
+    *local = pathRepresentation ? pathRepresentation : "";
+}
+
+#ifdef TARGET_OS_OSX
 
 CFTypeRef getValueFromKey(CFDictionaryRef dict, const void *key, CFTypeID type)
 {
@@ -87,3 +110,4 @@ void getOSXproxy(Proxy* proxy)
     }
     CFRelease(proxySettings);
 }
+#endif
