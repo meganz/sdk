@@ -1558,6 +1558,10 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
         l->dirnotifytag = (handle)wd;
         fsaccess->wdnodes[wd] = l;
     }
+    else
+    {
+        LOG_warn << "Unable to addnotify path: " <<  path->c_str() << ". Error code: " << errno;
+    }
 #endif
 #endif
 }
