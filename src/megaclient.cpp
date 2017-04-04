@@ -4999,7 +4999,7 @@ void MegaClient::notifypurge(void)
         pcrnotify.clear();
     }
 
-    // users are never deleted
+    // users are never deleted (except at account cancellation)
     if ((t = usernotify.size()))
     {
         if (!fetchingnodes)
@@ -5014,6 +5014,11 @@ void MegaClient::notifypurge(void)
             u->notified = false;
             u->resetTag();
             memset(&(u->changed), 0, sizeof(u->changed));
+
+            if (u->show == INACTIVE && u->userhandle != me)
+            {
+                discarduser(u->userhandle);
+            }
         }
 
         usernotify.clear();
