@@ -6718,7 +6718,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u = &users[hit->second];
 
         um_map::iterator mit = umindex.find(nuid);
-        if (mit != umindex.end() && mit->second != hit->second)
+        if (mit != umindex.end() && mit->second != hit->second && users[mit->second].show != INACTIVE)
         {
             // duplicated user: one by email, one by handle
             assert(!users[mit->second].sharing.size());
