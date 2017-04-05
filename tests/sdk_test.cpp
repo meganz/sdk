@@ -44,7 +44,7 @@ void SdkTest::SetUp()
         MegaApi::setLoggerObject(logger);
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[0] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -582,7 +582,7 @@ void SdkTest::getMegaApiAux()
         ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[1] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
