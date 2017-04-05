@@ -191,12 +191,12 @@ MNode^ MNode::getPublicNode()
     return megaNode ? ref new MNode(megaNode->getPublicNode(), true) : nullptr;
 }
 
-String^ MNode::getPublicLink()
+String^ MNode::getPublicLink(bool includeKey)
 {
     if (!megaNode) return nullptr;
 
     std::string utf16link;
-    const char *utf8link = megaNode->getPublicLink();
+    const char *utf8link = megaNode->getPublicLink(includeKey);
     if (!utf8link)
         return nullptr;
 

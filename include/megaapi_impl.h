@@ -268,7 +268,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
         virtual MegaNode* getPublicNode();
-        virtual char *getPublicLink();
+        virtual char *getPublicLink(bool includeKey = true);
         virtual bool isFile();
         virtual bool isFolder();
         virtual bool isRemoved();

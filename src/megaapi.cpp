@@ -294,7 +294,7 @@ MegaNode* MegaNode::getPublicNode()
     return NULL;
 }
 
-char * MegaNode::getPublicLink()
+char * MegaNode::getPublicLink(bool includeKey)
 {
     return NULL;
 }

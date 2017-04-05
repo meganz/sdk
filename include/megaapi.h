@@ -648,10 +648,11 @@ class MegaNode
          * You take the ownership of the returned string.
          * Use delete [] to free it.
          *
+         * @param includeKey False if you want the link without the key.
          * @return The URL for the public link of the exported node. If the MegaNode
          * has not been exported, it returns NULL.
          */
-        virtual char * getPublicLink();
+        virtual char * getPublicLink(bool includeKey = true);
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)

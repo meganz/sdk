@@ -84,7 +84,7 @@ namespace mega
         uint64 getExpirationTime();
         MegaHandle getPublicHandle();
         MNode^ getPublicNode();
-        String^ getPublicLink();
+        String^ getPublicLink(bool includeKey);
         bool isFile();
         bool isFolder();
         bool isRemoved();
