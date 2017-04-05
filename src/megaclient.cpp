@@ -5192,12 +5192,12 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 
     restag = reqtag;
 
-    if (!(u = finduser(user, 1)))
+    if (!(u = finduser(user, 0)) || !user || !strchr(user, '@'))
     {
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
 
-    queuepubkeyreq(u, new PubKeyActionPutNodes(newnodes, numnodes, reqtag));
+    queuepubkeyreq(user, new PubKeyActionPutNodes(newnodes, numnodes, reqtag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -6389,7 +6389,7 @@ void MegaClient::getuserdata()
 
 void MegaClient::getpubkey(const char *user)
 {
-    queuepubkeyreq(finduser(user, 1), new PubKeyActionNotifyApp(reqtag));
+    queuepubkeyreq(user, new PubKeyActionNotifyApp(reqtag));
 }
 
 // resume session - load state from local cache, if available
@@ -6905,6 +6905,22 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
     }
 }
 
+void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
+{
+    User* u = finduser(uid, 0);
+    if (!u && uid && strchr(uid, '@'))
+    {
+        string nuid;
+        Node::copystring(&nuid, uid);
+        transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+
+        u = new User(nuid.c_str());
+        u->uid = nuid;
+    }
+
+    queuepubkeyreq(u, pka);
+}
+
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
@@ -6931,7 +6947,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag, personal_representation));
+    queuepubkeyreq(user, new PubKeyActionCreateShare(n->nodehandle, a, reqtag, personal_representation));
 }
 
 // Add/delete/remind outgoing pending contact request

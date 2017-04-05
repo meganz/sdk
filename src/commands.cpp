@@ -2890,7 +2890,7 @@ void CommandPubKeyRequest::procresult()
         u->pkrs.pop_front();
     }
 
-    if (len_pubk)
+    if (len_pubk && !ISUNDEF(u->userhandle))
     {
         client->notifyuser(u);
     }
