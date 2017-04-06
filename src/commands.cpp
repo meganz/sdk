@@ -2890,10 +2890,20 @@ void CommandPubKeyRequest::procresult()
         u->pkrs.pop_front();
     }
 
-    if (len_pubk && !ISUNDEF(u->userhandle))
+    bool isTempUser = (u != client->finduser(u->userhandle) &&
+            u != client->finduser(u->email.c_str()));
+
+    if (len_pubk && !isTempUser)
     {
         client->notifyuser(u);
     }
+
+    if (isTempUser)
+    {
+        delete u;
+        u = NULL;
+    }
+
     return;
 }
 
