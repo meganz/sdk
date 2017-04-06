@@ -6247,7 +6247,12 @@ bool MegaClient::readusers(JSON* j)
             bool notify = !u;
             if (u || (u = finduser(uh, 1)))
             {
-                mapuser(uh, m);
+                string email;
+                Node::copystring(&email, m);
+                if (email != "none")    // ephemereal session
+                {
+                    mapuser(uh, m);
+                }
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
