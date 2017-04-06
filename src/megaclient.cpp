@@ -6901,6 +6901,7 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
         if (!u->pubkrequested)
         {
             reqs.add(new CommandPubKeyRequest(this, u));
+            u->pubkrequested = true;
         }
     }
 }
