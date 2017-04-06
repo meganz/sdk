@@ -5192,7 +5192,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 
     restag = reqtag;
 
-    if (!(u = finduser(user, 0)) || !user || !strchr(user, '@'))
+    if (!(u = finduser(user, 0)) || !user)
     {
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
@@ -6907,15 +6907,28 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 
 void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
 {
-    User* u = finduser(uid, 0);
-    if (!u && uid && strchr(uid, '@'))
+    User *u = finduser(uid, 0);
+    if (!u && uid)
     {
-        string nuid;
-        Node::copystring(&nuid, uid);
-        transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+        if (strchr(uid, '@'))   // uid is an e-mail address
+        {
+            string nuid;
+            Node::copystring(&nuid, uid);
+            transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
 
-        u = new User(nuid.c_str());
-        u->uid = nuid;
+            u = new User(nuid.c_str());
+            u->uid = nuid;
+        }
+        else    // not an e-mail address: must be ASCII handle
+        {
+            handle uh;
+            if (Base64::atob(uid, (byte*)&uh, sizeof uh) == sizeof uh)
+            {
+                u = new User(NULL);
+                u->userhandle = uh;
+                u->uid = uid;
+            }
+        }
     }
 
     queuepubkeyreq(u, pka);
