@@ -7860,6 +7860,12 @@ class MegaApi
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
+         * @brief Returns true if the node has children
+         * @return true if the node has children
+         */
+        bool hasChildren(MegaNode *parent);
+
+        /**
          * @brief Get the current index of the node in the parent folder for a specific sorting order
          *
          * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
