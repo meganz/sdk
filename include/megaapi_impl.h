@@ -1675,6 +1675,8 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
+        virtual std::string getFileAttribute(MegaHandle handle);
+
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 

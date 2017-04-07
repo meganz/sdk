@@ -1608,10 +1608,16 @@ public:
  */
 class MegaNodeList
 {
-	public:
+    public:
+        /**
+         * @brief Creates a new instance of MegaChatPeerList
+         * @return A pointer to the superclass of the private object
+         */
+        static MegaNodeList * createInstance();
+
 		virtual ~MegaNodeList();
 
-		virtual MegaNodeList *copy();
+        virtual MegaNodeList *copy();
 
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
@@ -9414,7 +9420,8 @@ class MegaApi
          */
         MegaTextChatList *getChatList();
 
-        MegaClient *getMegaClient();
+        virtual std::string getFileAttribute(MegaHandle handle);
+
 #endif
 
 private:

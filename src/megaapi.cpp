@@ -110,6 +110,11 @@ int MegaStringList::size()
     return 0;
 }
 
+mega::MegaNodeList *mega::MegaNodeList::createInstance()
+{
+    return new MegaNodeListPrivate();
+}
+
 MegaNodeList::~MegaNodeList() { }
 
 MegaNodeList *MegaNodeList::copy()
@@ -3513,9 +3518,9 @@ MegaTextChatList* MegaApi::getChatList()
     return pImpl->getChatList();
 }
 
-MegaClient *MegaApi::getMegaClient()
+std::string MegaApi::getFileAttribute(MegaHandle handle)
 {
-    return pImpl->getMegaClient();
+    return pImpl->getFileAttribute(handle);
 }
 
 #endif

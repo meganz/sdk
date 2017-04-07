@@ -6592,6 +6592,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     uid[11] = 0;
 
     request->setEmail(uid);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -11351,6 +11352,11 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     fp->size = size;
 
     return fp;
+}
+
+std::string MegaApiImpl::getFileAttribute(MegaHandle handle)
+{
+     return client->nodebyhandle(handle)->fileattrstring;
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
