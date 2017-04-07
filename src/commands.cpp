@@ -2833,64 +2833,68 @@ void CommandPubKeyRequest::procresult()
             LOG_err << "Unexpected error in CommandPubKeyRequest: " << e;
         }
     }
-
-    for (;;)
+    else
     {
-        switch (client->json.getnameid())
+        bool finished = false;
+        while (!finished)
         {
-            case 'u':
-                uh = client->json.gethandle(MegaClient::USERHANDLE);
-                break;
+            switch (client->json.getnameid())
+            {
+                case 'u':
+                    uh = client->json.gethandle(MegaClient::USERHANDLE);
+                    break;
 
-            case MAKENAMEID4('p', 'u', 'b', 'k'):
-                len_pubk = client->json.storebinary(pubkbuf, sizeof pubkbuf);
-                break;
+                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                    len_pubk = client->json.storebinary(pubkbuf, sizeof pubkbuf);
+                    break;
 
-            case EOO:
-                if (!ISUNDEF(uh))
-                {
-                    client->mapuser(uh, u->email.c_str());
-                }
+                case EOO:
+                    if (!ISUNDEF(uh))
+                    {
+                        client->mapuser(uh, u->email.c_str());
+                    }
 
-#ifdef ENABLE_CHAT
-                if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
-                {
-                    client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
-                    return;
-                }
-#endif
+    #ifdef ENABLE_CHAT
+                    if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
+                    {
+                        client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                        return;
+                    }
+    #endif
 
-                if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
-                {
-                    len_pubk = 0;
-                }
-
-                if (0)
-                {
-                    default:
-                        if (client->json.storeobject())
-                        {
-                            continue;
-                        }
+                    if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
+                    {
                         len_pubk = 0;
-                }
+                    }
+                    finished = true;
+                    break;
 
-                // satisfy all pending PubKeyAction requests for this user
-                while (u->pkrs.size())
-                {
-                    client->restag = tag;
-                    u->pkrs[0]->proc(client, u);
-                    delete u->pkrs[0];
-                    u->pkrs.pop_front();
-                }
-
-                if (len_pubk)
-                {
-                    client->notifyuser(u);
-                }
-                return;
+                default:
+                    if (client->json.storeobject())
+                    {
+                        continue;
+                    }
+                    len_pubk = 0;
+                    finished = true;
+                    break;
+            }
         }
     }
+
+    // satisfy all pending PubKeyAction requests for this user
+    while (u->pkrs.size())
+    {
+        client->restag = tag;
+        u->pkrs[0]->proc(client, u);
+        delete u->pkrs[0];
+        u->pkrs.pop_front();
+    }
+
+    if (len_pubk)
+    {
+        client->notifyuser(u);
+    }
+    return;
 }
 
 CommandGetUserData::CommandGetUserData(MegaClient *client)
@@ -4421,6 +4425,69 @@ void CommandGetVersion::procresult()
     }
 }
 
+CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
+{
+    this->client = client;
+    cmd("lc");
+
+    tag = client->reqtag;
+}
+
+void CommandGetLocalSSLCertificate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getlocalsslcertificate_result(0, NULL, (error)client->json.getint());
+        return;
+    }
+
+    string certdata;
+    m_time_t ts = 0;
+    int numelements = 0;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 't':
+            {
+                ts = client->json.getint();
+                break;
+            }
+            case 'd':
+            {
+                string data;
+                client->json.enterarray();
+                while (client->json.storeobject(&data))
+                {
+                    if (numelements)
+                    {
+                        certdata.append(";");
+                    }
+                    numelements++;
+                    certdata.append(data);
+                }
+                client->json.leavearray();
+                break;
+            }
+            case EOO:
+            {
+                if (numelements < 2)
+                {
+                    return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
+                }
+                return client->app->getlocalsslcertificate_result(ts, &certdata, API_OK);
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {
@@ -4665,7 +4732,10 @@ void CommandChatRemove::procresult()
                     client->app->chatremove_result(API_EINTERNAL);
                     return;
                 }
+            }
 
+            if (uh == client->me)
+            {
                 chat->priv = PRIV_RM;
             }
 
