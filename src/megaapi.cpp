@@ -127,6 +127,11 @@ int MegaNodeList::size()
     return 0;
 }
 
+void MegaNodeList::addNode(MegaNode *node)
+{
+
+}
+
 MegaTransferList::~MegaTransferList() { }
 
 MegaTransfer *MegaTransferList::get(int)
@@ -3511,6 +3516,11 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
 MegaTextChatList* MegaApi::getChatList()
 {
     return pImpl->getChatList();
+}
+
+MegaClient *MegaApi::getMegaClient()
+{
+    return pImpl->getMegaClient();
 }
 
 #endif

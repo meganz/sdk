@@ -2917,7 +2917,27 @@ MegaNode *MegaNodeListPrivate::get(int i)
 
 int MegaNodeListPrivate::size()
 {
-	return s;
+    return s;
+}
+
+void MegaNodeListPrivate::addNode(MegaNode *node)
+{
+    MegaNodeList *duplicatedList = copy();
+
+    s = 0;
+    for(int i=0; i<s; i++)
+        delete list[i];
+    delete [] list;
+
+    s = duplicatedList->size() + 1;
+    list = new MegaNode*[s];
+    for (int i = 0; i < duplicatedList->size(); ++i)
+    {
+        list[i] = duplicatedList->get(i)->copy();
+    }
+
+    list[s - 1] = node->copy();
+
 }
 
 MegaUserListPrivate::MegaUserListPrivate()
