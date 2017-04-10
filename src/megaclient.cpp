@@ -5037,8 +5037,13 @@ void MegaClient::notifypurge(void)
                 for (handle_set::iterator it = u->sharing.begin(); it != u->sharing.end(); it++)
                 {
                     Node *n = nodebyhandle(*it);
-                    nodes.erase(n->nodehandle);
-                    delete n;
+                    if (n && !n->changed.removed)
+                    {
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99435, "Orphan incoming share");
+                        reqtag = creqtag;
+                    }
                 }
                 u->sharing.clear();
 
