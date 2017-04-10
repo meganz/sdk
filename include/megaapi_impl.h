@@ -268,7 +268,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
         virtual MegaNode* getPublicNode();
-        virtual char *getPublicLink();
+        virtual char *getPublicLink(bool includeKey = true);
         virtual bool isFile();
         virtual bool isFolder();
         virtual bool isRemoved();
@@ -1519,6 +1519,7 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
@@ -1590,6 +1591,7 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
+        void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -1908,6 +1910,7 @@ protected:
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
+        virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

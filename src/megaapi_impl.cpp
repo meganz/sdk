@@ -739,31 +739,31 @@ MegaNode* MegaNodePrivate::getPublicNode()
     return node;
 }
 
-char *MegaNodePrivate::getPublicLink()
+char *MegaNodePrivate::getPublicLink(bool includeKey)
 {
     if (!plink)
     {
         return NULL;
     }
 
-    char *base64ph = new char[12];
-    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
-
-    char *base64k = getBase64Key();
-
     string strlink = "https://mega.nz/#";
     strlink += (type ? "F" : "");
+
+    char *base64ph = new char[12];
+    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
     strlink += "!";
     strlink += base64ph;
-    strlink += "!";
-    strlink += base64k;
-
-    char *link = MegaApi::strdup(strlink.c_str());
-
     delete [] base64ph;
-    delete [] base64k;
 
-    return link;
+    if (includeKey)
+    {
+        char *base64k = getBase64Key();
+        strlink += "!";
+        strlink += base64k;
+        delete [] base64k;
+    }
+
+    return MegaApi::strdup(strlink.c_str());
 }
 
 bool MegaNodePrivate::isFile()
@@ -2672,6 +2672,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REGISTER_PUSH_NOTIFICATION: return "REGISTER_PUSH_NOTIFICATION";
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
         case TYPE_APP_VERSION: return "APP_VERSION";
+        case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
     }
     return "UNKNOWN";
 }
@@ -7194,6 +7195,13 @@ void MegaApiImpl::getLastAvailableVersion(const char *appKey, MegaRequestListene
     waiter->notify();
 }
 
+void MegaApiImpl::getLocalSSLCertificate(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_LOCAL_SSL_CERT, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -8255,6 +8263,78 @@ void MegaApiImpl::getversion_result(int versionCode, const char *versionString, 
     }
 
     fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_LOCAL_SSL_CERT)) return;
+
+    if (!e)
+    {
+        string result;
+        const char *data = certdata->data();
+        const char *enddata = certdata->data() + certdata->size();
+        MegaStringMapPrivate *datamap = new MegaStringMapPrivate();
+        for (int i = 0; data < enddata; i++)
+        {
+            result = i ? "-----BEGIN CERTIFICATE-----\n"
+                       : "-----BEGIN PRIVATE KEY-----\n";
+
+            const char *end = strstr(data, ";");
+            if (!end)
+            {
+                if (!i)
+                {
+                    delete datamap;
+                    fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                    return;
+                }
+                end = enddata;
+            }
+
+            while (data < end)
+            {
+                int remaining = end - data;
+                int dataSize = (remaining > 64) ? 64 : remaining;
+                result.append(data, dataSize);
+                result.append("\n");
+                data += dataSize;
+            }
+
+            switch (i)
+            {
+                case 0:
+                {
+                    result.append("-----END PRIVATE KEY-----\n");
+                    datamap->set("key", result.c_str());
+                    break;
+                }
+                case 1:
+                {
+                    result.append("-----END CERTIFICATE-----\n");
+                    datamap->set("cert", result.c_str());
+                    break;
+                }
+                default:
+                {
+                    result.append("-----END CERTIFICATE-----\n");
+                    std::ostringstream oss;
+                    oss << "intermediate_" << (i - 1);
+                    datamap->set(oss.str().c_str(), result.c_str());
+                    break;
+                }
+            }
+            data++;
+        }
+
+        request->setNumber(ts);
+        request->setMegaStringMap(datamap);
+        delete datamap;
+    }
+    fireOnRequestFinish(request, megaError);
 }
 
 #ifdef ENABLE_CHAT
@@ -11182,6 +11262,21 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     else return new MegaNodeListPrivate();
 }
 
+bool MegaApiImpl::hasChildren(MegaNode *parent)
+{
+    if (!parent)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *p = client->nodebyhandle(parent->getHandle());
+    bool ret = p ? p->children.size() : false;
+    sdkMutex.unlock();
+
+    return ret;
+}
+
 int MegaApiImpl::getIndex(MegaNode *n, int order)
 {
     if(!n)
@@ -13948,6 +14043,21 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
+        case MegaRequest::TYPE_APP_VERSION:
+        {
+            const char *appKey = request->getText();
+            if (!appKey)
+            {
+                appKey = this->appKey.c_str();
+            }
+            client->getlastversion(appKey);
+            break;
+        }
+        case MegaRequest::TYPE_GET_LOCAL_SSL_CERT:
+        {
+            client->getlocalsslcertificate();
+            break;
+        }
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_CHAT_CREATE:
         {
@@ -14114,16 +14224,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->registerPushNotification(deviceType, token);
-            break;
-        }
-        case MegaRequest::TYPE_APP_VERSION:
-        {
-            const char *appKey = request->getText();
-            if (!appKey)
-            {
-                appKey = this->appKey.c_str();
-            }
-            client->getlastversion(appKey);
             break;
         }
 #endif

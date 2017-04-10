@@ -649,10 +649,11 @@ class MegaNode
          * You take the ownership of the returned string.
          * Use delete [] to free it.
          *
+         * @param includeKey False if you want the link without the key.
          * @return The URL for the public link of the exported node. If the MegaNode
          * has not been exported, it returns NULL.
          */
-        virtual char * getPublicLink();
+        virtual char * getPublicLink(bool includeKey = true);
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
@@ -1842,7 +1843,7 @@ class MegaRequest
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
-            TYPE_GET_USER_EMAIL,TYPE_APP_VERSION
+            TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT
         };
 
         virtual ~MegaRequest();
@@ -7872,6 +7873,12 @@ class MegaApi
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
+         * @brief Returns true if the node has children
+         * @return true if the node has children
+         */
+        bool hasChildren(MegaNode *parent);
+
+        /**
          * @brief Get the current index of the node in the parent folder for a specific sorting order
          *
          * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
@@ -8626,6 +8633,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getLastAvailableVersion(const char *appKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get a SSL certificate for communications with the webclient
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_LOCAL_SSL_CERT
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the expiration time of the certificate (in seconds since the Epoch)
+         * - MegaRequest::getMegaStringMap - Returns the data of the certificate
+         *
+         * The data returned in the string map is encoded in PEM format.
+         * The key "key" of the map contains the private key of the certificate.
+         * The key "cert" of the map contains the certificate.
+         * Intermediate certificates are provided in keys "intermediate_1" - "intermediate_X".
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the User-Agent header used by the SDK

@@ -304,7 +304,7 @@ MegaNode* MegaNode::getPublicNode()
     return NULL;
 }
 
-char * MegaNode::getPublicLink()
+char * MegaNode::getPublicLink(bool includeKey)
 {
     return NULL;
 }
@@ -2418,6 +2418,11 @@ void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *l
     return pImpl->getLastAvailableVersion(appKey, listener);
 }
 
+void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
+{
+    pImpl->getLocalSSLCertificate(listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
@@ -2689,6 +2694,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
+}
+
+bool MegaApi::hasChildren(MegaNode *parent)
+{
+    return pImpl->hasChildren(parent);
 }
 
 int MegaApi::getIndex(MegaNode *node, int order)

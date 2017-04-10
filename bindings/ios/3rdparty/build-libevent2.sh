@@ -67,9 +67,9 @@ export CXXFLAGS="${CPPFLAGS}"
 ./autogen.sh
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=aarch64-apple-darwin --enable-static --disable-shared --disable-libevent-regress --disable-tests --disable-samples
+./configure --host=aarch64-apple-darwin --enable-static --disable-shared --disable-libevent-regress --disable-tests --disable-samples --disable-clock-gettime
 else
-./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --disable-libevent-regress --disable-tests --disable-samples
+./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --disable-libevent-regress --disable-tests --disable-samples --disable-clock-gettime
 fi
 
 make -j8
