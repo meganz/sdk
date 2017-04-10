@@ -739,6 +739,7 @@ void MegaClient::init()
     syncfsopsfailed = false;
     syncdownretry = false;
     syncnagleretry = false;
+    faretrying = false;
     syncsup = true;
     syncdownrequired = false;
     syncuprequired = false;
@@ -1054,6 +1055,7 @@ void MegaClient::exec()
                         curfa = activefa.erase(curfa);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
+                        faretrying = false;
                         break;
 
                     case REQ_FAILURE:
@@ -1063,6 +1065,7 @@ void MegaClient::exec()
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
                         btpfa.backoff();
+                        faretrying = true;
                         break;
 
                     default:
@@ -1073,6 +1076,7 @@ void MegaClient::exec()
 
         if (btpfa.armed())
         {
+            faretrying = false;
             while (queuedfa.size() && activefa.size() < MAXPUTFA)
             {
                 // dispatch most recent file attribute put
@@ -2158,7 +2162,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed file attribute puts
-        if (activefa.size() < MAXPUTFA)
+        if (faretrying)
         {
             btpfa.update(&nds);
         }
@@ -2990,6 +2994,11 @@ void MegaClient::getlastversion(const char *appKey)
     reqs.add(new CommandGetVersion(this, appKey));
 }
 
+void MegaClient::getlocalsslcertificate()
+{
+    reqs.add(new CommandGetLocalSSLCertificate(this));
+}
+
 // process server-client request
 bool MegaClient::procsc()
 {
@@ -3019,7 +3028,6 @@ bool MegaClient::procsc()
                             {
                                 sctable->commit();
                                 sctable->begin();
-                                app->notify_dbcommit();
                             }
 
                             WAIT_CLASS::bumpds();
@@ -3029,6 +3037,7 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
+                            app->notify_dbcommit();
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -4754,6 +4763,7 @@ void MegaClient::sc_chatupdate()
     bool group = false;
     handle ou = UNDEF;
     string title;
+    m_time_t ts = -1;
 
     bool done = false;
     while (!done)
@@ -4788,6 +4798,9 @@ void MegaClient::sc_chatupdate()
                 jsonsc.storeobject(&title);
                 break;
 
+            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                ts = jsonsc.getint();
+                break;
 
             case EOO:
                 done = true;
@@ -4816,9 +4829,12 @@ void MegaClient::sc_chatupdate()
                     chat->shard = shard;
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
-                    chat->url = ""; // not received in action packets
                     chat->ou = ou;
                     chat->title = title;
+                    if (ts != -1)
+                    {
+                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -4857,6 +4873,7 @@ void MegaClient::sc_chatupdate()
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
+                    chat->setTag(0);    // external change
                     notifychat(chat);
                 }
 
@@ -5017,7 +5034,10 @@ void MegaClient::notifypurge(void)
 
         for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
         {
-            it->second->notified = false;
+            TextChat *chat = it->second;
+
+            chat->notified = false;
+            chat->resetTag();
         }
 
         chatnotify.clear();
@@ -6597,7 +6617,7 @@ User* MegaClient::finduser(const char* uid, int add)
         // add user by lowercase e-mail address
         u = &users[++userid];
         u->uid = nuid;
-        Node::copystring(&u->email, uid);
+        Node::copystring(&u->email, nuid.c_str());
         umindex[nuid] = userid;
 
         return u;
@@ -6653,7 +6673,7 @@ User *MegaClient::ownuser()
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
 {
-    if (!*email)
+    if (!email || !*email)
     {
         return;
     }
@@ -6672,16 +6692,26 @@ void MegaClient::mapuser(handle uh, const char* email)
         // yes: add email reference
         u = &users[hit->second];
 
-        if (strcmp(u->email.c_str(), email))
-        { 
+        um_map::iterator mit = umindex.find(nuid);
+        if (mit != umindex.end() && mit->second != hit->second)
+        {
+            // duplicated user: one by email, one by handle
+            assert(!users[mit->second].sharing.size());
+            users.erase(mit->second);
+        }
+
+        // if mapping a different email, remove old index
+        if (strcmp(u->email.c_str(), nuid.c_str()))
+        {
             if (u->email.size())
             {
                 umindex.erase(u->email);
             }
 
-            Node::copystring(&u->email, email);
-            umindex[nuid] = hit->second;
+            Node::copystring(&u->email, nuid.c_str());
         }
+
+        umindex[nuid] = hit->second;
 
         return;
     }
@@ -7558,11 +7588,11 @@ void MegaClient::procmcf(JSON *j)
         {
             handle chatid = UNDEF;
             privilege_t priv = PRIV_UNKNOWN;
-            string url;
             int shard = -1;
             userpriv_vector *userpriv = NULL;
             bool group = false;
             string title;
+            m_time_t ts = -1;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -7575,10 +7605,6 @@ void MegaClient::procmcf(JSON *j)
 
                 case 'p':
                     priv = (privilege_t) j->getint();
-                    break;
-
-                case MAKENAMEID3('u','r','l'):
-                    j->storeobject(&url);
                     break;
 
                 case MAKENAMEID2('c','s'):
@@ -7597,6 +7623,10 @@ void MegaClient::procmcf(JSON *j)
                     j->storeobject(&title);
                     break;
 
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = j->getint();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
@@ -7608,10 +7638,10 @@ void MegaClient::procmcf(JSON *j)
                         TextChat *chat = chats[chatid];
                         chat->id = chatid;
                         chat->priv = priv;
-                        chat->url = url;
                         chat->shard = shard;
                         chat->group = group;
                         chat->title = title;
+                        chat->ts = (ts != -1) ? ts : 0;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)
@@ -8637,9 +8667,9 @@ void MegaClient::initializekeys()
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
                 clearKeys();
-                resetKeyring();
+                delete signkey;
+                delete chatkey;
                 return;
-
             }
 
             // prepare the TLV for private keys
@@ -8768,11 +8798,17 @@ void MegaClient::purgenodesusersabortsc()
     uhindex.clear();
     umindex.clear();
 #else
+    for (textchat_map::iterator it = chats.begin(); it != chats.end();)
+    {
+        delete it->second;
+        chats.erase(it++);
+    }
     chatnotify.clear();
+
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        if (u->userhandle != me)
+        if (u->userhandle != me || u->userhandle == UNDEF)
         {
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);

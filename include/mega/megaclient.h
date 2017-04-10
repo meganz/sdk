@@ -408,6 +408,9 @@ public:
     // get the last available version of the app
     void getlastversion(const char *appKey);
 
+    // get a local ssl certificate for communications with the webclient
+    void getlocalsslcertificate();
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
@@ -599,7 +602,9 @@ private:
     // next local user record identifier to use
     int userid;
 
+    // backoff for file attributes
     BackoffTimer btpfa;
+    bool faretrying;
 
     // next internal upload handle
     handle nextuh;

@@ -721,6 +721,14 @@ public:
     CommandGetVersion(MegaClient*, const char*);
 };
 
+class MEGA_API CommandGetLocalSSLCertificate : public Command
+{
+public:
+    void procresult();
+
+    CommandGetLocalSSLCertificate(MegaClient*);
+};
+
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
@@ -758,8 +766,6 @@ public:
 
 class MEGA_API CommandChatURL : public Command
 {
-    handle chatid;
-
 public:
     void procresult();
 
@@ -798,6 +804,7 @@ public:
 
 class MEGA_API CommandChatTruncate : public Command
 {
+    handle chatid;
 
 public:
     void procresult();

@@ -101,6 +101,21 @@ String^ MNode::getCustomAttr(String^ attrName)
     return ref new String((wchar_t *)utf16customAttr.c_str());
 }
 
+int MNode::getDuration()
+{
+    return megaNode ? megaNode->getDuration() : MegaNode::INVALID_DURATION;
+}
+
+double MNode::getLatitude()
+{
+    return megaNode ? megaNode->getLatitude() : MegaNode::INVALID_COORDINATE;
+}
+
+double MNode::getLongitude()
+{
+    return megaNode ? megaNode->getLongitude() : MegaNode::INVALID_COORDINATE;
+}
+
 String^ MNode::getBase64Handle()
 {
     if (!megaNode) return nullptr;
@@ -176,12 +191,12 @@ MNode^ MNode::getPublicNode()
     return megaNode ? ref new MNode(megaNode->getPublicNode(), true) : nullptr;
 }
 
-String^ MNode::getPublicLink()
+String^ MNode::getPublicLink(bool includeKey)
 {
     if (!megaNode) return nullptr;
 
     std::string utf16link;
-    const char *utf8link = megaNode->getPublicLink();
+    const char *utf8link = megaNode->getPublicLink(includeKey);
     if (!utf8link)
         return nullptr;
 

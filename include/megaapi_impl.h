@@ -268,7 +268,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
         virtual MegaNode* getPublicNode();
-        virtual char *getPublicLink();
+        virtual char *getPublicLink(bool includeKey = true);
         virtual bool isFile();
         virtual bool isFolder();
         virtual bool isRemoved();
@@ -672,7 +672,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
         void setProxy(Proxy *proxy);
@@ -906,8 +906,8 @@ public:
     virtual int getNumProducts();
     virtual MegaHandle getHandle(int productIndex);
     virtual int getProLevel(int productIndex);
-    virtual int getGBStorage(int productIndex);
-    virtual int getGBTransfer(int productIndex);
+    virtual unsigned int getGBStorage(int productIndex);
+    virtual unsigned int getGBTransfer(int productIndex);
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
@@ -916,13 +916,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                     int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
-    vector<int> gbStorage;
-    vector<int> gbTransfer;
+    vector<unsigned int> gbStorage;
+    vector<unsigned int> gbTransfer;
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
@@ -958,20 +958,22 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group, handle ou, string title);
+    MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaTextChat *copy() const;
 
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
-    virtual const char *getUrl() const;
-    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
+    virtual void setPeerList(const MegaTextChatPeerList *peers);
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
+    virtual int64_t getCreationTime() const;
+
+    virtual int isOwnChange() const;
 
 private:
     handle id;
@@ -982,6 +984,8 @@ private:
     bool group;
     handle ou;
     string title;
+    int tag;
+    int64_t ts;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1347,6 +1351,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         char* getMyEmail();
         char* getMyUserHandle();
+        MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
 #ifdef ENABLE_CHAT
@@ -1380,8 +1385,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        char* getUserAvatarColor(MegaUser *user);
-        char *getUserAvatarColor(const char *userhandle);
+        static char* getUserAvatarColor(MegaUser *user);
+        static char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
@@ -1512,6 +1517,7 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
@@ -1583,6 +1589,7 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
+        void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -1899,6 +1906,7 @@ protected:
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
+        virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -1970,7 +1978,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
-        char *getAvatarColor(handle userhandle);
+        static char *getAvatarColor(handle userhandle);
 };
 
 class MegaHashSignatureImpl

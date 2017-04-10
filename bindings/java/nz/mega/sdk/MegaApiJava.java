@@ -3766,7 +3766,105 @@ public class MegaApiJava {
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
     }
-    
+
+    /**
+     * Get the maximum download speed in bytes per second
+     *
+     * The value 0 means unlimited speed
+     *
+     * @return Download speed in bytes per second
+     */
+    public int getMaxDownloadSpeed(){
+        return megaApi.getMaxDownloadSpeed();
+    }
+
+    /**
+     * Get the maximum upload speed in bytes per second
+     *
+     * The value 0 means unlimited speed
+     *
+     * @return Upload speed in bytes per second
+     */
+    public int getMaxUploadSpeed(){
+        return megaApi.getMaxUploadSpeed();
+    }
+
+    /**
+     * Return the current download speed
+     * @return Download speed in bytes per second
+     */
+    public int getCurrentDownloadSpeed(){
+        return megaApi.getCurrentDownloadSpeed();
+    }
+
+    /**
+     * Return the current download speed
+     * @return Download speed in bytes per second
+     */
+    public int getCurrentUploadSpeed(){
+        return megaApi.getCurrentUploadSpeed();
+    }
+
+    /**
+     * Return the current transfer speed
+     * @param type Type of transfer to get the speed.
+     * Valid values are MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
+     * @return Transfer speed for the transfer type, or 0 if the parameter is invalid
+     */
+    public int getCurrentSpeed(int type){
+        return megaApi.getCurrentSpeed(type);
+    }
+
+
+    /**
+     * Get information about transfer queues
+     * @param listener MegaTransferListener to start receiving information about transfers
+     * @return Information about transfer queues
+     */
+    public MegaTransferData getTransferData(MegaTransferListenerInterface listener){
+        return megaApi.getTransferData(createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Get the first transfer in a transfer queue
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param type queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+     * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
+     */
+    public MegaTransfer getFirstTransfer(int type){
+        return megaApi.getFirstTransfer(type);
+    }
+
+    /**
+     * Force an onTransferUpdate callback for the specified transfer
+     *
+     * The callback will be received by transfer listeners registered to receive all
+     * callbacks related to callbacks and additionally by the listener in the last
+     * parameter of this function, if it's not NULL.
+     *
+     * @param transfer Transfer that will be provided in the onTransferUpdate callback
+     * @param listener Listener that will receive the callback
+     */
+    public void notifyTransfer(MegaTransfer transfer, MegaTransferListenerInterface listener){
+        megaApi.notifyTransfer(transfer, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Force an onTransferUpdate callback for the specified transfer
+     *
+     * The callback will be received by transfer listeners registered to receive all
+     * callbacks related to callbacks and additionally by the listener in the last
+     * parameter of this function, if it's not NULL.
+     *
+     * @param transferTag Tag of the transfer that will be provided in the onTransferUpdate callback
+     * @param listener Listener that will receive the callback
+     */
+    public void notifyTransferByTag(int transferTag, MegaTransferListenerInterface listener){
+        megaApi.notifyTransferByTag(transferTag, createDelegateTransferListener(listener));
+    }
+
     /**
      * Get a list of transfers that belong to a folder transfer
      *
@@ -3809,35 +3907,44 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the number of pending uploads.
-     * 
-     * @return Pending uploads.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * Check if the SDK is waiting for the server
+     * @return true if the SDK is waiting for the server to complete a request
      */
-    @Deprecated public int getNumPendingUploads() {
+    public boolean areServersBusy(){
+        return megaApi.areServersBusy();
+    }
+
+    /**
+     * Get the number of pending uploads
+     *
+     * @return Pending uploads
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     */
+    public int getNumPendingUploads() {
         return megaApi.getNumPendingUploads();
     }
 
     /**
-     * Get the number of pending downloads.
-     * 
+     * Get the number of pending downloads
      * @return Pending downloads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public int getNumPendingDownloads() {
+    public int getNumPendingDownloads() {
         return megaApi.getNumPendingDownloads();
     }
 
     /**
-     * Get the number of queued uploads since the last call to MegaApiJava.resetTotalUploads().
-     * 
-     * @return Number of queued uploads since the last call to MegaApiJava.resetTotalUploads().
+     * Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+     * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
+     *
      * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public int getTotalUploads() {
+    public int getTotalUploads() {
         return megaApi.getTotalUploads();
     }
 
@@ -3848,7 +3955,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates. They
      *             could change or be removed in the current form.
      */
-    @Deprecated public int getTotalDownloads() {
+    public int getTotalDownloads() {
         return megaApi.getTotalDownloads();
     }
 
@@ -3861,7 +3968,7 @@ public class MegaApiJava {
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
-    @Deprecated public void resetTotalDownloads() {
+    public void resetTotalDownloads() {
         megaApi.resetTotalDownloads();
     }
 
@@ -3873,7 +3980,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public void resetTotalUploads() {
+    public void resetTotalUploads() {
         megaApi.resetTotalUploads();
     }
 
@@ -3884,7 +3991,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public long getTotalDownloadedBytes() {
+    public long getTotalDownloadedBytes() {
         return megaApi.getTotalDownloadedBytes();
     }
 
@@ -3896,7 +4003,7 @@ public class MegaApiJava {
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
-    @Deprecated public long getTotalUploadedBytes() {
+    public long getTotalUploadedBytes() {
         return megaApi.getTotalUploadedBytes();
     }
 
@@ -3911,7 +4018,7 @@ public class MegaApiJava {
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
-    @Deprecated public void updateStats() {
+    public void updateStats() {
         megaApi.updateStats();
     }
 
@@ -4055,6 +4162,14 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent) {
         return nodeListToArray(megaApi.getChildren(parent));
+    }
+
+    /**
+     * Returns true if the node has children
+     * @return true if the node has children
+     */
+    public boolean hasChildren(MegaNode parent){
+        return megaApi.hasChildren(parent);
     }
 
     /**

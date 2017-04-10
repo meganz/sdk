@@ -28,6 +28,7 @@
 #include "MNode.h"
 #include "MUser.h"
 #include "MTransfer.h"
+#include "MTransferData.h"
 #include "MRequest.h"
 #include "MError.h"
 #include "MTransferList.h"
@@ -150,6 +151,7 @@ namespace mega
         //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
         void login(String^ email, String^ password);
+        String^ getSequenceNumber();
         String^ dumpSession();
         String^ dumpXMPPSession();
         void fastLogin(String^ email, String^ stringHash, String^ base64pwkey, MRequestListenerInterface^ listener);
@@ -166,6 +168,8 @@ namespace mega
         void getUserData(MUser^ user);
         void getUserDataById(String^ user, MRequestListenerInterface^ listener);
         void getUserDataById(String^ user);
+        String^ getAccountAuth();
+        void setAccountAuth(String^ auth);
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener);
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
@@ -186,6 +190,8 @@ namespace mega
         void confirmResetPasswordWithoutMasterKey(String^ link, String^ newPwd);
         void cancelAccount(MRequestListenerInterface^ listener);
         void cancelAccount();
+        void queryCancelLink(String^ link, MRequestListenerInterface^ listener);
+        void queryCancelLink(String^ link);
         void confirmCancelAccount(String^ link, String^ pwd, MRequestListenerInterface^ listener);
         void confirmCancelAccount(String^ link, String^ pwd);
         void changeEmail(String^ email, MRequestListenerInterface^ listener);
@@ -197,6 +203,7 @@ namespace mega
         int isLoggedIn();
         String^ getMyEmail();
         String^ getMyUserHandle();
+        MegaHandle getMyUserHandleBinary();
         MUser^ getMyUser();
 
         //Logging
@@ -208,6 +215,7 @@ namespace mega
 
         void createFolder(String^ name, MNode^ parent, MRequestListenerInterface^ listener);
         void createFolder(String^ name, MNode^ parent);
+        bool createLocalFolder(String^ localPath);
         void moveNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener);
         void moveNode(MNode^ node, MNode^ newParent);
         void copyNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener);
@@ -256,10 +264,18 @@ namespace mega
         String^ getUserHandleAvatarColor(String^ userhandle);
         void getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener);
         void getUserAttribute(MUser^ user, int type);
+        void getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener);
+        void getUserEmail(MegaHandle handle);
         void getOwnUserAttribute(int type, MRequestListenerInterface^ listener);
         void getOwnUserAttribute(int type);
         void setUserAttribute(int type, String^ value, MRequestListenerInterface^ listener);
         void setUserAttribute(int type, String^ value);
+        void setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value, MRequestListenerInterface^ listener);
+        void setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value);
+        void setNodeDuration(MNode^ node, int duration, MRequestListenerInterface^ listener);
+        void setNodeDuration(MNode^ node, int duration);
+        void setNodeCoordinates(MNode^ node, double latitude, double longitude, MRequestListenerInterface^ listener);
+        void setNodeCoordinates(MNode^ node, double latitude, double longitude);
         void exportNode(MNode^ node, MRequestListenerInterface^ listener);
         void exportNode(MNode^ node);
         void exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener);
@@ -338,6 +354,8 @@ namespace mega
         void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener);
         void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData);
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
+        void retryTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener);
+        void retryTransfer(MTransfer^ transfer);
         void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer);
         void cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener);
@@ -348,6 +366,30 @@ namespace mega
         void pauseTransfers(bool pause);
         void pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener);
         void pauseTransfersDirection(bool pause, int direction);
+        void pauseTransfer(MTransfer^ transfer, bool pause, MRequestListenerInterface^ listener);
+        void pauseTransfer(MTransfer^ transfer, bool pause);
+        void pauseTransferByTag(int transferTag, bool pause, MRequestListenerInterface^ listener);
+        void pauseTransferByTag(int transferTag, bool pause);
+        void moveTransferUp(MTransfer^ transfer, MRequestListenerInterface^ listener);
+        void moveTransferUp(MTransfer^ transfer);
+        void moveTransferUpByTag(int transferTag, MRequestListenerInterface^ listener);
+        void moveTransferUpByTag(int transferTag);
+        void moveTransferDown(MTransfer^ transfer, MRequestListenerInterface^ listener);
+        void moveTransferDown(MTransfer^ transfer);
+        void moveTransferDownByTag(int transferTag, MRequestListenerInterface^ listener);
+        void moveTransferDownByTag(int transferTag);
+        void moveTransferToFirst(MTransfer^ transfer, MRequestListenerInterface^ listener);
+        void moveTransferToFirst(MTransfer^ transfer);
+        void moveTransferToFirstByTag(int transferTag, MRequestListenerInterface^ listener);
+        void moveTransferToFirstByTag(int transferTag);
+        void moveTransferToLast(MTransfer^ transfer, MRequestListenerInterface^ listener);
+        void moveTransferToLast(MTransfer^ transfer);
+        void moveTransferToLastByTag(int transferTag, MRequestListenerInterface^ listener);
+        void moveTransferToLastByTag(int transferTag);
+        void moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer, MRequestListenerInterface^ listener);
+        void moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer);
+        void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MRequestListenerInterface^ listener);
+        void moveTransferBeforeByTag(int transferTag, int prevTransferTag);
         void enableTransferResumption(String^ loggedOutId);
         void enableTransferResumption();
         void disableTransferResumption(String^ loggedOutId);
@@ -356,11 +398,27 @@ namespace mega
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
+        bool setMaxDownloadSpeed(int64 bpslimit);
+        bool setMaxUploadSpeed(int64 bpslimit);
+        int getMaxDownloadSpeed();
+        int getMaxUploadSpeed();
+        int getCurrentDownloadSpeed();
+        int getCurrentUploadSpeed();
+        int getCurrentSpeed(int type);
         int getDownloadMethod();
         int getUploadMethod();
+        MTransferData^ getTransferData(MTransferListenerInterface^ listener);
+        MTransferData^ getTransferData();
+        MTransfer^ getFirstTransfer(int type);
+        void notifyTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener);
+        void notifyTransfer(MTransfer^ transfer);
+        void notifyTransferByTag(int transferTag, MTransferListenerInterface^ listener);
+        void notifyTransferByTag(int transferTag);
         MTransferList^ getTransfers();
+        MTransferList^ getStreamingTransfers();
         MTransfer^ getTransferByTag(int transferTag);
         MTransferList^ getTransfers(MTransferType type);
+        MTransferList^ getChildTransfers(int transferTag);
         
         bool isWaiting();
 
