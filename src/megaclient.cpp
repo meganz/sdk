@@ -6766,6 +6766,17 @@ void MegaClient::discarduser(handle uh)
         return;
     }
 
+    while (u->pkrs.size())  // protect any pending pubKey request
+    {
+        PubKeyAction *pka = u->pkrs[0];
+        if(pka->cmd)
+        {
+            pka->cmd->invalidateUser();
+        }
+        delete pka;
+        u->pkrs.pop_front();
+    }
+
     umindex.erase(u->email);
     users.erase(uhindex[uh]);
     uhindex.erase(uh);
@@ -6777,6 +6788,17 @@ void MegaClient::discarduser(const char *email)
     if (!u)
     {
         return;
+    }
+
+    while (u->pkrs.size())  // protect any pending pubKey request
+    {
+        PubKeyAction *pka = u->pkrs[0];
+        if(pka->cmd)
+        {
+            pka->cmd->invalidateUser();
+        }
+        delete pka;
+        u->pkrs.pop_front();
     }
 
     uhindex.erase(u->userhandle);
@@ -6900,7 +6922,8 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 
         if (!u->pubkrequested)
         {
-            reqs.add(new CommandPubKeyRequest(this, u));
+            pka->cmd = new CommandPubKeyRequest(this, u);
+            reqs.add(pka->cmd);
             u->pubkrequested = true;
         }
     }

@@ -2849,6 +2849,11 @@ void CommandPubKeyRequest::procresult()
                     break;
 
                 case EOO:
+                    if (!u) // user has cancelled the account
+                    {
+                        return;
+                    }
+
                     if (!ISUNDEF(uh))
                     {
                         client->mapuser(uh, u->email.c_str());
@@ -2902,6 +2907,11 @@ void CommandPubKeyRequest::procresult()
     }
 
     return;
+}
+
+void CommandPubKeyRequest::invalidateUser()
+{
+    u = NULL;
 }
 
 CommandGetUserData::CommandGetUserData(MegaClient *client)

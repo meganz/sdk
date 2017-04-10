@@ -347,6 +347,7 @@ class MEGA_API CommandPubKeyRequest : public Command
 
 public:
     void procresult();
+    void invalidateUser();
 
     CommandPubKeyRequest(MegaClient*, User*);
 };
