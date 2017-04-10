@@ -1567,6 +1567,8 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
+        MegaNode *getRootNode(MegaNode *node);
+        bool isInRootnode(MegaNode *node, int index);
 
         void setDefaultFilePermissions(int permissions);
         int getDefaultFilePermissions();
