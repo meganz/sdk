@@ -578,7 +578,7 @@ AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
 #
 
 #libuv
-LIBUV_LIBS="-luv"
+LIBUV_LIBS=""
 AC_MSG_CHECKING(for libuv)
 libuv=false
 AC_ARG_WITH(libuv,
@@ -638,14 +638,8 @@ AC_ARG_WITH(libuv,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-libuv not specified])
-    AC_CHECK_HEADERS([uv.h],, [
-        AC_MSG_ERROR([uv.h header not found or not usable])
-    ])
-    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
-            AC_MSG_ERROR([Could not find libuv])
-    ])
-  ])
+  [AC_MSG_RESULT([--with-libuv not specified])]
+  )
 AC_SUBST(LIBUV_CXXFLAGS)
 AC_SUBST(LIBUV_CPPFLAGS)
 AC_SUBST(LIBUV_LDFLAGS)
