@@ -6158,7 +6158,7 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
     sdkMutex.lock();
 
     MegaNode *rootnode = getRootNode(node);
-    ret = (rootnode->getHandle() == client->rootnodes[index]);
+    ret = (rootnode && (rootnode->getHandle() == client->rootnodes[index]));
     delete rootnode;
 
     sdkMutex.unlock();
