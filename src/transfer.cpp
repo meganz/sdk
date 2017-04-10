@@ -378,7 +378,6 @@ void Transfer::failed(error e, dstime timeleft)
         if ((*it)->failed(e))
         {
             defer = true;
-            break;
         }
     }
 
