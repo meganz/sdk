@@ -824,7 +824,15 @@ void Transfer::complete()
 
             if (!isOpen || f->genfingerprint(fa))
             {
-                LOG_warn << "Modification detected after upload";
+                if (!isOpen)
+                {
+                    LOG_warn << "Deletion detected after upload";
+                }
+                else
+                {
+                    LOG_warn << "Modification detected after upload";
+                }
+
 #ifdef ENABLE_SYNC
                 if (f->syncxfer)
                 {
