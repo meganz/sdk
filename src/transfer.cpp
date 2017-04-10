@@ -392,23 +392,7 @@ void Transfer::failed(error e, dstime timeleft)
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
         {
             LOG_warn << "Modification detected during active upload";
-            File *f = files.front();
-#ifdef ENABLE_SYNC
-            if (f->syncxfer)
-            {
-                client->syncdownrequired = true;
-            }
-#endif
-            client->filecachedel(f);
-            files.erase(f->file_it);
-            client->app->file_removed(f, API_EREAD);
-            f->transfer = NULL;
-            f->terminated();
-
-            if (!files.size())
-            {
-                defer = false;
-            }
+            defer = false;
         }
     }
 
