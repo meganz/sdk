@@ -6773,6 +6773,7 @@ void MegaClient::discarduser(handle uh)
         {
             pka->cmd->invalidateUser();
         }
+        pka->proc(this, u);
         delete pka;
         u->pkrs.pop_front();
     }
@@ -6797,6 +6798,7 @@ void MegaClient::discarduser(const char *email)
         {
             pka->cmd->invalidateUser();
         }
+        pka->proc(this, u);
         delete pka;
         u->pkrs.pop_front();
     }
