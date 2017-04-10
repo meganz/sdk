@@ -3528,7 +3528,7 @@ MegaTextChatList* MegaApi::getChatList()
     return pImpl->getChatList();
 }
 
-std::string MegaApi::getFileAttribute(MegaHandle handle)
+const char* MegaApi::getFileAttribute(MegaHandle handle)
 {
     return pImpl->getFileAttribute(handle);
 }

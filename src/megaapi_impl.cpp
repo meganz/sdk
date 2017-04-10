@@ -2922,22 +2922,20 @@ int MegaNodeListPrivate::size()
 
 void MegaNodeListPrivate::addNode(MegaNode *node)
 {
-    MegaNodeList *duplicatedList = copy();
-
-    s = 0;
-    for(int i=0; i<s; i++)
-        delete list[i];
-    delete [] list;
-
-    s = duplicatedList->size() + 1;
+    MegaNode** copyList = list;
+    s = s + 1;
     list = new MegaNode*[s];
-    for (int i = 0; i < duplicatedList->size(); ++i)
+    for (int i = 0; i < s - 1; ++i)
     {
-        list[i] = duplicatedList->get(i)->copy();
+        list[i] = copyList[i];
     }
 
     list[s - 1] = node->copy();
 
+    if (copyList != NULL)
+    {
+        delete [] copyList;
+    }
 }
 
 MegaUserListPrivate::MegaUserListPrivate()
@@ -11449,9 +11447,9 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
-std::string MegaApiImpl::getFileAttribute(MegaHandle handle)
+const char* MegaApiImpl::getFileAttribute(MegaHandle handle)
 {
-     return client->nodebyhandle(handle)->fileattrstring;
+     return client->nodebyhandle(handle)->fileattrstring.c_str();
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)

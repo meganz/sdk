@@ -71,7 +71,6 @@ class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
 class MegaApi;
-class MegaClient;
 
 class MegaSemaphore;
 
@@ -9446,7 +9445,7 @@ class MegaApi
          */
         MegaTextChatList *getChatList();
 
-        virtual std::string getFileAttribute(MegaHandle handle);
+        virtual const char* getFileAttribute(MegaHandle handle);
 
 #endif
 
