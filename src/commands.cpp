@@ -2890,15 +2890,12 @@ void CommandPubKeyRequest::procresult()
         u->pkrs.pop_front();
     }
 
-    bool isTempUser = (u != client->finduser(u->userhandle) &&
-            u != client->finduser(u->email.c_str()));
-
-    if (len_pubk && !isTempUser)
+    if (len_pubk && !u->isTemporary)
     {
         client->notifyuser(u);
     }
 
-    if (isTempUser)
+    if (u->isTemporary)
     {
         delete u;
         u = NULL;

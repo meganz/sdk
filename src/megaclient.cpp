@@ -6919,6 +6919,7 @@ void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
 
             u = new User(nuid.c_str());
             u->uid = nuid;
+            u->isTemporary = true;
         }
         else    // not an e-mail address: must be ASCII handle
         {
@@ -6928,6 +6929,7 @@ void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
                 u = new User(NULL);
                 u->userhandle = uh;
                 u->uid = uid;
+                u->isTemporary = true;
             }
         }
     }
