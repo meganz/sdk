@@ -66,7 +66,11 @@ struct MEGA_API User : public Cachable
 
     // user's public key
     AsymmCipher pubk;
-    int pubkrequested;
+    struct
+    {
+        bool pubkrequested : 1;
+        bool isTemporary : 1;
+    };
 
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
