@@ -5192,7 +5192,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 
     restag = reqtag;
 
-    if (!(u = finduser(user, 0)) || !user)
+    if (!(u = finduser(user, 0)) && !user)
     {
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
