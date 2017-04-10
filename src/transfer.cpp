@@ -809,7 +809,24 @@ void Transfer::complete()
             File *f = (*it);
             bool isOpen = true;
             FileAccess *fa = client->fsaccess->newfileaccess();
-            if (!fa->fopen(&f->localname))
+            string *localpath = &f->localname;
+
+#ifdef ENABLE_SYNC
+            string synclocalpath;
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll)
+            {
+                LOG_debug << "Verifying sync upload";
+                ll->getlocalpath(&synclocalpath, true);
+                localpath = &synclocalpath;
+            }
+            else
+            {
+                LOG_debug << "Verifying regular upload";
+            }
+#endif
+
+            if (!fa->fopen(localpath))
             {
                 isOpen = false;
                 if (client->fsaccess->transient_error)
