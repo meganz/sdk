@@ -793,7 +793,6 @@ class MegaNode
          * objects using MegaApi::getOutShares, or a list of MegaNode objects
          * using MegaApi::getInShares
          *
-         * @param node Node to check
          * @return true is the MegaNode is being shared, otherwise false
          * @note Exported nodes (public link) are not considered to be shared nodes.
          */
@@ -805,7 +804,6 @@ class MegaNode
          * For nodes that are being shared, you can get a list of MegaShare
          * objects using MegaApi::getOutShares
          *
-         * @param node Node to check
          * @return true is the MegaNode is being shared, otherwise false
          */
         virtual bool isOutShare();
@@ -816,7 +814,6 @@ class MegaNode
          * For nodes that are being shared, you can get a list of MegaNode
          * objects using MegaApi::getInShares
          *
-         * @param node Node to check
          * @return true is the MegaNode is being shared, otherwise false
          */
         virtual bool isInShare();
@@ -901,7 +898,7 @@ class MegaNode
 
         /**
          * @brief Set an auth token to access this node
-         * @param Auth token to access the node
+         * @param privateAuth token to access the node
          * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
          */
         virtual void setPrivateAuth(const char *privateAuth);
@@ -5832,7 +5829,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
-         * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
          * If this parameter is set to NULL, the attribute is obtained for the active account.
          * @param type Attribute type
          *
@@ -6892,7 +6889,7 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
          *
          * @param transferTag Tag of the transfer to move
-         * @param prevTransfer Tag of the transfer with the target position
+         * @param prevTransferTag Tag of the transfer with the target position
          * @param listener MegaRequestListener to track this request
          */
         void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
@@ -7276,7 +7273,7 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param Transfer queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+         * @param type Transfer queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
          * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
          */
         MegaTransfer *getFirstTransfer(int type);
@@ -7332,7 +7329,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param Transfer tag to check
+         * @param transferTag tag to check
          * @return MegaTransfer object with that tag, or NULL if there isn't any
          * active transfer with it
          *
@@ -7951,7 +7948,7 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param MegaHandler Node handle to check
+         * @param h Node handle to check
          * @return MegaNode object with the handle, otherwise NULL
          */
         MegaNode *getNodeByHandle(MegaHandle h);
@@ -8930,7 +8927,7 @@ class MegaApi
          * Even if files are allowed to be served by this function, restrictions related to
          * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
          *
-         * @param true to allow to server files, false to forbid it
+         * @param enable true to allow to server files, false to forbid it
          */
         void httpServerEnableFileServer(bool enable);
 
@@ -8954,7 +8951,7 @@ class MegaApi
          * Even if folders are allowed to be served by this function, restrictions related to
          * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
          *
-         * @param true to allow to server folders, false to forbid it
+         * @param enable true to allow to server folders, false to forbid it
          */
         void httpServerEnableFolderServer(bool enable);
 
@@ -9194,7 +9191,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param File extension (with or without a leading dot)
+         * @param extension File extension (with or without a leading dot)
          * @return MIME type associated with the extension
          */
         static char *getMimeType(const char* extension);
@@ -9263,7 +9260,6 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_RO = 0
          * - MegaTextChatPeerList::PRIV_STANDARD = 2
          * - MegaTextChatPeerList::PRIV_MODERATOR = 3
-         * @param listener MegaRequestListener to track this request
          * @param title Byte array representing the title that wants to be set, already encrypted and
          * converted to Base64url encoding (optional).
          * @param listener MegaRequestListener to track this request
