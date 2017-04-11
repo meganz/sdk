@@ -168,7 +168,9 @@
 #define _FILE_OFFSET_BITS 64
 
 /* use GNU extensions */
-#define _GNU_SOURCE 1
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
 
 /* Define for large files, on AIX-style hosts. */
 /* #undef _LARGE_FILES */

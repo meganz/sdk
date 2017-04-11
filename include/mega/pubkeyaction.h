@@ -32,6 +32,7 @@ class MEGA_API PubKeyAction
 {
 public:
     int tag;
+    CommandPubKeyRequest *cmd = NULL;
 
     virtual void proc(MegaClient*, User*) = 0;
 

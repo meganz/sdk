@@ -3432,9 +3432,25 @@ void MegaClient::updatesc()
             // 2. write new or update modified users
             for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
+                char base64[12];
+                if ((*it)->show == INACTIVE)
                 {
-                    break;
+                    if ((*it)->dbid)
+                    {
+                        LOG_verbose << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                        if (!(complete = sctable->del((*it)->dbid)))
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    LOG_verbose << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -4999,7 +5015,7 @@ void MegaClient::notifypurge(void)
         pcrnotify.clear();
     }
 
-    // users are never deleted
+    // users are never deleted (except at account cancellation)
     if ((t = usernotify.size()))
     {
         if (!fetchingnodes)
@@ -5014,6 +5030,25 @@ void MegaClient::notifypurge(void)
             u->notified = false;
             u->resetTag();
             memset(&(u->changed), 0, sizeof(u->changed));
+
+            if (u->show == INACTIVE && u->userhandle != me)
+            {
+                // delete any remaining shares with this user
+                for (handle_set::iterator it = u->sharing.begin(); it != u->sharing.end(); it++)
+                {
+                    Node *n = nodebyhandle(*it);
+                    if (n && !n->changed.removed)
+                    {
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99435, "Orphan incoming share");
+                        reqtag = creqtag;
+                    }
+                }
+                u->sharing.clear();
+
+                discarduser(u->userhandle);
+            }
         }
 
         usernotify.clear();
@@ -5162,12 +5197,12 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 
     restag = reqtag;
 
-    if (!(u = finduser(user, 1)))
+    if (!(u = finduser(user, 0)) && !user)
     {
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
 
-    queuepubkeyreq(u, new PubKeyActionPutNodes(newnodes, numnodes, reqtag));
+    queuepubkeyreq(user, new PubKeyActionPutNodes(newnodes, numnodes, reqtag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -6359,7 +6394,7 @@ void MegaClient::getuserdata()
 
 void MegaClient::getpubkey(const char *user)
 {
-    queuepubkeyreq(finduser(user, 1), new PubKeyActionNotifyApp(reqtag));
+    queuepubkeyreq(user, new PubKeyActionNotifyApp(reqtag));
 }
 
 // resume session - load state from local cache, if available
@@ -6688,7 +6723,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u = &users[hit->second];
 
         um_map::iterator mit = umindex.find(nuid);
-        if (mit != umindex.end() && mit->second != hit->second)
+        if (mit != umindex.end() && mit->second != hit->second && users[mit->second].show != INACTIVE)
         {
             // duplicated user: one by email, one by handle
             assert(!users[mit->second].sharing.size());
@@ -6736,6 +6771,18 @@ void MegaClient::discarduser(handle uh)
         return;
     }
 
+    while (u->pkrs.size())  // protect any pending pubKey request
+    {
+        PubKeyAction *pka = u->pkrs[0];
+        if(pka->cmd)
+        {
+            pka->cmd->invalidateUser();
+        }
+        pka->proc(this, u);
+        delete pka;
+        u->pkrs.pop_front();
+    }
+
     umindex.erase(u->email);
     users.erase(uhindex[uh]);
     uhindex.erase(uh);
@@ -6747,6 +6794,18 @@ void MegaClient::discarduser(const char *email)
     if (!u)
     {
         return;
+    }
+
+    while (u->pkrs.size())  // protect any pending pubKey request
+    {
+        PubKeyAction *pka = u->pkrs[0];
+        if(pka->cmd)
+        {
+            pka->cmd->invalidateUser();
+        }
+        pka->proc(this, u);
+        delete pka;
+        u->pkrs.pop_front();
     }
 
     uhindex.erase(u->userhandle);
@@ -6870,9 +6929,42 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 
         if (!u->pubkrequested)
         {
-            reqs.add(new CommandPubKeyRequest(this, u));
+            pka->cmd = new CommandPubKeyRequest(this, u);
+            reqs.add(pka->cmd);
+            u->pubkrequested = true;
         }
     }
+}
+
+void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
+{
+    User *u = finduser(uid, 0);
+    if (!u && uid)
+    {
+        if (strchr(uid, '@'))   // uid is an e-mail address
+        {
+            string nuid;
+            Node::copystring(&nuid, uid);
+            transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+
+            u = new User(nuid.c_str());
+            u->uid = nuid;
+            u->isTemporary = true;
+        }
+        else    // not an e-mail address: must be ASCII handle
+        {
+            handle uh;
+            if (Base64::atob(uid, (byte*)&uh, sizeof uh) == sizeof uh)
+            {
+                u = new User(NULL);
+                u->userhandle = uh;
+                u->uid = uid;
+                u->isTemporary = true;
+            }
+        }
+    }
+
+    queuepubkeyreq(u, pka);
 }
 
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
@@ -6901,7 +6993,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag, personal_representation));
+    queuepubkeyreq(user, new PubKeyActionCreateShare(n->nodehandle, a, reqtag, personal_representation));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -8662,9 +8754,9 @@ void MegaClient::initializekeys()
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
                 clearKeys();
-                resetKeyring();
+                delete signkey;
+                delete chatkey;
                 return;
-
             }
 
             // prepare the TLV for private keys
