@@ -1530,6 +1530,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
+        MegaUser *getUserFromInShare(MegaNode *node);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);

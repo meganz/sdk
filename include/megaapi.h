@@ -8018,6 +8018,19 @@ class MegaApi
         MegaShareList *getInSharesList();
 
         /**
+         * @brief Get the user relative to an incoming share
+         *
+         * This function will return NULL if the node is not found or doesn't represent
+         * the root of an incoming share.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Incoming share
+         * @return MegaUser relative to the incoming share
+         */
+        MegaUser *getUserFromInShare(MegaNode *node);
+
+        /**
           * @brief Check if a MegaNode is being shared by/with your own user
           *
           * For nodes that are being shared, you can get a list of MegaShare
