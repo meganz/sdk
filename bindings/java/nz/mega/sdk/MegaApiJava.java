@@ -3044,7 +3044,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Invalidate the existing cache and create a fresh one
+     * Invalidate the existing cache and create a fresh one
      */
     public void invalidateCache(){
         megaApi.invalidateCache();
@@ -3510,6 +3510,55 @@ public class MegaApiJava {
     }
 
     /**
+     * Pause/resume a transfer
+     *
+     * The request finishes with MegaError::API_OK if the state of the transfer is the
+     * desired one at that moment. That means that the request succeed when the transfer
+     * is successfully paused or resumed, but also if the transfer was already in the
+     * desired state and it wasn't needed to change anything.
+     *
+     * Resumed transfers don't necessarily continue just after the resumption. They
+     * are tagged as queued and are processed according to its position on the request queue.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+     * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+     *
+     * @param transfer Transfer to pause or resume
+     * @param pause True to pause the transfer or false to resume it
+     * @param listener MegaRequestListener to track this request
+     */
+    public void pauseTransfer(MegaTransfer transfer, boolean pause, MegaRequestListenerInterface listener){
+        megaApi.pauseTransfer(transfer, pause, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Pause/resume a transfer
+     *
+     * The request finishes with MegaError::API_OK if the state of the transfer is the
+     * desired one at that moment. That means that the request succeed when the transfer
+     * is successfully paused or resumed, but also if the transfer was already in the
+     * desired state and it wasn't needed to change anything.
+     *
+     * Resumed transfers don't necessarily continue just after the resumption. They
+     * are tagged as queued and are processed according to its position on the request queue.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+     * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+     *
+     * @param transferTag Tag of the transfer to pause or resume
+     * @param pause True to pause the transfer or false to resume it
+     * @param listener MegaRequestListener to track this request
+     */
+    public void pauseTransferByTag(int transferTag, boolean pause, MegaRequestListenerInterface listener){
+        megaApi.pauseTransferByTag(transferTag, pause, createDelegateRequestListener(listener));
+    }
+
+
+    /**
      * Enable the resumption of transfers
      *
      * This function enables the cache of transfers, so they can be resumed later.
@@ -3822,7 +3871,7 @@ public class MegaApiJava {
      * @return Information about transfer queues
      */
     public MegaTransferData getTransferData(MegaTransferListenerInterface listener){
-        return megaApi.getTransferData(createDelegateTransferListener(listener));
+        return megaApi.getTransferData(createDelegateTransferListener(listener, false));
     }
 
     /**
