@@ -11449,7 +11449,7 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
 
 const char* MegaApiImpl::getFileAttribute(MegaHandle handle)
 {
-     return client->nodebyhandle(handle)->fileattrstring.c_str();
+     return MegaApi::strdup(client->nodebyhandle(handle)->fileattrstring.c_str());
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)

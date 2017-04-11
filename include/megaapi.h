@@ -9445,6 +9445,12 @@ class MegaApi
          */
         MegaTextChatList *getChatList();
 
+        /**
+         * @brief Get files attributes from a node
+         * You take the ownership of the returned value
+         * @param handle handle from node
+         * @return char array with files attributes from the node.
+         */
         virtual const char* getFileAttribute(MegaHandle handle);
 
 #endif
