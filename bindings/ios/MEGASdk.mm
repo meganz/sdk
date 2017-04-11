@@ -1113,6 +1113,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
 }
 
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node {
+    return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
