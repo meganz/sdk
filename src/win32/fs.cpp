@@ -1152,9 +1152,19 @@ void WinFileSystemAccess::osversion(string* u) const
 #ifdef WINDOWS_PHONE
     sprintf(buf, "Windows Phone");
 #else
-    DWORD dwVersion = GetVersion();
-
-    sprintf(buf, "Windows %d.%d", (int)(LOBYTE(LOWORD(dwVersion))), (int)(HIBYTE(LOWORD(dwVersion))));
+    typedef LONG NTSTATUS;
+    typedef NTSTATUS (WINAPI* RtlGetVersionPtr)(PRTL_OSVERSIONINFOW);
+    RTL_OSVERSIONINFOW version = { 0 };
+    HMODULE hMod = GetModuleHandleW(L"ntdll.dll");
+    if (hMod)
+    {
+        RtlGetVersionPtr RtlGetVersion = (RtlGetVersionPtr)GetProcAddress(hMod, "RtlGetVersion");
+        if (RtlGetVersion)
+        {
+            RtlGetVersion(&version);
+        }
+    }
+    snprintf(buf, sizeof(buf), "Windows %d.%d", version.dwMajorVersion, version.dwMinorVersion);
 #endif
 
     u->append(buf);

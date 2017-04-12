@@ -8655,6 +8655,15 @@ class MegaApi
         const char *getVersion();
 
         /**
+         * @brief Get a string with the version of the operating system
+         *
+         * You take the ownership of the returned string
+         *
+         * @return Version of the operating system
+         */
+        char *getOperatingSystemVersion();
+
+        /**
          * @brief Get the last available version of the app
          *
          * It returns the last available version corresponding to an app token
