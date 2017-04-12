@@ -2316,6 +2316,11 @@ MegaShareList* MegaApi::getInSharesList()
     return pImpl->getInSharesList();
 }
 
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+{
+    return pImpl->getUserFromInShare(node);
+}
+
 bool MegaApi::isShared(MegaNode *node)
 {
     if (!node)
