@@ -8414,6 +8414,40 @@ class MegaApi
         MegaNode *getRubbishNode();
 
         /**
+         * @brief Returns the root node of one node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @return Root node for the \c node
+         */
+        MegaNode *getRootNode(MegaNode *node);
+
+        /**
+         * @brief Check if a node is in the Cloud Drive tree
+         *
+         * @param node Node to check
+         * @return True if the node is in the cloud drive
+         */
+        bool isInCloud(MegaNode *node);
+
+        /**
+         * @brief Check if a node is in the Rubbish bin tree
+         *
+         * @param node Node to check
+         * @return True if the node is in the Rubbish bin
+         */
+        bool isInRubbish(MegaNode *node);
+
+        /**
+         * @brief Check if a node is in the Inbox tree
+         *
+         * @param node Node to check
+         * @return True if the node is in the Inbox
+         */
+        bool isInInbox(MegaNode *node);
+
+        /**
          * @brief Set default permissions for new files
          *
          * This function allows to change the permissions that will be received

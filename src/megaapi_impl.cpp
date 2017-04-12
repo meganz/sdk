@@ -6129,6 +6129,43 @@ MegaNode* MegaApiImpl::getRubbishNode()
     return result;
 }
 
+MegaNode *MegaApiImpl::getRootNode(MegaNode *node)
+{
+    MegaNode *rootnode = NULL;
+
+    sdkMutex.lock();
+
+    Node *n;
+    if (node && (n = client->nodebyhandle(node->getHandle())))
+    {
+        while (n->parent)
+        {
+            n = n->parent;
+        }
+
+        rootnode = MegaNodePrivate::fromNode(n);
+    }
+
+    sdkMutex.unlock();
+
+    return rootnode;
+}
+
+bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
+{
+    bool ret = false;
+
+    sdkMutex.lock();
+
+    MegaNode *rootnode = getRootNode(node);
+    ret = (rootnode && (rootnode->getHandle() == client->rootnodes[index]));
+    delete rootnode;
+
+    sdkMutex.unlock();
+
+    return ret;
+}
+
 void MegaApiImpl::setDefaultFilePermissions(int permissions)
 {
     fsAccess->setdefaultfilepermissions(permissions);

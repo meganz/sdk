@@ -2266,6 +2266,26 @@ MegaNode* MegaApi::getRubbishNode()
     return pImpl->getRubbishNode();
 }
 
+MegaNode *MegaApi::getRootNode(MegaNode *node)
+{
+    return pImpl->getRootNode(node);
+}
+
+bool MegaApi::isInCloud(MegaNode *node)
+{
+    return pImpl->isInRootnode(node, 0);
+}
+
+bool MegaApi::isInRubbish(MegaNode *node)
+{
+    return pImpl->isInRootnode(node, 2);
+}
+
+bool MegaApi::isInInbox(MegaNode *node)
+{
+    return pImpl->isInRootnode(node, 1);
+}
+
 void MegaApi::setDefaultFilePermissions(int permissions)
 {
     pImpl->setDefaultFilePermissions(permissions);
