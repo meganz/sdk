@@ -110,6 +110,11 @@ int MegaStringList::size()
     return 0;
 }
 
+mega::MegaNodeList *mega::MegaNodeList::createInstance()
+{
+    return new MegaNodeListPrivate();
+}
+
 MegaNodeList::~MegaNodeList() { }
 
 MegaNodeList *MegaNodeList::copy()
@@ -125,6 +130,11 @@ MegaNode *MegaNodeList::get(int)
 int MegaNodeList::size()
 {
     return 0;
+}
+
+void MegaNodeList::addNode(MegaNode *node)
+{
+
 }
 
 MegaTransferList::~MegaTransferList() { }
@@ -3541,6 +3551,11 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
 MegaTextChatList* MegaApi::getChatList()
 {
     return pImpl->getChatList();
+}
+
+const char* MegaApi::getFileAttribute(MegaHandle handle)
+{
+    return pImpl->getFileAttribute(handle);
 }
 
 #endif

@@ -2917,7 +2917,25 @@ MegaNode *MegaNodeListPrivate::get(int i)
 
 int MegaNodeListPrivate::size()
 {
-	return s;
+    return s;
+}
+
+void MegaNodeListPrivate::addNode(MegaNode *node)
+{
+    MegaNode** copyList = list;
+    s = s + 1;
+    list = new MegaNode*[s];
+    for (int i = 0; i < s - 1; ++i)
+    {
+        list[i] = copyList[i];
+    }
+
+    list[s - 1] = node->copy();
+
+    if (copyList != NULL)
+    {
+        delete [] copyList;
+    }
 }
 
 MegaUserListPrivate::MegaUserListPrivate()
@@ -6610,6 +6628,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     uid[11] = 0;
 
     request->setEmail(uid);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -11485,6 +11504,22 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     fp->size = size;
 
     return fp;
+}
+
+const char* MegaApiImpl::getFileAttribute(MegaHandle handle)
+{
+    char* fileAttributes = NULL;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(handle);
+    if (node)
+    {
+        fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
+    }
+
+    sdkMutex.unlock();
+
+     return fileAttributes;
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)

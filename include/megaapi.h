@@ -1605,10 +1605,16 @@ public:
  */
 class MegaNodeList
 {
-	public:
+    public:
+        /**
+         * @brief Creates a new instance of MegaChatPeerList
+         * @return A pointer to the superclass of the private object
+         */
+        static MegaNodeList * createInstance();
+
 		virtual ~MegaNodeList();
 
-		virtual MegaNodeList *copy();
+        virtual MegaNodeList *copy();
 
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
@@ -1628,6 +1634,12 @@ class MegaNodeList
          * @return Number of MegaNode objects in the list
          */
         virtual int size();
+
+        /**
+         * @brief Add new node to list
+         * @param MegaNode to be added. The node inserted is a copy from 'node'
+         */
+        virtual void addNode(MegaNode* node);
 };
 
 /**
@@ -9475,6 +9487,15 @@ class MegaApi
          * @return A list of MegaTextChat objects with detailed information about each chatroom.
          */
         MegaTextChatList *getChatList();
+
+        /**
+         * @brief Get files attributes from a node
+         * You take the ownership of the returned value
+         * @param handle handle from node
+         * @return char array with files attributes from the node.
+         */
+        virtual const char* getFileAttribute(MegaHandle handle);
+
 #endif
 
 private:

@@ -1053,6 +1053,8 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
+
+        virtual void addNode(MegaNode* node);
 	
 	protected:
 		MegaNode** list;
@@ -1677,6 +1679,8 @@ class MegaApiImpl : public MegaApp
 
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
+
+        virtual const char* getFileAttribute(MegaHandle handle);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
