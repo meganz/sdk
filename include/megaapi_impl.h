@@ -1591,6 +1591,7 @@ class MegaApiImpl : public MegaApp
         void authorizeMegaNodePrivate(MegaNodePrivate *node);
 
         const char *getVersion();
+        char *getOperatingSystemVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         const char *getUserAgent();
