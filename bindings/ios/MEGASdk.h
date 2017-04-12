@@ -3220,6 +3220,17 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (MEGAShareList *)inSharesList;
 
 /**
+ * @brief Get the user relative to an incoming share
+ *
+ * This function will return nil if the node is not found or doesn't represent
+ * the root of an incoming share.
+ *
+ * @param node Incoming share
+ * @return MEGAUser relative to the incoming share
+ */
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node;
+
+/**
  * @brief Check if a MEGANode is being shared.
  *
  * For nodes that are being shared, you can get a a list of MEGAShare
