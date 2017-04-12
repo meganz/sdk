@@ -1075,7 +1075,8 @@ if test "x$WIN32" = "xno" ; then
        *)
 
         # determine if library is installed
-        LDFLAGS="-L$with_curl/lib $LDFLAGS"
+        LDFLAGS="-L$with_curl/lib $LDFLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS"
+
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
         SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
