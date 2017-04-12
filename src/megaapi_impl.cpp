@@ -6759,16 +6759,21 @@ MegaShareList* MegaApiImpl::getInSharesList()
     return shareList;
 }
 
-MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
 {
+    if (!megaNode)
+    {
+        return NULL;
+    }
+
     MegaUser *user = NULL;
 
     sdkMutex.lock();
 
-    Node *n = client->nodebyhandle(node->getHandle());
-    if (n && n->inshare && n->inshare->user)
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (node && node->inshare && node->inshare->user)
     {
-        user = new MegaUserPrivate(n->inshare->user);
+        user = MegaUserPrivate::fromUser(node->inshare->user);
     }
 
     sdkMutex.unlock();
