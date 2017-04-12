@@ -257,9 +257,19 @@ bool FileAccess::openf()
 
     m_time_t curr_mtime;
     m_off_t curr_size;
-
-    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
+    if (!sysstat(&curr_mtime, &curr_size))
     {
+        LOG_warn << "Error opening sync file handle (sysstat) "
+                 << curr_mtime << " - " << mtime
+                 << curr_size  << " - " << size;
+        return false;
+    }
+
+    if (curr_mtime != mtime || curr_size != size)
+    {
+        mtime = curr_mtime;
+        size = curr_size;
+        retry = false;
         return false;
     }
 
@@ -323,11 +333,19 @@ bool FileAccess::asyncopenf()
 
     m_time_t curr_mtime = 0;
     m_off_t curr_size = 0;
-    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
+    if (!sysstat(&curr_mtime, &curr_size))
     {
         LOG_warn << "Error opening async file handle (sysstat) "
                  << curr_mtime << " - " << mtime
                  << curr_size  << " - " << size;
+        return false;
+    }
+
+    if (curr_mtime != mtime || curr_size != size)
+    {
+        mtime = curr_mtime;
+        size = curr_size;
+        retry = false;
         return false;
     }
 

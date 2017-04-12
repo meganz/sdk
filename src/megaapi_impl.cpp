@@ -10969,7 +10969,7 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     transfer->setUpdateTime(Waiter::ds);
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
     transfer->setPriority(tr->priority);
-    fireOnTransferFinish(transfer, transfer->getLastError());
+    fireOnTransferFinish(transfer, e);
 }
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
