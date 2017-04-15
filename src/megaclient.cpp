@@ -1937,7 +1937,9 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
-                                            if (sync->dirnotify->failed || fsaccess->notifyfailed || sync->dirnotify->error || fsaccess->notifyerr)
+                                            if (syncscanbt.armed()
+                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->error || fsaccess->notifyerr))
                                             {
                                                 LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
@@ -1961,12 +1963,6 @@ void MegaClient::exec()
                             if (fsaccess->notifyerr && it == syncs.end())
                             {
                                 fsaccess->notifyerr = false;
-                            }
-
-                            // limit rescan rate (interval depends on total tree size)
-                            if (syncscanfailed)
-                            {
-                                syncscanbt.backoff(10 + totalnodes / 128);
                             }
 
                             execsyncdeletions();  
