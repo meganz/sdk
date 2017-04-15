@@ -1951,7 +1951,7 @@ void MegaClient::exec()
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
 
-                                                syncscanbt.backoff(10 + totalnodes / 128);
+                                                syncscanbt.backoff(50 + totalnodes / 128);
                                             }
                                         }
                                     }
