@@ -2883,6 +2883,12 @@ MShareList^ MegaSDK::getInSharesList()
     return ref new MShareList(megaApi->getInSharesList(), true);
 }
 
+MUser^ MegaSDK::getUserFromInShare(MNode^ node)
+{
+    MegaUser *user = megaApi->getUserFromInShare((node != nullptr) ? node->getCPtr() : NULL);
+    return user ? ref new MUser(user, true) : nullptr;
+}
+
 bool MegaSDK::isShared(MNode^ node)
 {
     return megaApi->isShared(node->getCPtr());

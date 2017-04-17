@@ -454,6 +454,7 @@ namespace mega
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         MShareList^ getInSharesList();
+        MUser^ getUserFromInShare(MNode^ node);
         bool isShared(MNode^ node);
         bool isOutShare(MNode^ node);
         bool isInShare(MNode^ node);
