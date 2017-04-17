@@ -110,7 +110,7 @@ int MegaStringList::size()
     return 0;
 }
 
-mega::MegaNodeList *mega::MegaNodeList::createInstance()
+MegaNodeList *MegaNodeList::createInstance()
 {
     return new MegaNodeListPrivate();
 }
