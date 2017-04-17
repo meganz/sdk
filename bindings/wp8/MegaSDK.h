@@ -494,8 +494,12 @@ namespace mega
 
         bool isFilesystemAvailable();
         MNode^ getRootNode();
+        MNode^ getRootNode(MNode^ node);
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+        bool isInCloud(MNode^ node);
+        bool isInRubbish(MNode^ node);
+        bool isInInbox(MNode^ node);
 
         uint64 getBandwidthOverquotaDelay();
 

@@ -3143,6 +3143,12 @@ MNode^ MegaSDK::getRootNode()
 	return node ? ref new MNode(node, true) : nullptr;
 }
 
+MNode^ MegaSDK::getRootNode(MNode^ node)
+{
+    MegaNode *rootNode = megaApi->getRootNode((node != nullptr) ? node->getCPtr() : NULL);
+    return rootNode ? ref new MNode(rootNode, true) : nullptr;
+}
+
 MNode^ MegaSDK::getInboxNode()
 {
     MegaNode *node = megaApi->getInboxNode();
@@ -3153,6 +3159,21 @@ MNode^ MegaSDK::getRubbishNode()
 {
 	MegaNode *node = megaApi->getRubbishNode();
 	return node ? ref new MNode(node, true) : nullptr;
+}
+
+bool MegaSDK::isInCloud(MNode^ node)
+{
+    return megaApi->isInCloud((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInRubbish(MNode^ node)
+{
+    return megaApi->isInRubbish((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInInbox(MNode^ node)
+{
+    return megaApi->isInInbox((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 uint64 MegaSDK::getBandwidthOverquotaDelay()
