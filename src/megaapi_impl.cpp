@@ -3574,6 +3574,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waitingRequest = false;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
+    totalDownloadBytes = 0;
+    totalUploadBytes = 0;
     notificationNumber = 0;
     activeRequest = NULL;
     activeTransfer = NULL;
@@ -6116,11 +6118,15 @@ int MegaApiImpl::getTotalDownloads()
 void MegaApiImpl::resetTotalDownloads()
 {
     totalDownloads = 0;
+    totalDownloadBytes = 0;
+    totalDownloadedBytes = 0;
 }
 
 void MegaApiImpl::resetTotalUploads()
 {
     totalUploads = 0;
+    totalUploadBytes = 0;
+    totalUploadedBytes = 0;
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -7823,11 +7829,13 @@ void MegaApiImpl::file_added(File *f)
     {
         totalDownloads++;
         pendingDownloads++;
+        totalDownloadBytes += t->size;
     }
     else
     {
         totalUploads++;
         pendingUploads++;
+        totalUploadBytes += t->size;
     }
 
     fireOnTransferStart(transfer);
@@ -9225,8 +9233,6 @@ void MegaApiImpl::fa_complete(Node*, fatype, const char* data, uint32_t len)
         string localPath;
         fsAccess->path2local(&filePath, &localPath);
 
-        totalDownloadedBytes += len;
-
         fsAccess->unlinklocal(&localPath);
         if(!f->fopen(&localPath, false, true))
         {
@@ -9616,6 +9622,8 @@ void MegaApiImpl::logout_result(error e)
                 fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
             }
         }
+        resetTotalDownloads();
+        resetTotalUploads();
 
         pendingUploads = 0;
         pendingDownloads = 0;
@@ -10002,8 +10010,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 string filePath(request->getFile());
                 string localPath;
                 fsAccess->path2local(&filePath, &localPath);
-
-                totalDownloadedBytes += len;
 
                 fsAccess->unlinklocal(&localPath);
                 if(!f->fopen(&localPath, false, true))
@@ -10669,6 +10675,18 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
     notificationNumber++;
+
+    int t = transfer->getType();
+    long long delta = transfer->getDeltaSize();
+    if (t == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        totalDownloadedBytes += delta;
+    }
+    else if (t == MegaTransfer::TYPE_UPLOAD)
+    {
+        totalUploadedBytes += delta;
+    }
+
     transfer->setNotificationNumber(notificationNumber);
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
@@ -12312,6 +12330,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
             if(sessionKey)
@@ -13271,6 +13292,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
 			client->createephemeral();
@@ -14356,6 +14380,16 @@ long long MegaApiImpl::getTotalDownloadedBytes()
 long long MegaApiImpl::getTotalUploadedBytes()
 {
     return totalUploadedBytes;
+}
+
+long long MegaApiImpl::getTotalDownloadBytes()
+{
+    return totalDownloadBytes;
+}
+
+long long MegaApiImpl::getTotalUploadBytes()
+{
+    return totalUploadBytes;
 }
 
 void MegaApiImpl::update()

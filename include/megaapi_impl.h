@@ -1513,6 +1513,8 @@ class MegaApiImpl : public MegaApp
         long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
+        long long getTotalDownloadBytes();
+        long long getTotalUploadBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -1758,6 +1760,8 @@ protected:
         int totalDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
+        long long totalDownloadBytes;
+        long long totalUploadBytes;
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
