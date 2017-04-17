@@ -3438,7 +3438,7 @@ void MegaClient::updatesc()
             for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
             {
                 char base64[12];
-                if ((*it)->show == INACTIVE)
+                if ((*it)->show == INACTIVE && (*it)->userhandle != me)
                 {
                     if ((*it)->dbid)
                     {
@@ -6728,7 +6728,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u = &users[hit->second];
 
         um_map::iterator mit = umindex.find(nuid);
-        if (mit != umindex.end() && mit->second != hit->second && users[mit->second].show != INACTIVE)
+        if (mit != umindex.end() && mit->second != hit->second && (users[mit->second].show != INACTIVE || users[mit->second].userhandle == me))
         {
             // duplicated user: one by email, one by handle
             assert(!users[mit->second].sharing.size());
