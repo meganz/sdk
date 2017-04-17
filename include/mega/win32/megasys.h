@@ -78,6 +78,7 @@
  #include <wincrypt.h>
  #include <winhttp.h>
  #include <shlwapi.h>
+ #include "ntddk.h"
 #endif
 
 #include <shellapi.h>
