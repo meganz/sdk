@@ -2891,22 +2891,22 @@ MUser^ MegaSDK::getUserFromInShare(MNode^ node)
 
 bool MegaSDK::isShared(MNode^ node)
 {
-    return megaApi->isShared(node->getCPtr());
+    return megaApi->isShared((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isOutShare(MNode^ node)
 {
-    return megaApi->isOutShare(node->getCPtr());
+    return megaApi->isOutShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isInShare(MNode^ node)
 {
-    return megaApi->isInShare(node->getCPtr());
+    return megaApi->isInShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isPendingShare(MNode^ node)
 {
-    return megaApi->isPendingShare(node->getCPtr());
+    return megaApi->isPendingShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 MShareList^ MegaSDK::getOutShares()
