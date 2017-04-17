@@ -78,11 +78,6 @@
  #include <wincrypt.h>
  #include <winhttp.h>
  #include <shlwapi.h>
- #if defined (__MINGW32__)
-  #include "ddk/ntddk.h"
- #else
-  #include "ntddk.h"
- #endif
 #endif
 
 #include <shellapi.h>
