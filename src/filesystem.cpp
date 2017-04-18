@@ -200,17 +200,17 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         }
         delete fa;
     }
+
+    if (q == DirNotify::DIREVENTS)
+    {
+        sync->client->syncactivity = true;
+    }
 #endif
 
     notifyq[q].resize(notifyq[q].size() + 1);
     notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
     notifyq[q].back().localnode = l;
     notifyq[q].back().path = path;
-
-    if (q == DirNotify::DIREVENTS)
-    {
-        sync->client->syncactivity = true;
-    }
 }
 
 // default: no fingerprint
