@@ -4013,7 +4013,7 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalDownloads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
@@ -4026,7 +4026,7 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalUploads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
     public void resetTotalUploads() {
