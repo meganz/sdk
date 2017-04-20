@@ -397,6 +397,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("get" == thecommand)
     {
         validParams->insert("m");
+        validParams->insert("q");
     }
 }
 
@@ -1081,7 +1082,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
-        return "get exportedlink#key|remotepath [-m] [localpath]";
+        return "get exportedlink#key|remotepath [-m] [-q] [localpath]";
     }
     if (!strcmp(command, "getq"))
     {
@@ -1425,6 +1426,7 @@ string getHelpStr(const char *command)
         os << "For folders, the entire contents (and the root folder itself) will be" << endl;
         os << "                    by default downloaded into the destination folder" << endl;
         os << "Options:" << endl;
+        os << " -q" << "\t" << "queue download: execute in the background. Don't wait for it to end' " << endl;
         os << " -m" << "\t" << "if the folder already exists, the contents will be merged with the " << endl;
         os << "                     downloaded one (preserving the existing files)" << endl;
     }

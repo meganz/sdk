@@ -2139,17 +2139,24 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
 }
 
-void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node)
+void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bool background)
 {
-    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+    MegaCmdTransferListener *megaCmdTransferListener = NULL;
+    if (!background)
+    {
+        megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+    }
     LOG_debug << "Starting download: " << node->getName() << " to : " << path;
     api->startDownload(node, path.c_str(), megaCmdTransferListener);
-    megaCmdTransferListener->wait();
-    if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
-    {
-        LOG_info << "Download complete: " << megaCmdTransferListener->getTransfer()->getPath();
+    if (megaCmdTransferListener)
+     {
+        megaCmdTransferListener->wait();
+        if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
+        {
+            LOG_info << "Download complete: " << megaCmdTransferListener->getTransfer()->getPath();
+        }
+        delete megaCmdTransferListener;
     }
-    delete megaCmdTransferListener;
 }
 
 void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname)
@@ -3210,6 +3217,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (words.size() > 1)
         {
             string path = "./";
+            bool background = getFlag(clflags,"q");
             bool destinyIsFolder = false;
             if (isPublicLink(words[1]))
             {
@@ -3279,7 +3287,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                             }
                             MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
-                            downloadNode(path, api, n);
+                            downloadNode(path, api, n, background);
                             delete n;
                         }
                         else
@@ -3348,13 +3356,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
                                 if (authorizedNode != NULL)
                                 {
-                                    downloadNode(path, api, authorizedNode);
+                                    downloadNode(path, api, authorizedNode, background);
                                     delete authorizedNode;
                                 }
                                 else
                                 {
                                     LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                                    downloadNode(path, apiFolder, folderRootNode);
+                                    downloadNode(path, apiFolder, folderRootNode, background);
                                 }
                                 delete folderRootNode;
                             }
@@ -3431,7 +3439,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             MegaNode * n = *it;
                             if (n)
                             {
-                                downloadNode(path, api, n);
+                                downloadNode(path, api, n, background);
                                 delete n;
                             }
                         }
@@ -3517,7 +3525,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 path=path.substr(0,path.size()-1);
                             }
                         }
-                        downloadNode(path, api, n);
+                        downloadNode(path, api, n, background);
                         delete n;
                     }
                     else
