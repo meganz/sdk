@@ -176,9 +176,9 @@ int MNode::getTag()
     return megaNode ? megaNode->getTag() : 0;
 }
 
-uint64 MNode::getExpirationTime()
+int64 MNode::getExpirationTime()
 {
-    return megaNode ? megaNode->getExpirationTime() : 0;
+    return megaNode ? megaNode->getExpirationTime() : -1;
 }
 
 MegaHandle MNode::getPublicHandle()
