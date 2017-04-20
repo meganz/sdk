@@ -1172,6 +1172,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_URL, httpctx->posturl.c_str());
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
         curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_SEEKFUNCTION, seek_data);
+        curl_easy_setopt(curl, CURLOPT_SEEKDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
@@ -2115,6 +2117,49 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     return len;
 }
 
+int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
+{
+    HttpReq *req = (HttpReq*)userp;
+    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+    curl_off_t newoffset;
+    size_t totalsize;
+
+    if (httpctx->data)
+    {
+        totalsize = httpctx->len;
+    }
+    else
+    {
+        totalsize = req->out->size();
+    }
+
+    switch (origin)
+    {
+    case SEEK_SET:
+        newoffset = offset;
+        break;
+    case SEEK_CUR:
+        newoffset = req->outpos + offset;
+        break;
+    case SEEK_END:
+        newoffset = totalsize + offset;
+        break;
+    default:
+        LOG_err << "Invalid origin in seek function: " << origin;
+        return CURL_SEEKFUNC_FAIL;
+    }
+
+    if (newoffset > totalsize || newoffset < 0)
+    {
+        LOG_err << "Invalid offset " << origin << " " << offset << " " << totalsize
+                << " " << req->outbuf << " " << newoffset;
+        return CURL_SEEKFUNC_FAIL;
+    }
+    req->outpos = newoffset;
+    LOG_debug << "Successful seek to position " << newoffset << " of " << totalsize;
+    return CURL_SEEKFUNC_OK;
+}
+
 int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
@@ -2213,6 +2258,46 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+   #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
+   #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
+   #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)
+   #define EVP_PKEY_get0_RSA(_pkey_) ((_pkey_)->pkey.rsa)
+#endif
+
+const BIGNUM *RSA_get0_n(const RSA *rsa)
+{
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+    return rsa->n;
+#else
+    const BIGNUM *result;
+    RSA_get0_key(rsa, &result, NULL, NULL);
+    return result;
+#endif
+}
+
+const BIGNUM *RSA_get0_e(const RSA *rsa)
+{
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+    return rsa->e;
+#else
+    const BIGNUM *result;
+    RSA_get0_key(rsa, NULL, &result, NULL);
+    return result;
+#endif
+}
+
+const BIGNUM *RSA_get0_d(const RSA *rsa)
+{
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+    return rsa->d;
+#else
+    const BIGNUM *result;
+    RSA_get0_key(rsa, NULL, NULL, &result);
+    return result;
+#endif
+}
+
 // SSL public key pinning
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 {
@@ -2228,17 +2313,17 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         return 1;
     }
 
-    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
+    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
     {
-        if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS1 - 1
-                && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
+        if (BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLMODULUS1 - 1
+                && BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLEXPONENT - 1)
         {
-            BN_bn2bin(evp->pkey.rsa->n, buf);
+            BN_bn2bin(RSA_get0_n(EVP_PKEY_get0_RSA(evp)), buf);
 
             if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
                     (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
             {
-                BN_bn2bin(evp->pkey.rsa->e, buf);
+                BN_bn2bin(RSA_get0_e(EVP_PKEY_get0_RSA(evp)), buf);
 
                 if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
                 {
@@ -2253,7 +2338,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         }
         else
         {
-            LOG_warn << "Public key size mismatch " << BN_num_bytes(evp->pkey.rsa->n) << " " << BN_num_bytes(evp->pkey.rsa->e);
+            LOG_warn << "Public key size mismatch " << BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) << " " << BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp)));
         }
 
         EVP_PKEY_free(evp);
@@ -2275,7 +2360,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             LOG_err << "Invalid public key. Possible MITM attack!!";
             request->sslcheckfailed = true;
             request->sslfakeissuer.resize(256);
-            int len = X509_NAME_get_text_by_NID (X509_get_issuer_name (ctx->cert),
+            int len = X509_NAME_get_text_by_NID (X509_get_issuer_name (X509_STORE_CTX_get0_cert(ctx)),
                                                  NID_commonName,
                                                  (char *)request->sslfakeissuer.data(),
                                                  request->sslfakeissuer.size());

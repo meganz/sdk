@@ -2833,64 +2833,85 @@ void CommandPubKeyRequest::procresult()
             LOG_err << "Unexpected error in CommandPubKeyRequest: " << e;
         }
     }
-
-    for (;;)
+    else
     {
-        switch (client->json.getnameid())
+        bool finished = false;
+        while (!finished)
         {
-            case 'u':
-                uh = client->json.gethandle(MegaClient::USERHANDLE);
-                break;
+            switch (client->json.getnameid())
+            {
+                case 'u':
+                    uh = client->json.gethandle(MegaClient::USERHANDLE);
+                    break;
 
-            case MAKENAMEID4('p', 'u', 'b', 'k'):
-                len_pubk = client->json.storebinary(pubkbuf, sizeof pubkbuf);
-                break;
+                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                    len_pubk = client->json.storebinary(pubkbuf, sizeof pubkbuf);
+                    break;
 
-            case EOO:
-                if (!ISUNDEF(uh))
-                {
-                    client->mapuser(uh, u->email.c_str());
-                }
+                case EOO:
+                    if (!u) // user has cancelled the account
+                    {
+                        return;
+                    }
 
-#ifdef ENABLE_CHAT
-                if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
-                {
-                    client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
-                    return;
-                }
-#endif
+                    if (!ISUNDEF(uh))
+                    {
+                        client->mapuser(uh, u->email.c_str());
+                    }
 
-                if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
-                {
-                    len_pubk = 0;
-                }
+    #ifdef ENABLE_CHAT
+                    if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
+                    {
+                        client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                        return;
+                    }
+    #endif
 
-                if (0)
-                {
-                    default:
-                        if (client->json.storeobject())
-                        {
-                            continue;
-                        }
+                    if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
+                    {
                         len_pubk = 0;
-                }
+                    }
+                    finished = true;
+                    break;
 
-                // satisfy all pending PubKeyAction requests for this user
-                while (u->pkrs.size())
-                {
-                    client->restag = tag;
-                    u->pkrs[0]->proc(client, u);
-                    delete u->pkrs[0];
-                    u->pkrs.pop_front();
-                }
-
-                if (len_pubk)
-                {
-                    client->notifyuser(u);
-                }
-                return;
+                default:
+                    if (client->json.storeobject())
+                    {
+                        continue;
+                    }
+                    len_pubk = 0;
+                    finished = true;
+                    break;
+            }
         }
     }
+
+    // satisfy all pending PubKeyAction requests for this user
+    while (u->pkrs.size())
+    {
+        client->restag = tag;
+        u->pkrs[0]->proc(client, u);
+        delete u->pkrs[0];
+        u->pkrs.pop_front();
+    }
+
+    if (len_pubk && !u->isTemporary)
+    {
+        client->notifyuser(u);
+    }
+
+    if (u->isTemporary)
+    {
+        delete u;
+        u = NULL;
+    }
+
+    return;
+}
+
+void CommandPubKeyRequest::invalidateUser()
+{
+    u = NULL;
 }
 
 CommandGetUserData::CommandGetUserData(MegaClient *client)
@@ -4421,6 +4442,69 @@ void CommandGetVersion::procresult()
     }
 }
 
+CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
+{
+    this->client = client;
+    cmd("lc");
+
+    tag = client->reqtag;
+}
+
+void CommandGetLocalSSLCertificate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getlocalsslcertificate_result(0, NULL, (error)client->json.getint());
+        return;
+    }
+
+    string certdata;
+    m_time_t ts = 0;
+    int numelements = 0;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 't':
+            {
+                ts = client->json.getint();
+                break;
+            }
+            case 'd':
+            {
+                string data;
+                client->json.enterarray();
+                while (client->json.storeobject(&data))
+                {
+                    if (numelements)
+                    {
+                        certdata.append(";");
+                    }
+                    numelements++;
+                    certdata.append(data);
+                }
+                client->json.leavearray();
+                break;
+            }
+            case EOO:
+            {
+                if (numelements < 2)
+                {
+                    return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
+                }
+                return client->app->getlocalsslcertificate_result(ts, &certdata, API_OK);
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->getlocalsslcertificate_result(0, NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {
@@ -4463,22 +4547,19 @@ void CommandChatCreate::procresult()
     if (client->json.isnumeric())
     {
         client->app->chatcreate_result(NULL, (error)client->json.getint());
+        delete chatPeers;
     }
     else
     {
-        string url;
         handle chatid = UNDEF;
         int shard = -1;
         bool group = false;
+        m_time_t ts = -1;
 
         for (;;)
         {
             switch (client->json.getnameid())
             {
-                case MAKENAMEID3('u','r','l'):
-                    client->json.storeobject(&url);
-                    break;
-
                 case MAKENAMEID2('i','d'):
                     chatid = client->json.gethandle(MegaClient::CHATHANDLE);
                     break;
@@ -4491,20 +4572,31 @@ void CommandChatCreate::procresult()
                     group = client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = client->json.getint();
+                    break;
+
                 case EOO:
-                    if (chatid != UNDEF && !url.empty() && shard != -1)
+                    if (chatid != UNDEF && shard != -1)
                     {
-                        TextChat *chat = new TextChat();
+                        if (client->chats.find(chatid) == client->chats.end())
+                        {
+                            client->chats[chatid] = new TextChat();
+                        }
+
+                        TextChat *chat = client->chats[chatid];
                         chat->id = chatid;
                         chat->priv = PRIV_MODERATOR;
-                        chat->url = url;
                         chat->shard = shard;
+                        delete chat->userpriv;  // discard any existing `userpriv`
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
+                        chat->ts = (ts != -1) ? ts : 0;
+
+                        chat->setTag(tag ? tag : -1);
+                        client->notifychat(chat);
 
                         client->app->chatcreate_result(chat, API_OK);
-
-                        delete chat;
                     }
                     else
                     {
@@ -4525,9 +4617,17 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv, const char* title)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char* title)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->uh = uh;
+    this->priv = priv;
+    this->title = title ? string(title) : "";
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
 
     cmd("mci");
 
@@ -4548,8 +4648,35 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const ch
 void CommandChatInvite::procresult()
 {
     if (client->json.isnumeric())
-    {
-        client->app->chatinvite_result((error)client->json.getint());
+    {        
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the invitation succeed for a non-existing chatroom
+                client->app->chatinvite_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            if (!chat->userpriv)
+            {
+                chat->userpriv = new userpriv_vector();
+            }
+
+            chat->userpriv->push_back(userpriv_pair(uh, priv));
+
+            if (!title.empty())  // only if title was set for this chatroom, update it
+            {
+                chat->title = title;
+            }
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatinvite_result(e);
     }
     else
     {
@@ -4558,16 +4685,22 @@ void CommandChatInvite::procresult()
     }
 }
 
-CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const char *uid)
+CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->uh = uh;
 
     cmd("mcr");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    if (uid)
+    if (uh != client->me)
     {
+        char uid[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+        uid[11] = 0;
+
         arg("u", uid);
     }
     arg("v", 1);
@@ -4580,7 +4713,54 @@ void CommandChatRemove::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatremove_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the invitation succeed for a non-existing chatroom
+                client->app->chatremove_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            if (chat->userpriv)
+            {
+                userpriv_vector::iterator upvit;
+                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
+                {
+                    if (upvit->first == uh)
+                    {
+                        chat->userpriv->erase(upvit);
+                        if (chat->userpriv->empty())
+                        {
+                            delete chat->userpriv;
+                            chat->userpriv = NULL;
+                        }
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (uh != client->me)
+                {
+                    // the removal succeed, but the list of peers is empty
+                    client->app->chatremove_result(API_EINTERNAL);
+                    return;
+                }
+            }
+
+            if (uh == client->me)
+            {
+                chat->priv = PRIV_RM;
+            }
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatremove_result(e);
     }
     else
     {
@@ -4678,9 +4858,16 @@ void CommandChatRemoveAccess::procresult()
     }
 }
 
-CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->uh = uh;
+    this->priv = priv;
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
 
     cmd("mcup");
     arg("v", 1);
@@ -4697,7 +4884,56 @@ void CommandChatUpdatePermissions::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatupdatepermissions_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the invitation succeed for a non-existing chatroom
+                client->app->chatupdatepermissions_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            if (uh != client->me)
+            {
+                if (!chat->userpriv)
+                {
+                    // the update succeed, but that peer is not included in the chatroom
+                    client->app->chatupdatepermissions_result(API_EINTERNAL);
+                    return;
+                }
+
+                bool found = false;
+                userpriv_vector::iterator upvit;
+                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
+                {
+                    if (upvit->first == uh)
+                    {
+                        chat->userpriv->erase(upvit);
+                        chat->userpriv->push_back(userpriv_pair(uh, priv));
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    // the update succeed, but that peer is not included in the chatroom
+                    client->app->chatupdatepermissions_result(API_EINTERNAL);
+                    return;
+                }
+            }
+            else
+            {
+                chat->priv = priv;
+            }
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatupdatepermissions_result(e);
     }
     else
     {
@@ -4710,6 +4946,7 @@ void CommandChatUpdatePermissions::procresult()
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
     this->client = client;
+    this->chatid = chatid;
 
     cmd("mct");
     arg("v", 1);
@@ -4725,7 +4962,22 @@ void CommandChatTruncate::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chattruncate_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the truncation succeed for a non-existing chatroom
+                client->app->chattruncate_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chattruncate_result(e);
     }
     else
     {
@@ -4737,6 +4989,8 @@ void CommandChatTruncate::procresult()
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->title = title ? string(title) : "";
 
     cmd("mcst");
     arg("v", 1);
@@ -4752,7 +5006,24 @@ void CommandChatSetTitle::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatsettitle_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the invitation succeed for a non-existing chatroom
+                client->app->chatsettitle_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->title = title;
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatsettitle_result(e);
     }
     else
     {

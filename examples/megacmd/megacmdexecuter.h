@@ -50,8 +50,8 @@ private:
     void updateprompt(mega::MegaApi *api, mega::MegaHandle handle);
 
 public:
-    bool signingup = false;
-    bool confirming = false;
+    bool signingup;
+    bool confirming;
 
     MegaCmdExecuter(mega::MegaApi *api, MegaCMDLogger *loggerCMD);
     ~MegaCmdExecuter();

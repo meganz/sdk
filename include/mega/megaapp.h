@@ -198,6 +198,9 @@ struct MEGA_API MegaApp
     // get version info
     virtual void getversion_result(int, const char*, error) {}
 
+    // get local SSL certificate
+    virtual void getlocalsslcertificate_result(m_time_t, string*, error){ }
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
@@ -212,7 +215,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
 
-    virtual void chats_updated(textchat_map *) { }
+    virtual void chats_updated(textchat_map *, int) { }
 #endif
 
     // global transfer queue updates
@@ -268,6 +271,8 @@ struct MEGA_API MegaApp
 
     // failed request retry notification
     virtual void notify_retry(dstime) { }
+
+    virtual void notify_dbcommit() { }
 
     virtual ~MegaApp() { }
 };

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-UV_VERSION="1.9.1"
+UV_VERSION="1.11.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################

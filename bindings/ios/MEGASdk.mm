@@ -219,6 +219,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -242,6 +243,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeRequestListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -265,6 +267,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeTransferListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 }
 
@@ -289,6 +292,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeGlobalListener(listenersToRemove[i]);
+        delete listenersToRemove[i];
     }
 
 }
@@ -718,8 +722,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->getUserAvatar((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-- (NSString *)avatarColorForUser:(MEGAUser *)user {
-    const char *val = self.megaApi->getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
++ (NSString *)avatarColorForUser:(MEGAUser *)user {
+    const char *val = MegaApi::getUserAvatarColor((user != nil) ? [user getCPtr] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
@@ -728,8 +732,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return ret;
 }
 
-- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
-    const char *val = self.megaApi->getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
++ (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
+    const char *val = MegaApi::getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
@@ -1107,6 +1111,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 - (MEGAShareList *)inSharesList {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
+}
+
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node {
+    return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
 - (BOOL)isSharedNode:(MEGANode *)node {

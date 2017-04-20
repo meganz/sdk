@@ -93,6 +93,9 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
 
 MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
 {
+    signingup = false;
+    confirming = false;
+
     this->api = api;
     this->loggerCMD = loggerCMD;
     cwd = UNDEF;

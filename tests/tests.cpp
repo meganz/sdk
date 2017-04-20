@@ -34,6 +34,7 @@ TEST(JSON, storeobject)
 {
     std::string in_str("Test");
     JSON j;
+    j.begin(in_str.data());
     j.storeobject(&in_str);
 }
 

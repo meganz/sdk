@@ -12,8 +12,6 @@
 		418412731BA1A06600D94E72 /* MEGAInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = 418412721BA1A06600D94E72 /* MEGAInputStream.mm */; };
 		41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A990721A5D305700B2094A /* mega_utf8proc.cpp */; };
 		41AB68F21A094194003FE608 /* GfxProcCG.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.mm */; };
-		41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */; };
-		41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FB1A09444E003FE608 /* ImageIO.framework */; };
 		41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */; };
 		41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */; };
 		41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */; };
@@ -82,6 +80,7 @@
 		940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */; };
 		940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MEGAUser.mm */; };
 		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
+		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -107,8 +106,6 @@
 		41AA739B1A56B246008601DD /* MEGAAccountDetails+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAAccountDetails+init.h"; sourceTree = "<group>"; };
 		41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGASdk+init.h"; sourceTree = "<group>"; };
 		41AB68F11A094194003FE608 /* GfxProcCG.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = GfxProcCG.mm; sourceTree = "<group>"; };
-		41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
-		41AB68FB1A09444E003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		41AD7A7B1A1E0F1B00D66856 /* MEGALoggerDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGALoggerDelegate.h; sourceTree = "<group>"; };
 		41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGALoggerListener.mm; sourceTree = "<group>"; };
 		41AD7A7D1A1E10F900D66856 /* DelegateMEGALoggerListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGALoggerListener.h; sourceTree = "<group>"; };
@@ -195,7 +192,6 @@
 		940BF03F19EDBCAD007E7FA2 /* backofftimer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = backofftimer.h; sourceTree = "<group>"; };
 		940BF04019EDBCAD007E7FA2 /* base64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = base64.h; sourceTree = "<group>"; };
 		940BF04119EDBCAD007E7FA2 /* command.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = command.h; sourceTree = "<group>"; };
-		940BF04219EDBCAD007E7FA2 /* config-android.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "config-android.h"; sourceTree = "<group>"; };
 		940BF04419EDBCAD007E7FA2 /* console.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = console.h; sourceTree = "<group>"; };
 		940BF04619EDBCAD007E7FA2 /* cryptopp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cryptopp.h; sourceTree = "<group>"; };
 		940BF04A19EDBCAD007E7FA2 /* sqlite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite.h; sourceTree = "<group>"; };
@@ -264,6 +260,8 @@
 		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
 		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
 		9472044319ED916F00F6805F /* libMEGASDK.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMEGASDK.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		A8FD7B611E93B3ED0031FC50 /* osxutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osxutils.h; path = osx/osxutils.h; sourceTree = "<group>"; };
+		A8FD7B631E93B40E0031FC50 /* osxutils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = osxutils.mm; path = ../../src/osx/osxutils.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -273,8 +271,6 @@
 			files = (
 				41E3FE961D6B10F2005ABE2B /* libsodium.a in Frameworks */,
 				414820921C523AA600552E76 /* libuv.a in Frameworks */,
-				41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */,
-				41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */,
 				940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */,
 				940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */,
 				940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */,
@@ -289,6 +285,7 @@
 		940BEF9719ED9259007E7FA2 /* sdk */ = {
 			isa = PBXGroup;
 			children = (
+				A8FD7B651E93B4100031FC50 /* osx */,
 				940BF03919EDBCAD007E7FA2 /* include */,
 				940BEFD619ED9351007E7FA2 /* crypto */,
 				940BEFD919ED9351007E7FA2 /* db */,
@@ -442,12 +439,12 @@
 		940BF03C19EDBCAD007E7FA2 /* mega */ = {
 			isa = PBXGroup;
 			children = (
+				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
 				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
 				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
 				940BF04019EDBCAD007E7FA2 /* base64.h */,
 				940BF04119EDBCAD007E7FA2 /* command.h */,
-				940BF04219EDBCAD007E7FA2 /* config-android.h */,
 				940BF04419EDBCAD007E7FA2 /* console.h */,
 				940BF04519EDBCAD007E7FA2 /* crypto */,
 				940BF04819EDBCAD007E7FA2 /* db */,
@@ -570,18 +567,10 @@
 		9472043A19ED916F00F6805F = {
 			isa = PBXGroup;
 			children = (
-				41AB68FB1A09444E003FE608 /* ImageIO.framework */,
-				41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */,
 				940BEFF919ED9723007E7FA2 /* bindings */,
 				940BEF9719ED9259007E7FA2 /* sdk */,
-				940BEF8D19ED9245007E7FA2 /* libcares.a */,
-				940BEF8E19ED9245007E7FA2 /* libcrypto.a */,
-				940BEF8F19ED9245007E7FA2 /* libcryptopp.a */,
-				940BEF9019ED9245007E7FA2 /* libcurl.a */,
-				940BEF9119ED9245007E7FA2 /* libssl.a */,
-				414820911C523AA600552E76 /* libuv.a */,
-				41E3FE951D6B10F2005ABE2B /* libsodium.a */,
 				9472044419ED916F00F6805F /* Products */,
+				A82751021E97A929007CD9E2 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -591,6 +580,36 @@
 				9472044319ED916F00F6805F /* libMEGASDK.a */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A82751021E97A929007CD9E2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				940BEF8D19ED9245007E7FA2 /* libcares.a */,
+				940BEF8E19ED9245007E7FA2 /* libcrypto.a */,
+				940BEF8F19ED9245007E7FA2 /* libcryptopp.a */,
+				940BEF9019ED9245007E7FA2 /* libcurl.a */,
+				940BEF9119ED9245007E7FA2 /* libssl.a */,
+				414820911C523AA600552E76 /* libuv.a */,
+				41E3FE951D6B10F2005ABE2B /* libsodium.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A8FD7B621E93B3FB0031FC50 /* osx */ = {
+			isa = PBXGroup;
+			children = (
+				A8FD7B611E93B3ED0031FC50 /* osxutils.h */,
+			);
+			name = osx;
+			sourceTree = "<group>";
+		};
+		A8FD7B651E93B4100031FC50 /* osx */ = {
+			isa = PBXGroup;
+			children = (
+				A8FD7B631E93B40E0031FC50 /* osxutils.mm */,
+			);
+			name = osx;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -653,6 +672,7 @@
 				940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */,
 				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
 				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
+				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
 				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,

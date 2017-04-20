@@ -347,6 +347,7 @@ class MEGA_API CommandPubKeyRequest : public Command
 
 public:
     void procresult();
+    void invalidateUser();
 
     CommandPubKeyRequest(MegaClient*, User*);
 };
@@ -721,10 +722,17 @@ public:
     CommandGetVersion(MegaClient*, const char*);
 };
 
+class MEGA_API CommandGetLocalSSLCertificate : public Command
+{
+public:
+    void procresult();
+
+    CommandGetLocalSSLCertificate(MegaClient*);
+};
+
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
-    MegaClient *client;
     userpriv_vector *chatPeers;
 
 public:
@@ -735,27 +743,30 @@ public:
 
 class MEGA_API CommandChatInvite : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+    privilege_t priv;
+    string title;
 
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, const char *, privilege_t, const char *);
+    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *);
 };
 
 class MEGA_API CommandChatRemove : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+
 public:
     void procresult();
 
-    CommandChatRemove(MegaClient*, handle, const char * = NULL);
+    CommandChatRemove(MegaClient*, handle, handle uh);
 };
 
 class MEGA_API CommandChatURL : public Command
 {
-    MegaClient *client;
-
 public:
     void procresult();
 
@@ -764,7 +775,6 @@ public:
 
 class MEGA_API CommandChatGrantAccess : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -774,7 +784,6 @@ public:
 
 class MEGA_API CommandChatRemoveAccess : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -784,17 +793,19 @@ public:
 
 class MEGA_API CommandChatUpdatePermissions : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+    privilege_t priv;
 
 public:
     void procresult();
 
-    CommandChatUpdatePermissions(MegaClient*, handle, const char *, privilege_t);
+    CommandChatUpdatePermissions(MegaClient*, handle, handle, privilege_t);
 };
 
 class MEGA_API CommandChatTruncate : public Command
 {
-    MegaClient *client;
+    handle chatid;
 
 public:
     void procresult();
@@ -804,7 +815,8 @@ public:
 
 class MEGA_API CommandChatSetTitle : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    string title;
 
 public:
     void procresult();
@@ -814,7 +826,6 @@ public:
 
 class MEGA_API CommandChatPresenceURL : public Command
 {
-    MegaClient *client;
 
 public:
     void procresult();
@@ -824,8 +835,6 @@ public:
 
 class MEGA_API CommandRegisterPushNotification : public Command
 {
-    MegaClient *client;
-
 public:
     void procresult();
 

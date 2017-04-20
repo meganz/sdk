@@ -183,6 +183,11 @@ public:
     // all users
     user_map users;
 
+#ifdef ENABLE_CHAT
+    // all chats
+    textchat_map chats;
+#endif
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -403,6 +408,9 @@ public:
     // get the last available version of the app
     void getlastversion(const char *appKey);
 
+    // get a local ssl certificate for communications with the webclient
+    void getlocalsslcertificate();
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
@@ -460,10 +468,10 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
 
     // remove a user from a chat
-    void removeFromChat(handle chatid, const char *uid = NULL);
+    void removeFromChat(handle chatid, handle uh);
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
@@ -478,7 +486,7 @@ public:
     void removeAccessInChat(handle chatid, handle h, const char *uid);
 
     // update permissions of a peer in a chat
-    void updateChatPermissions(handle chatid, const char *uid, int priv);
+    void updateChatPermissions(handle chatid, handle uh, int priv);
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
@@ -594,7 +602,9 @@ private:
     // next local user record identifier to use
     int userid;
 
+    // backoff for file attributes
     BackoffTimer btpfa;
+    bool faretrying;
 
     // next internal upload handle
     handle nextuh;
@@ -728,7 +738,7 @@ public:
     HttpReq* pendingcs;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
 
     // open/create state cache database table
     void opensctable();
@@ -1121,6 +1131,7 @@ public:
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);
+    void queuepubkeyreq(const char*, PubKeyAction*);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);

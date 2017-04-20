@@ -378,7 +378,6 @@ void Transfer::failed(error e, dstime timeleft)
         if ((*it)->failed(e))
         {
             defer = true;
-            break;
         }
     }
 
@@ -389,6 +388,12 @@ void Transfer::failed(error e, dstime timeleft)
         delete [] ultoken;
         ultoken = NULL;
         pos = 0;
+
+        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        {
+            LOG_warn << "Modification detected during active upload";
+            defer = false;
+        }
     }
 
     if (defer && !(e == API_EOVERQUOTA && !timeleft))
@@ -577,7 +582,7 @@ void Transfer::complete()
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(&localname))
+                    if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -659,7 +664,7 @@ void Transfer::complete()
                                 suffix = oss.str();
                                 newname = name + suffix + extension;
                                 client->fsaccess->path2local(&newname, &localnewname);
-                            } while (fa->fopen(&localnewname));
+                            } while (fa->fopen(&localnewname) || fa->type == FOLDERNODE);
 
 
                             (*it)->localname = localnewname;
@@ -795,19 +800,76 @@ void Transfer::complete()
     else
     {
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        delete slot->fa;
+        slot->fa = NULL;
 
         // files must not change during a PUT transfer
-        if (slot->fa->asyncavailable())
+        for (file_list::iterator it = files.begin(); it != files.end(); )
         {
-            delete slot->fa;
-            slot->fa = client->fsaccess->newfileaccess();
-            if (!slot->fa->fopen(&localfilename))
+            File *f = (*it);
+            bool isOpen = true;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            string *localpath = &f->localname;
+
+#ifdef ENABLE_SYNC
+            string synclocalpath;
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll)
             {
-                return failed(API_EREAD);
+                LOG_debug << "Verifying sync upload";
+                ll->getlocalpath(&synclocalpath, true);
+                localpath = &synclocalpath;
             }
+            else
+            {
+                LOG_debug << "Verifying regular upload";
+            }
+#endif
+
+            if (!fa->fopen(localpath))
+            {
+                isOpen = false;
+                if (client->fsaccess->transient_error)
+                {
+                    LOG_warn << "Retrying upload completion due to a transient error";
+                    slot->retrying = true;
+                    slot->retrybt.backoff(11);
+                    delete fa;
+                    return;
+                }
+            }
+
+            if (!isOpen || f->genfingerprint(fa))
+            {
+                if (!isOpen)
+                {
+                    LOG_warn << "Deletion detected after upload";
+                }
+                else
+                {
+                    LOG_warn << "Modification detected after upload";
+                }
+
+#ifdef ENABLE_SYNC
+                if (f->syncxfer)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->filecachedel(f);
+                files.erase(it++);
+                client->app->file_removed(f, API_EREAD);
+                f->transfer = NULL;
+                f->terminated();
+            }
+            else
+            {
+                it++;
+            }
+            delete fa;
         }
 
-        if (genfingerprint(slot->fa, true))
+        if (!files.size())
         {
             return failed(API_EREAD);
         }

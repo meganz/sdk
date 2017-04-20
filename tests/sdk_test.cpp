@@ -44,7 +44,7 @@ void SdkTest::SetUp()
         MegaApi::setLoggerObject(logger);
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[0] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -213,16 +213,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 }
                 privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {
@@ -253,16 +244,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                     }
                 }
                 privs = new MegaTextChatPeerListPrivate(privsbuf);
-
-                MegaTextChatPrivate *buf = new MegaTextChatPrivate(
-                            chatid, chat->getOwnPrivilege(),
-                            chat->getUrl(), chat->getShard(),
-                            privs, chat->isGroup(),
-                            chat->getOriginatingUser(),
-                            chat->getTitle() ? chat->getTitle() : "");
-
-                delete chats[chatid];
-                chats[chatid] = buf;
+                chat->setPeerList(privs);
             }
             else
             {
@@ -393,7 +375,15 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     {
         apiIndex = 0;
 
-        MegaTextChatList *list = chats->copy();
+        MegaTextChatList *list = NULL;
+        if (chats)
+        {
+            list = chats->copy();
+        }
+        else
+        {
+            list = megaApi[0]->getChatList();
+        }
         for (int i = 0; i < list->size(); i++)
         {
             handle chatid = list->get(i)->getHandle();
@@ -407,6 +397,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
                 this->chats[chatid] = list->get(i)->copy();
             }
         }
+        delete list;
     }
     else if (api == megaApi[1])
     {
@@ -591,7 +582,7 @@ void SdkTest::getMegaApiAux()
         ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[1] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -1022,6 +1013,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 
     delete session;
 }

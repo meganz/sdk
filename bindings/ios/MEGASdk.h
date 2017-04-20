@@ -1903,7 +1903,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-- (NSString *)avatarColorForUser:(MEGAUser *)user;
++ (NSString *)avatarColorForUser:(MEGAUser *)user;
 
 /**
  * @brief Get the default color for the avatar.
@@ -1915,7 +1915,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-- (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
++ (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.
@@ -3218,6 +3218,17 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return List of MegaShare objects that other users are sharing with this account
  */
 - (MEGAShareList *)inSharesList;
+
+/**
+ * @brief Get the user relative to an incoming share
+ *
+ * This function will return nil if the node is not found or doesn't represent
+ * the root of an incoming share.
+ *
+ * @param node Incoming share
+ * @return MEGAUser relative to the incoming share
+ */
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node;
 
 /**
  * @brief Check if a MEGANode is being shared.
