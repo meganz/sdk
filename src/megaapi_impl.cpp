@@ -10677,7 +10677,6 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
 	activeTransfer = transfer;
     notificationNumber++;
-
     transfer->setNotificationNumber(notificationNumber);
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)

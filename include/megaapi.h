@@ -7744,6 +7744,8 @@ class MegaApi
          * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
          * or just before a log in or a log out.
          *
+         * Only regular downloads are taken into account, not streaming nor folder transfers.
+         *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
@@ -7755,6 +7757,8 @@ class MegaApi
          *
          * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
          * or just before a log in or a log out.
+         *
+         * Only regular uploads are taken into account, not folder transfers.
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
@@ -7769,6 +7773,8 @@ class MegaApi
          * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
          * or just before a log in or a log out.
          *
+         * Only regular downloads are taken into account, not streaming nor folder transfers.
+         *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
@@ -7780,6 +7786,8 @@ class MegaApi
          *
          * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
          * or just before a log in or a log out.
+         *
+         * Only regular uploads are taken into account, not folder transfers.
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
