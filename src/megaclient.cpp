@@ -1937,7 +1937,9 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
-                                            if (sync->dirnotify->failed || fsaccess->notifyfailed || sync->dirnotify->error || fsaccess->notifyerr)
+                                            if (syncscanbt.armed()
+                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->error || fsaccess->notifyerr))
                                             {
                                                 LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
@@ -1949,7 +1951,7 @@ void MegaClient::exec()
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
 
-                                                syncscanbt.backoff(10 + totalnodes / 128);
+                                                syncscanbt.backoff(50 + totalnodes / 128);
                                             }
                                         }
                                     }
@@ -1961,12 +1963,6 @@ void MegaClient::exec()
                             if (fsaccess->notifyerr && it == syncs.end())
                             {
                                 fsaccess->notifyerr = false;
-                            }
-
-                            // limit rescan rate (interval depends on total tree size)
-                            if (syncscanfailed)
-                            {
-                                syncscanbt.backoff(10 + totalnodes / 128);
                             }
 
                             execsyncdeletions();  
@@ -3438,7 +3434,7 @@ void MegaClient::updatesc()
             for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
             {
                 char base64[12];
-                if ((*it)->show == INACTIVE)
+                if ((*it)->show == INACTIVE && (*it)->userhandle != me)
                 {
                     if ((*it)->dbid)
                     {
@@ -6728,7 +6724,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         u = &users[hit->second];
 
         um_map::iterator mit = umindex.find(nuid);
-        if (mit != umindex.end() && mit->second != hit->second && users[mit->second].show != INACTIVE)
+        if (mit != umindex.end() && mit->second != hit->second && (users[mit->second].show != INACTIVE || users[mit->second].userhandle == me))
         {
             // duplicated user: one by email, one by handle
             assert(!users[mit->second].sharing.size());

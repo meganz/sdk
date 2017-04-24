@@ -200,6 +200,11 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         }
         delete fa;
     }
+
+    if (q == DirNotify::DIREVENTS)
+    {
+        sync->client->syncactivity = true;
+    }
 #endif
 
     notifyq[q].resize(notifyq[q].size() + 1);

@@ -454,6 +454,7 @@ namespace mega
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         MShareList^ getInSharesList();
+        MUser^ getUserFromInShare(MNode^ node);
         bool isShared(MNode^ node);
         bool isOutShare(MNode^ node);
         bool isInShare(MNode^ node);
@@ -493,8 +494,12 @@ namespace mega
 
         bool isFilesystemAvailable();
         MNode^ getRootNode();
+        MNode^ getRootNode(MNode^ node);
         MNode^ getInboxNode();
         MNode^ getRubbishNode();
+        bool isInCloud(MNode^ node);
+        bool isInRubbish(MNode^ node);
+        bool isInInbox(MNode^ node);
 
         uint64 getBandwidthOverquotaDelay();
 
