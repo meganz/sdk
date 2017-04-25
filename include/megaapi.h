@@ -8737,6 +8737,14 @@ class MegaApi
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         /**
+         * @brief Set the language code used by the app
+         * @param Language code used by the app
+         *
+         * @return True if the language code is known for the SDK, otherwise false
+         */
+        bool setLanguage(const char* languageCode);
+
+        /**
          * @brief Keep retrying when public key pinning fails
          *
          * By default, when the check of the MEGA public key fails, it causes an automatic
