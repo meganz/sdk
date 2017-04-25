@@ -1602,6 +1602,7 @@ class MegaApiImpl : public MegaApp
         const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+        bool setLanguage(const char* languageCode);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();

@@ -2483,6 +2483,11 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
     pImpl->changeApiUrl(apiURL, disablepkp);
 }
 
+bool MegaApi::setLanguage(const char *languageCode)
+{
+    return pImpl->setLanguage(languageCode);
+}
+
 void MegaApi::retrySSLerrors(bool enable)
 {
     pImpl->retrySSLerrors(enable);

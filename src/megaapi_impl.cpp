@@ -7296,6 +7296,135 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
     sdkMutex.unlock();
 }
 
+bool MegaApiImpl::setLanguage(const char *languageCode)
+{
+    if (!languageCode)
+    {
+        return false;
+    }
+
+    int len = strlen(languageCode);
+    if (len < 2 || len > 7)
+    {
+        return false;
+    }
+
+    string s = languageCode;
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+
+    JSON json;
+    string code;
+    nameid id = json.getnameid(s.c_str());
+    switch (id)
+    {
+        // Regular language codes
+        case MAKENAMEID2('a', 'r'):
+        case MAKENAMEID2('b', 'g'):
+        case MAKENAMEID2('d', 'e'):
+        case MAKENAMEID2('e', 'n'):
+        case MAKENAMEID2('e', 's'):
+        case MAKENAMEID2('f', 'a'):
+        case MAKENAMEID2('f', 'i'):
+        case MAKENAMEID2('f', 'r'):
+        case MAKENAMEID2('h', 'e'):
+        case MAKENAMEID2('h', 'u'):
+        case MAKENAMEID2('i', 'd'):
+        case MAKENAMEID2('i', 't'):
+        case MAKENAMEID2('n', 'l'):
+        case MAKENAMEID2('p', 'l'):
+        case MAKENAMEID2('r', 'o'):
+        case MAKENAMEID2('r', 'u'):
+        case MAKENAMEID2('s', 'k'):
+        case MAKENAMEID2('s', 'l'):
+        case MAKENAMEID2('s', 'r'):
+        case MAKENAMEID2('t', 'h'):
+        case MAKENAMEID2('t', 'l'):
+        case MAKENAMEID2('t', 'r'):
+        case MAKENAMEID2('u', 'k'):
+        case MAKENAMEID2('v', 'i'):
+
+        // Not used on apps
+        case MAKENAMEID2('c', 'z'):
+        case MAKENAMEID2('j', 'p'):
+        case MAKENAMEID2('k', 'r'):
+        case MAKENAMEID2('b', 'r'):
+        case MAKENAMEID2('s', 'e'):
+        case MAKENAMEID2('c', 'n'):
+        case MAKENAMEID2('c', 't'):
+            code = s;
+            break;
+
+        // Conversions
+        case MAKENAMEID2('c', 's'):
+            code = "cz";
+            break;
+
+        case MAKENAMEID2('j', 'a'):
+            code = "jp";
+            break;
+
+        case MAKENAMEID2('k', 'o'):
+            code = "kr";
+            break;
+
+        case MAKENAMEID2('p', 't'):
+        case MAKENAMEID5('p', 't', '_', 'b', 'r'):
+        case MAKENAMEID5('p', 't', '-', 'b', 'r'):
+        case MAKENAMEID5('p', 't', '_', 'p', 't'):
+        case MAKENAMEID5('p', 't', '-', 'p', 't'):
+            code = "br";
+            break;
+
+        case MAKENAMEID2('s', 'v'):
+            code = "se";
+            break;
+
+        case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
+        case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
+        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
+            code = "cn";
+            break;
+
+        case MAKENAMEID5('z', 'h', '_', 't', 'w'):
+        case MAKENAMEID5('z', 'h', '-', 't', 'w'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
+        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
+            code = "ct";
+            break;
+
+        case MAKENAMEID2('i', 'n'):
+            code = "id";
+            break;
+
+        case MAKENAMEID2('i', 'w'):
+            code = "he";
+            break;
+
+        // Not supported in the web
+        case MAKENAMEID2('e', 'e'):
+        case MAKENAMEID2('h', 'r'):
+        case MAKENAMEID2('k', 'a'):
+            break;
+
+        default:
+            LOG_warn << "Unknown language code: " << languageCode;
+            return false;
+    }
+
+    if (!code.size())
+    {
+        LOG_debug << "Unsupported language code: " << languageCode;
+        return true;
+    }
+
+    bool val;
+    sdkMutex.lock();
+    val = client->setlang(&code);
+    sdkMutex.unlock();
+    return val;
+}
+
 void MegaApiImpl::retrySSLerrors(bool enable)
 {
     sdkMutex.lock();
