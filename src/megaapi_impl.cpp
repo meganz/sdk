@@ -7363,7 +7363,9 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
 
         case MAKENAMEID2('p', 't'):
         case MAKENAMEID5('p', 't', '_', 'b', 'r'):
+        case MAKENAMEID5('p', 't', '-', 'b', 'r'):
         case MAKENAMEID5('p', 't', '_', 'p', 't'):
+        case MAKENAMEID5('p', 't', '-', 'p', 't'):
             code = "br";
             break;
 
@@ -7372,11 +7374,15 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
             break;
 
         case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
+        case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
         case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
             code = "cn";
             break;
 
         case MAKENAMEID5('z', 'h', '_', 't', 'w'):
+        case MAKENAMEID5('z', 'h', '-', 't', 'w'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
         case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
             code = "ct";
             break;
@@ -7402,7 +7408,7 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
 
     if (!code.size())
     {
-        LOG_warn << "Unsupported language code: " << languageCode;
+        LOG_debug << "Unsupported language code: " << languageCode;
         return true;
     }
 
