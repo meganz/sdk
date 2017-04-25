@@ -2786,6 +2786,16 @@ long long MegaApi::getTotalUploadedBytes()
     return pImpl->getTotalUploadedBytes();
 }
 
+long long MegaApi::getTotalDownloadBytes()
+{
+    return pImpl->getTotalDownloadBytes();
+}
+
+long long MegaApi::getTotalUploadBytes()
+{
+    return pImpl->getTotalUploadBytes();
+}
+
 void MegaApi::update()
 {
    pImpl->update();

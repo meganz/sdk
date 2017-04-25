@@ -3574,6 +3574,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waitingRequest = false;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
+    totalDownloadBytes = 0;
+    totalUploadBytes = 0;
     notificationNumber = 0;
     activeRequest = NULL;
     activeTransfer = NULL;
@@ -6116,11 +6118,15 @@ int MegaApiImpl::getTotalDownloads()
 void MegaApiImpl::resetTotalDownloads()
 {
     totalDownloads = 0;
+    totalDownloadBytes = 0;
+    totalDownloadedBytes = 0;
 }
 
 void MegaApiImpl::resetTotalUploads()
 {
     totalUploads = 0;
+    totalUploadBytes = 0;
+    totalUploadedBytes = 0;
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -7823,11 +7829,15 @@ void MegaApiImpl::file_added(File *f)
     {
         totalDownloads++;
         pendingDownloads++;
+        totalDownloadBytes += t->size;
+        totalDownloadedBytes += t->progresscompleted;
     }
     else
     {
         totalUploads++;
         pendingUploads++;
+        totalUploadBytes += t->size;
+        totalUploadedBytes += t->progresscompleted;
     }
 
     fireOnTransferStart(transfer);
@@ -9225,8 +9235,6 @@ void MegaApiImpl::fa_complete(Node*, fatype, const char* data, uint32_t len)
         string localPath;
         fsAccess->path2local(&filePath, &localPath);
 
-        totalDownloadedBytes += len;
-
         fsAccess->unlinklocal(&localPath);
         if(!f->fopen(&localPath, false, true))
         {
@@ -9616,6 +9624,8 @@ void MegaApiImpl::logout_result(error e)
                 fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
             }
         }
+        resetTotalDownloads();
+        resetTotalUploads();
 
         pendingUploads = 0;
         pendingDownloads = 0;
@@ -10002,8 +10012,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 string filePath(request->getFile());
                 string localPath;
                 fsAccess->path2local(&filePath, &localPath);
-
-                totalDownloadedBytes += len;
 
                 fsAccess->unlinklocal(&localPath);
                 if(!f->fopen(&localPath, false, true))
@@ -10906,6 +10914,15 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
         transfer->setDeltaSize(deltaSize);
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
+
+        if (tr->type == GET)
+        {
+            totalDownloadedBytes += deltaSize;
+        }
+        else
+        {
+            totalUploadedBytes += deltaSize;
+        }
     }
     else
     {
@@ -10934,6 +10951,8 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 
     if (tr->type == GET)
     {
+        totalDownloadedBytes += deltaSize;
+
         if (pendingDownloads > 0)
         {
             pendingDownloads--;
@@ -10944,6 +10963,8 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     }
     else
     {
+        totalUploadedBytes += deltaSize;
+
         transfer->setState(MegaTransfer::STATE_COMPLETING);
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
@@ -10966,8 +10987,11 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
 
 void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e)
 {
+    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
     if (tr->type == GET)
     {
+        totalDownloadedBytes += deltaSize;
+
         if (pendingDownloads > 0)
         {
             pendingDownloads--;
@@ -10980,6 +11004,8 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     }
     else
     {
+        totalUploadedBytes += deltaSize;
+
         if (pendingUploads > 0)
         {
             pendingUploads--;
@@ -12312,6 +12338,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
             if(sessionKey)
@@ -13271,6 +13300,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
 			client->createephemeral();
@@ -14356,6 +14388,16 @@ long long MegaApiImpl::getTotalDownloadedBytes()
 long long MegaApiImpl::getTotalUploadedBytes()
 {
     return totalUploadedBytes;
+}
+
+long long MegaApiImpl::getTotalDownloadBytes()
+{
+    return totalDownloadBytes;
+}
+
+long long MegaApiImpl::getTotalUploadBytes()
+{
+    return totalUploadBytes;
 }
 
 void MegaApiImpl::update()

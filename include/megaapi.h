@@ -7736,9 +7736,15 @@ class MegaApi
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         void resetTotalUploads();
+
         /**
-         * @brief Get the total downloaded bytes since the creation of the MegaApi object
-         * @return Total downloaded bytes since the creation of the MegaApi object
+         * @brief Get the total downloaded bytes
+         * @return Total downloaded bytes
+         *
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+         * or just before a log in or a log out.
+         *
+         * Only regular downloads are taken into account, not streaming nor folder transfers.
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
@@ -7746,14 +7752,48 @@ class MegaApi
         long long getTotalDownloadedBytes();
 
         /**
-         * @brief Get the total uploaded bytes since the creation of the MegaApi object
-         * @return Total uploaded bytes since the creation of the MegaApi object
+         * @brief Get the total uploaded bytes
+         * @return Total uploaded bytes
+         *
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+         * or just before a log in or a log out.
+         *
+         * Only regular uploads are taken into account, not folder transfers.
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          *
          */
         long long getTotalUploadedBytes();
+
+        /**
+         * @brief Get the total bytes of started downloads
+         * @return Total bytes of started downloads
+         *
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+         * or just before a log in or a log out.
+         *
+         * Only regular downloads are taken into account, not streaming nor folder transfers.
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
+        long long getTotalDownloadBytes();
+
+        /**
+         * @brief Get the total bytes of started uploads
+         * @return Total bytes of started uploads
+         *
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+         * or just before a log in or a log out.
+         *
+         * Only regular uploads are taken into account, not folder transfers.
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
+         */
+        long long getTotalUploadBytes();
 
         /**
          * @brief Update the number of pending downloads/uploads
