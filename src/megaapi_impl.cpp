@@ -9089,6 +9089,10 @@ void MegaApiImpl::rename_result(handle h, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
 
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
+
     request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
 }
@@ -9103,6 +9107,10 @@ void MegaApiImpl::unlink_result(handle h, error e)
     {
         return;
     }
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
@@ -9206,6 +9214,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
                     (request->getType() != MegaRequest::TYPE_MOVE))) return;
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     delete [] nn;
 
