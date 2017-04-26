@@ -3538,6 +3538,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 
 /**
+ * @brief Set the language code used by the app
+ * @param languageCode Language code used by the app
+ *
+ * @return YES if the language code is known for the SDK, otherwise NO
+ */
+- (BOOL)setLaguangeCode:(NSString)languageCode;
+
+/**
  * @brief Create a thumbnail for an image
  * @param imagePath Image path
  * @param destinationPath Destination path for the thumbnail (including the file name)
