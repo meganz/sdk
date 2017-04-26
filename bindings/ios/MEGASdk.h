@@ -387,7 +387,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 /**
  * @brief Converts the handle of a user to a Base64-encoded string
  *
- * @param User handle to be converted
+ * @param userhandle User handle to be converted
  * @return Base64-encoded user handle
  */
 + (NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
@@ -469,7 +469,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param email Email of the user.
  * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
- * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
+ * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
  * @param delegate Delegate to track this request.
  */
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate;
@@ -488,7 +488,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param email Email of the user.
  * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
- * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
+ * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
  */
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
 
@@ -1757,8 +1757,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
  * will be used as the file name inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
- *
- * @param delegate Delegate to track this request.
  */
 - (void)getPreviewNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
 
@@ -1786,7 +1784,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest paramType] - Returns MEGAAttributeTypePreview
  *
  * @param node Node to cancel the retrieval of the preview.
- * @param delegate Delegate to track this request.
  *
  * @see [MEGASdk getPreviewNode:destinationFilePath:].
  */
@@ -2357,7 +2354,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * is sent to MEGA servers.
  *
  */
-- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment delegate:(id<MEGARequestDelegate>)delegate;
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function is for internal usage of MEGA apps.")));
 
 /**
  * @brief Submit feedback about the app.
@@ -2377,7 +2374,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * is sent to MEGA servers.
  *
  */
-- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment;
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment __attribute__((deprecated("This function is for internal usage of MEGA apps.")));
 
 /**
  * @brief Send a debug report.
@@ -2395,7 +2392,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @deprecated This function is for internal usage of MEGA apps. This feedback
  * is sent to MEGA servers.
  */
-- (void)reportDebugEventWithText:(NSString *)text delegate:(id<MEGARequestDelegate>)delegate;
+- (void)reportDebugEventWithText:(NSString *)text delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function is for internal usage of MEGA apps.")));
 
 /**
  * @brief Send a debug report.
@@ -2413,7 +2410,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * is sent to MEGA servers.
  */
 
-- (void)reportDebugEventWithText:(NSString *)text;
+- (void)reportDebugEventWithText:(NSString *)text __attribute__((deprecated("This function is for internal usage of MEGA apps.")));
 
 /**
  * @brief Get data about the logged account
@@ -2578,7 +2575,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @brief Upload a file with a custom name.
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
- * @param fileName Custom file name for the file in MEGA.
+ * @param filename Custom file name for the file in MEGA.
  * @param delegate Delegate to track this transfer.
  */
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename delegate:(id<MEGATransferDelegate>)delegate;
@@ -2587,7 +2584,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @brief Upload a file with a custom name.
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
- * @param fileName Custom file name for the file in MEGA.
+ * @param filename Custom file name for the file in MEGA.
  */
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename;
 
@@ -2657,8 +2654,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
  * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
- *
- * @param delegate Delegate to track this transfer.
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
 
@@ -2766,7 +2761,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the first parameter
  *
- * @param type Type of transfers to cancel.
+ * @param direction Type of transfers to cancel.
  * Valid values are:
  * - MEGATransferTypeDownload = 0
  * - MEGATransferTypeUpload = 1
@@ -2782,7 +2777,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the first parameter
  *
- * @param type Type of transfers to cancel.
+ * @param direction Type of transfers to cancel.
  * Valid values are:
  * - MEGATransferTypeDownload = 0
  * - MEGATransferTypeUpload = 1
@@ -2847,7 +2842,6 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest flag] - Returns the first parameter
  *
  * @param pause YES to pause all transfers / NO to resume all transfers.
- * @param delegate Delegate to track this request.
  */
 - (void)pauseTransfers:(BOOL)pause;
 
@@ -2988,7 +2982,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
  * applied for already started uploads and it's applied per storage server.
  *
- * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
+ * @param bpsLimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
  * in bytes per second.
  */
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
@@ -3378,7 +3372,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 /**
  * @brief Get the CRC from a fingerPrint
  *
- * @param fingerPrint fingerPrint from which we want to get the CRC
+ * @param fingerprint fingerPrint from which we want to get the CRC
  * @return Base64-encoded CRC from the fingerPrint
  */
 - (NSString *)CRCForFingerprint:(NSString *)fingerprint;
@@ -3517,7 +3511,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * You take the ownership of the returned value
  *
- * @param filename Name to convert (UTF8)
+ * @param name Name to convert (UTF8)
  * @return Converted name (UTF8)
  */
 - (NSString *)escapeFsIncompatible:(NSString *)name;
@@ -3527,7 +3521,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
  *
- * @param name Escaped name to convert (UTF8)
+ * @param localName Escaped name to convert (UTF8)
  * @return Converted name (UTF8)
  */
 - (NSString *)unescapeFsIncompatible:(NSString *)localName;
