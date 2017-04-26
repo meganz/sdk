@@ -1315,7 +1315,7 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
 }
 
-- (BOOL)setLaguangeCode:(NSString)languageCode {
+- (BOOL)setLaguangeCode:(NSString *)languageCode {
     return self.megaApi->setLanguage(languageCode ? [languageCode UTF8String] : NULL);
 }
 

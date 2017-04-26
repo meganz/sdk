@@ -3543,7 +3543,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @return YES if the language code is known for the SDK, otherwise NO
  */
-- (BOOL)setLaguangeCode:(NSString)languageCode;
+- (BOOL)setLaguangeCode:(NSString *)languageCode;
 
 /**
  * @brief Create a thumbnail for an image
