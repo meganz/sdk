@@ -511,6 +511,9 @@ namespace mega
 
         MNode^ authorizeNode(MNode^ node);
         
+        void changeApiUrl(String^ apiURL, bool disablepkp);
+        void changeApiUrl(String^ apiURL);
+
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);
 

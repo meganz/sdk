@@ -3229,6 +3229,24 @@ MNode^ MegaSDK::authorizeNode(MNode^ node)
     return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);
 }
 
+void MegaSDK::changeApiUrl(String^ apiURL, bool disablepkp)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, disablepkp);
+}
+
+void MegaSDK::changeApiUrl(String^ apiURL)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, false);
+}
+
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
 {
     std::string utf8imagePath;
