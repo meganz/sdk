@@ -513,6 +513,7 @@ namespace mega
         
         void changeApiUrl(String^ apiURL, bool disablepkp);
         void changeApiUrl(String^ apiURL);
+        bool setLanguage(String^ languageCode);
 
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);

@@ -3247,6 +3247,15 @@ void MegaSDK::changeApiUrl(String^ apiURL)
     megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, false);
 }
 
+bool MegaSDK::setLanguage(String^ languageCode)
+{
+    std::string utf8languageCode;
+    if (languageCode != nullptr)
+        MegaApi::utf16ToUtf8(languageCode->Data(), languageCode->Length(), &utf8languageCode);
+
+    return megaApi->setLanguage((languageCode != nullptr) ? utf8languageCode.c_str() : NULL);
+}
+
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
 {
     std::string utf8imagePath;
