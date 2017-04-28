@@ -32,6 +32,17 @@ using namespace mega;
 
 @implementation MEGANodeList
 
+- (instancetype)init {
+    self = [super init];
+    
+    if (self != nil) {
+        _nodeList = self.nodeList->createInstance();
+        _cMemoryOwn = YES;
+    }
+    
+    return self;
+}
+
 - (instancetype)initWithNodeList:(MegaNodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
@@ -55,6 +66,12 @@ using namespace mega;
 
 - (MegaNodeList *)getCPtr {
     return self.nodeList;
+}
+
+- (void)addNode:(MEGANode *)node {
+    if (node == nil) return;
+    
+    self.nodeList->addNode([node getCPtr]);
 }
 
 - (MEGANode *)nodeAtIndex:(NSInteger)index {
