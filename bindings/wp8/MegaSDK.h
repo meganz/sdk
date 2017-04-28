@@ -421,6 +421,7 @@ namespace mega
         MTransferList^ getChildTransfers(int transferTag);
         
         bool isWaiting();
+        bool areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -430,8 +431,11 @@ namespace mega
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        uint64 getNumNodes();
         uint64 getTotalDownloadedBytes();
         uint64 getTotalUploadedBytes();
+        uint64 getTotalDownloadBytes();
+        uint64 getTotalUploadBytes();
         
         //Filesystem
         int getNumChildren(MNode^ parent);
@@ -439,6 +443,7 @@ namespace mega
         int getNumChildFolders(MNode^ parent);
         MNodeList^ getChildren(MNode^ parent, int order);
         MNodeList^ getChildren(MNode^ parent);
+        bool hasChildren(MNode^ parent);
         int getIndex(MNode^ node, int order);
         int getIndex(MNode^ node);
         MNode^ getChildNode(MNode^ parent, String^ name);

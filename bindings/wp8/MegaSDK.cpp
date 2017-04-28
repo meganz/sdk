@@ -2687,6 +2687,11 @@ bool MegaSDK::isWaiting()
     return megaApi->isWaiting();
 }
 
+bool MegaSDK::areServersBusy()
+{
+    return megaApi->areServersBusy();
+}
+
 int MegaSDK::getNumPendingUploads()
 {
 	return megaApi->getNumPendingUploads();
@@ -2722,6 +2727,11 @@ void MegaSDK::updateStats()
     megaApi->updateStats();
 }
 
+uint64 MegaSDK::getNumNodes()
+{
+    return megaApi->getNumNodes();
+}
+
 uint64 MegaSDK::getTotalDownloadedBytes()
 {
     return megaApi->getTotalDownloadedBytes();
@@ -2730,6 +2740,16 @@ uint64 MegaSDK::getTotalDownloadedBytes()
 uint64 MegaSDK::getTotalUploadedBytes()
 {
     return megaApi->getTotalUploadedBytes();
+}
+
+uint64 MegaSDK::getTotalDownloadBytes()
+{
+    return megaApi->getTotalDownloadBytes();
+}
+
+uint64 MegaSDK::getTotalUploadBytes()
+{
+    return megaApi->getTotalUploadBytes();
 }
 
 int MegaSDK::getNumChildren(MNode^ parent)
@@ -2755,6 +2775,11 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent, int order)
 MNodeList^ MegaSDK::getChildren(MNode^ parent)
 {
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
+bool MegaSDK::hasChildren(MNode^ parent)
+{
+    return megaApi->hasChildren((parent != nullptr) ? parent->getCPtr() : NULL);
 }
 
 int MegaSDK::getIndex(MNode^ node, int order)
