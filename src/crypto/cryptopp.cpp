@@ -458,6 +458,9 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
 
 void AsymmCipher::resetkey()
 {
+    if (!isvalid(PRIVKEY))
+        return;
+
     for (int i = 0; i < PRIVKEY; i++)
     {
         key[i] = Integer::Zero();
