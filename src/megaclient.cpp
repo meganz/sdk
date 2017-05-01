@@ -2602,7 +2602,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
-                              << " Partial: " << p;
+                              << " Partial: " << p << " Size: " << nexttransfer->size
+                              << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
                 else
                 {
@@ -10603,6 +10604,15 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
                     t->cachedtempurl.clear();
+
+                    if (d == PUT)
+                    {
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        delete [] t->ultoken;
+                        t->ultoken = NULL;
+                        t->pos = 0;
+                    }
                 }
 
                 FileAccess* fa = fsaccess->newfileaccess();
