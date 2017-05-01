@@ -130,10 +130,14 @@ int PosixWaiter::wait()
 
     // empty pipe
     uint8_t buf;
-    while (read(m_pipe[0], &buf, sizeof buf) > 0);
+    bool external = false;
+    while (read(m_pipe[0], &buf, sizeof buf) > 0)
+    {
+        external = true;
+    }
 
     // timeout or error
-    if (numfd <= 0)
+    if (external || numfd <= 0)
     {
         return NEEDEXEC;
     }
