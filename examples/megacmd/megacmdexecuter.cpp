@@ -5557,16 +5557,24 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             if (transferlist->size())
             {
-                OUTSTREAM << " TAG  "<<getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE-2) << "DIR/SYNC     %" << endl;
+                OUTSTREAM << "   TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE-2)
+                          << "DIR/SYNC     PROGRESS" << endl;
             }
+
+            int shown = 0;
             for (int i = 0; i < transferlist->size(); i++)
             {
                 MegaTransfer *transfer = transferlist->get(i);
-                if (getFlag(clflags, "c") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                if (
+                        (getFlag(clflags, "c") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                        &&  !(getFlag(clflags, "u") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "d") )
+                        &&  !(getFlag(clflags, "d") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "u") )
+                        &&  !(!getFlag(clflags, "s") && transfer->isSyncTransfer())
+                        &&  (shown < getintOption(cloptions, "limit",transferlist->size()))
+                    )
                 {
-                    OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),4) << " ";
-
-
+                    shown++;
+                    OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),7) << " ";
 
                     if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
                     {
