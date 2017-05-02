@@ -401,10 +401,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     }
     else if ("transfers" == thecommand)
     {
-        validParams->insert("c");
-        validParams->insert("u");
-        validParams->insert("d");
-        validParams->insert("s");
+        validParams->insert("show-completed");
+        validParams->insert("only-uploads");
+        validParams->insert("only-dowloads");
+        validParams->insert("show-syncs");
         validOptValues->insert("limit");
     }
 }
@@ -1684,13 +1684,12 @@ string getHelpStr(const char *command)
     {
         os << "Lists all transfers" << endl;
         os << "Options:" << endl;
-        os << " -c" << "\t" << "Show completed transfers" << endl;
-        os << " -u" << "\t" << "Show only upload transfers" << endl;
-        os << " -d" << "\t" << "Show only upload transfers" << endl;
-        os << " -s" << "\t" << "Show synchronization transfers" << endl;
-        os << " --limit=LIMIT" << "\t" << "Show only first LIMIT transfers" << endl;
+        os << " -show-completed" << "\t" << "Show completed transfers" << endl;
+        os << " -only-uploads" << "\t" << "Show only upload transfers" << endl;
+        os << " -only-dowloads" << "\t" << "Show only download transfers" << endl;
+        os << " -show-syncs" << "\t" << "Show synchronization transfers" << endl;
+        os << " --limit=N" << "\t" << "Show only first N transfers" << endl;
     }
-
     return os.str();
 }
 

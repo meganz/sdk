@@ -5540,8 +5540,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "transfers")
     {
-        MegaTransferList *transferlist = api->getTransfers();
-        if (transferlist)
+//        MegaTransferList *transferlist = api->getTransfers();
+        MegaTransferData*transferdata = api->getTransferData();
+
+        if (transferdata)
         {
             u_int width = 75;
             int rows = 1, cols = width;
@@ -5554,100 +5556,163 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             const uint PATHSIZE = min(60,int((width-32)/2));//TODO: calculate depending on console (with a maximum)
 
+            int limit = getintOption(cloptions, "limit",transferdata->getNumDownloads()+transferdata->getNumUploads());
 
-            if (transferlist->size())
-            {
-                OUTSTREAM << "   TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE-2)
-                          << "DIR/SYNC     PROGRESS" << endl;
-            }
-
+            uint indexUpload = 0;
+            uint indexDownload = 0;
             int shown = 0;
-            for (int i = 0; i < transferlist->size(); i++)
+
+            int showndl = 0;
+            int shownup = 0;
+            MegaTransfer * transfersDLToShow[limit];
+            MegaTransfer * transfersUPToShow[limit];
+
+            while (true)
             {
-                MegaTransfer *transfer = transferlist->get(i);
+                //MegaTransfer *transfer = transferdata->get(i);
+                MegaTransfer *transfer = NULL;
+                //Next transfer to show
+                if (getFlag(clflags, "only-uploads") && !getFlag(clflags, "only-dowloads") && indexUpload < transferdata->getNumUploads()) //Only uploads
+                {
+                    transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
+                }
+                else
+                {
+                    if ( (!getFlag(clflags, "only-dowloads") || (getFlag(clflags, "only-dowloads") && getFlag(clflags, "only-uploads"))) //both
+                         && ( (shown >= (limit/2) ) || indexDownload == transferdata->getNumDownloads() ) // /already chosen half slots for dls or no more dls
+                         && indexUpload < transferdata->getNumUploads()
+                         )
+                        //This is not 100 % perfect, it could show with a limit of 10 5 downloads and 3 uploads with more downloads on the queue.
+                    {
+                        transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
+
+                    }
+                    else if(indexDownload < transferdata->getNumDownloads())
+                    {
+                        transfer =  api->getTransferByTag(transferdata->getDownloadTag(indexDownload++));
+                    }
+                }
+
+                if (!transfer) break; //finish
+
                 if (
-                        (getFlag(clflags, "c") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
-                        &&  !(getFlag(clflags, "u") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "d") )
-                        &&  !(getFlag(clflags, "d") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "u") )
-                        &&  !(!getFlag(clflags, "s") && transfer->isSyncTransfer())
-                        &&  (shown < getintOption(cloptions, "limit",transferlist->size()))
-                    )
+                        (getFlag(clflags, "show-completed") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                        &&  !(getFlag(clflags, "only-uploads") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "only-dowloads") )
+                        &&  !(getFlag(clflags, "only-dowloads") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "only-uploads") )
+                        &&  !(!getFlag(clflags, "show-syncs") && transfer->isSyncTransfer())
+                        &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
+                        )
                 {
                     shown++;
-                    OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),7) << " ";
-
                     if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
                     {
-                        // source
-                        MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
-                        if (node)
-                        {
-                            char * nodepath = api->getNodePath(node);
-                            OUTSTREAM << getFixLengthString(nodepath,PATHSIZE);
-                            delete []nodepath;
-
-                            delete node;
-                        }
-
-                        OUTSTREAM << " ";
-
-                        //destination
-                        string dest = transfer->getParentPath();
-                        dest.append(transfer->getFileName());
-                        OUTSTREAM << getFixLengthString(dest,PATHSIZE);
+                        transfersDLToShow[showndl++] = transfer;
                     }
                     else
                     {
-                        //source
-                        string source = transfer->getParentPath();
-                        source.append(transfer->getFileName());
-                        OUTSTREAM << getFixLengthString(source,PATHSIZE);
-
-                        OUTSTREAM << " ";
-
-                        //destination
-                        MegaNode * parentNode = api->getNodeByHandle(transfer->getParentHandle());
-                        if (parentNode)
-                        {
-                            char * parentnodepath = api->getNodePath(parentNode);
-                            OUTSTREAM << getFixLengthString(parentnodepath ,PATHSIZE);
-                            delete []parentnodepath;
-
-                            delete parentNode;
-                        }
-                        else
-                        {
-                            OUTSTREAM << getFixLengthString("",PATHSIZE,'-');
-                            LOG_warn << "Could not find destination (parent handle "<< ((transfer->getParentHandle()==INVALID_HANDLE)?" invalid":" valid")
-                                     <<" ) for upload transfer. Source=" << transfer->getParentPath() << transfer->getFileName();
-                        }
+                        transfersUPToShow[shownup++] = transfer;
                     }
-
-
-                    //Direction
-                    OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
-                    //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
-
-                    //type (transfer/normal)
-                    if (transfer->isSyncTransfer())
-                    {
-                        OUTSTREAM << "\u21f5";
-                    }
-                    else
-                    {
-                        OUTSTREAM << " " ;
-                    }
-
-                    //TODO: sync transfer have totalBytes == 0
-                    OUTSTREAM << "  " << percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()) << " of " << sizeToText(transfer->getTotalBytes());
-
-
-                    OUTSTREAM << endl;
                 }
-                delete n;
+                if (shown>limit || transfer == NULL) //we-re done
+                {
+                    break;
+                }
             }
-            delete ( transferlist );
+
+            delete transferdata;
+
+            for (int i=0;i<showndl+shownup; i++)
+            {
+                MegaTransfer *transfer = (i>=showndl)?transfersUPToShow[i-showndl]:transfersDLToShow[i];
+
+                if (i == 0) //first
+                {
+                    OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
+                              << "  PROGRESS" << endl;
+                }
+                if (i==limit)
+                {
+                    OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
+                    delete transfer;
+                    break;
+                }
+
+
+                //Direction
+                OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
+                //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
+
+                //type (transfer/normal)
+                if (transfer->isSyncTransfer())
+                {
+                    OUTSTREAM << "\u21f5";
+                }
+                else
+                {
+                    OUTSTREAM << " " ;
+                }
+
+                OUTSTREAM << " " ;
+
+                //tag
+                OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),7) << " ";
+
+                if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
+                {
+                    // source
+                    MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
+                    if (node)
+                    {
+                        char * nodepath = api->getNodePath(node);
+                        OUTSTREAM << getFixLengthString(nodepath,PATHSIZE);
+                        delete []nodepath;
+
+                        delete node;
+                    }
+
+                    OUTSTREAM << " ";
+
+                    //destination
+                    string dest = transfer->getParentPath();
+                    dest.append(transfer->getFileName());
+                    OUTSTREAM << getFixLengthString(dest,PATHSIZE);
+                }
+                else
+                {
+                    //source
+                    string source = transfer->getParentPath();
+                    source.append(transfer->getFileName());
+                    OUTSTREAM << getFixLengthString(source,PATHSIZE);
+
+                    OUTSTREAM << " ";
+
+                    //destination
+                    MegaNode * parentNode = api->getNodeByHandle(transfer->getParentHandle());
+                    if (parentNode)
+                    {
+                        char * parentnodepath = api->getNodePath(parentNode);
+                        OUTSTREAM << getFixLengthString(parentnodepath ,PATHSIZE);
+                        delete []parentnodepath;
+
+                        delete parentNode;
+                    }
+                    else
+                    {
+                        OUTSTREAM << getFixLengthString("",PATHSIZE,'-');
+                        LOG_warn << "Could not find destination (parent handle "<< ((transfer->getParentHandle()==INVALID_HANDLE)?" invalid":" valid")
+                                 <<" ) for upload transfer. Source=" << transfer->getParentPath() << transfer->getFileName();
+                    }
+                }
+
+                //TODO: sync transfer have totalBytes == 0
+                OUTSTREAM << "  " << percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()) << " of " << sizeToText(transfer->getTotalBytes());
+
+                OUTSTREAM << endl;
+                delete transfer;
+            }
+            delete n;
         }
+
     }
     else if (words[0] == "locallogout")
     {
