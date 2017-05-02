@@ -286,6 +286,8 @@ namespace mega
         void fetchNodes();
         void getAccountDetails(MRequestListenerInterface^ listener);
         void getAccountDetails();
+        void queryBandwidthQuota(int64 size, MRequestListenerInterface^ listener);
+        void queryBandwidthQuota(int64 size);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
