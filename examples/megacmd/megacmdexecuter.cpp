@@ -33,10 +33,18 @@
 #include <string>
 
 #include <signal.h>
+
+#define USE_VARARGS
+#define PREFER_STDARG
+#include <readline/readline.h>
+
 using namespace mega;
 
 static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
 static const char* rootnodepaths[] = { "/", "//in", "//bin" };
+
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
 
 /**
  * @brief updateprompt updates prompt with the current user/location
@@ -5529,6 +5537,109 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         delete megaCmdListener;
         return;
+    }
+    else if (words[0] == "transfers")
+    {
+        MegaTransferList *transferlist = api->getTransfers();
+        if (transferlist)
+        {
+            u_int width = 75;
+            int rows = 1, cols = width;
+            rl_get_screen_size(&rows, &cols);
+
+            if (cols)
+            {
+                width = cols-2;
+            }
+
+            const uint PATHSIZE = min(60,int((width-32)/2));//TODO: calculate depending on console (with a maximum)
+
+
+            if (transferlist->size())
+            {
+                OUTSTREAM << " TAG  "<<getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE-2) << "DIR/SYNC     %" << endl;
+            }
+            for (int i = 0; i < transferlist->size(); i++)
+            {
+                MegaTransfer *transfer = transferlist->get(i);
+                if (getFlag(clflags, "c") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                {
+                    OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),4) << " ";
+
+
+
+                    if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
+                    {
+                        // source
+                        MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
+                        if (node)
+                        {
+                            char * nodepath = api->getNodePath(node);
+                            OUTSTREAM << getFixLengthString(nodepath,PATHSIZE);
+                            delete []nodepath;
+
+                            delete node;
+                        }
+
+                        OUTSTREAM << " ";
+
+                        //destination
+                        string dest = transfer->getParentPath();
+                        dest.append(transfer->getFileName());
+                        OUTSTREAM << getFixLengthString(dest,PATHSIZE);
+                    }
+                    else
+                    {
+                        //source
+                        string source = transfer->getParentPath();
+                        source.append(transfer->getFileName());
+                        OUTSTREAM << getFixLengthString(source,PATHSIZE);
+
+                        OUTSTREAM << " ";
+
+                        //destination
+                        MegaNode * parentNode = api->getNodeByHandle(transfer->getParentHandle());
+                        if (parentNode)
+                        {
+                            char * parentnodepath = api->getNodePath(parentNode);
+                            OUTSTREAM << getFixLengthString(parentnodepath ,PATHSIZE);
+                            delete []parentnodepath;
+
+                            delete parentNode;
+                        }
+                        else
+                        {
+                            OUTSTREAM << getFixLengthString("",PATHSIZE,'-');
+                            LOG_warn << "Could not find destination (parent handle "<< ((transfer->getParentHandle()==INVALID_HANDLE)?" invalid":" valid")
+                                     <<" ) for upload transfer. Source=" << transfer->getParentPath() << transfer->getFileName();
+                        }
+                    }
+
+
+                    //Direction
+                    OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
+                    //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
+
+                    //type (transfer/normal)
+                    if (transfer->isSyncTransfer())
+                    {
+                        OUTSTREAM << "\u21f5";
+                    }
+                    else
+                    {
+                        OUTSTREAM << " " ;
+                    }
+
+                    //TODO: sync transfer have totalBytes == 0
+                    OUTSTREAM << "  " << percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()) << " of " << sizeToText(transfer->getTotalBytes());
+
+
+                    OUTSTREAM << endl;
+                }
+                delete n;
+            }
+            delete ( transferlist );
+        }
     }
     else if (words[0] == "locallogout")
     {

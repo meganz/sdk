@@ -109,6 +109,12 @@ int toInteger(std::string what, int failValue = -1);
 
 std::string joinStrings(const std::vector<std::string>& vec, const char* delim = " ", bool quoted=true);
 
+std::string getFixLengthString(const std::string origin, uint size, const char delimm=' ', bool alignedright = false);
+
+std::string getRightAlignedString(const std::string origin, uint minsize);
+
+
+
 /* Flags and Options */
 int getFlag(std::map<std::string, int> *flags, const char * optname);
 
@@ -121,5 +127,8 @@ bool setOptionsAndFlags(std::map<std::string, std::string> *opts, std::map<std::
 
 /* Others */
 std::string sizeToText(long long totalSize, bool equalizeUnitsLength = true, bool humanreadable = true);
+
+std::string percentageToText(float percentage);
+
 
 #endif // MEGACMDUTILS_H

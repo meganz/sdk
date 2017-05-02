@@ -109,7 +109,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear", "https"};
+                             "history", "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"};
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -398,6 +398,14 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("m");
         validParams->insert("q");
+    }
+    else if ("transfers" == thecommand)
+    {
+        validParams->insert("c");
+        validParams->insert("u");
+        validParams->insert("d");
+        validParams->insert("s");
+        validOptValues->insert("limit");
     }
 }
 
@@ -1256,6 +1264,10 @@ const char * getUsageStr(const char *command)
     {
         return "clear";
     }
+    if (!strcmp(command, "transfers [-c]"))
+    {
+        return "transfers";
+    }
     return "command not found";
 }
 
@@ -1667,6 +1679,16 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Notice that the session will still be active, and local caches available" << endl;
         os << "The session will be resumed when the service is restarted" << endl;
+    }
+    else if (!strcmp(command, "transfers"))
+    {
+        os << "Lists all transfers" << endl;
+        os << "Options:" << endl;
+        os << " -c" << "\t" << "Show completed transfers" << endl;
+        os << " -u" << "\t" << "Show only upload transfers" << endl;
+        os << " -d" << "\t" << "Show only upload transfers" << endl;
+        os << " -s" << "\t" << "Show synchronization transfers" << endl;
+        os << " --limit=LIMIT" << "\t" << "Show only first LIMIT transfers" << endl;
     }
 
     return os.str();

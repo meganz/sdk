@@ -27,6 +27,8 @@
 #include <regex>
 #endif
 
+#include <iomanip>
+
 using namespace std;
 using namespace mega;
 
@@ -901,6 +903,40 @@ string joinStrings(const vector<string>& vec, const char* delim, bool quoted)
 
 }
 
+string getFixLengthString(const string origin, uint size, const char delim, bool alignedright)
+{
+    string toret;
+    uint origsize = origin.size();
+    if (origsize<size){
+        if (alignedright)
+        {
+            toret.insert(0,size-origsize,delim);
+            toret.insert(size-origsize,origin,0,origsize);
+
+        }
+        else
+        {
+            toret.insert(0,origin,0,origsize);
+            toret.insert(origsize,size-origsize,delim);
+        }
+    }
+    else
+    {
+        toret.insert(0,origin,0,(size+1)/2-2);
+        toret.insert((size+1)/2-2,3,'.');
+        toret.insert((size+1)/2+1,origin,origsize-(size)/2+1,(size)/2-1);
+    }
+
+    return toret;
+}
+
+string getRightAlignedString(const string origin, uint minsize)
+{
+    ostringstream os;
+    os << std::setw(minsize) << origin;
+    return os.str();
+}
+
 int getFlag(map<string, int> *flags, const char * optname)
 {
     return flags->count(optname) ? ( *flags )[optname] : 0;
@@ -1011,6 +1047,23 @@ string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreada
     else
     {
         os << totalSize;
+    }
+
+    return os.str();
+}
+
+
+string percentageToText(float percentage)
+{
+    ostringstream os;
+    os.precision(2);
+    if (percentage != percentage) //NaN
+    {
+        os << "----%";
+    }
+    else
+    {
+        os << fixed << percentage << "%";
     }
 
     return os.str();
