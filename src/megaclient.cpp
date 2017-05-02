@@ -2602,7 +2602,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
-                              << " Partial: " << p;
+                              << " Partial: " << p << " Size: " << nexttransfer->size
+                              << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
                 else
                 {
@@ -8331,7 +8332,7 @@ void MegaClient::closetc(bool remove)
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 86400))
+            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 172500))
             {
                 LOG_warn << "Purging orphan transfer";
                 transfer->finished = true;
@@ -10599,10 +10600,19 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
-                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 86400))
+                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
                     t->cachedtempurl.clear();
+
+                    if (d == PUT)
+                    {
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        delete [] t->ultoken;
+                        t->ultoken = NULL;
+                        t->pos = 0;
+                    }
                 }
 
                 FileAccess* fa = fsaccess->newfileaccess();
