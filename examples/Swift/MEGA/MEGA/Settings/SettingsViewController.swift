@@ -29,13 +29,13 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     @IBOutlet weak var spaceUsedLabel: UILabel!
     @IBOutlet weak var accountTypeLabel: UILabel!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
         emailLabel.text = megaapi.myEmail
         setUserAvatar()
-        megaapi.getAccountDetailsWithDelegate(self)
+        megaapi.getAccountDetails(with: self)
     }
     
     override func didReceiveMemoryWarning() {
@@ -45,8 +45,8 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     
     func setUserAvatar() {
         let user = megaapi.myUser
-        let avatarFilePath = Helper.pathForUser(user, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-        let fileExists = NSFileManager.defaultManager().fileExistsAtPath(avatarFilePath)
+        let avatarFilePath = Helper.pathForUser(user!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        let fileExists = FileManager.default.fileExists(atPath: avatarFilePath)
         
         if !fileExists {
             megaapi.getAvatarUser(user, destinationFilePath: avatarFilePath, delegate: self)
@@ -59,35 +59,35 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     
     // MARK: - IBAction
     
-    @IBAction func logout(sender: UIBarButtonItem) {
-        megaapi.logoutWithDelegate(self)
+    @IBAction func logout(_ sender: UIBarButtonItem) {
+        megaapi.logout(with: self)
     }
     
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.Logout {
-            SVProgressHUD.showWithStatus("Logout")
+    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+        if request.type == MEGARequestType.logout {
+            SVProgressHUD.show(withStatus: "Logout")
         }
     }
     
-    func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
-        if error.type != MEGAErrorType.ApiOk {
+    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+        if error.type != MEGAErrorType.apiOk {
             return
         }
         
         switch request.type {
-        case MEGARequestType.Logout:
-            SSKeychain.deletePasswordForService("MEGA", account: "session")
+        case MEGARequestType.logout:
+            SSKeychain.deletePassword(forService: "MEGA", account: "session")
             
-            let thumbsURL = NSFileManager.defaultManager().URLsForDirectory(.CachesDirectory, inDomains: .UserDomainMask)[0]
-            let thumbsDirectory = thumbsURL.URLByAppendingPathComponent("thumbs")
+            let thumbsURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            let thumbsDirectory = thumbsURL.appendingPathComponent("thumbs")
             
             var error : NSError?
             var success: Bool
             do {
-                try NSFileManager.defaultManager().removeItemAtPath(thumbsDirectory.path!)
+                try FileManager.default.removeItem(atPath: thumbsDirectory.path)
                 success = true
             } catch let error1 as NSError {
                 error = error1
@@ -97,9 +97,9 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
                 print("(Cache) Remove file error: \(error)")
             }
             
-            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] 
+            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.documentDirectory, FileManager.SearchPathDomainMask.userDomainMask, true)[0] 
             do {
-                try NSFileManager.defaultManager().removeItemAtPath(documentDirectory)
+                try FileManager.default.removeItem(atPath: documentDirectory)
                 success = true
             } catch let error1 as NSError {
                 error = error1
@@ -111,28 +111,28 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
             
             SVProgressHUD.dismiss()
             let storyboard = UIStoryboard(name: "Main", bundle: nil)
-            let lvc = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as! LoginViewController
-            presentViewController(lvc, animated: true, completion: nil)
+            let lvc = storyboard.instantiateViewController(withIdentifier: "LoginViewControllerID") as! LoginViewController
+            present(lvc, animated: true, completion: nil)
             
-        case MEGARequestType.GetAttrUser:
+        case MEGARequestType.getAttrUser:
             setUserAvatar()
             
-        case MEGARequestType.AccountDetails:
-            spaceUsedLabel.text = "\(NSByteCountFormatter.stringFromByteCount(request.megaAccountDetails.storageUsed.longLongValue, countStyle: NSByteCountFormatterCountStyle.Memory)) of \(NSByteCountFormatter.stringFromByteCount(request.megaAccountDetails.storageMax.longLongValue, countStyle: NSByteCountFormatterCountStyle.Memory))"
+        case MEGARequestType.accountDetails:
+            spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageUsed.int64Value, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageMax.int64Value, countStyle: ByteCountFormatter.CountStyle.memory))"
             let progress = request.megaAccountDetails.storageUsed.floatValue / request.megaAccountDetails.storageMax.floatValue
             spaceUsedProgressView.setProgress(progress, animated: true)
             
             switch request.megaAccountDetails.type {
-            case MEGAAccountType.Free:
+            case MEGAAccountType.free:
                 accountTypeLabel.text = "Account Type: FREE"
                 
-            case MEGAAccountType.ProI:
+            case MEGAAccountType.proI:
                 accountTypeLabel.text = "Account Type: PRO I"
                 
-            case MEGAAccountType.ProII:
+            case MEGAAccountType.proII:
                 accountTypeLabel.text = "Account Type: PRO II"
                 
-            case MEGAAccountType.ProIII:
+            case MEGAAccountType.proIII:
                 accountTypeLabel.text = "Account Type: PRO III"
                 
             default:

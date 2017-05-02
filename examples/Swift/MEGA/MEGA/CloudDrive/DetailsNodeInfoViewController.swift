@@ -39,7 +39,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     var renameAlertView : UIAlertView!
     var removeAlertView : UIAlertView!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -47,25 +47,25 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         // Do any additional setup after loading the view.
     }
     
-    override func viewWillAppear(animated: Bool) {
+    override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reloadUI()
-        megaapi.addMEGADelegate(self)
+        megaapi.add(self)
         megaapi.retryPendingConnections()
     }
     
-    override func viewWillDisappear(animated: Bool) {
+    override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        megaapi.removeMEGADelegate(self)
+        megaapi.remove(self)
     }
     
     func reloadUI() {
-        if node.type == MEGANodeType.Folder {
-            downloadButton.hidden = true
+        if node.type == MEGANodeType.folder {
+            downloadButton.isHidden = true
         }
         
-        let thumbnailFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-        let fileExists = NSFileManager.defaultManager().fileExistsAtPath(thumbnailFilePath)
+        let thumbnailFilePath = Helper.pathForNode(node, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
         
         if !fileExists {
             thumbnailImageView.image = Helper.imageForNode(node)
@@ -76,40 +76,40 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         title = node.name
         nameLabel.text = node.name
         
-        let dateFormatter = NSDateFormatter()
+        let dateFormatter = DateFormatter()
         
-        let theDateFormat = NSDateFormatterStyle.ShortStyle
-        let theTimeFormat = NSDateFormatterStyle.ShortStyle
+        let theDateFormat = DateFormatter.Style.short
+        let theTimeFormat = DateFormatter.Style.short
         
         dateFormatter.dateStyle = theDateFormat
         dateFormatter.timeStyle = theTimeFormat
         
         if node.isFile() {
-            modificationTimeLabel.text = dateFormatter.stringFromDate(node.modificationTime)
-            sizeLabel.text = NSByteCountFormatter.stringFromByteCount(node.size.longLongValue, countStyle: NSByteCountFormatterCountStyle.Memory)
+            modificationTimeLabel.text = dateFormatter.string(from: node.modificationTime)
+            sizeLabel.text = ByteCountFormatter.string(fromByteCount: node.size.int64Value, countStyle: ByteCountFormatter.CountStyle.memory)
         } else {
-            modificationTimeLabel.text = dateFormatter.stringFromDate(node.creationTime)
-            sizeLabel.text = NSByteCountFormatter.stringFromByteCount(megaapi.sizeForNode(node).longLongValue, countStyle: NSByteCountFormatterCountStyle.Memory)
+            modificationTimeLabel.text = dateFormatter.string(from: node.creationTime)
+            sizeLabel.text = ByteCountFormatter.string(fromByteCount: megaapi.size(for: node).int64Value, countStyle: ByteCountFormatter.CountStyle.memory)
         }
         
-        let documentFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.DocumentDirectory)
-        let fileDocumentExists = NSFileManager.defaultManager().fileExistsAtPath(documentFilePath)
+        let documentFilePath = Helper.pathForNode(node, path: FileManager.SearchPathDirectory.documentDirectory)
+        let fileDocumentExists = FileManager.default.fileExists(atPath: documentFilePath)
         
         if fileDocumentExists {
-            downloadProgressView.hidden = true
-            cancelButton.hidden = true
-            saveLabel.hidden = false
-            downloadButton.setImage(UIImage(named: "savedFile"), forState: UIControlState.Normal)
+            downloadProgressView.isHidden = true
+            cancelButton.isHidden = true
+            saveLabel.isHidden = false
+            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControlState())
             saveLabel.text = "Saved for offline"
-        } else if megaapi.transfers.size.intValue > 0 {
-            downloadProgressView.hidden = true
-            cancelButton.hidden = true
+        } else if megaapi.transfers.size.int32Value > 0 {
+            downloadProgressView.isHidden = true
+            cancelButton.isHidden = true
             
-            for i in 0  ..< megaapi.transfers.size.integerValue {
-                let transfer : MEGATransfer = megaapi.transfers.transferAtIndex(i)
+            for i in 0  ..< megaapi.transfers.size.intValue {
+                let transfer : MEGATransfer = megaapi.transfers.transfer(at: i)
                 if transfer.nodeHandle == node.handle {
-                    downloadProgressView.hidden = false
-                    cancelButton.hidden = false
+                    downloadProgressView.isHidden = false
+                    cancelButton.isHidden = false
                     currentTransfer = transfer
                     
                     let progress = transfer.transferredBytes.floatValue / transfer.totalBytes.floatValue
@@ -119,8 +119,8 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             }
             
         } else {
-            downloadProgressView.hidden = true
-            cancelButton.hidden = true
+            downloadProgressView.isHidden = true
+            cancelButton.isHidden = true
         }
     }
     
@@ -131,10 +131,10 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     
     // MARK: - IBActions
     
-    @IBAction func touchUpInsideDownload(sender: UIButton) {
-        if node.type == MEGANodeType.File {
-            let documentFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.DocumentDirectory)
-            let fileExists = NSFileManager.defaultManager().fileExistsAtPath(documentFilePath)
+    @IBAction func touchUpInsideDownload(_ sender: UIButton) {
+        if node.type == MEGANodeType.file {
+            let documentFilePath = Helper.pathForNode(node, path: FileManager.SearchPathDirectory.documentDirectory)
+            let fileExists = FileManager.default.fileExists(atPath: documentFilePath)
             
             if !fileExists {
                 megaapi.startDownloadNode(node, localPath: documentFilePath)
@@ -142,41 +142,41 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         }
     }
     
-    @IBAction func touchUpInsideGenerateLink(sender: UIButton) {
-        megaapi.exportNode(node)
+    @IBAction func touchUpInsideGenerateLink(_ sender: UIButton) {
+        megaapi.export(node)
     }
     
-    @IBAction func touchUpInsideRename(sender: UIButton) {
+    @IBAction func touchUpInsideRename(_ sender: UIButton) {
         renameAlertView = UIAlertView(title: "Rename", message: "Enter the new name", delegate: self, cancelButtonTitle: "Cancel", otherButtonTitles: "Rename")
-        renameAlertView.alertViewStyle = UIAlertViewStyle.PlainTextInput
-        let nameURL = NSURL(string: node.name)!.URLByDeletingPathExtension
-        renameAlertView.textFieldAtIndex(0)?.text = nameURL!.path
+        renameAlertView.alertViewStyle = UIAlertViewStyle.plainTextInput
+        let nameURL = NSURL(string: node.name)!.deletingPathExtension
+        renameAlertView.textField(at: 0)?.text = nameURL!.path
         renameAlertView.tag = 0
         renameAlertView.show()
     }
     
-    @IBAction func touchUpInsideDelete(sender: UIButton) {
+    @IBAction func touchUpInsideDelete(_ sender: UIButton) {
         removeAlertView = UIAlertView(title: "Remove node", message: "Are you sure?", delegate: self, cancelButtonTitle: "Cancel", otherButtonTitles: "Remove")
-        removeAlertView.alertViewStyle = UIAlertViewStyle.Default
+        removeAlertView.alertViewStyle = UIAlertViewStyle.default
         removeAlertView.tag = 1
         removeAlertView.show()
         
     }
     
-    @IBAction func touchUpInsideCancelDownload(sender: AnyObject) {
+    @IBAction func touchUpInsideCancelDownload(_ sender: AnyObject) {
         megaapi.cancelTransfer(currentTransfer)
     }
     
     // MARK: - AlertView delegate
     
-    func alertView(alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
+    func alertView(_ alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
         if alertView.tag == 0 {
-            let nameURL = NSURL(string: node.name)
+            let nameURL = URL(string: node.name)
             if buttonIndex == 1 {
                 if nameURL!.pathExtension == "" {
-                    megaapi.renameNode(node, newName: alertView.textFieldAtIndex(0)?.text)
+                    megaapi.renameNode(node, newName: alertView.textField(at: 0)?.text)
                 } else {
-                    let newName = alertView.textFieldAtIndex(0)?.text!.stringByAppendingString(".".stringByAppendingString(nameURL!.pathExtension!))
+                    let newName = (alertView.textField(at: 0)?.text!)! + ("." + nameURL!.pathExtension)
                     nameLabel.text = newName
                     megaapi.renameNode(node, newName: newName)
                 }
@@ -184,44 +184,44 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         }
         if alertView.tag == 1 {
             if buttonIndex == 1 {
-                megaapi.removeNode(node)
-                navigationController?.popViewControllerAnimated(true)
+                megaapi.remove(node)
+                navigationController?.popViewController(animated: true)
             }
         }
     }
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.Export {
-            SVProgressHUD.showWithStatus("Generate link...")
+    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+        if request.type == MEGARequestType.export {
+            SVProgressHUD.show(withStatus: "Generate link...")
         }
     }
     
-    func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
-        if error.type != MEGAErrorType.ApiOk {
+    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+        if error.type != MEGAErrorType.apiOk {
             return
         }
         
         switch request.type {
-        case MEGARequestType.GetAttrFile:
+        case MEGARequestType.getAttrFile:
             if request.nodeHandle == node.handle {
-                let node = megaapi.nodeForHandle(request.nodeHandle)
-                let thumbnailFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-                let fileExists = NSFileManager.defaultManager().fileExistsAtPath(thumbnailFilePath)
+                let node = megaapi.node(forHandle: request.nodeHandle)
+                let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+                let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
                 
                 if fileExists {
                     thumbnailImageView.image = UIImage(contentsOfFile: thumbnailFilePath)
                 }
             }
             
-        case MEGARequestType.Export:
-            SVProgressHUD.showSuccessWithStatus("Link Generate")
+        case MEGARequestType.export:
+            SVProgressHUD.showSuccess(withStatus: "Link Generate")
             SVProgressHUD.dismiss()
             let items = [request.link]
             let activity : UIActivityViewController = UIActivityViewController(activityItems: items, applicationActivities: nil)
-            activity.excludedActivityTypes = [UIActivityTypePrint, UIActivityTypeCopyToPasteboard, UIActivityTypeAssignToContact, UIActivityTypeSaveToCameraRoll]
-            self.presentViewController(activity, animated: true, completion: nil)
+            activity.excludedActivityTypes = [UIActivityType.print, UIActivityType.copyToPasteboard, UIActivityType.assignToContact, UIActivityType.saveToCameraRoll]
+            self.present(activity, animated: true, completion: nil)
             
         default:
             break
@@ -230,20 +230,20 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     
     // MARK: - MEGA Global delegate
     
-    func onNodesUpdate(api: MEGASdk!, nodeList: MEGANodeList!) {
-        node = nodeList.nodeAtIndex(0)
+    func onNodesUpdate(_ api: MEGASdk!, nodeList: MEGANodeList!) {
+        node = nodeList.node(at: 0)
     }
     
     // MARK: - MEGA Transfer delegate
     
-    func onTransferStart(api: MEGASdk!, transfer: MEGATransfer!) {
-        downloadProgressView.hidden = false
+    func onTransferStart(_ api: MEGASdk!, transfer: MEGATransfer!) {
+        downloadProgressView.isHidden = false
         downloadProgressView.setProgress(0.0, animated: true)
-        cancelButton.hidden = false
+        cancelButton.isHidden = false
         currentTransfer = transfer
     }
     
-    func onTransferUpdate(api: MEGASdk!, transfer: MEGATransfer!) {
+    func onTransferUpdate(_ api: MEGASdk!, transfer: MEGATransfer!) {
         if transfer.nodeHandle == node.handle {
             let progress = transfer.transferredBytes.floatValue / transfer.totalBytes.floatValue
             downloadProgressView.setProgress(progress, animated: true)
@@ -252,16 +252,16 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         }
     }
     
-    func onTransferFinish(api: MEGASdk!, transfer: MEGATransfer!, error: MEGAError!) {
-        downloadProgressView.hidden = true
-        cancelButton.hidden = true
+    func onTransferFinish(_ api: MEGASdk!, transfer: MEGATransfer!, error: MEGAError!) {
+        downloadProgressView.isHidden = true
+        cancelButton.isHidden = true
         
-        if error.type == MEGAErrorType.ApiEIncomplete {
+        if error.type == MEGAErrorType.apiEIncomplete {
             downloadProgressView.setProgress(0.0, animated: true)
         } else {
             downloadProgressView.setProgress(1.0, animated: true)
-            saveLabel.hidden = false
-            downloadButton.setImage(UIImage(named: "savedFile"), forState: UIControlState.Normal)
+            saveLabel.isHidden = false
+            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControlState())
             saveLabel.text = "Saved for offline"
         }
     }
