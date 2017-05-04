@@ -3570,20 +3570,25 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(Node* n, fatype t, int cancel)
+error MegaClient::getfa(handle h, string *fileattrstring, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
 
-    if (!(p = n->hasfileattribute(t)))
+    // find position of file attribute or 0 if not present
+    char buf[24];
+    sprintf(buf, ":%u*", t);
+    p = fileattrstring->find(buf) + 1;
+
+    if (!p)
     {
         return API_ENOENT;
     }
 
     pp = p - 1;
 
-    while (pp && n->fileattrstring[pp - 1] >= '0' && n->fileattrstring[pp - 1] <= '9')
+    while (pp && fileattrstring->at(pp - 1) >= '0' && fileattrstring->at(pp - 1) <= '9')
     {
         pp--;
     }
@@ -3593,12 +3598,12 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
         return API_ENOENT;
     }
 
-    if (Base64::atob(strchr(n->fileattrstring.c_str() + p, '*') + 1, (byte*)&fah, sizeof(fah)) != sizeof(fah))
+    if (Base64::atob(strchr(fileattrstring->c_str() + p, '*') + 1, (byte*)&fah, sizeof(fah)) != sizeof(fah))
     {
         return API_ENOENT;
     }
 
-    int c = atoi(n->fileattrstring.c_str() + pp);
+    int c = atoi(fileattrstring->c_str() + pp);
 
     if (cancel)
     {
@@ -3648,7 +3653,7 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
 
             if (!*fafp)
             {
-                *fafp = new FileAttributeFetch(n->nodehandle, t, reqtag);
+                *fafp = new FileAttributeFetch(h, t, reqtag);
             }
             else
             {
@@ -3719,7 +3724,7 @@ bool MegaClient::slotavail() const
 bool MegaClient::moretransfers(direction_t d)
 {
     m_off_t r = 0;
-    int total = 0;
+    unsigned int total = 0;
 
     // don't dispatch if all tslots busy
     if (!slotavail())

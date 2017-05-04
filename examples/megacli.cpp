@@ -3103,7 +3103,7 @@ static void process_line(char* l)
                                 {
                                     if (n->hasfileattribute(type))
                                     {
-                                        client->getfa(n, type, cancel);
+                                        client->getfa(n->nodehandle, &n->fileattrstring, type, cancel);
                                         c++;
                                     }
                                 }
@@ -3113,7 +3113,7 @@ static void process_line(char* l)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
-                                            client->getfa(*it, type, cancel);
+                                            client->getfa((*it)->nodehandle, &((*it)->fileattrstring), type, cancel);
                                             c++;
                                         }
                                     }

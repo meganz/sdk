@@ -5083,7 +5083,14 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     }
 
     request->setParamType(type);
-    if(node) request->setNodeHandle(node->getHandle());
+    if(node)
+    {
+        request->setNodeHandle(node->getHandle());
+        if (!node->getFileAttrString()->empty())
+        {
+            request->setText(node->getFileAttrString()->c_str());
+        }
+    }
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -5092,7 +5099,14 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_ATTR_FILE, listener);
 	request->setParamType(type);
-	if (node) request->setNodeHandle(node->getHandle());
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+        if (!node->getFileAttrString()->empty())
+        {
+            request->setText(node->getFileAttrString()->c_str());
+        }
+    }
 	requestQueue.push(request);
 	waiter->notify();
 }
@@ -12919,11 +12933,20 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* dstFilePath = request->getFile();
             int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            handle h = request->getNodeHandle();
+            const char *fa = request->getText();
 
-			if(!dstFilePath || !node) { e = API_EARGS; break; }
+            Node *node = client->nodebyhandle(h);
 
-            e = client->getfa(node, (fatype)type);
+            if(!dstFilePath || (!fa && !node) || (fa && ISUNDEF(h)))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string fileattrstring = fa ? string(fa) : node->fileattrstring;
+
+            e = client->getfa(h, &fileattrstring, (fatype) type);//node, (fatype)type);
             if(e == API_EEXIST)
             {
                 e = API_OK;
@@ -13285,11 +13308,20 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
 		{
 			int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            handle h = request->getNodeHandle();
+            const char *fa = request->getText();
 
-			if (!node) { e = API_EARGS; break; }
+            Node *node = client->nodebyhandle(h);
 
-            e = client->getfa(node, (fatype)type, 1);
+            if((!fa && !node) || (fa && ISUNDEF(h)))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string fileattrstring = fa ? string(fa) : node->fileattrstring;
+
+            e = client->getfa(h, &fileattrstring, (fatype) type, 1);
 			if (!e)
 			{
 				std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
