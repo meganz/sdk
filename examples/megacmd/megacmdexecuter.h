@@ -123,6 +123,9 @@ public:
 
     void confirmDelete();
     void discardDelete();
+
+    void printTransfersHeader(const uint PATHSIZE, bool printstate=true);
+    void printTransfer(mega::MegaTransfer *transfer, const uint PATHSIZE, bool printstate=true);
 };
 
 #endif // MEGACMDEXECUTER_H

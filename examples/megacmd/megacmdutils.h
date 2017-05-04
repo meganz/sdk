@@ -59,6 +59,7 @@ const char * getShareLevelStr(int sharelevel);
 
 int getShareLevelNum(const char* level);
 
+const char * getTransferStateStr(int transferState);
 
 
 /* Files and folders */

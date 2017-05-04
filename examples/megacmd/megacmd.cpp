@@ -405,7 +405,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("only-uploads");
         validParams->insert("only-dowloads");
         validParams->insert("show-syncs");
+        validParams->insert("c");
+        validParams->insert("a");
+        validParams->insert("p");
+        validParams->insert("r");
         validOptValues->insert("limit");
+        validOptValues->insert("path-display-size");
     }
 }
 
@@ -1264,9 +1269,9 @@ const char * getUsageStr(const char *command)
     {
         return "clear";
     }
-    if (!strcmp(command, "transfers [-c]"))
+    if (!strcmp(command, "transfers"))
     {
-        return "transfers";
+        return "transfers [-c TAG|-a] | [-r TAG|-a]  | [-p TAG|-a] [--only-downloads | --only-uploads] [SHOWOPTIONS]";
     }
     return "command not found";
 }
@@ -1682,13 +1687,20 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "transfers"))
     {
-        os << "Lists all transfers" << endl;
+        os << "Lists or operate with transfers" << endl;
+        os << "If executed without option it will list the first 10 tranfers" << endl;
         os << "Options:" << endl;
-        os << " -show-completed" << "\t" << "Show completed transfers" << endl;
-        os << " -only-uploads" << "\t" << "Show only upload transfers" << endl;
-        os << " -only-dowloads" << "\t" << "Show only download transfers" << endl;
+        os << " -c (TAG|-a)" << "\t" << "Cancels transfer with TAG (or all with -a)" << endl;
+        os << " -p (TAG|-a)" << "\t" << "Pause transfer with TAG (or all with -a)" << endl;
+        os << " -r (TAG|-a)" << "\t" << "Resume transfer with TAG (or all with -a)" << endl;
+        os << " -only-uploads" << "\t" << "Show/Operate only upload transfers" << endl;
+        os << " -only-dowloads" << "\t" << "Show/Operate only download transfers" << endl;
+        os << endl;
+        os << "Show options:" << endl;
         os << " -show-syncs" << "\t" << "Show synchronization transfers" << endl;
+        os << " -show-completed" << "\t" << "Show completed transfers" << endl;
         os << " --limit=N" << "\t" << "Show only first N transfers" << endl;
+        os << " --path-display-size=N" << "\t" << "Use a fixed size of N characters for paths" << endl;
     }
     return os.str();
 }

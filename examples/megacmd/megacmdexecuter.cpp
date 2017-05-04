@@ -2591,6 +2591,98 @@ bool MegaCmdExecuter::IsFolder(string path)
     return destinyIsFolder;
 }
 
+void MegaCmdExecuter::printTransfersHeader(const uint PATHSIZE, bool printstate)
+{
+    OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
+              << "  " << getFixLengthString("    PROGRESS",20);
+    if (printstate)
+    {
+        OUTSTREAM  << "  " << "STATE";
+    }
+    OUTSTREAM << endl;
+}
+
+void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const uint PATHSIZE, bool printstate)
+{
+    //Direction
+    OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
+    //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
+
+    //type (transfer/normal)
+    if (transfer->isSyncTransfer())
+    {
+        OUTSTREAM << "\u21f5";
+    }
+    else
+    {
+        OUTSTREAM << " " ;
+    }
+
+    OUTSTREAM << " " ;
+
+    //tag
+    OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),7) << " ";
+
+    if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        // source
+        MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
+        if (node)
+        {
+            char * nodepath = api->getNodePath(node);
+            OUTSTREAM << getFixLengthString(nodepath,PATHSIZE);
+            delete []nodepath;
+
+            delete node;
+        }
+
+        OUTSTREAM << " ";
+
+        //destination
+        string dest = transfer->getParentPath();
+        dest.append(transfer->getFileName());
+        OUTSTREAM << getFixLengthString(dest,PATHSIZE);
+    }
+    else
+    {
+        //source
+        string source = transfer->getParentPath();
+        source.append(transfer->getFileName());
+        OUTSTREAM << getFixLengthString(source,PATHSIZE);
+
+        OUTSTREAM << " ";
+
+        //destination
+        MegaNode * parentNode = api->getNodeByHandle(transfer->getParentHandle());
+        if (parentNode)
+        {
+            char * parentnodepath = api->getNodePath(parentNode);
+            OUTSTREAM << getFixLengthString(parentnodepath ,PATHSIZE);
+            delete []parentnodepath;
+
+            delete parentNode;
+        }
+        else
+        {
+            OUTSTREAM << getFixLengthString("",PATHSIZE,'-');
+            LOG_warn << "Could not find destination (parent handle "<< ((transfer->getParentHandle()==INVALID_HANDLE)?" invalid":" valid")
+                     <<" ) for upload transfer. Source=" << transfer->getParentPath() << transfer->getFileName();
+        }
+    }
+
+    //progress
+    OUTSTREAM << "  " << getFixLengthString(percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()),7,' ',true)
+              << " of " << getFixLengthString(sizeToText(transfer->getTotalBytes()),9,' ',true);
+
+    //state
+    if (printstate)
+    {
+        OUTSTREAM << "  " << getTransferStateStr(transfer->getState());
+    }
+
+    OUTSTREAM << endl;
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n = NULL;
@@ -5540,11 +5632,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "transfers")
     {
-//        MegaTransferList *transferlist = api->getTransfers();
-        MegaTransferData*transferdata = api->getTransferData();
-
-        if (transferdata)
+        int PATHSIZE = getintOption(cloptions,"path-display-size");
+        if (!PATHSIZE)
         {
+            // get screen size for output purposes
             u_int width = 75;
             int rows = 1, cols = width;
             rl_get_screen_size(&rows, &cols);
@@ -5553,166 +5644,264 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             {
                 width = cols-2;
             }
-
-            const uint PATHSIZE = min(60,int((width-32)/2));//TODO: calculate depending on console (with a maximum)
-
-            int limit = getintOption(cloptions, "limit",transferdata->getNumDownloads()+transferdata->getNumUploads());
-
-            uint indexUpload = 0;
-            uint indexDownload = 0;
-            int shown = 0;
-
-            int showndl = 0;
-            int shownup = 0;
-            MegaTransfer * transfersDLToShow[limit];
-            MegaTransfer * transfersUPToShow[limit];
-
-            while (true)
-            {
-                //MegaTransfer *transfer = transferdata->get(i);
-                MegaTransfer *transfer = NULL;
-                //Next transfer to show
-                if (getFlag(clflags, "only-uploads") && !getFlag(clflags, "only-dowloads") && indexUpload < transferdata->getNumUploads()) //Only uploads
-                {
-                    transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
-                }
-                else
-                {
-                    if ( (!getFlag(clflags, "only-dowloads") || (getFlag(clflags, "only-dowloads") && getFlag(clflags, "only-uploads"))) //both
-                         && ( (shown >= (limit/2) ) || indexDownload == transferdata->getNumDownloads() ) // /already chosen half slots for dls or no more dls
-                         && indexUpload < transferdata->getNumUploads()
-                         )
-                        //This is not 100 % perfect, it could show with a limit of 10 5 downloads and 3 uploads with more downloads on the queue.
-                    {
-                        transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
-
-                    }
-                    else if(indexDownload < transferdata->getNumDownloads())
-                    {
-                        transfer =  api->getTransferByTag(transferdata->getDownloadTag(indexDownload++));
-                    }
-                }
-
-                if (!transfer) break; //finish
-
-                if (
-                        (getFlag(clflags, "show-completed") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
-                        &&  !(getFlag(clflags, "only-uploads") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "only-dowloads") )
-                        &&  !(getFlag(clflags, "only-dowloads") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "only-uploads") )
-                        &&  !(!getFlag(clflags, "show-syncs") && transfer->isSyncTransfer())
-                        &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
-                        )
-                {
-                    shown++;
-                    if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
-                    {
-                        transfersDLToShow[showndl++] = transfer;
-                    }
-                    else
-                    {
-                        transfersUPToShow[shownup++] = transfer;
-                    }
-                }
-                if (shown>limit || transfer == NULL) //we-re done
-                {
-                    break;
-                }
-            }
-
-            delete transferdata;
-
-            for (int i=0;i<showndl+shownup; i++)
-            {
-                MegaTransfer *transfer = (i>=showndl)?transfersUPToShow[i-showndl]:transfersDLToShow[i];
-
-                if (i == 0) //first
-                {
-                    OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
-                              << "  PROGRESS" << endl;
-                }
-                if (i==limit)
-                {
-                    OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
-                    delete transfer;
-                    break;
-                }
-
-
-                //Direction
-                OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
-                //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
-
-                //type (transfer/normal)
-                if (transfer->isSyncTransfer())
-                {
-                    OUTSTREAM << "\u21f5";
-                }
-                else
-                {
-                    OUTSTREAM << " " ;
-                }
-
-                OUTSTREAM << " " ;
-
-                //tag
-                OUTSTREAM << getRightAlignedString(SSTR(transfer->getTag()),7) << " ";
-
-                if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
-                {
-                    // source
-                    MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
-                    if (node)
-                    {
-                        char * nodepath = api->getNodePath(node);
-                        OUTSTREAM << getFixLengthString(nodepath,PATHSIZE);
-                        delete []nodepath;
-
-                        delete node;
-                    }
-
-                    OUTSTREAM << " ";
-
-                    //destination
-                    string dest = transfer->getParentPath();
-                    dest.append(transfer->getFileName());
-                    OUTSTREAM << getFixLengthString(dest,PATHSIZE);
-                }
-                else
-                {
-                    //source
-                    string source = transfer->getParentPath();
-                    source.append(transfer->getFileName());
-                    OUTSTREAM << getFixLengthString(source,PATHSIZE);
-
-                    OUTSTREAM << " ";
-
-                    //destination
-                    MegaNode * parentNode = api->getNodeByHandle(transfer->getParentHandle());
-                    if (parentNode)
-                    {
-                        char * parentnodepath = api->getNodePath(parentNode);
-                        OUTSTREAM << getFixLengthString(parentnodepath ,PATHSIZE);
-                        delete []parentnodepath;
-
-                        delete parentNode;
-                    }
-                    else
-                    {
-                        OUTSTREAM << getFixLengthString("",PATHSIZE,'-');
-                        LOG_warn << "Could not find destination (parent handle "<< ((transfer->getParentHandle()==INVALID_HANDLE)?" invalid":" valid")
-                                 <<" ) for upload transfer. Source=" << transfer->getParentPath() << transfer->getFileName();
-                    }
-                }
-
-                //TODO: sync transfer have totalBytes == 0
-                OUTSTREAM << "  " << percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()) << " of " << sizeToText(transfer->getTotalBytes());
-
-                OUTSTREAM << endl;
-                delete transfer;
-            }
-            delete n;
+            PATHSIZE = min(60,int((width-45)/2));
         }
 
+        if (getFlag(clflags,"c"))
+        {
+            if (getFlag(clflags,"a"))
+            {
+                if (getFlag(clflags, "only-dowloads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD, megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), "cancel all download transfers"))
+                    {
+                        OUTSTREAM << "Download transfers cancelled successfully." << endl;
+                    }
+                    delete megaCmdListener;
+                }
+                if (getFlag(clflags, "only-uploads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->cancelTransfers(MegaTransfer::TYPE_UPLOAD, megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), "cancel all upload transfers"))
+                    {
+                        OUTSTREAM << "Upload transfers cancelled successfully." << endl;
+                    }
+                    delete megaCmdListener;
+                }
+
+            }
+            else
+            {
+                if (words.size() < 2)
+                {
+                    setCurrentOutCode(MCMD_EARGS);
+                    LOG_err << "      " << getUsageStr("transfers");
+                    return;
+                }
+                for (u_int i = 1; i < words.size(); i++)
+                {
+                    MegaTransfer *transfer = api->getTransferByTag(toInteger(words[i],-1));
+                    if (transfer)
+                    {
+                        if (transfer->isSyncTransfer())
+                        {
+                            LOG_err << "Unable to cancel transfer with tag " << words[i] << ". Sync transfers cannot be cancelled";
+                            setCurrentOutCode(MCMD_INVALIDTYPE);
+                        }
+                        else
+                        {
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                            api->cancelTransfer(transfer, megaCmdListener);
+                            megaCmdListener->wait();
+                            if (checkNoErrors(megaCmdListener->getError(), "cancel transfer with tag " + words[i] + "."))
+                            {
+                                OUTSTREAM << "Transfer " << words[i]<< " cancelled successfully." << endl;
+                            }
+                            delete megaCmdListener;
+                        }
+                    }
+                    else
+                    {
+                        LOG_err << "Coul not find transfer with tag: " << words[i];
+                        setCurrentOutCode(MCMD_NOTFOUND);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        if (getFlag(clflags,"p") || getFlag(clflags,"r"))
+        {
+            if (getFlag(clflags,"a"))
+            {
+                if (getFlag(clflags, "only-dowloads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->pauseTransfers(getFlag(clflags,"p"), MegaTransfer::TYPE_DOWNLOAD, megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), (getFlag(clflags,"p")?"pause all download transfers":"resume all download transfers")))
+                    {
+                        OUTSTREAM << "Download transfers "<< (getFlag(clflags,"p")?"pause":"resume") << "d successfully." << endl;
+                    }
+                    delete megaCmdListener;
+                }
+                if (getFlag(clflags, "only-uploads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->pauseTransfers(getFlag(clflags,"p"), MegaTransfer::TYPE_UPLOAD, megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), (getFlag(clflags,"p")?"pause all download transfers":"resume all download transfers")))
+                    {
+                        OUTSTREAM << "Upload transfers "<< (getFlag(clflags,"p")?"pause":"resume") << "d successfully." << endl;
+                    }
+                    delete megaCmdListener;
+                }
+
+            }
+            else
+            {
+                if (words.size() < 2)
+                {
+                    setCurrentOutCode(MCMD_EARGS);
+                    LOG_err << "      " << getUsageStr("transfers");
+                    return;
+                }
+                for (u_int i = 1; i < words.size(); i++)
+                {
+                    MegaTransfer *transfer = api->getTransferByTag(toInteger(words[i],-1));
+                    if (transfer)
+                    {
+                        if (transfer->isSyncTransfer())
+                        {
+                            LOG_err << "Unable to "<< (getFlag(clflags,"p")?"pause":"resume") << " transfer with tag " << words[i] << ". Sync transfers cannot be "<< (getFlag(clflags,"p")?"pause":"resume") << "d";
+                            setCurrentOutCode(MCMD_INVALIDTYPE);
+                        }
+                        else
+                        {
+                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                            api->pauseTransfer(transfer, getFlag(clflags,"p"), megaCmdListener);
+                            megaCmdListener->wait();
+                            if (checkNoErrors(megaCmdListener->getError(), (getFlag(clflags,"p")?"pause transfer with tag ":"resume transfer with tag ") + words[i] + "."))
+                            {
+                                OUTSTREAM << "Transfer " << words[i]<< " "<< (getFlag(clflags,"p")?"pause":"resume") << "d successfully." << endl;
+                            }
+                            delete megaCmdListener;
+                        }
+                    }
+                    else
+                    {
+                        LOG_err << "Coul not find transfer with tag: " << words[i];
+                        setCurrentOutCode(MCMD_NOTFOUND);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        //show transfers
+        MegaTransferData* transferdata = api->getTransferData();
+
+        if (!transferdata)
+        {
+            setCurrentOutCode(MCMD_EUNEXPECTED);
+            LOG_err << "No transferdata.";
+            return;
+        }
+
+        bool downloadpaused = api->areTransfersPaused(MegaTransfer::TYPE_DOWNLOAD);
+        bool uploadpaused = api->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
+
+        int limit = getintOption(cloptions, "limit",min(10,transferdata->getNumDownloads()+transferdata->getNumUploads()));
+
+        int indexUpload = 0;
+        int indexDownload = 0;
+        int shown = 0;
+
+        int showndl = 0;
+        int shownup = 0;
+        vector<MegaTransfer *> transfersDLToShow;
+        vector<MegaTransfer *> transfersUPToShow;
+
+        while (true)
+        {
+            //MegaTransfer *transfer = transferdata->get(i);
+            MegaTransfer *transfer = NULL;
+            //Next transfer to show
+            if (getFlag(clflags, "only-uploads") && !getFlag(clflags, "only-dowloads") && indexUpload < transferdata->getNumUploads()) //Only uploads
+            {
+                transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
+            }
+            else
+            {
+                if ( (!getFlag(clflags, "only-dowloads") || (getFlag(clflags, "only-dowloads") && getFlag(clflags, "only-uploads"))) //both
+                     && ( (shown >= (limit/2) ) || indexDownload == transferdata->getNumDownloads() ) // /already chosen half slots for dls or no more dls
+                     && indexUpload < transferdata->getNumUploads()
+                     )
+                    //This is not 100 % perfect, it could show with a limit of 10 5 downloads and 3 uploads with more downloads on the queue.
+                {
+                    transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
+
+                }
+                else if(indexDownload < transferdata->getNumDownloads())
+                {
+                    transfer =  api->getTransferByTag(transferdata->getDownloadTag(indexDownload++));
+                }
+            }
+
+            if (!transfer) break; //finish
+
+            if (
+                    (getFlag(clflags, "show-completed") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                    &&  !(getFlag(clflags, "only-uploads") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "only-dowloads") )
+                    &&  !(getFlag(clflags, "only-dowloads") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "only-uploads") )
+                    &&  !(!getFlag(clflags, "show-syncs") && transfer->isSyncTransfer())
+                    &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
+                    )
+            {
+                //TODO: handle completed transfers correctly (need to be save upon onTransferFinish call)
+                shown++;
+                if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
+                {
+                    transfersDLToShow.push_back(transfer);
+                    showndl++;
+                }
+                else
+                {
+                    transfersUPToShow.push_back(transfer);
+                    shownup++;
+                }
+            }
+            if (shown>limit || transfer == NULL) //we-re done
+            {
+                break;
+            }
+        }
+
+        delete transferdata;
+
+        vector<MegaTransfer *>::iterator itDLs = transfersDLToShow.begin();
+        vector<MegaTransfer *>::iterator itUPs = transfersUPToShow.begin();
+
+        for (int i=0;i<showndl+shownup; i++)
+        {
+            MegaTransfer *transfer = NULL;
+            if (itDLs == transfersDLToShow.end())
+            {
+                transfer = (MegaTransfer *) *itUPs;
+                itUPs++;
+            }
+            else
+            {
+                transfer = (MegaTransfer *) *itDLs;
+                itDLs++;
+            }
+            if (i == 0) //first
+            {
+                if (uploadpaused || downloadpaused)
+                {
+                    OUTSTREAM << "            " << (downloadpaused?"DOWNLOADS":"") << ((uploadpaused && downloadpaused)?" AND ":"")
+                              << (uploadpaused?"UPLOADS":"") << " ARE PAUSED " << endl;
+                }
+                printTransfersHeader(PATHSIZE);
+            }
+            if (i==limit) //we are in the extra one (not to be shown)
+            {
+                OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
+                delete transfer;
+                break;
+            }
+
+            printTransfer(transfer, PATHSIZE);
+
+            delete transfer;
+        }
     }
     else if (words[0] == "locallogout")
     {

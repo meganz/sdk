@@ -408,6 +408,42 @@ int getShareLevelNum(const char* level)
     return atoi(level);
 }
 
+const char * getTransferStateStr(int transferState)
+{
+    switch (transferState)
+    {
+    case MegaTransfer::STATE_QUEUED:
+        return "QUEUED";
+        break;
+    case MegaTransfer::STATE_ACTIVE:
+        return "ACTIVE";
+        break;
+    case MegaTransfer::STATE_PAUSED:
+        return "PAUSED";
+        break;
+    case MegaTransfer::STATE_RETRYING:
+        return "RETRYING";
+        break;
+    case MegaTransfer::STATE_COMPLETING:
+        return "COMPLETING";
+        break;
+    case MegaTransfer::STATE_COMPLETED:
+        return "COMPLETED";
+        break;
+    case MegaTransfer::STATE_CANCELLED:
+        return "CANCELLED";
+        break;
+    case MegaTransfer::STATE_FAILED:
+        return "FAILED";
+        break;
+    default:
+        return "";
+        break;
+    }
+
+}
+
+
 /**
  * @brief tests if a path is writable
  * @param path
@@ -907,7 +943,7 @@ string getFixLengthString(const string origin, uint size, const char delim, bool
 {
     string toret;
     uint origsize = origin.size();
-    if (origsize<size){
+    if (origsize <= size){
         if (alignedright)
         {
             toret.insert(0,size-origsize,delim);
@@ -1063,7 +1099,7 @@ string percentageToText(float percentage)
     }
     else
     {
-        os << fixed << percentage << "%";
+        os << fixed << percentage*100.0 << "%";
     }
 
     return os.str();
