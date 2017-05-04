@@ -403,7 +403,8 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("show-completed");
         validParams->insert("only-uploads");
-        validParams->insert("only-dowloads");
+        validParams->insert("only-completed");
+        validParams->insert("only-downloads");
         validParams->insert("show-syncs");
         validParams->insert("c");
         validParams->insert("a");
@@ -1694,11 +1695,12 @@ string getHelpStr(const char *command)
         os << " -p (TAG|-a)" << "\t" << "Pause transfer with TAG (or all with -a)" << endl;
         os << " -r (TAG|-a)" << "\t" << "Resume transfer with TAG (or all with -a)" << endl;
         os << " -only-uploads" << "\t" << "Show/Operate only upload transfers" << endl;
-        os << " -only-dowloads" << "\t" << "Show/Operate only download transfers" << endl;
+        os << " -only-downloads" << "\t" << "Show/Operate only download transfers" << endl;
         os << endl;
         os << "Show options:" << endl;
         os << " -show-syncs" << "\t" << "Show synchronization transfers" << endl;
         os << " -show-completed" << "\t" << "Show completed transfers" << endl;
+        os << " -only-completed" << "\t" << "Show only completed download" << endl;
         os << " --limit=N" << "\t" << "Show only first N transfers" << endl;
         os << " --path-display-size=N" << "\t" << "Use a fixed size of N characters for paths" << endl;
     }

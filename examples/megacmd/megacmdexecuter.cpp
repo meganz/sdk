@@ -98,7 +98,6 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
     changeprompt(dynamicprompt);
 }
 
-
 MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
 {
     signingup = false;
@@ -106,11 +105,14 @@ MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
 
     this->api = api;
     this->loggerCMD = loggerCMD;
+    this->globalTransferListener = new MegaCmdGlobalTransferListener(api);
+    api->addTransferListener(globalTransferListener);
     cwd = UNDEF;
     fsAccessCMD = new MegaFileSystemAccess();
     mtxSyncMap.init(false);
     session = NULL;
 }
+
 MegaCmdExecuter::~MegaCmdExecuter()
 {
     delete fsAccessCMD;
@@ -120,6 +122,7 @@ MegaCmdExecuter::~MegaCmdExecuter()
         delete *it;
     }
     nodesToConfirmDelete.clear();
+    delete globalTransferListener;
 }
 
 // list available top-level nodes and contacts/incoming shares
@@ -5632,6 +5635,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "transfers")
     {
+        bool showcompleted = getFlag(clflags, "show-completed");
+        bool onlycompleted = getFlag(clflags, "only-completed");
+        bool onlyuploads = getFlag(clflags, "only-uploads");
+        bool onlydownloads = getFlag(clflags, "only-downloads");
+        bool showsyncs = getFlag(clflags, "show-syncs");
+
         int PATHSIZE = getintOption(cloptions,"path-display-size");
         if (!PATHSIZE)
         {
@@ -5651,7 +5660,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             if (getFlag(clflags,"a"))
             {
-                if (getFlag(clflags, "only-dowloads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                if (onlydownloads || (!onlyuploads && !onlydownloads) )
                 {
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                     api->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD, megaCmdListener);
@@ -5662,7 +5671,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     delete megaCmdListener;
                 }
-                if (getFlag(clflags, "only-uploads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                if (onlyuploads || (!onlyuploads && !onlydownloads) )
                 {
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                     api->cancelTransfers(MegaTransfer::TYPE_UPLOAD, megaCmdListener);
@@ -5720,7 +5729,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             if (getFlag(clflags,"a"))
             {
-                if (getFlag(clflags, "only-dowloads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                if (onlydownloads || (!onlyuploads && !onlydownloads) )
                 {
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                     api->pauseTransfers(getFlag(clflags,"p"), MegaTransfer::TYPE_DOWNLOAD, megaCmdListener);
@@ -5731,7 +5740,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     delete megaCmdListener;
                 }
-                if (getFlag(clflags, "only-uploads") || (!getFlag(clflags,"only-uploads") && !getFlag(clflags, "only-dowloads")) )
+                if (onlyuploads || (!onlyuploads && !onlydownloads) )
                 {
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                     api->pauseTransfers(getFlag(clflags,"p"), MegaTransfer::TYPE_UPLOAD, megaCmdListener);
@@ -5787,6 +5796,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         //show transfers
         MegaTransferData* transferdata = api->getTransferData();
+        int limit = getintOption(cloptions, "limit", min(10,transferdata->getNumDownloads()+transferdata->getNumUploads()+(int)globalTransferListener->completedTransfers.size()));
 
         if (!transferdata)
         {
@@ -5798,29 +5808,53 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         bool downloadpaused = api->areTransfersPaused(MegaTransfer::TYPE_DOWNLOAD);
         bool uploadpaused = api->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
 
-        int limit = getintOption(cloptions, "limit",min(10,transferdata->getNumDownloads()+transferdata->getNumUploads()));
-
         int indexUpload = 0;
         int indexDownload = 0;
         int shown = 0;
 
         int showndl = 0;
         int shownup = 0;
+        int shownCompleted = 0;
+
         vector<MegaTransfer *> transfersDLToShow;
         vector<MegaTransfer *> transfersUPToShow;
+        vector<MegaTransfer *> transfersCompletedToShow;
 
-        while (true)
+        if (showcompleted)
+        {
+            globalTransferListener->completedTransfersMutex.lock();
+            for (uint i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+            {
+                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
+                if (
+                    ( (transfer->getType() == MegaTransfer::TYPE_UPLOAD && (onlyuploads || (!onlyuploads && !onlydownloads) ))
+                     || (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD && (onlydownloads || (!onlyuploads && !onlydownloads) ) )
+                    )
+                    &&  !(!showsyncs && transfer->isSyncTransfer())
+                    )
+                {
+
+                    transfersCompletedToShow.push_back(transfer);
+                    shownCompleted++;
+                }
+            }
+            globalTransferListener->completedTransfersMutex.unlock();
+        }
+
+        shown += shownCompleted;
+
+        while (!onlycompleted)
         {
             //MegaTransfer *transfer = transferdata->get(i);
             MegaTransfer *transfer = NULL;
             //Next transfer to show
-            if (getFlag(clflags, "only-uploads") && !getFlag(clflags, "only-dowloads") && indexUpload < transferdata->getNumUploads()) //Only uploads
+            if (onlyuploads && !onlydownloads && indexUpload < transferdata->getNumUploads()) //Only uploads
             {
                 transfer = api->getTransferByTag(transferdata->getUploadTag(indexUpload++));
             }
             else
             {
-                if ( (!getFlag(clflags, "only-dowloads") || (getFlag(clflags, "only-dowloads") && getFlag(clflags, "only-uploads"))) //both
+                if ( (!onlydownloads || (onlydownloads && onlyuploads)) //both
                      && ( (shown >= (limit/2) ) || indexDownload == transferdata->getNumDownloads() ) // /already chosen half slots for dls or no more dls
                      && indexUpload < transferdata->getNumUploads()
                      )
@@ -5838,10 +5872,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (!transfer) break; //finish
 
             if (
-                    (getFlag(clflags, "show-completed") || transfer->getState() != MegaTransfer::STATE_COMPLETED)
-                    &&  !(getFlag(clflags, "only-uploads") && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !getFlag(clflags, "only-dowloads") )
-                    &&  !(getFlag(clflags, "only-dowloads") && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !getFlag(clflags, "only-uploads") )
-                    &&  !(!getFlag(clflags, "show-syncs") && transfer->isSyncTransfer())
+                    (showcompleted || transfer->getState() != MegaTransfer::STATE_COMPLETED)
+                    &&  !(onlyuploads && transfer->getType() != MegaTransfer::TYPE_UPLOAD && !onlydownloads )
+                    &&  !(onlydownloads && transfer->getType() != MegaTransfer::TYPE_DOWNLOAD && !onlyuploads )
+                    &&  !(!showsyncs && transfer->isSyncTransfer())
                     &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
                     )
             {
@@ -5866,21 +5900,29 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         delete transferdata;
 
+        vector<MegaTransfer *>::iterator itCompleted = transfersCompletedToShow.begin();
         vector<MegaTransfer *>::iterator itDLs = transfersDLToShow.begin();
         vector<MegaTransfer *>::iterator itUPs = transfersUPToShow.begin();
 
-        for (int i=0;i<showndl+shownup; i++)
+        for (int i=0;i<showndl+shownup+shownCompleted; i++)
         {
             MegaTransfer *transfer = NULL;
-            if (itDLs == transfersDLToShow.end())
+            bool deleteTransfer = true;
+            if (itDLs == transfersDLToShow.end() && itCompleted == transfersCompletedToShow.end())
             {
                 transfer = (MegaTransfer *) *itUPs;
                 itUPs++;
             }
-            else
+            else if (itCompleted == transfersCompletedToShow.end())
             {
                 transfer = (MegaTransfer *) *itDLs;
                 itDLs++;
+            }
+            else
+            {
+                transfer = (MegaTransfer *) *itCompleted;
+                itCompleted++;
+                deleteTransfer=false;
             }
             if (i == 0) //first
             {
@@ -5900,7 +5942,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             printTransfer(transfer, PATHSIZE);
 
-            delete transfer;
+            if (deleteTransfer)
+            {
+                delete transfer;
+            }
         }
     }
     else if (words[0] == "locallogout")

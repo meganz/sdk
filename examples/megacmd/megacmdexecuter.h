@@ -23,6 +23,7 @@
 #define MEGACMDEXECUTER_H
 
 #include "megacmdlogger.h"
+#include "listeners.h"
 
 class MegaCmdExecuter
 {
@@ -32,6 +33,7 @@ private:
     char *session;
     mega::MegaFileSystemAccess *fsAccessCMD;
     MegaCMDLogger *loggerCMD;
+    MegaCmdGlobalTransferListener *globalTransferListener;
     mega::MegaMutex mtxSyncMap;
 
     // login/signup e-mail address

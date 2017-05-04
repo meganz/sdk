@@ -22,7 +22,6 @@
 #ifndef LISTENERS_H
 #define LISTENERS_H
 
-#include "megacmd.h"
 #include "megacmdlogger.h"
 
 class MegaCmdListener : public mega::SynchronousRequestListener
@@ -30,6 +29,7 @@ class MegaCmdListener : public mega::SynchronousRequestListener
 private:
     float percentFetchnodes;
     bool alreadyFinished;
+
 public:
     MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL);
     virtual ~MegaCmdListener();
@@ -96,6 +96,28 @@ public:
 protected:
     mega::MegaApi *megaApi;
     mega::MegaListener *listener;
+};
+
+class MegaCmdGlobalTransferListener : public mega::MegaTransferListener
+{
+public:
+    mega::MegaMutex completedTransfersMutex;
+    std::deque<mega::MegaTransfer *> completedTransfers;
+public:
+    MegaCmdGlobalTransferListener(mega::MegaApi *megaApi, mega::MegaTransferListener *parent = NULL);
+    virtual ~MegaCmdGlobalTransferListener();
+
+    //Transfer callbacks
+    void onTransferStart(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    void onTransferFinish(mega::MegaApi* api, mega::MegaTransfer *transfer, mega::MegaError* error);
+
+    void onTransferUpdate(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    void onTransferTemporaryError(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError* e);
+    bool onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size);
+
+protected:
+    mega::MegaApi *megaApi;
+    mega::MegaTransferListener *listener;
 };
 
 

@@ -385,7 +385,6 @@ void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request
 
 MegaCmdListener::~MegaCmdListener()
 {
-
 }
 
 MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
@@ -421,6 +420,8 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
     }
 
     LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
+
+
 }
 
 
@@ -526,5 +527,39 @@ MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferL
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)
 {
     return true;
+}
+
+//MegaCmdGlobalTransferListener
+MegaCmdGlobalTransferListener::MegaCmdGlobalTransferListener(MegaApi *megaApi, MegaTransferListener *parent)
+{
+    this->megaApi = megaApi;
+    this->listener = parent;
+    completedTransfersMutex.init(false);
+};
+
+void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error)
+{
+    completedTransfersMutex.lock();
+    completedTransfers.push_back(transfer->copy());
+    if (completedTransfers.size()>10000) //TODO: define constant
+    {
+        delete completedTransfers.front();
+        completedTransfers.pop_front();
+    }
+    completedTransfersMutex.unlock();
+}
+
+void MegaCmdGlobalTransferListener::onTransferStart(MegaApi* api, MegaTransfer *transfer) {};
+void MegaCmdGlobalTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *transfer) {};
+void MegaCmdGlobalTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e) {};
+bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) {};
+
+MegaCmdGlobalTransferListener::~MegaCmdGlobalTransferListener()
+{
+    while (completedTransfers.size())
+    {
+        delete completedTransfers.front();
+        completedTransfers.pop_front();
+    }
 }
 
