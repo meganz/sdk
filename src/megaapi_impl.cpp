@@ -12959,7 +12959,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 fileattrstring = string(fa);
 
-                byte nodekey[SymmCipher::KEYLENGTH];
+                byte nodekey[FILENODEKEYLENGTH];
                 if (Base64::atob(base64key, nodekey, sizeof nodekey) != sizeof nodekey)
                 {
                     e = API_EKEY;
