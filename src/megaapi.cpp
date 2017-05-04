@@ -394,6 +394,11 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
+string *MegaNode::getFileAttrString()
+{
+    return NULL;
+}
+
 string *MegaNode::getPrivateAuth()
 {
     return NULL;

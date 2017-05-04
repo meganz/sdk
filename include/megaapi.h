@@ -886,6 +886,19 @@ class MegaNode
         virtual std::string* getAttrString();
 
         /**
+         * @brief Returns a string that contains the file attributes related to the node
+         *
+         * The return value is only valid for nodes attached in a chatroom. In all other cases this function
+         * will return an empty string.
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return File attributes related to the node
+         */
+        virtual std::string *getFileAttrString();
+
+        /**
          * @brief Return the private auth token to access this node
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
