@@ -60,11 +60,12 @@ struct MEGA_API FileAttributeFetchChannel
 struct MEGA_API FileAttributeFetch
 {
     handle nodehandle;
+    string nodekey;
     fatype type;
     int retries;
     int tag;
 
-    FileAttributeFetch(handle, fatype, int);
+    FileAttributeFetch(handle, string, fatype, int);
 };
 } // namespace
 

@@ -3570,7 +3570,7 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(handle h, string *fileattrstring, fatype t, int cancel)
+error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
@@ -3653,7 +3653,7 @@ error MegaClient::getfa(handle h, string *fileattrstring, fatype t, int cancel)
 
             if (!*fafp)
             {
-                *fafp = new FileAttributeFetch(h, t, reqtag);
+                *fafp = new FileAttributeFetch(h, *nodekey, t, reqtag);
             }
             else
             {

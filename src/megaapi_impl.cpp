@@ -5089,6 +5089,9 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
         if (!node->getFileAttrString()->empty())
         {
             request->setText(node->getFileAttrString()->c_str());
+            const char *nodekey = node->getBase64Key();
+            request->setPrivateKey(nodekey);
+            delete [] nodekey;
         }
     }
 	requestQueue.push(request);
@@ -12935,18 +12938,36 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             handle h = request->getNodeHandle();
             const char *fa = request->getText();
+            const char *base64key = request->getPrivateKey();
 
             Node *node = client->nodebyhandle(h);
 
-            if(!dstFilePath || (!fa && !node) || (fa && ISUNDEF(h)))
+            if(!dstFilePath || (!fa && !node) || (fa && (!base64key || ISUNDEF(h))))
             {
                 e = API_EARGS;
                 break;
             }
 
-            string fileattrstring = fa ? string(fa) : node->fileattrstring;
+            string fileattrstring;
+            string key;
+            if (!fa)
+            {
+                fileattrstring = node->fileattrstring;
+                key = node->nodekey;
+            }
+            else
+            {
+                fileattrstring = string(fa);
 
-            e = client->getfa(h, &fileattrstring, (fatype) type);//node, (fatype)type);
+                byte nodekey[SymmCipher::KEYLENGTH];
+                if (Base64::atob(base64key, nodekey, sizeof nodekey) == sizeof nodekey)
+                {
+                    e = API_EKEY;
+                    break;
+                }
+                key.assign((const char *)nodekey, sizeof nodekey);
+            }
+            e = client->getfa(h, &fileattrstring, &key, (fatype) type);
             if(e == API_EEXIST)
             {
                 e = API_OK;
@@ -13321,7 +13342,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string fileattrstring = fa ? string(fa) : node->fileattrstring;
 
-            e = client->getfa(h, &fileattrstring, (fatype) type, 1);
+            e = client->getfa(h, &fileattrstring, NULL, (fatype) type, 1);
 			if (!e)
 			{
 				std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
