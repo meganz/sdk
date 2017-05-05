@@ -939,10 +939,10 @@ string joinStrings(const vector<string>& vec, const char* delim, bool quoted)
 
 }
 
-string getFixLengthString(const string origin, uint size, const char delim, bool alignedright)
+string getFixLengthString(const string origin, u_int size, const char delim, bool alignedright)
 {
     string toret;
-    uint origsize = origin.size();
+    u_int origsize = origin.size();
     if (origsize <= size){
         if (alignedright)
         {
@@ -966,7 +966,7 @@ string getFixLengthString(const string origin, uint size, const char delim, bool
     return toret;
 }
 
-string getRightAlignedString(const string origin, uint minsize)
+string getRightAlignedString(const string origin, u_int minsize)
 {
     ostringstream os;
     os << std::setw(minsize) << origin;

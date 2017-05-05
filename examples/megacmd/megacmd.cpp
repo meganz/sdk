@@ -199,6 +199,8 @@ void sigint_handler(int signum)
 #ifdef _WIN32
 BOOL CtrlHandler( DWORD fdwCtrlType )
 {
+  LOG_verbose << "Reached CtrlHandler: " << fdwCtrlType;
+
   switch( fdwCtrlType )
   {
     // Handle the CTRL-C signal.
@@ -2278,11 +2280,21 @@ void printWelcomeMsg()
 {
     u_int width = 75;
     int rows = 1, cols = width;
-    rl_get_screen_size(&rows, &cols);
+#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+
+    if (RL_ISSTATE(RL_STATE_INITIALIZED))
+    {
+        rl_resize_terminal();
+        rl_get_screen_size(&rows, &cols);
+    }
+#endif
 
     if (cols)
     {
         width = cols-2;
+#ifdef _WIN32
+        width--;
+#endif
     }
 
     cout << endl;
@@ -2382,6 +2394,7 @@ void initializeMacOSStuff(int argc, char* argv[])
 
 bool runningInBackground()
 {
+#ifndef _WIN32
     pid_t fg = tcgetpgrp(STDIN_FILENO);
     if(fg == -1) {
         // Piped:
@@ -2393,6 +2406,8 @@ bool runningInBackground()
         // background
         return true;
     }
+#endif
+    return false;
 }
 
 

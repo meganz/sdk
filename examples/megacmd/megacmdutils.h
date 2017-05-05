@@ -110,9 +110,9 @@ int toInteger(std::string what, int failValue = -1);
 
 std::string joinStrings(const std::vector<std::string>& vec, const char* delim = " ", bool quoted=true);
 
-std::string getFixLengthString(const std::string origin, uint size, const char delimm=' ', bool alignedright = false);
+std::string getFixLengthString(const std::string origin, u_int size, const char delimm=' ', bool alignedright = false);
 
-std::string getRightAlignedString(const std::string origin, uint minsize);
+std::string getRightAlignedString(const std::string origin, u_int minsize);
 
 
 

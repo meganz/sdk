@@ -2594,7 +2594,7 @@ bool MegaCmdExecuter::IsFolder(string path)
     return destinyIsFolder;
 }
 
-void MegaCmdExecuter::printTransfersHeader(const uint PATHSIZE, bool printstate)
+void MegaCmdExecuter::printTransfersHeader(const u_int PATHSIZE, bool printstate)
 {
     OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
               << "  " << getFixLengthString("    PROGRESS",20);
@@ -2605,16 +2605,24 @@ void MegaCmdExecuter::printTransfersHeader(const uint PATHSIZE, bool printstate)
     OUTSTREAM << endl;
 }
 
-void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const uint PATHSIZE, bool printstate)
+void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE, bool printstate)
 {
     //Direction
+#ifdef _WIN32
+    OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"D":"U") << " ";
+#else
     OUTSTREAM << " " << ((transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)?"\u21d3":"\u21d1") << " ";
+#endif
     //TODO: handle TYPE_LOCAL_HTTP_DOWNLOAD
 
     //type (transfer/normal)
     if (transfer->isSyncTransfer())
     {
+#ifdef _WIN32
+        OUTSTREAM << "S";
+#else
         OUTSTREAM << "\u21f5";
+#endif
     }
     else
     {
@@ -5647,7 +5655,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             // get screen size for output purposes
             u_int width = 75;
             int rows = 1, cols = width;
-            rl_get_screen_size(&rows, &cols);
+
+            #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+
+                if (RL_ISSTATE(RL_STATE_INITIALIZED))
+                {
+                    rl_resize_terminal();
+                    rl_get_screen_size(&rows, &cols);
+                }
+            #endif
 
             if (cols)
             {
@@ -5823,7 +5839,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (showcompleted)
         {
             globalTransferListener->completedTransfersMutex.lock();
-            for (uint i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+            for (u_int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
             {
                 MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
                 if (

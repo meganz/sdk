@@ -552,7 +552,7 @@ void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer 
 void MegaCmdGlobalTransferListener::onTransferStart(MegaApi* api, MegaTransfer *transfer) {};
 void MegaCmdGlobalTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *transfer) {};
 void MegaCmdGlobalTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e) {};
-bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) {};
+bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) {return false;};
 
 MegaCmdGlobalTransferListener::~MegaCmdGlobalTransferListener()
 {
