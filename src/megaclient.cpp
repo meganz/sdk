@@ -3577,11 +3577,7 @@ error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatyp
     int p, pp;
 
     // find position of file attribute or 0 if not present
-    char buf[24];
-    sprintf(buf, ":%u*", t);
-    p = fileattrstring->find(buf) + 1;
-
-    if (!p)
+    if (!(p = Node::hasfileattribute(fileattrstring, t)))
     {
         return API_ENOENT;
     }

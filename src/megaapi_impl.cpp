@@ -88,8 +88,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->fileattrstring = fileattrstring;
     this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
-    this->thumbnailAvailable = false;
-    this->previewAvailable = false;
+    this->thumbnailAvailable = (Node::hasfileattribute(&fileattrstring, 0) != 0);
+    this->previewAvailable = (Node::hasfileattribute(&fileattrstring, 1) != 0);
     this->tag = 0;
     this->isPublicNode = ispublic;
     this->outShares = false;
@@ -108,6 +108,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     {
         this->publicAuth = publicauth;
     }
+
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
