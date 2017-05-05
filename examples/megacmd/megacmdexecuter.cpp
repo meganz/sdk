@@ -666,6 +666,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
 
     if (l)
     {
+        delete pathsMatching;
         return NULL;
     }
 
@@ -678,7 +679,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
             {
                 *user = c.front();
             }
-
+            delete pathsMatching;
             return NULL;
         }
 
@@ -1121,6 +1122,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
 
     if (l)
     {
+        delete nodesMatching;
         return NULL;
     }
 
@@ -1133,7 +1135,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
             {
                 *user = c.front();
             }
-
+            delete nodesMatching;
             return NULL;
         }
 
@@ -1506,7 +1508,10 @@ string MegaCmdExecuter::getDisplayPath(string givenPath, MegaNode* n)
                 givenPath=givenPath.substr(3);
                 toret+="../";
                 MegaNode *aux = n;
-                n=api->getNodeByHandle(n->getParentHandle());
+                if (n)
+                {
+                    n=api->getNodeByHandle(n->getParentHandle());
+                }
                 delete aux;
                 if (n)
                 {
@@ -4609,7 +4614,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 size_t possep = rest.find_first_of("/");
                 if (possep == string::npos)
                 {
-                    possep = rest.length();
                     break;
                 }
 

@@ -102,7 +102,6 @@ int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
         else
         {
             LOG_fatal << "ERROR on binding socket: " << ERRNO;
-            thesock = 0;
         }
     }
     else
