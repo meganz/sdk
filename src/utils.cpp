@@ -226,6 +226,30 @@ void TextChat::resetTag()
 {
     tag = -1;
 }
+
+bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
+{
+    if (revoke)
+    {
+        attachments_map::iterator uhit = attachedNodes.find(h);
+        if (uhit != attachedNodes.end())
+        {
+            uhit->second.erase(uh);
+            if (uhit->second.empty())
+            {
+                attachedNodes.erase(h);
+                return true;
+            }
+        }
+    }
+    else
+    {
+        attachedNodes[h].insert(uh);
+        return true;
+    }
+
+    return false;
+}
 #endif
 
 /**
