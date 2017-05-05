@@ -2170,9 +2170,13 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     }
 }
 
-void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname)
+void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname, bool background)
 {
-    MegaCmdTransferListener *megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+    MegaCmdTransferListener *megaCmdTransferListener = NULL;
+    if (!background)
+    {
+        megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+    }
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
     if (newname.size())
     {
@@ -2182,19 +2186,22 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     {
         api->startUpload(path.c_str(), node, megaCmdTransferListener);
     }
-    megaCmdTransferListener->wait();
-    if (megaCmdTransferListener->getError()->getErrorCode() == API_EREAD)
+    if (megaCmdTransferListener)
     {
-        setCurrentOutCode(MCMD_NOTFOUND);
-        LOG_err << "Could not find local path: " << path;
+        megaCmdTransferListener->wait();
+        if (megaCmdTransferListener->getError()->getErrorCode() == API_EREAD)
+        {
+            setCurrentOutCode(MCMD_NOTFOUND);
+            LOG_err << "Could not find local path: " << path;
+        }
+        else if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
+        {
+            char * destinyPath = api->getNodePath(node);
+            LOG_info << "Upload complete: " << path << " to " << destinyPath << newname;
+            delete []destinyPath;
+        }
+        delete megaCmdTransferListener;
     }
-    else if (checkNoErrors(megaCmdTransferListener->getError(), "Upload node"))
-    {
-        char * destinyPath = api->getNodePath(node);
-        LOG_info << "Upload complete: " << path << " to " << destinyPath << newname;
-        delete []destinyPath;
-    }
-    delete megaCmdTransferListener;
 }
 
 
@@ -2656,11 +2663,12 @@ void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE
     }
     else
     {
-        //source
-        string source = transfer->getParentPath();
-        source.append(transfer->getFileName());
-        OUTSTREAM << getFixLengthString(source,PATHSIZE);
 
+        //source
+        string source(transfer->getParentPath()?transfer->getParentPath():"");
+        source.append(transfer->getFileName());
+
+        OUTSTREAM << getFixLengthString(source, PATHSIZE);
         OUTSTREAM << " ";
 
         //destination
@@ -3663,6 +3671,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             LOG_err << "Not logged in.";
             return;
         }
+
+        bool background = getFlag(clflags,"q");
+
         if (words.size() > 1)
         {
             string targetuser;
@@ -3698,7 +3709,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     for (int i = 1; i < max(1, (int)words.size() - 1); i++)
                     {
-                        uploadNode(words[i], api, n, newname);
+                        uploadNode(words[i], api, n, newname, background);
                     }
                 }
                 else

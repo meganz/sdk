@@ -395,6 +395,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     else if ("put" == thecommand)
     {
         validParams->insert("c");
+        validParams->insert("q");
     }
     else if ("get" == thecommand)
     {
@@ -1090,7 +1091,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "put"))
     {
-        return "put localfile [localfile2 localfile3 ...] [-c] [dstremotepath]";
+        return "put localfile [localfile2 localfile3 ...] [-c] [-q] [dstremotepath]";
     }
     if (!strcmp(command, "putq"))
     {
@@ -1431,6 +1432,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -c" << "\t" << "Creates remote folder destination in case of not existing." << endl;
+        os << " -q" << "\t" << "queue upload: execute in the background. Don't wait for it to end' " << endl;
+
     }
     else if (!strcmp(command, "get"))
     {
