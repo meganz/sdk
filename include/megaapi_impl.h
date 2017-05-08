@@ -303,6 +303,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         static MegaNode *fromNode(Node *node);
         virtual MegaNode *copy();
 
+        virtual char *serialize();
         virtual bool serialize(string*);
         static MegaNodePrivate* unserialize(string*);
 

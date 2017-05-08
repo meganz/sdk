@@ -952,6 +952,30 @@ class MegaNode
         virtual std::string getLocalPath();
 #endif
 
+        /**
+         * @brief Provides a serialization of the MegaNode object
+         *
+         * This method is useful to pass the object in its serialized form in
+         * Java-based apps, like Android.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Serialization of the MegaNode object, in Base64, or NULL if error.
+         */
+        virtual char *serialize();
+
+        /**
+         * @brief Returns a new MegaNode object from its serialization
+         *
+         * This method is useful to restore a serialized MegaNode object, which
+         * might be used in Java-based apps, like Android.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param Serialization of a MegaNode object (in Base64)
+         * @return A new MegaNode object, or NULL if error.
+         */
+        static MegaNode* unserialize(const char *d);
 };
 
 /**

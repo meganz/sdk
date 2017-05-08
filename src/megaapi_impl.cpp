@@ -378,6 +378,20 @@ MegaNode *MegaNodePrivate::copy()
     return new MegaNodePrivate(this);
 }
 
+char *MegaNodePrivate::serialize()
+{
+    string d;
+    if (!serialize(&d))
+    {
+        return NULL;
+    }
+
+    char *ret = new char[d.size()*4/3+3];
+    Base64::btoa((byte*) d.data(), d.size(), ret);
+
+    return ret;
+}
+
 bool MegaNodePrivate::serialize(string *d)
 {
     unsigned short ll;
