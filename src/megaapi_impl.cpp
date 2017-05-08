@@ -2673,6 +2673,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
+        case TYPE_QUERY_BANDWIDTH_QUOTA: return "QUERY_BANDWIDTH_QUOTA";
     }
     return "UNKNOWN";
 }
@@ -4973,6 +4974,14 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 	request->setNumDetails(numDetails);
 
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryBandwidthQuota(long long size, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA, listener);
+    request->setNumber(size);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -10112,6 +10121,16 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::querybandwidthquota_result(int code)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA)) return;
+
+    request->setFlag(code);
+    fireOnRequestFinish(request, MegaError(API_OK));
+}
+
 void MegaApiImpl::removecontact_result(error e)
 {
 	MegaError megaError(e);
@@ -12883,6 +12902,12 @@ void MegaApiImpl::sendPendingRequests()
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
 		}
+        case MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA:
+        {
+            m_off_t size = request->getNumber();
+            client->querybandwidthquota(size);
+            break;
+        }
 		case MegaRequest::TYPE_CHANGE_PW:
 		{
 			const char* oldPassword = request->getPassword();

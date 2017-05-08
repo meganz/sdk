@@ -1715,6 +1715,16 @@ void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
 }
 
+void MegaSDK::queryBandwidthQuota(int64 size, MRequestListenerInterface^ listener)
+{
+    megaApi->queryBandwidthQuota(size, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryBandwidthQuota(int64 size)
+{
+    megaApi->queryBandwidthQuota(size);
+}
+
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
 {
 	megaApi->getPricing(createDelegateMRequestListener(listener));

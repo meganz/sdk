@@ -480,6 +480,14 @@ public:
     CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
 };
 
+class MEGA_API CommandQueryBandwidthQuota : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryBandwidthQuota(MegaClient*, m_off_t size);
+};
+
 class MEGA_API CommandGetUserTransactions : public Command
 {
     AccountDetails* details;

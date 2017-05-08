@@ -3230,6 +3230,26 @@ void CommandGetUserQuota::procresult()
     }
 }
 
+CommandQueryBandwidthQuota::CommandQueryBandwidthQuota(MegaClient* client, m_off_t size)
+{
+    cmd("qbq");
+    arg("s", size);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryBandwidthQuota::procresult()
+{
+    if (!client->json.isnumeric())
+    {
+        LOG_err << "Unexpected response: " << client->json.pos;
+        client->json.storeobject();
+        return client->app->querybandwidthquota_result(0);
+    }
+
+    return client->app->querybandwidthquota_result(client->json.getint());
+}
+
 CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
 {
     cmd("utt");

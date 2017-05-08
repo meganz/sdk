@@ -784,6 +784,14 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->getAccountDetails();
 }
 
+- (void)queryBandwidthQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryBandwidthQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)queryBandwidthQuotaWithSize:(long long)size {
+    self.megaApi->queryBandwidthQuota(size);
+}
+
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPricing([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

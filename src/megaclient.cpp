@@ -7962,6 +7962,11 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
     }
 }
 
+void MegaClient::querybandwidthquota(m_off_t size)
+{
+    reqs.add(new CommandQueryBandwidthQuota(this, size));
+}
+
 // export node link
 error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 {
