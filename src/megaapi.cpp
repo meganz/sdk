@@ -2483,6 +2483,11 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
     pImpl->changeApiUrl(apiURL, disablepkp);
 }
 
+bool MegaApi::setLanguage(const char *languageCode)
+{
+    return pImpl->setLanguage(languageCode);
+}
+
 void MegaApi::retrySSLerrors(bool enable)
 {
     pImpl->retrySSLerrors(enable);
@@ -2784,6 +2789,16 @@ long long MegaApi::getTotalDownloadedBytes()
 long long MegaApi::getTotalUploadedBytes()
 {
     return pImpl->getTotalUploadedBytes();
+}
+
+long long MegaApi::getTotalDownloadBytes()
+{
+    return pImpl->getTotalDownloadBytes();
+}
+
+long long MegaApi::getTotalUploadBytes()
+{
+    return pImpl->getTotalUploadBytes();
 }
 
 void MegaApi::update()

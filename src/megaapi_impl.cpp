@@ -3574,6 +3574,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waitingRequest = false;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
+    totalDownloadBytes = 0;
+    totalUploadBytes = 0;
     notificationNumber = 0;
     activeRequest = NULL;
     activeTransfer = NULL;
@@ -6116,11 +6118,15 @@ int MegaApiImpl::getTotalDownloads()
 void MegaApiImpl::resetTotalDownloads()
 {
     totalDownloads = 0;
+    totalDownloadBytes = 0;
+    totalDownloadedBytes = 0;
 }
 
 void MegaApiImpl::resetTotalUploads()
 {
     totalUploads = 0;
+    totalUploadBytes = 0;
+    totalUploadedBytes = 0;
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -7290,6 +7296,135 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
     sdkMutex.unlock();
 }
 
+bool MegaApiImpl::setLanguage(const char *languageCode)
+{
+    if (!languageCode)
+    {
+        return false;
+    }
+
+    int len = strlen(languageCode);
+    if (len < 2 || len > 7)
+    {
+        return false;
+    }
+
+    string s = languageCode;
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+
+    JSON json;
+    string code;
+    nameid id = json.getnameid(s.c_str());
+    switch (id)
+    {
+        // Regular language codes
+        case MAKENAMEID2('a', 'r'):
+        case MAKENAMEID2('b', 'g'):
+        case MAKENAMEID2('d', 'e'):
+        case MAKENAMEID2('e', 'n'):
+        case MAKENAMEID2('e', 's'):
+        case MAKENAMEID2('f', 'a'):
+        case MAKENAMEID2('f', 'i'):
+        case MAKENAMEID2('f', 'r'):
+        case MAKENAMEID2('h', 'e'):
+        case MAKENAMEID2('h', 'u'):
+        case MAKENAMEID2('i', 'd'):
+        case MAKENAMEID2('i', 't'):
+        case MAKENAMEID2('n', 'l'):
+        case MAKENAMEID2('p', 'l'):
+        case MAKENAMEID2('r', 'o'):
+        case MAKENAMEID2('r', 'u'):
+        case MAKENAMEID2('s', 'k'):
+        case MAKENAMEID2('s', 'l'):
+        case MAKENAMEID2('s', 'r'):
+        case MAKENAMEID2('t', 'h'):
+        case MAKENAMEID2('t', 'l'):
+        case MAKENAMEID2('t', 'r'):
+        case MAKENAMEID2('u', 'k'):
+        case MAKENAMEID2('v', 'i'):
+
+        // Not used on apps
+        case MAKENAMEID2('c', 'z'):
+        case MAKENAMEID2('j', 'p'):
+        case MAKENAMEID2('k', 'r'):
+        case MAKENAMEID2('b', 'r'):
+        case MAKENAMEID2('s', 'e'):
+        case MAKENAMEID2('c', 'n'):
+        case MAKENAMEID2('c', 't'):
+            code = s;
+            break;
+
+        // Conversions
+        case MAKENAMEID2('c', 's'):
+            code = "cz";
+            break;
+
+        case MAKENAMEID2('j', 'a'):
+            code = "jp";
+            break;
+
+        case MAKENAMEID2('k', 'o'):
+            code = "kr";
+            break;
+
+        case MAKENAMEID2('p', 't'):
+        case MAKENAMEID5('p', 't', '_', 'b', 'r'):
+        case MAKENAMEID5('p', 't', '-', 'b', 'r'):
+        case MAKENAMEID5('p', 't', '_', 'p', 't'):
+        case MAKENAMEID5('p', 't', '-', 'p', 't'):
+            code = "br";
+            break;
+
+        case MAKENAMEID2('s', 'v'):
+            code = "se";
+            break;
+
+        case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
+        case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
+        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
+            code = "cn";
+            break;
+
+        case MAKENAMEID5('z', 'h', '_', 't', 'w'):
+        case MAKENAMEID5('z', 'h', '-', 't', 'w'):
+        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
+        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
+            code = "ct";
+            break;
+
+        case MAKENAMEID2('i', 'n'):
+            code = "id";
+            break;
+
+        case MAKENAMEID2('i', 'w'):
+            code = "he";
+            break;
+
+        // Not supported in the web
+        case MAKENAMEID2('e', 'e'):
+        case MAKENAMEID2('h', 'r'):
+        case MAKENAMEID2('k', 'a'):
+            break;
+
+        default:
+            LOG_warn << "Unknown language code: " << languageCode;
+            return false;
+    }
+
+    if (!code.size())
+    {
+        LOG_debug << "Unsupported language code: " << languageCode;
+        return true;
+    }
+
+    bool val;
+    sdkMutex.lock();
+    val = client->setlang(&code);
+    sdkMutex.unlock();
+    return val;
+}
+
 void MegaApiImpl::retrySSLerrors(bool enable)
 {
     sdkMutex.lock();
@@ -7838,11 +7973,15 @@ void MegaApiImpl::file_added(File *f)
     {
         totalDownloads++;
         pendingDownloads++;
+        totalDownloadBytes += t->size;
+        totalDownloadedBytes += t->progresscompleted;
     }
     else
     {
         totalUploads++;
         pendingUploads++;
+        totalUploadBytes += t->size;
+        totalUploadedBytes += t->progresscompleted;
     }
 
     fireOnTransferStart(transfer);
@@ -8965,6 +9104,10 @@ void MegaApiImpl::rename_result(handle h, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
 
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
+
     request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
 }
@@ -8979,6 +9122,10 @@ void MegaApiImpl::unlink_result(handle h, error e)
     {
         return;
     }
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
@@ -9082,6 +9229,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
                     (request->getType() != MegaRequest::TYPE_MOVE))) return;
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     delete [] nn;
 
@@ -9239,8 +9390,6 @@ void MegaApiImpl::fa_complete(Node*, fatype, const char* data, uint32_t len)
         string filePath(request->getFile());
         string localPath;
         fsAccess->path2local(&filePath, &localPath);
-
-        totalDownloadedBytes += len;
 
         fsAccess->unlinklocal(&localPath);
         if(!f->fopen(&localPath, false, true))
@@ -9631,6 +9780,8 @@ void MegaApiImpl::logout_result(error e)
                 fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
             }
         }
+        resetTotalDownloads();
+        resetTotalUploads();
 
         pendingUploads = 0;
         pendingDownloads = 0;
@@ -10017,8 +10168,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 string filePath(request->getFile());
                 string localPath;
                 fsAccess->path2local(&filePath, &localPath);
-
-                totalDownloadedBytes += len;
 
                 fsAccess->unlinklocal(&localPath);
                 if(!f->fopen(&localPath, false, true))
@@ -10921,6 +11070,15 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
         transfer->setDeltaSize(deltaSize);
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
+
+        if (tr->type == GET)
+        {
+            totalDownloadedBytes += deltaSize;
+        }
+        else
+        {
+            totalUploadedBytes += deltaSize;
+        }
     }
     else
     {
@@ -10949,6 +11107,8 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 
     if (tr->type == GET)
     {
+        totalDownloadedBytes += deltaSize;
+
         if (pendingDownloads > 0)
         {
             pendingDownloads--;
@@ -10959,6 +11119,8 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     }
     else
     {
+        totalUploadedBytes += deltaSize;
+
         transfer->setState(MegaTransfer::STATE_COMPLETING);
         transfer->setTransfer(NULL);
         fireOnTransferUpdate(transfer);
@@ -10981,8 +11143,11 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
 
 void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e)
 {
+    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
     if (tr->type == GET)
     {
+        totalDownloadedBytes += deltaSize;
+
         if (pendingDownloads > 0)
         {
             pendingDownloads--;
@@ -10995,6 +11160,8 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     }
     else
     {
+        totalUploadedBytes += deltaSize;
+
         if (pendingUploads > 0)
         {
             pendingUploads--;
@@ -12327,6 +12494,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
             if(sessionKey)
@@ -13286,6 +13456,9 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
                 }
             }
+            resetTotalDownloads();
+            resetTotalUploads();
+
             requestMap[request->getTag()]=request;
 
 			client->createephemeral();
@@ -14371,6 +14544,16 @@ long long MegaApiImpl::getTotalDownloadedBytes()
 long long MegaApiImpl::getTotalUploadedBytes()
 {
     return totalUploadedBytes;
+}
+
+long long MegaApiImpl::getTotalDownloadBytes()
+{
+    return totalDownloadBytes;
+}
+
+long long MegaApiImpl::getTotalUploadBytes()
+{
+    return totalUploadBytes;
 }
 
 void MegaApiImpl::update()

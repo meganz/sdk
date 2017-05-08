@@ -486,6 +486,20 @@ void MegaClient::setrootnode(handle h)
     }
 }
 
+bool MegaClient::setlang(string *code)
+{
+    if (code && code->size() == 2)
+    {
+        lang = "&lang=";
+        lang.append(*code);
+        return true;
+    }
+
+    lang.clear();
+    LOG_err << "Invalid language code: " << (code ? *code : "(null)");
+    return false;
+}
+
 handle MegaClient::getrootpublicfolder()
 {
     // if we logged into a folder...
@@ -1339,7 +1353,10 @@ void MegaClient::exec()
                     pendingcs->posturl.append(reqid, sizeof reqid);
                     pendingcs->posturl.append(auth);
                     pendingcs->posturl.append(appkey);
-
+                    if (lang.size())
+                    {
+                        pendingcs->posturl.append(lang);
+                    }
                     pendingcs->type = REQ_JSON;
 
                     pendingcs->post(this);

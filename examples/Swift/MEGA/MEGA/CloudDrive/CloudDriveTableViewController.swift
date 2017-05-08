@@ -32,32 +32,32 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     var parentNode : MEGANode!
     var nodes : MEGANodeList!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let thumbsURL = NSFileManager.defaultManager().URLsForDirectory(.CachesDirectory, inDomains: .UserDomainMask)[0]
-        let thumbsDirectory = thumbsURL.URLByAppendingPathComponent("thumbs")
+        let thumbsURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let thumbsDirectory = thumbsURL.appendingPathComponent("thumbs")
         
-        if !NSFileManager.defaultManager().fileExistsAtPath(thumbsDirectory.path!) {
+        if !FileManager.default.fileExists(atPath: thumbsDirectory.path) {
             do {
-                try NSFileManager.defaultManager().createDirectoryAtPath(thumbsDirectory.path!, withIntermediateDirectories: true, attributes: nil)
+                try FileManager.default.createDirectory(atPath: thumbsDirectory.path, withIntermediateDirectories: true, attributes: nil)
             } catch let error as NSError {
                 NSLog("Unable to create directory \(error.debugDescription)")
             }
         }
     }
     
-    override func viewWillAppear(animated: Bool) {
+    override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        megaapi.addMEGADelegate(self)
+        megaapi.add(self)
         megaapi.retryPendingConnections()
         reloadUI()
     }
     
-    override func viewWillDisappear(animated: Bool) {
-        megaapi.removeMEGADelegate(self)
+    override func viewWillDisappear(_ animated: Bool) {
+        megaapi.remove(self)
     }
     
     override func didReceiveMemoryWarning() {
@@ -70,10 +70,10 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         
         if parentNode == nil {
             navigationItem.title = "Cloud Drive"
-            nodes = megaapi.childrenForParent(megaapi.rootNode)
+            nodes = megaapi.children(forParent: megaapi.rootNode)
             
-            let files = megaapi.numberChildFilesForParent(megaapi.rootNode)
-            let folders = megaapi.numberChildFoldersForParent(megaapi.rootNode)
+            let files = megaapi.numberChildFiles(forParent: megaapi.rootNode)
+            let folders = megaapi.numberChildFolders(forParent: megaapi.rootNode)
             
             if files == 0 || files > 1 {
                 if folders == 0 || folders > 1 {
@@ -91,10 +91,10 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             
         } else {
             navigationItem.title = parentNode.name
-            nodes = megaapi.childrenForParent(parentNode)
+            nodes = megaapi.children(forParent: parentNode)
             
-            let files = megaapi.numberChildFilesForParent(parentNode)
-            let folders = megaapi.numberChildFoldersForParent(parentNode)
+            let files = megaapi.numberChildFiles(forParent: parentNode)
+            let folders = megaapi.numberChildFolders(forParent: parentNode)
             
             if files == 0 || files > 1 {
                 if folders == 0 || folders > 1 {
@@ -117,177 +117,177 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     // MARK: - Table view data source
     
-    override func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+    override func numberOfSections(in tableView: UITableView) -> Int {
         return 1
     }
     
-    override func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return nodes.size.integerValue
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return nodes.size.intValue
     }
     
-    override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as! NodeTableViewCell
-        let node = nodes.nodeAtIndex(indexPath.row)
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "nodeCell", for: indexPath) as! NodeTableViewCell
+        let node = nodes.node(at: indexPath.row)
         
-        cell.nameLabel.text = node.name
+        cell.nameLabel.text = node?.name
         
-        let thumbnailFilePath = Helper.pathForNode(node, path:NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-        let fileExists = NSFileManager.defaultManager().fileExistsAtPath(thumbnailFilePath)
-        
-        if !fileExists && node.hasThumbnail() {
-            megaapi.getThumbnailNode(node, destinationFilePath: thumbnailFilePath)
-        }
+        let thumbnailFilePath = Helper.pathForNode(node!, path:FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
         
         if !fileExists {
-            cell.thumbnailImageView.image = Helper.imageForNode(node)
+            if node!.hasThumbnail() {
+                megaapi.getThumbnailNode(node, destinationFilePath: thumbnailFilePath)
+            } else {
+                cell.thumbnailImageView.image = Helper.imageForNode(node!)
+            }
         } else {
             cell.thumbnailImageView.image = UIImage(named: thumbnailFilePath)
         }
         
-        if node.isFile() {
-            cell.subtitleLabel.text = NSByteCountFormatter.stringFromByteCount(node.size.longLongValue, countStyle: NSByteCountFormatterCountStyle.Memory)
+        if (node?.isFile())! {
+            cell.subtitleLabel.text = ByteCountFormatter.string(fromByteCount: (node?.size.int64Value)!, countStyle: ByteCountFormatter.CountStyle.memory)
         } else {
-            let files = megaapi.numberChildFilesForParent(node)
-            let folders = megaapi.numberChildFoldersForParent(node)
+            let files = megaapi.numberChildFiles(forParent: node)
+            let folders = megaapi.numberChildFolders(forParent: node)
             
             cell.subtitleLabel.text = "\(folders) folders, \(files) files"
         }
         
-        cell.nodeHandle = node.handle
+        cell.nodeHandle = node?.handle
         
         return cell
     }
     
     
-    override func tableView(tableView: UITableView, canEditRowAtIndexPath indexPath: NSIndexPath) -> Bool {
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
         return true
     }
     
-    override func tableView(tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         return headerView
     }
     
-    override func tableView(tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         return 20.0
     }
     
-    override func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
-        if editingStyle == .Delete {
-            let node = nodes.nodeAtIndex(indexPath.row)
-            megaapi.removeNode(node)
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            let node = nodes.node(at: indexPath.row)
+            megaapi.remove(node)
         }
     }
     
-    override func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
-        let node = nodes.nodeAtIndex(indexPath.row)
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let node = nodes.node(at: indexPath.row)
         
-        if node.isFolder() {
+        if (node?.isFolder())! {
             let storyboard = UIStoryboard(name: "Cloud", bundle: nil)
-            let cdtvc = storyboard.instantiateViewControllerWithIdentifier("CloudDriveID") as!CloudDriveTableViewController
+            let cdtvc = storyboard.instantiateViewController(withIdentifier: "CloudDriveID") as!CloudDriveTableViewController
             cdtvc.parentNode = node
             self.navigationController?.pushViewController(cdtvc, animated: true)
         }
     }
     
-    override func tableView(tableView: UITableView, accessoryButtonTappedForRowWithIndexPath indexPath: NSIndexPath) {
-        let node = nodes.nodeAtIndex(indexPath.row)
+    override func tableView(_ tableView: UITableView, accessoryButtonTappedForRowWith indexPath: IndexPath) {
+        let node = nodes.node(at: indexPath.row)
         
         let storyboard = UIStoryboard(name: "Cloud", bundle: nil)
-        let nidvc = storyboard.instantiateViewControllerWithIdentifier("nodeInfoDetails") as! DetailsNodeInfoViewController
+        let nidvc = storyboard.instantiateViewController(withIdentifier: "nodeInfoDetails") as! DetailsNodeInfoViewController
         nidvc.node = node
         self.navigationController?.pushViewController(nidvc, animated: true)
     }
     
     // MARK: - IBActions
     
-    @IBAction func addOption(sender: UIBarButtonItem) {
+    @IBAction func addOption(_ sender: UIBarButtonItem) {
         let actionSheet = UIActionSheet(title: nil, delegate: self, cancelButtonTitle: "Cancel", destructiveButtonTitle: nil, otherButtonTitles: "Create folder", "Upload photo")
-        actionSheet.showFromTabBar((self.tabBarController?.tabBar)!)
+        actionSheet.show(from: (self.tabBarController?.tabBar)!)
     }
     
     // MARK: - UIActionSheetDelegate
     
-    func actionSheet(actionSheet: UIActionSheet, clickedButtonAtIndex buttonIndex: Int) {
+    func actionSheet(_ actionSheet: UIActionSheet, clickedButtonAt buttonIndex: Int) {
         if buttonIndex == 1 { //Create new folder
             let folderAlertView = UIAlertView(title: "Create new folder", message: "Name of the new folder", delegate: self, cancelButtonTitle: "Cancel", otherButtonTitles: "Create")
-            folderAlertView.alertViewStyle = UIAlertViewStyle.PlainTextInput
-            folderAlertView.textFieldAtIndex(0)?.text = ""
+            folderAlertView.alertViewStyle = UIAlertViewStyle.plainTextInput
+            folderAlertView.textField(at: 0)?.text = ""
             folderAlertView.tag = 1
             folderAlertView.show()
         } else if buttonIndex == 2 { //Upload photo
             let imagePickerController = UIImagePickerController()
-            imagePickerController.modalPresentationStyle = UIModalPresentationStyle.CurrentContext
-            imagePickerController.sourceType = UIImagePickerControllerSourceType.PhotoLibrary
+            imagePickerController.modalPresentationStyle = UIModalPresentationStyle.currentContext
+            imagePickerController.sourceType = UIImagePickerControllerSourceType.photoLibrary
             imagePickerController.delegate = self
             
-            self.tabBarController?.presentViewController(imagePickerController, animated: true, completion: nil)
+            self.tabBarController?.present(imagePickerController, animated: true, completion: nil)
         }
     }
     
     // MARK: - UIAlertViewDelegate
     
-    func alertView(alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
+    func alertView(_ alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
         if alertView.tag == 1 {
             if buttonIndex == 1 {
                 if parentNode != nil {
-                    megaapi.createFolderWithName((alertView.textFieldAtIndex(0)?.text), parent: parentNode)
+                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text), parent: parentNode)
                 } else {
-                    megaapi.createFolderWithName((alertView.textFieldAtIndex(0)?.text), parent: megaapi.rootNode)
+                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text), parent: megaapi.rootNode)
                 }
             }
         }
     }
     
     // MARK: - UIImagePickerControllerDelegate
-    func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : AnyObject]) {
-        let assetURL = info[UIImagePickerControllerReferenceURL] as! NSURL
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        let assetURL = info[UIImagePickerControllerReferenceURL] as! URL
         let library = ALAssetsLibrary()
-        library.assetForURL(assetURL, resultBlock: { (let asset: ALAsset!) in
+        library.asset(for: assetURL, resultBlock: { (asset: ALAsset!) in
             let name: String = asset.defaultRepresentation().filename()
-            let modificationTime: NSDate = asset.valueForProperty(ALAssetPropertyDate) as! NSDate
+            let modificationTime: Date = asset.value(forProperty: ALAssetPropertyDate) as! Date
             let imageView = UIImageView()
             imageView.image = (info[UIImagePickerControllerOriginalImage] as! UIImage)
-            let webData: NSData = UIImageJPEGRepresentation(imageView.image!, 0.9)!
+            let webData: Data = UIImageJPEGRepresentation(imageView.image!, 0.9)!
             
-            let localFileURL = NSURL(fileURLWithPath:NSTemporaryDirectory());
-            let localFilePath = localFileURL.URLByAppendingPathComponent(name)
-            webData.writeToFile(localFilePath.path!, atomically: true)
+            let localFileURL = URL(fileURLWithPath:NSTemporaryDirectory());
+            let localFilePath = localFileURL.appendingPathComponent(name)
+            try? webData.write(to: URL(fileURLWithPath: localFilePath.path), options: [.atomic])
             
-            let attributes = [NSFileModificationDate : modificationTime]
-            try? NSFileManager.defaultManager().setAttributes(attributes, ofItemAtPath: localFilePath.path!)
+            let attributes = [FileAttributeKey.modificationDate : modificationTime]
+            try? FileManager.default.setAttributes(attributes, ofItemAtPath: localFilePath.path)
             
             if self.parentNode != nil {
-                self.megaapi.startUploadWithLocalPath(localFilePath.path!, parent: self.parentNode)
+                self.megaapi.startUpload(withLocalPath: localFilePath.path, parent: self.parentNode)
             } else {
-                self.megaapi.startUploadWithLocalPath(localFilePath.path!, parent: self.megaapi.rootNode)
+                self.megaapi.startUpload(withLocalPath: localFilePath.path, parent: self.megaapi.rootNode)
             }
             
-            self.dismissViewControllerAnimated(true, completion: nil)
+            self.dismiss(animated: true, completion: nil)
             
             }, failureBlock: nil)
     }
     
-    func imagePickerControllerDidCancel(picker: UIImagePickerController) {
-        self.dismissViewControllerAnimated(true, completion: nil)
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        self.dismiss(animated: true, completion: nil)
     }
     
     // MARK: - MEGA Request delegate
     
-    func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
-        if error.type != MEGAErrorType.ApiOk {
+    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+        if error.type != MEGAErrorType.apiOk {
             return
         }
         
         switch request.type {
-        case MEGARequestType.FetchNodes:
+        case MEGARequestType.fetchNodes:
             SVProgressHUD.dismiss()
             
-        case MEGARequestType.GetAttrFile:
+        case MEGARequestType.getAttrFile:
             for tableViewCell in tableView.visibleCells as! [NodeTableViewCell] {
                 if request?.nodeHandle == tableViewCell.nodeHandle {
-                    let node = megaapi.nodeForHandle(request.nodeHandle)
-                    let thumbnailFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-                    let fileExists = NSFileManager.defaultManager().fileExistsAtPath(thumbnailFilePath)
+                    let node = megaapi.node(forHandle: request.nodeHandle)
+                    let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+                    let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
                     
                     if fileExists {
                         tableViewCell.thumbnailImageView.image = UIImage(named: thumbnailFilePath)
@@ -302,7 +302,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     // MARK: - MEGA Global delegate
     
-    func onNodesUpdate(api: MEGASdk!, nodeList: MEGANodeList!) {
+    func onNodesUpdate(_ api: MEGASdk!, nodeList: MEGANodeList!) {
         reloadUI()
     }
     

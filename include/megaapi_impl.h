@@ -1513,6 +1513,8 @@ class MegaApiImpl : public MegaApp
         long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
+        long long getTotalDownloadBytes();
+        long long getTotalUploadBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -1600,6 +1602,7 @@ class MegaApiImpl : public MegaApp
         const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+        bool setLanguage(const char* languageCode);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();
@@ -1758,6 +1761,8 @@ protected:
         int totalDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
+        long long totalDownloadBytes;
+        long long totalUploadBytes;
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;

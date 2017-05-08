@@ -287,6 +287,7 @@
 				TargetAttributes = {
 					41F175681A51E22500570E30 = {
 						CreatedOnToolsVersion = 6.1.1;
+						LastSwiftMigration = 0830;
 					};
 				};
 			};
@@ -455,6 +456,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "nz.mega.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				SWIFT_VERSION = 3.0;
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
 			};
 			name = Debug;
@@ -470,6 +472,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "nz.mega.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				SWIFT_VERSION = 3.0;
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
 			};
 			name = Release;

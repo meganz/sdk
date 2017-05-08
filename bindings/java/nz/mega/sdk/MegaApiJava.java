@@ -3990,7 +3990,7 @@ public class MegaApiJava {
      * Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
      * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
      *
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
     public int getTotalUploads() {
@@ -4001,7 +4001,7 @@ public class MegaApiJava {
      * Get the number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
      * 
      * @return Number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
-     * @deprecated Function related to statistics will be reviewed in future updates. They
+     * Function related to statistics will be reviewed in future updates. They
      *             could change or be removed in the current form.
      */
     public int getTotalDownloads() {
@@ -4013,7 +4013,7 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalDownloads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
@@ -4026,7 +4026,7 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalUploads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
     public void resetTotalUploads() {
@@ -4034,26 +4034,61 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the total downloaded bytes since the creation of the MegaApi object.
-     * 
-     * @return Total downloaded bytes since the creation of the MegaApi object.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * Get the total downloaded bytes
+     * @return Total downloaded bytes
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
     public long getTotalDownloadedBytes() {
         return megaApi.getTotalDownloadedBytes();
     }
 
     /**
-     * Get the total uploaded bytes since the creation of the MegaApi object.
-     * 
-     * @return Total uploaded bytes since the creation of the MegaApi object.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     * 
+     * Get the total uploaded bytes
+     * @return Total uploaded bytes
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
      */
     public long getTotalUploadedBytes() {
         return megaApi.getTotalUploadedBytes();
+    }
+
+    /**
+     * @brief Get the total bytes of started downloads
+     * @return Total bytes of started downloads
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     */
+    public long getTotalDownloadBytes(){
+        return megaApi.getTotalDownloadBytes();
+    }
+
+    /**
+     * Get the total bytes of started uploads
+     * @return Total bytes of started uploads
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
+     */
+    public long getTotalUploadBytes(){
+        return megaApi.getTotalUploadBytes();
     }
 
     /**
