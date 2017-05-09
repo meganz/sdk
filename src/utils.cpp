@@ -82,7 +82,27 @@ bool TextChat::serialize(string *d)
     d->append((char*)&ou, sizeof ou);
     d->append((char*)&ts, sizeof(ts));
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
+    char hasAttachments = attachedNodes.size();
+    d->append((char*)&hasAttachments, 1);
+    d->append("\0\0\0\0\0\0\0\0", 9); // additional bytes for backwards compatibility
+
+    if (hasAttachments)
+    {
+        ll = attachedNodes.size();  // number of nodes with granted access
+        d->append((char*)&ll, sizeof ll);
+
+        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
+        {
+            d->append((char*)&it->first, sizeof it->first); // nodehandle
+
+            ll = it->second.size(); // number of users with granted access to the node
+            d->append((char*)&ll, sizeof ll);
+            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
+            {
+                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
+            }
+        }
+    }
 
     return true;
 }
@@ -97,6 +117,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     string title;   // byte array
     handle ou;
     m_time_t ts;
+    char hasAttachments;
+    attachments_map attachedNodes;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -173,11 +195,59 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ts = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    for (int i = 10; i--;)
+    hasAttachments = MemAccess::get<char>(ptr);
+    ptr += sizeof hasAttachments;
+
+    for (int i = 9; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
             ptr += MemAccess::get<unsigned char>(ptr) + 1;
+        }
+    }
+
+    if (hasAttachments)
+    {
+        unsigned short numNodes = 0;
+        if (ptr + sizeof numNodes > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        numNodes = MemAccess::get<short>(ptr);
+        ptr += sizeof numNodes;
+
+        for (int i = 0; i < numNodes; i++)
+        {
+            handle h = UNDEF;
+            unsigned short numUsers = 0;
+            if (ptr + sizeof h + sizeof numUsers > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            h = MemAccess::get<handle>(ptr);
+            ptr += sizeof h;
+
+            numUsers = MemAccess::get<short>(ptr);
+            ptr += sizeof numUsers;
+
+            handle uh = UNDEF;
+            if (ptr + (numUsers * sizeof(uh)) > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            for (int j = 0; j < numUsers; j++)
+            {
+                uh = MemAccess::get<handle>(ptr);
+                ptr += sizeof uh;
+
+                attachedNodes[h].insert(uh);
+            }
         }
     }
 

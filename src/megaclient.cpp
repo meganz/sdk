@@ -4968,7 +4968,10 @@ void MegaClient::sc_chatnode()
                     TextChat *chat = chats[chatid];
                     if (r)  // access revoked
                     {
-                        chat->setNodeUserAccess(h, uh, true);
+                        if(!chat->setNodeUserAccess(h, uh, true))
+                        {
+                            LOG_err << "Unknown user/node at revoke access to attachment";
+                        }
                     }
                     else    // access granted
                     {
