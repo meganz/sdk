@@ -17640,6 +17640,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
     this->tag = chat->isOwnChange();
+    this->changed = chat->getChanges();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -17653,6 +17654,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->changed = 0;
+    if (chat->changed.attachments)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
+    }
 }
 
 MegaTextChat *MegaTextChatPrivate::copy() const
@@ -17717,6 +17723,16 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::hasChanged(int changeType) const
+{
+    return (changed & changeType);
+}
+
+int MegaTextChatPrivate::getChanges() const
+{
+    return changed;
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()

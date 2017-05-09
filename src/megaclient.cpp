@@ -5163,6 +5163,7 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
+            memset(&(chat->changed), 0, sizeof(chat->changed));
         }
 
         chatnotify.clear();

@@ -40,6 +40,8 @@ TextChat::TextChat()
     ou = UNDEF;
     resetTag();
     ts = 0;
+
+    memset(&changed, 0, sizeof(changed));
 }
 
 TextChat::~TextChat()
@@ -276,6 +278,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->resetTag();
     chat->ts = ts;
 
+    memset(&chat->changed, 0, sizeof(chat->changed));
+
     return chat;
 }
 
@@ -308,6 +312,7 @@ bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
             if (uhit->second.empty())
             {
                 attachedNodes.erase(h);
+                changed.attachments = true;
                 return true;
             }
         }
@@ -315,6 +320,7 @@ bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
     else
     {
         attachedNodes[h].insert(uh);
+        changed.attachments = true;
         return true;
     }
 

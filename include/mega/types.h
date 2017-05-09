@@ -448,6 +448,12 @@ struct TextChat : public Cachable
     int getTag();
     void resetTag();
 
+    struct
+    {
+        bool attachments : 1;
+    } changed;
+
+    // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
 };
 typedef vector<TextChat*> textchat_vector;

@@ -1350,6 +1350,11 @@ class MegaTextChat
 {
 public:
 
+    enum
+    {
+        CHANGE_TYPE_ATTACHMENT        = 0x01
+    };
+
     virtual ~MegaTextChat();
 
     /**
@@ -1430,6 +1435,37 @@ public:
      * @return The title of the chat as a byte array encoded in Base64URL, or NULL if not available.
      */
     virtual const char *getTitle() const;
+
+
+    /**
+     * @brief Returns true if this chat has an specific change
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * Check if the access to nodes have been granted/revoked
+     *
+     * @return true if this chat has an specific change
+     */
+    virtual bool hasChanged(int changeType) const;
+
+    /**
+     * @brief Returns a bit field with the changes of the chatroom
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * @return The returned value is an OR combination of these flags:
+     *
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * Check if the access to nodes have been granted/revoked
+     */
+    virtual int getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.

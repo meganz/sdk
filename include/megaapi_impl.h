@@ -973,6 +973,8 @@ public:
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
 
+    virtual bool hasChanged(int changeType) const;
+    virtual int getChanges() const;
     virtual int isOwnChange() const;
 
 private:
@@ -984,6 +986,7 @@ private:
     bool group;
     handle ou;
     string title;
+    int changed;
     int tag;
     int64_t ts;
 };

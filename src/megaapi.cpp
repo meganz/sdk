@@ -4220,6 +4220,16 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+bool MegaTextChat::hasChanged(int) const
+{
+    return false;
+}
+
+int MegaTextChat::getChanges() const
+{
+    return 0;
+}
+
 int MegaTextChat::isOwnChange() const
 {
     return 0;
