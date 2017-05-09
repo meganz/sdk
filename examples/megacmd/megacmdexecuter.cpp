@@ -31,6 +31,7 @@
 
 #include <iomanip>
 #include <string>
+#include <ctime>
 
 #include <signal.h>
 
@@ -98,14 +99,15 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
     changeprompt(dynamicprompt);
 }
 
-MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
+MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD, MegaCmdSandbox *sandboxCMD)
 {
     signingup = false;
     confirming = false;
 
     this->api = api;
     this->loggerCMD = loggerCMD;
-    this->globalTransferListener = new MegaCmdGlobalTransferListener(api);
+    this->sandboxCMD = sandboxCMD;
+    this->globalTransferListener = new MegaCmdGlobalTransferListener(api, sandboxCMD);
     api->addTransferListener(globalTransferListener);
     cwd = UNDEF;
     fsAccessCMD = new MegaFileSystemAccess();
@@ -2132,7 +2134,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
             if (!alreadythere)
             {
                 nodesToConfirmDelete.push_back(nodeToDelete);
-                if (getprompt()!=AREYOUSURETODELETE)
+                if (getprompt() != AREYOUSURETODELETE)
                 {
                     string newprompt("Are you sure to delete ");
                     newprompt+=nodeToDelete->getName();
@@ -2155,12 +2157,74 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
 }
 
-void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bool background)
+void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bool background, bool ignorequotawarn)
 {
+    if (sandboxCMD->isOverquota() && !ignorequotawarn)
+    {
+        time_t ts = time(NULL);
+        // in order to speedup and not flood the server we only ask for the details every 1 minute or after account changes
+        if (!sandboxCMD->temporalbandwidth || (ts - sandboxCMD->lastQuerytemporalBandwith ) > 60 )
+        {
+            LOG_verbose << " Updating temporal bandwith ";
+            sandboxCMD->lastQuerytemporalBandwith = ts;
+
+            MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+            api->getExtendedAccountDetails(false, false, false, megaCmdListener);
+            megaCmdListener->wait();
+
+            if (checkNoErrors(megaCmdListener->getError(), "get account details"))
+            {
+                MegaAccountDetails *details = megaCmdListener->getRequest()->getMegaAccountDetails();
+                sandboxCMD->istemporalbandwidthvalid = details->isTemporalBandwidthValid();
+                if (details && details->isTemporalBandwidthValid())
+                {
+                    sandboxCMD->temporalbandwidth = details->getTemporalBandwidth();
+                    sandboxCMD->temporalbandwithinterval = details->getTemporalBandwidthInterval();
+                }
+            }
+            delete megaCmdListener;
+        }
+
+        OUTSTREAM << "Transfer not started. " << endl;
+        if (sandboxCMD->istemporalbandwidthvalid)
+        {
+            OUTSTREAM << "You have utilized " << sizeToText(sandboxCMD->temporalbandwidth) << " of data transfer in the last "
+                      << sandboxCMD->temporalbandwithinterval << " hours, "
+                      "which took you over our current limit";
+        }
+        else
+        {
+            OUTSTREAM << "You have reached your bandwith quota";
+        }
+        OUTSTREAM << ". To circumvent this limit, "
+                  "you can upgrade to Pro, which will give you your own bandwidth "
+                  "package and also ample extra storage space. "
+                     "Alternatively, you can try again in " << secondsToText(sandboxCMD->secondsOverQuota-(ts-sandboxCMD->timeOfOverquota)) <<
+                     "." << endl << "See \"help --upgrade\" for further details" << endl;
+        OUTSTREAM << "Use --ignore-quota-warn to initiate nevertheless" << endl;
+        return;
+    }
+
+    if (!ignorequotawarn)
+    {
+        MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+        api->queryBandwidthQuota(node->getSize(),megaCmdListener);
+        megaCmdListener->wait();
+        if (checkNoErrors(megaCmdListener->getError(), "query bandwidth quota"))
+        {
+            if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag() )
+            {
+                OUTSTREAM << "Transfer not started: proceding will exceed bandwith quota. "
+                             "Use --ignore-quota-warn to initiate nevertheless" << endl;
+                return;
+            }
+        }
+    }
+
     MegaCmdTransferListener *megaCmdTransferListener = NULL;
     if (!background)
     {
-        megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
     }
     LOG_debug << "Starting download: " << node->getName() << " to : " << path;
     api->startDownload(node, path.c_str(), megaCmdTransferListener);
@@ -2175,12 +2239,27 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     }
 }
 
-void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname, bool background)
+void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname, bool background, bool ignorequotawarn)
 {
+    if (!ignorequotawarn)
+    { //TODO: reenable this if ever queryBandwidthQuota applies to uploads as well
+//        MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+//        api->queryBandwidthQuota(node->getSize(),megaCmdListener);
+//        megaCmdListener->wait();
+//        if (checkNoErrors(megaCmdListener->getError(), "query bandwidth quota"))
+//        {
+//            if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag() )
+//            {
+//                OUTSTREAM << "Transfer not started: proceding will exceed bandwith quota. "
+//                             "Use --ignore-quota-warn to initiate nevertheless" << endl;
+//                return;
+//            }
+//        }
+    }
     MegaCmdTransferListener *megaCmdTransferListener = NULL;
     if (!background)
     {
-        megaCmdTransferListener = new MegaCmdTransferListener(api, NULL);
+        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
     }
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
     if (newname.size())
@@ -3342,6 +3421,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             string path = "./";
             bool background = getFlag(clflags,"q");
+            bool ignorequotawarn = getFlag(clflags,"ignore-quota-warn");
             bool destinyIsFolder = false;
             if (isPublicLink(words[1]))
             {
@@ -3411,7 +3491,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                             }
                             MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
-                            downloadNode(path, api, n, background);
+                            downloadNode(path, api, n, background, ignorequotawarn);
                             delete n;
                         }
                         else
@@ -3480,13 +3560,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
                                 if (authorizedNode != NULL)
                                 {
-                                    downloadNode(path, api, authorizedNode, background);
+                                    downloadNode(path, api, authorizedNode, background, ignorequotawarn);
                                     delete authorizedNode;
                                 }
                                 else
                                 {
                                     LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                                    downloadNode(path, apiFolder, folderRootNode, background);
+                                    downloadNode(path, apiFolder, folderRootNode, background, ignorequotawarn);
                                 }
                                 delete folderRootNode;
                             }
@@ -3563,7 +3643,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             MegaNode * n = *it;
                             if (n)
                             {
-                                downloadNode(path, api, n, background);
+                                downloadNode(path, api, n, background, ignorequotawarn);
                                 delete n;
                             }
                         }
@@ -3649,7 +3729,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 path=path.substr(0,path.size()-1);
                             }
                         }
-                        downloadNode(path, api, n, background);
+                        downloadNode(path, api, n, background, ignorequotawarn);
                         delete n;
                     }
                     else
@@ -3678,6 +3758,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
 
         bool background = getFlag(clflags,"q");
+        bool ignorequotawarn = getFlag(clflags,"ignore-quota-warn");
 
         if (words.size() > 1)
         {
@@ -3701,7 +3782,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     n = api->getNodeByPath(destinationfolder.c_str(),cwdNode);
                     delete cwdNode;
                 }
-
             }
             else
             {
@@ -3714,7 +3794,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     for (int i = 1; i < max(1, (int)words.size() - 1); i++)
                     {
-                        uploadNode(words[i], api, n, newname, background);
+                        uploadNode(words[i], api, n, newname, background, ignorequotawarn);
                     }
                 }
                 else

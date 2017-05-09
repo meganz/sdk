@@ -52,7 +52,7 @@ std::string ConfigurationManager::getConfigFolder()
 
 void ConfigurationManager::loadConfigDir()
 {
-#ifdef _WIN32 //TODO: untested
+#ifdef _WIN32
 
    TCHAR szPath[MAX_PATH];
     if (!SUCCEEDED(GetModuleFileName(NULL, szPath , MAX_PATH)))

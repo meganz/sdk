@@ -77,9 +77,10 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
     }
 }
 
-MegaCmdGlobalListener::MegaCmdGlobalListener(MegaCMDLogger *logger)
+MegaCmdGlobalListener::MegaCmdGlobalListener(MegaCMDLogger *logger, MegaCmdSandbox *sandboxCMD)
 {
     this->loggerCMD = logger;
+    this->sandboxCMD = sandboxCMD;
 }
 
 void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
@@ -175,6 +176,16 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
         }
     }
 }
+
+void MegaCmdGlobalListener::onAccountUpdate(MegaApi *api)
+{
+    if (!api->getBandwidthOverquotaDelay())
+    {
+        sandboxCMD->setOverquota(false);
+    }
+    sandboxCMD->temporalbandwidth = 0; //This will cause account details to be queried again
+}
+
 
 ////////////////////////////////////////////
 ///      MegaCmdMegaListener methods     ///
@@ -379,7 +390,6 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
 
 void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e)
 {
-
 }
 
 
@@ -507,7 +517,6 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
 {
-
 }
 
 
@@ -516,9 +525,10 @@ MegaCmdTransferListener::~MegaCmdTransferListener()
 
 }
 
-MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener)
+MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *listener)
 {
     this->megaApi = megaApi;
+    this->sandboxCMD = sandboxCMD;
     this->listener = listener;
     percentDowloaded = 0.0f;
     alreadyFinished = false;
@@ -529,10 +539,16 @@ bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfe
     return true;
 }
 
-//MegaCmdGlobalTransferListener
-MegaCmdGlobalTransferListener::MegaCmdGlobalTransferListener(MegaApi *megaApi, MegaTransferListener *parent)
+
+////////////////////////////////////////
+///  MegaCmdGlobalTransferListener   ///
+////////////////////////////////////////
+const int MegaCmdGlobalTransferListener::MAXCOMPLETEDTRANSFERSBUFFER = 10000;
+
+MegaCmdGlobalTransferListener::MegaCmdGlobalTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *parent)
 {
     this->megaApi = megaApi;
+    this->sandboxCMD = sandboxCMD;
     this->listener = parent;
     completedTransfersMutex.init(false);
 };
@@ -541,7 +557,7 @@ void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer 
 {
     completedTransfersMutex.lock();
     completedTransfers.push_back(transfer->copy());
-    if (completedTransfers.size()>10000) //TODO: define constant
+    if (completedTransfers.size()>MAXCOMPLETEDTRANSFERSBUFFER)
     {
         delete completedTransfers.front();
         completedTransfers.pop_front();
@@ -551,7 +567,25 @@ void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer 
 
 void MegaCmdGlobalTransferListener::onTransferStart(MegaApi* api, MegaTransfer *transfer) {};
 void MegaCmdGlobalTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *transfer) {};
-void MegaCmdGlobalTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e) {};
+void MegaCmdGlobalTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
+{
+
+    if (e && e->getErrorCode() == MegaError::API_EOVERQUOTA)
+    {
+        if (!sandboxCMD->isOverquota())
+        {
+            LOG_warn  << "Reached bandwidth quota. Your download could not proceed "
+                         "because it would take you over the current free transfer allowance for your IP address. "
+                         "This limit is dynamic and depends on the amount of unused bandwidth we have available. "
+                         "You can change your account plan to increse such bandwidth. "
+                         "See \"help --upgrade\" for further details";
+        }
+        sandboxCMD->setOverquota(true);
+        sandboxCMD->timeOfOverquota=time(NULL);
+        sandboxCMD->secondsOverQuota=e->getValue();
+    }
+};
+
 bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) {return false;};
 
 MegaCmdGlobalTransferListener::~MegaCmdGlobalTransferListener()

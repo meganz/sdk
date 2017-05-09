@@ -129,7 +129,8 @@ bool setOptionsAndFlags(std::map<std::string, std::string> *opts, std::map<std::
 /* Others */
 std::string sizeToText(long long totalSize, bool equalizeUnitsLength = true, bool humanreadable = true);
 
-std::string percentageToText(float percentage);
+std::string secondsToText(time_t seconds, bool humanreadable = true);
 
+std::string percentageToText(float percentage);
 
 #endif // MEGACMDUTILS_H

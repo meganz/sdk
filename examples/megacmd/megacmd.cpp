@@ -21,6 +21,7 @@
 
 #include "megacmd.h"
 
+#include "megacmdsandbox.h"
 #include "megacmdexecuter.h"
 #include "megacmdutils.h"
 #include "configurationmanager.h"
@@ -52,6 +53,7 @@
 using namespace mega;
 
 MegaCmdExecuter *cmdexecuter;
+MegaCmdSandbox *sandboxCMD;
 
 MegaSemaphore semaphoreClients; //to limit max parallel petitions
 
@@ -288,6 +290,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("f");
         validParams->insert("non-interactive");
+        validParams->insert("upgrade");
     }
     else if ("version" == thecommand)
     {
@@ -396,11 +399,13 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("c");
         validParams->insert("q");
+        validParams->insert("ignore-quota-warn");
     }
     else if ("get" == thecommand)
     {
         validParams->insert("m");
         validParams->insert("q");
+        validParams->insert("ignore-quota-warn");
     }
     else if ("transfers" == thecommand)
     {
@@ -1091,7 +1096,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "put"))
     {
-        return "put localfile [localfile2 localfile3 ...] [-c] [-q] [dstremotepath]";
+        return "put  [-c] [-q] [--ignore-quota-warn] localfile [localfile2 localfile3 ...] [dstremotepath]";
     }
     if (!strcmp(command, "putq"))
     {
@@ -1099,7 +1104,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
-        return "get exportedlink#key|remotepath [-m] [-q] [localpath]";
+        return "get [-m] [-q] [--ignore-quota-warn] exportedlink#key|remotepath [localpath]";
     }
     if (!strcmp(command, "getq"))
     {
@@ -1433,7 +1438,8 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -c" << "\t" << "Creates remote folder destination in case of not existing." << endl;
         os << " -q" << "\t" << "queue upload: execute in the background. Don't wait for it to end' " << endl;
-
+        os << " --ignore-quota-warn" << "\t" << "ignore quota surpassing warning. " << endl;
+        os << "                    " << "\t" << "  The upload will be attempted anyway." << endl;
     }
     else if (!strcmp(command, "get"))
     {
@@ -1452,6 +1458,8 @@ string getHelpStr(const char *command)
         os << " -q" << "\t" << "queue download: execute in the background. Don't wait for it to end' " << endl;
         os << " -m" << "\t" << "if the folder already exists, the contents will be merged with the " << endl;
         os << "                     downloaded one (preserving the existing files)" << endl;
+        os << " --ignore-quota-warn" << "\t" << "ignore quota surpassing warning. " << endl;
+        os << "                    " << "\t" << "  The download will be attempted anyway." << endl;
     }
     if (!strcmp(command, "attr"))
     {
@@ -1847,7 +1855,43 @@ void executecommand(char* ptr)
 
     if ( thecommand == "help" )
     {
-        if (getFlag(&clflags,"non-interactive"))
+        if (getFlag(&clflags,"upgrade"))
+        {
+
+             const char *userAgent = api->getUserAgent();
+             char url[strlen(userAgent)+10];
+             sprintf(url, "pro/uao=%s",userAgent);
+
+             string theurl;
+
+             if (api->isLoggedIn())
+             {
+
+                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+                 api->getSessionTransferURL(url, megaCmdListener);
+                 megaCmdListener->wait();
+                 if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+                 {
+                     theurl = megaCmdListener->getRequest()->getLink();
+                 }
+                 else
+                 {
+                     setCurrentOutCode(MCMD_EUNEXPECTED);
+                     LOG_warn << "Unable to get session transfer url: " << megaCmdListener->getError()->getErrorString();
+                 }
+                 delete megaCmdListener;
+             }
+
+             if (!theurl.size())
+             {
+                 theurl = url;
+             }
+
+             OUTSTREAM << "MEGA offers different PRO plans to increase your allowed transfer quota and user storage." << endl;
+             OUTSTREAM << "Open the following link in your browser to obtain a PRO account: " << endl;
+             OUTSTREAM << "  " << theurl << endl;
+        }
+        else if (getFlag(&clflags,"non-interactive"))
         {
             OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
             OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
@@ -1891,7 +1935,8 @@ void executecommand(char* ptr)
             OUTSTREAM << "Use \"help -f\" to get a brief description of the commands" << endl;
             OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
             OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
-            OUTSTREAM << "Use \"help --non-interactive\"  learn how to use MEGAcmd with scripts" << endl;
+            OUTSTREAM << "Use \"help --non-interactive\" to learn how to use MEGAcmd with scripts" << endl;
+            OUTSTREAM << "Use \"help --upgrade\" to learn about the limitations and obtaining PRO accounts" << endl;
 
             OUTSTREAM << endl << "Commands:" << endl;
 
@@ -2324,7 +2369,7 @@ void printWelcomeMsg()
     printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
     printCenteredLine("have any suggestion concerning its functionalities.",width);
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
-    printCenteredLine("Enter \"help\" to list the available commands.",width);
+    printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
 
     cout << "`";
     for (u_int i = 0; i < width; i++)
@@ -2488,9 +2533,10 @@ int main(int argc, char* argv[])
     api->setLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
-    cmdexecuter = new MegaCmdExecuter(api, loggerCMD);
+    sandboxCMD = new MegaCmdSandbox();
+    cmdexecuter = new MegaCmdExecuter(api, loggerCMD, sandboxCMD);
 
-    megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD);
+    megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD, sandboxCMD);
     megaCmdMegaListener = new MegaCmdMegaListener(api, NULL);
     api->addGlobalListener(megaCmdGlobalListener);
     api->addListener(megaCmdMegaListener);

@@ -1088,6 +1088,24 @@ string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreada
     return os.str();
 }
 
+string secondsToText(time_t seconds, bool humanreadable)
+{
+    ostringstream os;
+    os.precision(2);
+    if (humanreadable)
+    {
+        time_t reducedSize = ( seconds > 3600 * 2 ? seconds / 3600.0 : ( seconds > 60 * 2 ? seconds / 60.0 : seconds ));
+        os << fixed << reducedSize;
+        os << ( seconds > 3600 * 2 ? " hours" : ( seconds > 60 * 2 ? " minutes" : " seconds" ));
+    }
+    else
+    {
+        os << seconds;
+    }
+
+    return os.str();
+}
+
 
 string percentageToText(float percentage)
 {

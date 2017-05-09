@@ -23,6 +23,7 @@
 #define MEGACMDEXECUTER_H
 
 #include "megacmdlogger.h"
+#include "megacmdsandbox.h"
 #include "listeners.h"
 
 class MegaCmdExecuter
@@ -33,6 +34,7 @@ private:
     char *session;
     mega::MegaFileSystemAccess *fsAccessCMD;
     MegaCMDLogger *loggerCMD;
+    MegaCmdSandbox *sandboxCMD;
     MegaCmdGlobalTransferListener *globalTransferListener;
     mega::MegaMutex mtxSyncMap;
 
@@ -55,7 +57,7 @@ public:
     bool signingup;
     bool confirming;
 
-    MegaCmdExecuter(mega::MegaApi *api, MegaCMDLogger *loggerCMD);
+    MegaCmdExecuter(mega::MegaApi *api, MegaCMDLogger *loggerCMD, MegaCmdSandbox *sandboxCMD);
     ~MegaCmdExecuter();
 
     // nodes browsing
@@ -93,8 +95,8 @@ public:
     void actUponLogout(mega::SynchronousRequestListener  *srl, bool deletedSession, int timeout = 0);
     int actUponCreateFolder(mega::SynchronousRequestListener  *srl, int timeout = 0);
     void deleteNode(mega::MegaNode *nodeToDelete, mega::MegaApi* api, int recursive, int force = 0);
-    void downloadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, bool background);
-    void uploadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, std::string newname, bool background);
+    void downloadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, bool background, bool ignorequotawarn);
+    void uploadNode(std::string localPath, mega::MegaApi* api, mega::MegaNode *node, std::string newname, bool background, bool ignorequotawarn);
     void exportNode(mega::MegaNode *n, int expireTime);
     void disableExport(mega::MegaNode *n);
     void shareNode(mega::MegaNode *n, std::string with, int level = mega::MegaShare::ACCESS_READ);
