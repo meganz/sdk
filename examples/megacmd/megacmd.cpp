@@ -1859,7 +1859,8 @@ void executecommand(char* ptr)
         {
 
              const char *userAgent = api->getUserAgent();
-             char url[strlen(userAgent)+10];
+             char* url = new char[strlen(userAgent)+10];
+
              sprintf(url, "pro/uao=%s",userAgent);
 
              string theurl;
@@ -1890,6 +1891,8 @@ void executecommand(char* ptr)
              OUTSTREAM << "MEGA offers different PRO plans to increase your allowed transfer quota and user storage." << endl;
              OUTSTREAM << "Open the following link in your browser to obtain a PRO account: " << endl;
              OUTSTREAM << "  " << theurl << endl;
+
+             delete [] url;
         }
         else if (getFlag(&clflags,"non-interactive"))
         {
