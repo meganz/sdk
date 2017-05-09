@@ -371,6 +371,22 @@ class MegaUserPrivate : public MegaUser
         int tag;
 };
 
+class MegaHandleListPrivate : public MegaHandleList
+{
+public:
+    MegaHandleListPrivate();
+    MegaHandleListPrivate(const MegaHandleListPrivate *hList);
+    virtual ~MegaHandleListPrivate();
+
+    virtual MegaHandleList *copy() const;
+    virtual MegaHandle get(unsigned int i) const;
+    virtual unsigned int size() const;
+    virtual void addMegaHandle(MegaHandle megaHandle);
+
+private:
+    std::vector<MegaHandle> mList;
+};
+
 class MegaSharePrivate : public MegaShare
 {
 	public:

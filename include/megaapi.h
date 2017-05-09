@@ -1176,6 +1176,58 @@ class MegaUser
 };
 
 /**
+ * @brief List of MegaHandle objects
+ *
+ */
+class MegaHandleList
+{
+public:
+    /**
+     * @brief Creates a new instance of MegaHandleList
+     * @return A pointer the new object
+     */
+    static MegaHandleList *createInstance();
+
+    virtual ~MegaHandleList();
+
+    /**
+     * @brief Creates a copy of this MegaHandleList object
+     *
+     * The resulting object is fully independent of the source MegaHandleList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaHandleList object
+     */
+    virtual MegaHandleList *copy() const;
+
+    /**
+     * @brief Returns the MegaHandle at the position i in the MegaHandleList
+     *
+     *
+     * If the index is >= the size of the list, this function returns MEGACHAT_INVALID_HANDLE.
+     *
+     * @param i Position of the MegaHandle that we want to get for the list
+     * @return MegaHandle at the position i in the list
+     */
+    virtual MegaHandle get(unsigned int i) const;
+
+    /**
+     * @brief Returns the number of MegaHandles in the list
+     * @return Number of MegaHandles in the list
+     */
+    virtual unsigned int size() const;
+
+    /**
+     * @brief Add new MegaHandle to list
+     * @param megaHandle to be added
+     */
+    virtual void addMegaHandle(MegaHandle megaHandle);
+};
+
+/**
  * @brief Represents the outbound sharing of a folder with a user in MEGA
  *
  * It allows to get all data related to the sharing. You can start sharing a folder with

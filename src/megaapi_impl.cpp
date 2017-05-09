@@ -17984,3 +17984,46 @@ void MegaEventPrivate::setText(const char *text)
     }
     this->text = MegaApi::strdup(text);
 }
+
+MegaHandleListPrivate::MegaHandleListPrivate()
+{
+
+}
+
+MegaHandleListPrivate::MegaHandleListPrivate(const MegaHandleListPrivate *hList)
+{
+    mList = hList->mList;
+}
+
+MegaHandleListPrivate::~MegaHandleListPrivate()
+{
+
+}
+
+MegaHandleList *MegaHandleListPrivate::copy() const
+{
+    return new MegaHandleListPrivate(this);
+}
+
+MegaHandle MegaHandleListPrivate::get(unsigned int i) const
+{
+    MegaHandle h = INVALID_HANDLE;
+
+    if (i < mList.size())
+    {
+        h = mList.at(i);
+    }
+
+    return h;
+}
+
+unsigned int MegaHandleListPrivate::size() const
+{
+    return mList.size();
+}
+
+void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
+{
+    mList.push_back(h);
+}
+

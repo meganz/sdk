@@ -4353,3 +4353,33 @@ const char *MegaEvent::getText() const
 {
     return NULL;
 }
+
+MegaHandleList *MegaHandleList::createInstance()
+{
+    return new MegaHandleListPrivate();
+}
+
+MegaHandleList::~MegaHandleList()
+{
+
+}
+
+MegaHandleList *MegaHandleList::copy() const
+{
+    return NULL;
+}
+
+MegaHandle MegaHandleList::get(unsigned int i) const
+{
+    return INVALID_HANDLE;
+}
+
+unsigned int MegaHandleList::size() const
+{
+    return 0;
+}
+
+void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
+{
+
+}
