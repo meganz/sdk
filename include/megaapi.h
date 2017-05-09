@@ -9634,13 +9634,32 @@ class MegaApi
         MegaTextChatList *getChatList();
 
         /**
+         * @brief Get the list of users with access to the specified node
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param h MegaNode to check the access
+         *
+         * @return A list of user handles that have access to the node
+         */
+        MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
+
+        /**
+         * @brief Check if the logged-in user has access to the specified node
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param h MegaNode to check the access
+         *
+         * @return True the logged-in user has access to the node. Otherwise, it returns false
+         */
+        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h);
+
+        /**
          * @brief Get files attributes from a node
          * You take the ownership of the returned value
          * @param handle handle from node
          * @return char array with files attributes from the node.
          */
-        virtual const char* getFileAttribute(MegaHandle handle);
-
+        const char* getFileAttribute(MegaHandle h);
 #endif
 
 private:

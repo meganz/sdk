@@ -1692,6 +1692,9 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
+        MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
+        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h);
+        const char* getFileAttribute(MegaHandle h);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1703,7 +1706,6 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
-        virtual const char* getFileAttribute(MegaHandle handle);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

@@ -6692,6 +6692,83 @@ MegaTextChatList *MegaApiImpl::getChatList()
 
     return list;
 }
+
+MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
+{
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+
+    MegaHandleList *uhList = NULL;
+
+    textchat_map::iterator itc = client->chats.find(chatid);
+    if (itc != client->chats.end())
+    {
+        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
+        if (ita != itc->second->attachedNodes.end())
+        {
+            uhList = new MegaHandleListPrivate();
+
+            set<handle> userList = ita->second;
+            set<handle>::iterator ituh;
+            for (ituh = userList.begin(); ituh != userList.end(); ituh++)
+            {
+                uhList->addMegaHandle(*ituh);
+            }
+        }
+    }
+
+    sdkMutex.unlock();
+
+    return uhList;
+}
+
+bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
+{
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+
+    bool ret = false;
+
+    textchat_map::iterator itc = client->chats.find(chatid);
+    if (itc != client->chats.end())
+    {
+        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
+        if (ita != itc->second->attachedNodes.end())
+        {
+            set<handle> userList = ita->second;
+            ret = (userList.find(client->me) != userList.end());
+        }
+    }
+
+    sdkMutex.unlock();
+
+    return ret;
+}
+
+const char* MegaApiImpl::getFileAttribute(MegaHandle h)
+{
+    char* fileAttributes = NULL;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(h);
+    if (node)
+    {
+        fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
+    }
+
+    sdkMutex.unlock();
+
+     return fileAttributes;
+}
+
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -11678,22 +11755,6 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     fp->size = size;
 
     return fp;
-}
-
-const char* MegaApiImpl::getFileAttribute(MegaHandle handle)
-{
-    char* fileAttributes = NULL;
-
-    sdkMutex.lock();
-    Node *node = client->nodebyhandle(handle);
-    if (node)
-    {
-        fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
-    }
-
-    sdkMutex.unlock();
-
-     return fileAttributes;
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)

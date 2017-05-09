@@ -3573,9 +3573,19 @@ MegaTextChatList* MegaApi::getChatList()
     return pImpl->getChatList();
 }
 
-const char* MegaApi::getFileAttribute(MegaHandle handle)
+MegaHandleList* MegaApi::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
 {
-    return pImpl->getFileAttribute(handle);
+    return pImpl->getAttachmentAccess(chatid, h);
+}
+
+bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
+{
+    return pImpl->hasAccessToAttachment(chatid, h);
+}
+
+const char* MegaApi::getFileAttribute(MegaHandle h)
+{
+    return pImpl->getFileAttribute(h);
 }
 
 #endif
