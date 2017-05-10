@@ -9644,16 +9644,6 @@ class MegaApi
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
 
         /**
-         * @brief Check if the logged-in user has access to the specified node
-         *
-         * @param chatid MegaHandle that identifies the chat room
-         * @param h MegaNode to check the access
-         *
-         * @return True the logged-in user has access to the node. Otherwise, it returns false
-         */
-        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h);
-
-        /**
          * @brief Get files attributes from a node
          * You take the ownership of the returned value
          * @param handle handle from node

@@ -1693,7 +1693,6 @@ class MegaApiImpl : public MegaApp
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
-        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h);
         const char* getFileAttribute(MegaHandle h);
 #endif
 
