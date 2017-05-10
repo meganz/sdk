@@ -4812,7 +4812,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     this->client = client;
     this->chatid = chatid;
     this->h = h;
-    Base64::atob(uid, (byte*)&uh, MegaClient::NODEHANDLE);
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcga");
 
@@ -4860,7 +4860,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     this->client = client;
     this->chatid = chatid;
     this->h = h;
-    Base64::atob(uid, (byte*)&uh, MegaClient::NODEHANDLE);
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcra");
 
