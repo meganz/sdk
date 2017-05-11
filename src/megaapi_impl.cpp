@@ -6724,6 +6724,33 @@ MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h
     return uhList;
 }
 
+bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
+{
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+
+    bool ret = false;
+
+    textchat_map::iterator itc = client->chats.find(chatid);
+    if (itc != client->chats.end())
+    {
+        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
+        if (ita != itc->second->attachedNodes.end())
+        {
+            set<handle> userList = ita->second;
+            ret = (userList.find(client->me) != userList.end());
+        }
+    }
+
+    sdkMutex.unlock();
+
+    return ret;
+}
+
 const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 {
     char* fileAttributes = NULL;
