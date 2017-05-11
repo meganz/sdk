@@ -12958,7 +12958,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                fileattrstring = string(fa);
+                fileattrstring = fa;
 
                 byte nodekey[FILENODEKEYLENGTH];
                 if (Base64::atob(base64key, nodekey, sizeof nodekey) != sizeof nodekey)
