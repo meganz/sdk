@@ -29,7 +29,8 @@ User::User(const char* cemail)
     userhandle = UNDEF;
     show = VISIBILITY_UNKNOWN;
     ctime = 0;
-    pubkrequested = 0;
+    pubkrequested = false;
+    isTemporary = false;
     resetTag();
 
     if (cemail)

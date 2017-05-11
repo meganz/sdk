@@ -2883,24 +2883,30 @@ MShareList^ MegaSDK::getInSharesList()
     return ref new MShareList(megaApi->getInSharesList(), true);
 }
 
+MUser^ MegaSDK::getUserFromInShare(MNode^ node)
+{
+    MegaUser *user = megaApi->getUserFromInShare((node != nullptr) ? node->getCPtr() : NULL);
+    return user ? ref new MUser(user, true) : nullptr;
+}
+
 bool MegaSDK::isShared(MNode^ node)
 {
-    return megaApi->isShared(node->getCPtr());
+    return megaApi->isShared((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isOutShare(MNode^ node)
 {
-    return megaApi->isOutShare(node->getCPtr());
+    return megaApi->isOutShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isInShare(MNode^ node)
 {
-    return megaApi->isInShare(node->getCPtr());
+    return megaApi->isInShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isPendingShare(MNode^ node)
 {
-    return megaApi->isPendingShare(node->getCPtr());
+    return megaApi->isPendingShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 MShareList^ MegaSDK::getOutShares()
@@ -3137,6 +3143,12 @@ MNode^ MegaSDK::getRootNode()
 	return node ? ref new MNode(node, true) : nullptr;
 }
 
+MNode^ MegaSDK::getRootNode(MNode^ node)
+{
+    MegaNode *rootNode = megaApi->getRootNode((node != nullptr) ? node->getCPtr() : NULL);
+    return rootNode ? ref new MNode(rootNode, true) : nullptr;
+}
+
 MNode^ MegaSDK::getInboxNode()
 {
     MegaNode *node = megaApi->getInboxNode();
@@ -3147,6 +3159,21 @@ MNode^ MegaSDK::getRubbishNode()
 {
 	MegaNode *node = megaApi->getRubbishNode();
 	return node ? ref new MNode(node, true) : nullptr;
+}
+
+bool MegaSDK::isInCloud(MNode^ node)
+{
+    return megaApi->isInCloud((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInRubbish(MNode^ node)
+{
+    return megaApi->isInRubbish((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInInbox(MNode^ node)
+{
+    return megaApi->isInInbox((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 uint64 MegaSDK::getBandwidthOverquotaDelay()

@@ -1113,6 +1113,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
 }
 
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node {
+    return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
@@ -1309,6 +1313,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {
     self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
+}
+
+- (BOOL)setLanguageCode:(NSString *)languageCode {
+    return self.megaApi->setLanguage(languageCode ? [languageCode UTF8String] : NULL);
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {

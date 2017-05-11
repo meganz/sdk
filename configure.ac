@@ -574,6 +574,83 @@ AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
 
 
 #
+# LIBUV
+#
+
+#libuv
+LIBUV_LIBS=""
+AC_MSG_CHECKING(for libuv)
+libuv=false
+AC_ARG_WITH(libuv,
+  AS_HELP_STRING(--with-libuv=PATH, base of libuv installation),
+  [
+   case $with_libuv in
+   no)
+    libuv=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([uv.h],, [
+        AC_MSG_ERROR([uv.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+    libuv=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libuv/lib"; then
+        LDFLAGS="-L$with_libuv/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libuv/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv/include"
+         LIBUV_CPPFLAGS="-I$with_libuv/include"
+         LIBUV_LDFLAGS="-L$with_libuv/lib",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    # assume we are using libuv source directory
+    else
+        LDFLAGS="-L$with_libuv/uv $LDFLAGS"
+        CXXFLAGS="-I$with_libuv $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv"
+         LIBUV_CPPFLAGS="-I$with_libuv"
+         LIBUV_LDFLAGS="-L$with_libuv/uv",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+
+    libuv=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libuv not specified])]
+  )
+AC_SUBST(LIBUV_CXXFLAGS)
+AC_SUBST(LIBUV_CPPFLAGS)
+AC_SUBST(LIBUV_LDFLAGS)
+AC_SUBST(LIBUV_LIBS)
+if test "x$libuv" = "xtrue" ; then
+    AC_DEFINE(HAVE_LIBUV, [1], [Define to use libuv])
+fi
+AM_CONDITIONAL([USE_LIBUV], [test "x$libuv" = "xtrue"])
+
+
+#
 # Zlib
 #
 
@@ -998,7 +1075,8 @@ if test "x$WIN32" = "xno" ; then
        *)
 
         # determine if library is installed
-        LDFLAGS="-L$with_curl/lib $LDFLAGS"
+        LDFLAGS="-L$with_curl/lib $LDFLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS"
+
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
         SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
@@ -1595,4 +1673,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
+  LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
 ])

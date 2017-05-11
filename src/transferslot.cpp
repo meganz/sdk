@@ -299,7 +299,8 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
-    if (!fa || (transfer->size && transfer->progresscompleted == transfer->size))
+    if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
+            || (transfer->type == PUT && transfer->ultoken))
     {
         if (transfer->type == GET || transfer->ultoken)
         {

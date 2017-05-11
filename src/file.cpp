@@ -348,7 +348,7 @@ bool File::failed(error e)
         return transfer->failcount < 16;
     }
 
-    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16)
+    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 

@@ -268,7 +268,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
         virtual MegaNode* getPublicNode();
-        virtual char *getPublicLink();
+        virtual char *getPublicLink(bool includeKey = true);
         virtual bool isFile();
         virtual bool isFolder();
         virtual bool isRemoved();
@@ -1053,6 +1053,8 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
+
+        virtual void addNode(MegaNode* node);
 	
 	protected:
 		MegaNode** list;
@@ -1511,12 +1513,15 @@ class MegaApiImpl : public MegaApp
         long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
+        long long getTotalDownloadBytes();
+        long long getTotalUploadBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
@@ -1529,6 +1534,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
+        MegaUser *getUserFromInShare(MegaNode *node);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
@@ -1566,6 +1572,8 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
+        MegaNode *getRootNode(MegaNode *node);
+        bool isInRootnode(MegaNode *node, int index);
 
         void setDefaultFilePermissions(int permissions);
         int getDefaultFilePermissions();
@@ -1587,12 +1595,14 @@ class MegaApiImpl : public MegaApp
         void authorizeMegaNodePrivate(MegaNodePrivate *node);
 
         const char *getVersion();
+        char *getOperatingSystemVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+        bool setLanguage(const char* languageCode);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();
@@ -1674,6 +1684,8 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
+        virtual const char* getFileAttribute(MegaHandle handle);
+
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 
@@ -1749,6 +1761,8 @@ protected:
         int totalDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
+        long long totalDownloadBytes;
+        long long totalUploadBytes;
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;

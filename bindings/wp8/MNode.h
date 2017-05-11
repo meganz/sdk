@@ -81,10 +81,10 @@ namespace mega
         uint64 getParentHandle();
         String^ getBase64Key();
         int getTag();
-        uint64 getExpirationTime();
+        int64 getExpirationTime();
         MegaHandle getPublicHandle();
         MNode^ getPublicNode();
-        String^ getPublicLink();
+        String^ getPublicLink(bool includeKey);
         bool isFile();
         bool isFolder();
         bool isRemoved();
