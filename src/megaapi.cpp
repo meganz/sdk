@@ -3578,9 +3578,9 @@ MegaHandleList* MegaApi::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
     return pImpl->getAttachmentAccess(chatid, h);
 }
 
-bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
+bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh)
 {
-    return pImpl->hasAccessToAttachment(chatid, h);
+    return pImpl->hasAccessToAttachment(chatid, h, uh);
 }
 
 const char* MegaApi::getFileAttribute(MegaHandle h)

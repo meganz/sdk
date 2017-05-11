@@ -6724,16 +6724,16 @@ MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h
     return uhList;
 }
 
-bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
+bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh)
 {
-    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
+    bool ret = false;
+
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || uh == INVALID_HANDLE)
     {
-        return NULL;
+        return ret;
     }
 
     sdkMutex.lock();
-
-    bool ret = false;
 
     textchat_map::iterator itc = client->chats.find(chatid);
     if (itc != client->chats.end())
@@ -6742,7 +6742,7 @@ bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h)
         if (ita != itc->second->attachedNodes.end())
         {
             set<handle> userList = ita->second;
-            ret = (userList.find(client->me) != userList.end());
+            ret = (userList.find(uh) != userList.end());
         }
     }
 
