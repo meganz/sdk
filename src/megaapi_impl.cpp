@@ -6695,14 +6695,14 @@ MegaTextChatList *MegaApiImpl::getChatList()
 
 MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
 {
+    MegaHandleList *uhList = new MegaHandleListPrivate();
+
     if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
     {
-        return NULL;
+        return uhList;
     }
 
     sdkMutex.lock();
-
-    MegaHandleList *uhList = NULL;
 
     textchat_map::iterator itc = client->chats.find(chatid);
     if (itc != client->chats.end())
@@ -6710,8 +6710,6 @@ MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h
         attachments_map::iterator ita = itc->second->attachedNodes.find(h);
         if (ita != itc->second->attachedNodes.end())
         {
-            uhList = new MegaHandleListPrivate();
-
             set<handle> userList = ita->second;
             set<handle>::iterator ituh;
             for (ituh = userList.begin(); ituh != userList.end(); ituh++)

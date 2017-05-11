@@ -9636,6 +9636,8 @@ class MegaApi
         /**
          * @brief Get the list of users with access to the specified node
          *
+         * You take the ownership of the returned value
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param h MegaNode to check the access
          *
