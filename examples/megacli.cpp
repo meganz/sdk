@@ -930,9 +930,14 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
     }
 }
 
-void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(handle h, fatype type, const char* data, uint32_t len)
 {
-    cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
+    cout << "Got attribute of type " << type << " (" << len << " byte(s))";
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        cout << " for " << n->displayname() << endl;
+    }
 }
 
 int DemoApp::fa_failed(handle, fatype type, int retries, error e)
