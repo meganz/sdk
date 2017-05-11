@@ -3318,10 +3318,12 @@ bool MegaClient::procsc()
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
+                                break;
 
                             case MAKENAMEID4('m', 'c', 'n', 'a'):
                                 // granted / revoked access to a node
                                 sc_chatnode();
+                                break;
 #endif
                         }
                     }
