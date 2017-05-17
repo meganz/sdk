@@ -955,8 +955,10 @@ class MegaNode
         /**
          * @brief Provides a serialization of the MegaNode object
          *
-         * This method is useful to pass the object in its serialized form in
-         * Java-based apps, like Android.
+         * @note This function is intended to use ONLY with MegaNode objects obtained from
+         * attachment messages received in a chatroom (@see MegaChatMessage::getMegaNodeList()).
+         * Using MegaNode objects returned by MegaNode::unserialize from a serialized
+         * non-chat MegaNode object may cause undefined behavior.
          *
          * You take the ownership of the returned value.
          *
@@ -967,12 +969,14 @@ class MegaNode
         /**
          * @brief Returns a new MegaNode object from its serialization
          *
-         * This method is useful to restore a serialized MegaNode object, which
-         * might be used in Java-based apps, like Android.
+         * @note This function is intended to use ONLY with MegaNode objects obtained from
+         * attachment messages received in a chatroom (@see MegaChatMessage::getMegaNodeList()).
+         * Using MegaNode objects obtained by MegaNode::unserialize from a serialized
+         * non-chat MegaNode object may cause undefined behavior.
          *
          * You take the ownership of the returned value.
          *
-         * @param Serialization of a MegaNode object (in Base64)
+         * @param Serialization of a MegaNode object obtained from a chat message (in Base64)
          * @return A new MegaNode object, or NULL if error.
          */
         static MegaNode* unserialize(const char *d);
