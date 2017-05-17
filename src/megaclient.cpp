@@ -8922,6 +8922,8 @@ void MegaClient::purgenodesusersabortsc()
         }
         else
         {
+            u->dbid = 0;
+            u->notified = false;
             it++;
         }
     }
