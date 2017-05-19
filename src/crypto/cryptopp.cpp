@@ -466,12 +466,12 @@ void AsymmCipher::resetkey()
 
 void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
 {
-    unsigned sizePQ = key[PUB_PQ].ByteCount();    // 4 bytes for exponent, as used in Webclient
+    unsigned sizePQ = key[PUB_PQ].ByteCount();
     unsigned sizeE = key[PUB_E].ByteCount();
     char c;
 
     d.clear();
-    d.reserve(sizePQ + 4);
+    d.reserve(sizePQ + sizeE);
 
     for (int j = key[PUB_PQ].ByteCount(); j--;)
     {
@@ -483,6 +483,7 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
     {
         // accounts created by webclient use 4 bytes for serialization of exponent
         // --> add left-padding up to 4 bytes for compatibility reasons
+        d.reserve(sizePQ + 4);        
         c = 0;
         for (unsigned j = 0; j < 4 - sizeE; j++)
         {
@@ -492,7 +493,7 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
 
     for (int j = sizeE; j--;)
     {
-        c = key[1].GetByte(j);  // returns 0 if out-of-range
+        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
         d.append(&c, sizeof c);
     }
 }
