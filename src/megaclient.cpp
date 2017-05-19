@@ -8703,7 +8703,7 @@ void MegaClient::initializekeys()
         string pubkstr;
         if (pubk.isvalid())
         {
-            pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
+            pubk.serializekeyforjs(pubkstr);
         }
         if (!pubkstr.size() || !sigPubk.size())
         {
@@ -8731,16 +8731,26 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Verification of signature of public key for RSA failed";
+            // Verification could fail because a legacy bug in Webclient. Retry...
+            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99414, "Verification of signature of public key for RSA failed");
-            reqtag = creqtag;
+            pubk.serializekeyforjs(pubkstr, true);
+            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
+                                        pubkstr.size(),
+                                        &sigPubk,
+                                        (unsigned char*) puEd255.data()))
+            {
+                LOG_warn << "Verification of signature of public key for RSA failed";
 
-            clearKeys();
-            resetKeyring();
-            return;
+                int creqtag = reqtag;
+                reqtag = 0;
+                sendevent(99414, "Verification of signature of public key for RSA failed");
+                reqtag = creqtag;
+
+                clearKeys();
+                resetKeyring();
+                return;
+            }
         }
 
         // if we reached this point, everything is OK
@@ -8786,7 +8796,7 @@ void MegaClient::initializekeys()
 
             // prepare signatures
             string pubkStr;
-            pubk.serializekeyforjs(&pubkStr, AsymmCipher::PUBKEY);
+            pubk.serializekeyforjs(pubkStr);
             signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
