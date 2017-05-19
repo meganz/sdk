@@ -5683,6 +5683,8 @@ class MegaApi
          * - MegaRequest::getText - Returns the file attribute string if \c node is an attached node from chats. NULL otherwise
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaRequest::getBase64Key - Returns the nodekey in Base64 (only when node has file attributes)
+         * - MegaRequest::getPrivateKey - Returns the file-attribute string (only when node has file attributes)
          *
          * @param node Node to get the thumbnail
          * @param dstFilePath Destination path for the thumbnail.
@@ -5706,6 +5708,8 @@ class MegaApi
          * - MegaRequest::getText - Returns the file attribute string if \c node is an attached node from chats. NULL otherwise
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         * - MegaRequest::getBase64Key - Returns the nodekey in Base64 (only when node has file attributes)
+         * - MegaRequest::getPrivateKey - Returns the file-attribute string (only when node has file attributes)
          *
          * @param node Node to get the preview
          * @param dstFilePath Destination path for the preview.
