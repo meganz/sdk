@@ -471,7 +471,7 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
     char c;
 
     d.clear();
-    d.reserve(sizePQ + sizeE);
+    d.reserve(!fixedSize ? sizePQ + sizeE : sizePQ + 4);
 
     for (int j = key[PUB_PQ].ByteCount(); j--;)
     {
@@ -483,7 +483,6 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
     {
         // accounts created by webclient use 4 bytes for serialization of exponent
         // --> add left-padding up to 4 bytes for compatibility reasons
-        d.reserve(sizePQ + 4);        
         c = 0;
         for (unsigned j = 0; j < 4 - sizeE; j++)
         {
