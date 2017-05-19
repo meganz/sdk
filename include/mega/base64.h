@@ -37,6 +37,9 @@ public:
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);
+
+    static int btoa(const string&, string&);
+    static int atob(const string&, string&);
 };
 
 // lowercase base32 encoding
