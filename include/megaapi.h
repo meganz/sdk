@@ -886,6 +886,19 @@ class MegaNode
         virtual std::string* getAttrString();
 
         /**
+         * @brief Returns a string that contains the file attributes related to the node
+         *
+         * The return value is only valid for nodes attached in a chatroom. In all other cases this function
+         * will return an empty string.
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return File attributes related to the node
+         */
+        virtual std::string *getFileAttrString();
+
+        /**
          * @brief Return the private auth token to access this node
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
@@ -5695,8 +5708,11 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getText - Returns the file attribute string if \c node is an attached node from chats. NULL otherwise
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaRequest::getBase64Key - Returns the nodekey in Base64 (only when node has file attributes)
+         * - MegaRequest::getPrivateKey - Returns the file-attribute string (only when node has file attributes)
          *
          * @param node Node to get the thumbnail
          * @param dstFilePath Destination path for the thumbnail.
@@ -5717,8 +5733,11 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getText - Returns the file attribute string if \c node is an attached node from chats. NULL otherwise
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         * - MegaRequest::getBase64Key - Returns the nodekey in Base64 (only when node has file attributes)
+         * - MegaRequest::getPrivateKey - Returns the file-attribute string (only when node has file attributes)
          *
          * @param node Node to get the preview
          * @param dstFilePath Destination path for the preview.

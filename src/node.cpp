@@ -699,16 +699,21 @@ const char* Node::displayname() const
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {
+    return Node::hasfileattribute(&fileattrstring, t);
+}
+
+int Node::hasfileattribute(const string *fileattrstring, fatype t)
+{
     char buf[24];
 
     sprintf(buf, ":%u*", t);
-    return fileattrstring.find(buf) + 1;
+    return fileattrstring->find(buf) + 1;
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    int keylength = (type == FILENODE)
+    unsigned int keylength = (type == FILENODE)
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
 
