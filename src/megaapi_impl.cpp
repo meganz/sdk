@@ -68,7 +68,7 @@
 using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle,
+                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign)
 : MegaNode()
 {
@@ -85,10 +85,11 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->nodehandle = nodehandle;
     this->parenthandle = parentHandle;
     this->attrstring.assign(attrstring->data(), attrstring->size());
+    this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
     this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
-    this->thumbnailAvailable = false;
-    this->previewAvailable = false;
+    this->thumbnailAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::THUMBNAIL120X120) != 0);
+    this->previewAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::PREVIEW1000x1000) != 0);
     this->tag = 0;
     this->isPublicNode = ispublic;
     this->outShares = false;
@@ -107,6 +108,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     {
         this->publicAuth = publicauth;
     }
+
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -130,6 +132,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->parenthandle = node->getParentHandle();
     string * attrstring = node->getAttrString();
     this->attrstring.assign(attrstring->data(), attrstring->size());
+    string * fileattrstring = node->getFileAttrString();
+    this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
     string *nodekey = node->getNodeKey();
     this->nodekey.assign(nodekey->data(),nodekey->size());
     this->changed = node->getChanges();
@@ -292,6 +296,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
     }
+    this->fileattrstring = node->fileattrstring;
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
 
     this->changed = 0;
@@ -376,6 +381,20 @@ string* MegaNodePrivate::getSharekey()
 MegaNode *MegaNodePrivate::copy()
 {
     return new MegaNodePrivate(this);
+}
+
+char *MegaNodePrivate::serialize()
+{
+    string d;
+    if (!serialize(&d))
+    {
+        return NULL;
+    }
+
+    char *ret = new char[d.size()*4/3+3];
+    Base64::btoa((byte*) d.data(), d.size(), ret);
+
+    return ret;
 }
 
 bool MegaNodePrivate::serialize(string *d)
@@ -492,6 +511,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     attrstring.assign(ptr, ll);
     ptr += ll;
 
+    string fileattrstring;  // not serialized
+
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
     if (ptr + ll + sizeof(unsigned short) > end)
@@ -542,7 +563,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     d->erase(0, ptr - d->data());
 
     return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
-                               mtime, nodehandle, &nodekey, &attrstring,
+                               mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprintlen ? fingerprint.c_str() : NULL,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
                                isPublicNode, foreign);
@@ -701,7 +722,12 @@ char *MegaNodePrivate::getBase64Key()
 
 string *MegaNodePrivate::getAttrString()
 {
-	return &attrstring;
+    return &attrstring;
+}
+
+string *MegaNodePrivate::getFileAttrString()
+{
+    return &fileattrstring;
 }
 
 int MegaNodePrivate::getTag()
@@ -731,7 +757,7 @@ MegaNode* MegaNodePrivate::getPublicNode()
 
     MegaNode *node = new MegaNodePrivate(
                 name, type, size, ctime, mtime,
-                plink->ph, &key, &attrstring, fingerprint,
+                plink->ph, &key, &attrstring, &fileattrstring, fingerprint,
                 INVALID_HANDLE);
 
     delete [] skey;
@@ -4609,32 +4635,32 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
-	getNodeAttribute(node, 0, dstFilePath, listener);
+    getNodeAttribute(node, GfxProc::THUMBNAIL120X120, dstFilePath, listener);
 }
 
 void MegaApiImpl::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
 {
-	cancelGetNodeAttribute(node, 0, listener);
+    cancelGetNodeAttribute(node, GfxProc::THUMBNAIL120X120, listener);
 }
 
 void MegaApiImpl::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-	setNodeAttribute(node, 0, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::THUMBNAIL120X120, srcFilePath, listener);
 }
 
 void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
-	getNodeAttribute(node, 1, dstFilePath, listener);
+    getNodeAttribute(node, GfxProc::PREVIEW1000x1000, dstFilePath, listener);
 }
 
 void MegaApiImpl::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
 {
-	cancelGetNodeAttribute(node, 1, listener);
+    cancelGetNodeAttribute(node, GfxProc::PREVIEW1000x1000, listener);
 }
 
 void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-	setNodeAttribute(node, 1, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::PREVIEW1000x1000, srcFilePath, listener);
 }
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -5072,7 +5098,17 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     }
 
     request->setParamType(type);
-    if(node) request->setNodeHandle(node->getHandle());
+    if(node)
+    {
+        request->setNodeHandle(node->getHandle());
+        if (!node->getFileAttrString()->empty())
+        {
+            request->setText(node->getFileAttrString()->c_str());
+            const char *nodekey = node->getBase64Key();
+            request->setPrivateKey(nodekey);
+            delete [] nodekey;
+        }
+    }
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -5081,7 +5117,14 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_ATTR_FILE, listener);
 	request->setParamType(type);
-	if (node) request->setNodeHandle(node->getHandle());
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+        if (!node->getFileAttrString()->empty())
+        {
+            request->setText(node->getFileAttrString()->c_str());
+        }
+    }
 	requestQueue.push(request);
 	waiter->notify();
 }
@@ -7251,9 +7294,10 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
 {
     string nodekey;
     string attrstring;
+    string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle,
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, parentHandle,
                                privateauth, publicauth, false, true);
 }
 
@@ -7261,7 +7305,8 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
 {
     string nodekey;
     string attrstring;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle,
+    string fileattrsting;
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, parentHandle,
                                privateauth, publicauth, false, true);
 }
 
@@ -9435,7 +9480,7 @@ void MegaApiImpl::updatepcr_result(error e, ipcactions_t action)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::fa_complete(Node*, fatype, const char* data, uint32_t len)
+void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
 {
     int tag = client->restag;
     while(tag)
@@ -10024,6 +10069,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
 
     string attrstring;
+    string fileattrstring;
     string fileName;
     string keystring;
     string fingerprint;
@@ -10107,7 +10153,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	else
 	{
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
-                                                           fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
+                                                           &fileattrstring, fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
@@ -12964,11 +13010,38 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* dstFilePath = request->getFile();
             int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            handle h = request->getNodeHandle();
+            const char *fa = request->getText();
+            const char *base64key = request->getPrivateKey();
 
-			if(!dstFilePath || !node) { e = API_EARGS; break; }
+            Node *node = client->nodebyhandle(h);
 
-            e = client->getfa(node, (fatype)type);
+            if(!dstFilePath || (!fa && !node) || (fa && (!base64key || ISUNDEF(h))))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string fileattrstring;
+            string key;
+            if (!fa)
+            {
+                fileattrstring = node->fileattrstring;
+                key = node->nodekey;
+            }
+            else
+            {
+                fileattrstring = fa;
+
+                byte nodekey[FILENODEKEYLENGTH];
+                if (Base64::atob(base64key, nodekey, sizeof nodekey) != sizeof nodekey)
+                {
+                    e = API_EKEY;
+                    break;
+                }
+                key.assign((const char *)nodekey, sizeof nodekey);
+            }
+            e = client->getfa(h, &fileattrstring, &key, (fatype) type);
             if(e == API_EEXIST)
             {
                 e = API_OK;
@@ -13330,11 +13403,20 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
 		{
 			int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            handle h = request->getNodeHandle();
+            const char *fa = request->getText();
 
-			if (!node) { e = API_EARGS; break; }
+            Node *node = client->nodebyhandle(h);
 
-            e = client->getfa(node, (fatype)type, 1);
+            if((!fa && !node) || (fa && ISUNDEF(h)))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string fileattrstring = fa ? string(fa) : node->fileattrstring;
+
+            e = client->getfa(h, &fileattrstring, NULL, (fatype) type, 1);
 			if (!e)
 			{
 				std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();

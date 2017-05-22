@@ -394,6 +394,11 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
+string *MegaNode::getFileAttrString()
+{
+    return NULL;
+}
+
 string *MegaNode::getPrivateAuth()
 {
     return NULL;
@@ -412,6 +417,25 @@ string *MegaNode::getPublicAuth()
 MegaNodeList *MegaNode::getChildren()
 {
     return NULL;
+}
+
+char *MegaNode::serialize()
+{
+    return NULL;
+}
+
+MegaNode *MegaNode::unserialize(const char *d)
+{
+    if (!d)
+    {
+        return NULL;
+    }
+
+    string data;
+    data.resize(strlen(d) * 3 / 4 + 3);
+    data.resize(Base64::atob(d, (byte*)data.data(), data.size()));
+
+    return MegaNodePrivate::unserialize(&data);
 }
 
 #ifdef ENABLE_SYNC
