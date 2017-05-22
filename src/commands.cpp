@@ -3653,6 +3653,8 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
     arg("c", code, len);
     arg("uh", (byte*)&emailhash, sizeof emailhash);
 
+    notself(client);
+
     tag = client->reqtag;
 }
 

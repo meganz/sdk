@@ -115,6 +115,7 @@ struct DemoApp : public MegaApp
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();
+    void account_updated();
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error);

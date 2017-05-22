@@ -3319,7 +3319,14 @@ bool MegaClient::procsc()
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
+                                break;
 #endif
+                            case MAKENAMEID3('u', 'a', 'c'):
+                                if (sc_uac())
+                                {
+                                    app->account_updated();
+                                }
+                                break;
                         }
                     }
                 }
@@ -4915,6 +4922,24 @@ void MegaClient::sc_chatupdate()
                 {                    
                     delete upnotif;
                     return;
+                }
+        }
+    }
+}
+
+bool MegaClient::sc_uac()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case EOO:
+                return true;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return false;
                 }
         }
     }

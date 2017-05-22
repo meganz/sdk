@@ -654,6 +654,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
 #endif
+    bool sc_uac();
 
     void init();
 

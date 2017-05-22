@@ -3917,7 +3917,7 @@ class MegaGlobalListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
