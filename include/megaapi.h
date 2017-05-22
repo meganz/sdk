@@ -5314,6 +5314,9 @@ class MegaApi
 
         /**
          * @brief Check if the MegaApi object is logged in
+         *
+         * For accounts pending to be confirmed, the returned value is 1.
+         *
          * @return 0 if not logged in, Otherwise, a number >= 0
          */
         int isLoggedIn();
