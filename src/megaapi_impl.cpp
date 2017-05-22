@@ -10339,7 +10339,6 @@ void MegaApiImpl::sendsignuplink_result(error e)
         }
     }
 
-    client->locallogout();
     fireOnRequestFinish(request, megaError);
 }
 
