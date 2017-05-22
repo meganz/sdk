@@ -2472,10 +2472,13 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
-        u->setattr(at, &av, NULL);
-        u->setTag(tag ? tag : -1);
+        if (u)
+        {
+            u->setattr(at, &av, NULL);
+            u->setTag(tag ? tag : -1);
 
-        client->notifyuser(u);
+            client->notifyuser(u);
+        }
     }
 
     client->app->putua_result(e);
@@ -3505,7 +3508,8 @@ void CommandCreateEphemeralSession::procresult()
     }
     else
     {
-        client->resumeephemeral(client->json.gethandle(MegaClient::USERHANDLE), pw, tag);
+        client->me = client->json.gethandle(MegaClient::USERHANDLE);
+        client->resumeephemeral(client->me, pw, tag);
     }
 }
 
