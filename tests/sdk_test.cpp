@@ -288,6 +288,27 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
         h = transfer->getNodeHandle();
 }
 
+
+void SdkTest::onAccountUpdate(MegaApi* api)
+{
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
+    accountUpdated[apiIndex] = true;
+}
+
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
     unsigned int apiIndex;
@@ -814,6 +835,10 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
             << "Account creation has failed after " << maxTimeout << " seconds";
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    bool *flag = &accountUpdated[0]; *flag = false;
+    ASSERT_TRUE( waitForResponse(flag) )
+            << "Account confirmation not received after " << maxTimeout << " seconds";
 }
 
 /**

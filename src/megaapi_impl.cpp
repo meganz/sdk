@@ -10311,6 +10311,7 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
     {
         client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
     }
+    client->fetchnodes();
 
     client->reqtag = creqtag;
 }

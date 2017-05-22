@@ -89,6 +89,7 @@ public:
     bool nodeUpdated[2];
     bool userUpdated[2];
     bool contactRequestUpdated[2];
+    bool accountUpdated[2];
 
 #ifdef ENABLE_CHAT
     bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
@@ -112,7 +113,7 @@ protected:
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    void onAccountUpdate(MegaApi *api) {}
+    void onAccountUpdate(MegaApi *api);
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
     void onReloadNeeded(MegaApi *api) {}
 #ifdef ENABLE_SYNC
