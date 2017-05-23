@@ -1479,6 +1479,11 @@ void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, cons
     pImpl->fastCreateAccount(email, base64pwkey, name, listener);
 }
 
+void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
+{
+    pImpl->sendSignupLink(email, name, password, listener);
+}
+
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 {
     pImpl->querySignupLink(link, listener);

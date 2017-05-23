@@ -2687,6 +2687,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
+        case TYPE_SEND_SIGNUP_LINK: return "TYPE_SEND_SIGNUP_LINK";
     }
     return "UNKNOWN";
 }
@@ -4213,6 +4214,16 @@ void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, 
 	request->setPrivateKey(base64pwkey);
 	request->setName(name);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
+    request->setEmail(email);
+    request->setPassword(password);
+    request->setName(name);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -10321,22 +10332,26 @@ void MegaApiImpl::sendsignuplink_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
-    requestMap.erase(request->getTag());
-    while (!requestMap.empty())
+    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
     {
-        std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-        if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-    }
-
-    while (!transferMap.empty())
-    {
-        std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-        if (it->second)
+        requestMap.erase(request->getTag());
+        while (!requestMap.empty())
         {
-            it->second->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+        }
+
+        while (!transferMap.empty())
+        {
+            std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+            if (it->second)
+            {
+                it->second->setState(MegaTransfer::STATE_FAILED);
+                fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            }
         }
     }
 
@@ -13463,6 +13478,31 @@ void MegaApiImpl::sendPendingRequests()
 			client->createephemeral();
 			break;
 		}
+        case MegaRequest::TYPE_SEND_SIGNUP_LINK:
+        {
+            const char *email = request->getEmail();
+            const char *password = request->getPassword();
+            const char *name = request->getName();
+
+            if(client->loggedin() != EPHEMERALACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            if (!email || !name || !password)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            byte pwkey[SymmCipher::KEYLENGTH];
+            client->pw_key(password, pwkey);
+
+            client->sendsignuplink(email, name, pwkey);
+
+            break;
+        }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
         {
             const char *link = request->getLink();

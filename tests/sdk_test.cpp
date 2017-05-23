@@ -830,11 +830,18 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount("uac14@yopmail.com", "uac", "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
-
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
+    megaApi[0]->sendSignupLink("uaclink4@yopmail.com", "MyFirstname", "uac");
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
+            << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Send confirmation link to another email address failed (error: " << lastError[0] << ")";
+
+    // Now, confirm the account by using a different client...
 
     bool *flag = &accountUpdated[0]; *flag = false;
     ASSERT_TRUE( waitForResponse(flag) )
