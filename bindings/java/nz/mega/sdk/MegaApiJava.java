@@ -5255,7 +5255,7 @@ public class MegaApiJava {
         activeTransferListeners.remove(listener);
     }
 
-    static ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
+    static public ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
         if (nodeList == null) {
             return null;
         }
