@@ -87,7 +87,7 @@ public:
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
+    void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
 
 
     /**

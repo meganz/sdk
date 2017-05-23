@@ -72,7 +72,7 @@ int ComunicationsManager::waitForPetition()
     return 0;
 }
 
-void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     delete inf;
     return;

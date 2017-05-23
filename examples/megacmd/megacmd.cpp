@@ -42,6 +42,61 @@
 
 
 #ifdef _WIN32
+// convert UTF-8 to Windows Unicode wstring
+void stringtolocalw(const char* path, std::wstring* local)
+{
+    // make space for the worst case
+    local->resize((strlen(path) + 1) * sizeof(wchar_t));
+
+    int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
+    //int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), local->size() / sizeof(wchar_t) + 1);
+    local->resize(wchars_num);
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);
+
+    if (len)
+    {
+        local->resize(len-1);
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+//override << operators for wostream for string and const char *
+
+std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
+{
+    std::wstring toout;
+    stringtolocalw(str.c_str(),&toout);
+    ostr << toout;
+
+return ( ostr );
+}
+
+std::wostream & operator<< ( std::wostream & ostr, const char * str )
+{
+    std::wstring toout;
+    stringtolocalw(str,&toout);
+    ostr << toout;
+    return ( ostr );
+}
+
+//override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
+std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
+{
+    //TODO: localtostring
+    //std::wstring toout;
+    //stringtolocalw(str,&toout);
+    //ostr << toout;
+    return ( ostr );
+}
+
+
+#endif
+
+#ifdef _WIN32
 #include "comunicationsmanagerportsockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerPortSockets
 #else
@@ -2090,7 +2145,7 @@ void * doProcessLine(void *pointer)
 {
     CmdPetition *inf = (CmdPetition*)pointer;
 
-    std::ostringstream s;
+    OUTSTRINGSTREAM s;
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
@@ -2194,6 +2249,7 @@ void megacmd()
     if (!consoleFailed)
     {
         readline_fd = fileno(rl_instream);
+        //_setmode(readline_fd, _O_U8TEXT);
     }
 
     for (;; )
@@ -2316,15 +2372,15 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
         width = msj.size();
     }
     if (encapsulated)
-        cout << "|";
+        COUT << "|";
     for (u_int i = 0; i < (width-msj.size())/2; i++)
-        cout << " ";
-    cout << msj;
+        COUT << " ";
+    COUT << msj;
     for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
-        cout << " ";
+        COUT << " ";
     if (encapsulated)
-        cout << "|";
-    cout << endl;
+        COUT << "|";
+    COUT << endl;
 }
 
 void printWelcomeMsg()
@@ -2348,23 +2404,23 @@ void printWelcomeMsg()
 #endif
     }
 
-    cout << endl;
-    cout << ".";
+    COUT << endl;
+    COUT << ".";
     for (u_int i = 0; i < width; i++)
-        cout << "=" ;
-    cout << ".";
-    cout << endl;
+        COUT << "=" ;
+    COUT << ".";
+    COUT << endl;
     printCenteredLine(" __  __                   ____ __  __ ____  ",width);
     printCenteredLine("|  \\/  | ___  __ _  __ _ / ___|  \\/  |  _ \\ ",width);
     printCenteredLine("| |\\/| |/ _ \\/ _` |/ _` | |   | |\\/| | | | |",width);
     printCenteredLine("| |  | |  __/ (_| | (_| | |___| |  | | |_| |",width);
     printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
     printCenteredLine("             |___/                          ",width);
-    cout << "|";
+    COUT << "|";
     for (u_int i = 0; i < width; i++)
-        cout << " " ;
-    cout << "|";
-    cout << endl;
+        COUT << " " ;
+    COUT << "|";
+    COUT << endl;
     printCenteredLine("Welcome to MegaCMD! A Command Line Interactive and Scriptable",width);
     printCenteredLine("Application to interact with your MEGA account",width);
     printCenteredLine("This is a BETA version, it might not be bug-free.",width);
@@ -2374,11 +2430,11 @@ void printWelcomeMsg()
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
     printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
 
-    cout << "`";
+    COUT << "`";
     for (u_int i = 0; i < width; i++)
-        cout << "=" ;
-    cout << "´";
-    cout << endl;
+        COUT << "=" ;
+    COUT << "´";
+    COUT << endl;
 
 }
 
@@ -2461,9 +2517,12 @@ bool runningInBackground()
     return false;
 }
 
-
 int main(int argc, char* argv[])
 {
+#ifdef _WIN32
+    // Set Environment's default locale
+    setlocale(LC_ALL, ""); // "en_US.utf8" could be enough?
+#endif
 
 #ifdef __MACH__
     initializeMacOSStuff(argc,argv);
@@ -2474,7 +2533,7 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
-    loggerCMD = new MegaCMDLogger(&cout);
+    loggerCMD = new MegaCMDLogger(&COUT);
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);

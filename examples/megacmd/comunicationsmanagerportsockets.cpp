@@ -338,7 +338,7 @@ int ComunicationsManagerPortSockets::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
@@ -350,7 +350,9 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
         delete inf;
         return;
     }
-    string sout = s->str();
+
+    std::wostringstream bla;
+    OUTSTRING sout = s->str();
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0
 #elif _WIN32
@@ -361,7 +363,21 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
     {
         LOG_err << "ERROR writing output Code to socket: " << ERRNO;
     }
-    n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+
+#ifdef _WIN32
+   // determine the required buffer size
+   size_t buffer_size;
+   wcstombs_s(&buffer_size, NULL, 0, sout.c_str(), _TRUNCATE);
+
+   // do the actual conversion
+   char *buffer = (char*) malloc(buffer_size);
+   wcstombs_s(&buffer_size, buffer, buffer_size, sout.c_str(), _TRUNCATE);
+
+   n = send(connectedsocket, buffer, buffer_size, MSG_NOSIGNAL);
+#else
+   n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+#endif
+
     if (n == SOCKET_ERROR)
     {
         LOG_err << "ERROR writing to socket: " << ERRNO;

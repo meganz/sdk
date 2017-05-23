@@ -73,7 +73,7 @@ public:
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    virtual void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
+    virtual void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
 
     /**
      * @brief getPetition

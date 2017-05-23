@@ -28,16 +28,16 @@ using namespace std;
 using namespace mega;
 
 // different outstreams for every thread. to gather all the output data
-map<uint64_t, ostream *> outstreams;
+map<uint64_t, OUTSTREAMTYPE *> outstreams;
 map<uint64_t, int> threadLogLevel;
 map<uint64_t, int> threadoutCode;
 
-ostream &getCurrentOut()
+OUTSTREAMTYPE &getCurrentOut()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
-        return cout;
+        return COUT;
     }
     else
     {
@@ -90,7 +90,7 @@ void setCurrentThreadLogLevel(int level)
     threadLogLevel[MegaThread::currentThreadId()] = level;
 }
 
-void setCurrentThreadOutStream(ostream *s)
+void setCurrentThreadOutStream(OUTSTREAMTYPE *s)
 {
     outstreams[MegaThread::currentThreadId()] = s;
 }

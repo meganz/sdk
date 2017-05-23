@@ -423,6 +423,10 @@ return INVALID_SOCKET;
 
 int main(int argc, char* argv[])
 {
+#ifdef _WIN32
+    setlocale(LC_ALL, ""); // en_US.utf8 could do?
+#endif
+
     if (argc < 2)
     {
         cerr << "Too few arguments" << endl;
@@ -485,8 +489,23 @@ int main(int argc, char* argv[])
         n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
         if (n)
         {
+#ifdef _WIN32
+            buffer[n]='\0';
+
+            // determine the required buffer size
+            size_t wbuffer_size;
+            mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
+
+            // do the actual conversion
+            wchar_t *wbuffer = new wchar_t[wbuffer_size];
+            mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
+
+            wcout << wbuffer;
+            delete [] wbuffer;
+#else
             buffer[n]='\0';
             cout << buffer;
+#endif
         }
     } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
