@@ -27,62 +27,62 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     var window: UIWindow?
     let megaapi: MEGASdk = MEGASdk(appKey: "iOS Swift/1.0", userAgent: "hNF3ELhK", basePath: nil)
     
-    func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        MEGASdk.setLogLevel(MEGALogLevel.Debug)
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+        MEGASdk.setLogLevel(MEGALogLevel.debug)
         
         
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
-        if (SSKeychain.passwordForService("MEGA", account: "session") != nil) {
-            megaapi.fastLoginWithSession(SSKeychain.passwordForService("MEGA", account: "session"), delegate: self)
+        if (SSKeychain.password(forService: "MEGA", account: "session") != nil) {
+            megaapi.fastLogin(withSession: SSKeychain.password(forService: "MEGA", account: "session"), delegate: self)
 
-            let tabBarC = storyboard.instantiateViewControllerWithIdentifier("TabBarControllerID") as! UITabBarController
+            let tabBarC = storyboard.instantiateViewController(withIdentifier: "TabBarControllerID") as! UITabBarController
             window?.rootViewController = tabBarC
             
         } else {
-            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") 
+            let loginVC = storyboard.instantiateViewController(withIdentifier: "LoginViewControllerID") 
             window?.rootViewController = loginVC;
         }
         
         return true
     }
     
-    func applicationWillResignActive(application: UIApplication) {
+    func applicationWillResignActive(_ application: UIApplication) {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
         // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
     }
     
-    func applicationDidEnterBackground(application: UIApplication) {
+    func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
     }
     
-    func applicationWillEnterForeground(application: UIApplication) {
+    func applicationWillEnterForeground(_ application: UIApplication) {
         // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
     }
     
-    func applicationDidBecomeActive(application: UIApplication) {
+    func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
     }
     
-    func applicationWillTerminate(application: UIApplication) {
+    func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.FetchNodes {
-            SVProgressHUD.showWithStatus("Updating nodes...")
+    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+        if request.type == MEGARequestType.fetchNodes {
+            SVProgressHUD.show(withStatus: "Updating nodes...")
         }
     }
     
-    func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
-        if error.type != MEGAErrorType.ApiOk {
+    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+        if error.type != MEGAErrorType.apiOk {
             return
         }
         
-        if request.type == MEGARequestType.Login {
-            megaapi.fetchNodesWithDelegate(self)
+        if request.type == MEGARequestType.login {
+            megaapi.fetchNodes(with: self)
         }
     }
     

@@ -28,10 +28,10 @@ class MainTabBarViewController: UITabBarController {
         
         let viewControllerArray : NSMutableArray = NSMutableArray(capacity: 5)
         
-        viewControllerArray.addObject(UIStoryboard(name: "Cloud", bundle: nil).instantiateInitialViewController()!)
-        viewControllerArray.addObject(UIStoryboard(name: "Offline", bundle: nil).instantiateInitialViewController()!)
-        viewControllerArray.addObject(UIStoryboard(name: "Contacts", bundle: nil).instantiateInitialViewController()!)
-        viewControllerArray.addObject(UIStoryboard(name: "Settings", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.add(UIStoryboard(name: "Cloud", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.add(UIStoryboard(name: "Offline", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.add(UIStoryboard(name: "Contacts", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.add(UIStoryboard(name: "Settings", bundle: nil).instantiateInitialViewController()!)
         
         let viewControllers = viewControllerArray.copy()
         self.setViewControllers(viewControllers as? [UIViewController], animated: false)
