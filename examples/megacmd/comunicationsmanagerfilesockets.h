@@ -32,7 +32,7 @@ public:
     int outSocket;
 };
 
-std::ostream &operator<<(std::ostream &os, CmdPetitionPosixSockets &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPosixSockets &p);
 
 class ComunicationsManagerFileSockets : public ComunicationsManager
 {

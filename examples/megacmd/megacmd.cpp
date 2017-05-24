@@ -49,7 +49,6 @@ void stringtolocalw(const char* path, std::wstring* local)
     local->resize((strlen(path) + 1) * sizeof(wchar_t));
 
     int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
-    //int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), local->size() / sizeof(wchar_t) + 1);
     local->resize(wchars_num);
 
     int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);

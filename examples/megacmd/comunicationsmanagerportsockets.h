@@ -37,7 +37,7 @@ public:
     int outSocket;
 };
 
-std::ostream &operator<<(std::ostream &os, CmdPetitionPortSockets &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPortSockets &p);
 
 class ComunicationsManagerPortSockets : public ComunicationsManager
 {

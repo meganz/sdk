@@ -414,6 +414,18 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     memset(buffer, 0, 1024);
 
     int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
+#ifdef _WIN32
+    // convert the UTF16 string to widechar
+    size_t wbuffer_size;
+    mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
+    wchar_t *wbuffer = new wchar_t[wbuffer_size];
+    mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
+
+    // convert the UTF16 widechar to UTF8 string
+    string receivedutf8;
+    MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
+#endif
+
     if (n == SOCKET_ERROR)
     {
         LOG_fatal << "ERROR reading from socket";
@@ -439,9 +451,11 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
         return inf;
     }
     closeSocket(newsockfd);
-
+#if _WIN32
+    inf->line = strdup(receivedutf8.c_str());
+#else
     inf->line = strdup(buffer);
-
+#endif
     return inf;
 }
 

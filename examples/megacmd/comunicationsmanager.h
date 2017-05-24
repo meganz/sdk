@@ -51,8 +51,7 @@ class CmdPetition
         void setPetitionThread(mega::MegaThread *value);
 };
 
-
-std::ostream &operator<<(std::ostream &os, CmdPetition const &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetition const &p);
 
 class ComunicationsManager
 {
