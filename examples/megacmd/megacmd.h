@@ -35,7 +35,7 @@ std::wostream & operator<< ( std::wostream & ostr, const char * str );
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str);
 
 #else
-#define OUTSTREAMTYPE std:ostream
+#define OUTSTREAMTYPE std::ostream
 #define OUTSTRINGSTREAM std::ostringstream
 #define OUTSTRING std::string
 #define COUT cout
