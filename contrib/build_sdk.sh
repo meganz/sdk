@@ -356,7 +356,7 @@ sodium_pkg() {
     local install_dir=$2
     local name="Sodium"
     local sodium_ver="1.0.12"
-    local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
+    local sodium_url="https://download.libsodium.org/libsodium/releases/old/libsodium-$sodium_ver.tar.gz"
     local sodium_md5="c308e3faa724b630b86cc0aaf887a5d4"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
