@@ -4217,11 +4217,10 @@ void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, 
     waiter->notify();
 }
 
-void MegaApiImpl::resumeCreateAccount(MegaHandle userhandle, const char *pwcipher, MegaRequestListener *listener)
+void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-    request->setNodeHandle(userhandle);
-    request->setPrivateKey(pwcipher);
+    request->setPrivateKey(sid);
     request->setParamType(1);
     requestQueue.push(request);
     waiter->notify();
@@ -10324,10 +10323,14 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
 		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
 
     // save uh and pwcipher for session resumption of ephemeral accounts
-    request->setNodeHandle(uh);
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+    Base64::btoa((byte*) &uh, sizeof uh, buf);
+    string sid;
+    sid.append(buf);
+    sid.append("#");
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    request->setPrivateKey(buf);
+    sid.append(buf);
+    request->setPrivateKey(sid.c_str());
 
     client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
 
@@ -13470,7 +13473,8 @@ void MegaApiImpl::sendPendingRequests()
             const char *pwkey = request->getPrivateKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
 
-            if(!resumeProcess && (!email || !name || (!password && !pwkey)))
+            if ( (!resumeProcess && (!email || !name || (!password && !pwkey))) ||
+                 (resumeProcess && !pwkey) )
             {
                 e = API_EARGS; break;
             }
@@ -13479,8 +13483,12 @@ void MegaApiImpl::sendPendingRequests()
             handle uh;
             if (resumeProcess)
             {
-                uh = request->getNodeHandle();
-                if ((Base64::atob(pwkey, pwbuf, sizeof pwbuf) != sizeof pwbuf) || uh == UNDEF)
+                unsigned pwkeyLen = strlen(pwkey);
+                unsigned pwkeyLenExpected = SymmCipher::KEYLENGTH * 4 / 3 + 3 + 10;
+                if (pwkeyLen != pwkeyLenExpected ||
+                        Base64::atob(pwkey, (byte*) &uh, sizeof uh) != sizeof uh ||
+                        uh == UNDEF || pwkey[11] != '#' ||
+                        Base64::atob(pwkey + 12, pwbuf, sizeof pwbuf) != sizeof pwbuf)
                 {
                     e = API_EARGS; break;
                 }

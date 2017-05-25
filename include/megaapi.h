@@ -5041,11 +5041,11 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the handle assigned to the user
-         * - MegaRequest::getPrivateKey - Returns the password cipher in Base64
+         * - MegaRequest::getPrivateKey - Returns the session id to resume the process
          *
          * If this request succeed, a new ephemeral session will be created for the new user
-         * and a confirmation email will be sent to the specified email address.
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
          *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
@@ -5072,18 +5072,16 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle assigned to the user
-         * - MegaRequest::getPrivateKey - Returns the password cipher in Base64
+         * - MegaRequest::getPrivateKey - Returns the session id to resume the process
          * - MegaRequest::getParamType - Returns the value 1
          *
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
          *
-         * @param userhandle User handle (@see MegaApi::createAccount)
-         * @param pwcipher Password cipher (Base64 encoded) (@see MegaApi::createAccount)
+         * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
          * @param listener MegaRequestListener to track this request
          */
-        void resumeCreateAccount(MegaHandle userhandle, const char* pwcipher, MegaRequestListener *listener = NULL);
+        void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the creation of a new MEGA account with precomputed keys

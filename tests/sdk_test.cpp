@@ -264,8 +264,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CREATE_ACCOUNT:
         if (lastError[apiIndex] == API_OK)
         {
-            uhNewAccount = request->getNodeHandle();
-            pwNewAccount = request->getPrivateKey();
+            sid = request->getPrivateKey();
         }
         break;
 
@@ -855,7 +854,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->resumeCreateAccount(uhNewAccount, pwNewAccount.c_str());
+    megaApi[0]->resumeCreateAccount(sid.c_str());
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
