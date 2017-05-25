@@ -1410,7 +1410,7 @@ void MegaClient::exec()
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
-                                reqtag = 0;
+                                reqtag = fetchnodestag;
                                 fetchingnodes = false;
                                 fetchnodes(true);
                                 reqtag = creqtag;
