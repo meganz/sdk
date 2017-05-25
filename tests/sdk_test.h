@@ -82,6 +82,8 @@ public:
     string link;
     MegaNode *publicNode;
     string attributeValue;
+    handle uhNewAccount;
+    string pwNewAccount;
 
     MegaContactRequest* cr[2];
 

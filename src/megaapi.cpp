@@ -1474,6 +1474,11 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
     pImpl->createAccount(email, password, firstname, lastname, listener);
 }
 
+void MegaApi::resumeCreateAccount(MegaHandle userhandle, const char *pwcipher, MegaRequestListener *listener)
+{
+    pImpl->resumeCreateAccount(userhandle, pwcipher, listener);
+}
+
 void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
 {
     pImpl->fastCreateAccount(email, base64pwkey, name, listener);

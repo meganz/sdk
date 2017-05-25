@@ -4217,6 +4217,16 @@ void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, 
     waiter->notify();
 }
 
+void MegaApiImpl::resumeCreateAccount(MegaHandle userhandle, const char *pwcipher, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setNodeHandle(userhandle);
+    request->setPrivateKey(pwcipher);
+    request->setParamType(1);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
@@ -10292,7 +10302,7 @@ void MegaApiImpl::ephemeral_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::ephemeral_result(handle, const byte*)
+void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -10303,11 +10313,28 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
     request->setTag(nextTag);
     requestMap[nextTag] = request;
 
+    if (request->getParamType() == 1)   // resuming ephemeral session
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        client->fetchnodes();
+        client->reqtag = creqtag;
+
+        fireOnRequestFinish(request, API_OK);
+        return;
+    }
+
 	byte pwkey[SymmCipher::KEYLENGTH];
     if(!request->getPrivateKey())
 		client->pw_key(request->getPassword(),pwkey);
 	else
 		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+
+    // save uh and pwcipher for session resumption of ephemeral accounts
+    request->setNodeHandle(uh);
+    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+    Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
+    request->setPrivateKey(buf);
 
     client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
 
@@ -13448,11 +13475,23 @@ void MegaApiImpl::sendPendingRequests()
 			const char *password = request->getPassword();
             const char *name = request->getName();
             const char *pwkey = request->getPrivateKey();
+            bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
 
-            if(!email || !name || (!password && !pwkey))
-			{
-				e = API_EARGS; break;
-			}
+            if(!resumeProcess && (!email || !name || (!password && !pwkey)))
+            {
+                e = API_EARGS; break;
+            }
+
+            byte pwbuf[SymmCipher::KEYLENGTH];
+            handle uh;
+            if (resumeProcess)
+            {
+                uh = request->getNodeHandle();
+                if ((Base64::atob(pwkey, pwbuf, sizeof pwbuf) != sizeof pwbuf) || uh == UNDEF)
+                {
+                    e = API_EARGS; break;
+                }
+            }
 
             requestMap.erase(request->getTag());
             while (!requestMap.empty())
@@ -13475,8 +13514,15 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-			client->createephemeral();
-			break;
+            if (resumeProcess)
+            {
+                client->resumeephemeral(uh, pwbuf);
+            }
+            else
+            {
+                client->createephemeral();
+            }
+            break;
 		}
         case MegaRequest::TYPE_SEND_SIGNUP_LINK:
         {

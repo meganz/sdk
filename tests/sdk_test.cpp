@@ -261,6 +261,14 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 #endif
 
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        if (lastError[apiIndex] == API_OK)
+        {
+            uhNewAccount = request->getNodeHandle();
+            pwNewAccount = request->getPrivateKey();
+        }
+        break;
+
     }
 }
 
@@ -829,12 +837,22 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
+    // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("uac14@yopmail.com", "uac", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount("uac5@yopmail.com", "uac", "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
 
+    // Logout from ephemeral session and resume session
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
+    requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
+    megaApi[0]->resumeCreateAccount(uhNewAccount, pwNewAccount.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
+            << "Account creation has failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Send the confirmation link to a different email address
     requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
     megaApi[0]->sendSignupLink("uaclink4@yopmail.com", "MyFirstname", "uac");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
@@ -843,6 +861,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 
     // Now, confirm the account by using a different client...
 
+    // ...and wait for the AP notifying the confirmation
     bool *flag = &accountUpdated[0]; *flag = false;
     ASSERT_TRUE( waitForResponse(flag) )
             << "Account confirmation not received after " << maxTimeout << " seconds";

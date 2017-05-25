@@ -5039,7 +5039,14 @@ class MegaApi
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the handle assigned to the user
+         * - MegaRequest::getPrivateKey - Returns the password cipher in Base64
+         *
+         * If this request succeed, a new ephemeral session will be created for the new user
+         * and a confirmation email will be sent to the specified email address.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5050,6 +5057,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Resume a registration process
+         *
+         * When a user begins the account registration process by calling MegaApi::createAccount,
+         * an ephemeral account is created.
+         *
+         * Until the user successfully confirms the signup link sent to the provided email address,
+         * you can resume the ephemeral session in order to change the email address, resend the
+         * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+         * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+         * MegaListener::onAccountUpdate).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle assigned to the user
+         * - MegaRequest::getPrivateKey - Returns the password cipher in Base64
+         * - MegaRequest::getParamType - Returns the value 1
+         *
+         * In case the account is already confirmed, the associated request will fail with
+         * error MegaError::API_EARGS.
+         *
+         * @param userhandle User handle (@see MegaApi::createAccount)
+         * @param pwcipher Password cipher (Base64 encoded) (@see MegaApi::createAccount)
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeCreateAccount(MegaHandle userhandle, const char* pwcipher, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the creation of a new MEGA account with precomputed keys
