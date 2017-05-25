@@ -451,6 +451,14 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password {
+    self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
 - (void)querySignupLink:(NSString *)link {
     self.megaApi->querySignupLink((link != nil) ? [link UTF8String] : NULL);
 }

@@ -732,6 +732,31 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 
 /**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param password Password for the account
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param password Password for the account
+ */
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password;
+
+/**
  * @brief Get information about a confirmation link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
