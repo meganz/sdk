@@ -691,8 +691,8 @@ void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name
 		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
 
 	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(email != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8name.c_str() : NULL,
+		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+		(name != nullptr) ? utf8name.c_str() : NULL,
 		createDelegateMRequestListener(listener));
 }
 
