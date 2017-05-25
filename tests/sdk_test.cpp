@@ -832,14 +832,22 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
  * @brief TEST_F SdkTestCreateAccount
  *
  * It tests the creation of a new account for a random user.
+ *  - Create account and send confirmation link
+ *  - Logout and resume the create-account process
+ *  - Send the confirmation link to a different email address
+ *  - Wait for confirmation of account by a different client
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    string email1 = "user@domain.com";
+    string pwd = "pwd";
+    string email2 = "other-user@domain.com";
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
     // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("uac5@yopmail.com", "uac", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount(email1.c_str(), pwd.c_str(), "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
@@ -854,7 +862,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 
     // Send the confirmation link to a different email address
     requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
-    megaApi[0]->sendSignupLink("uaclink4@yopmail.com", "MyFirstname", "uac");
+    megaApi[0]->sendSignupLink(email2.c_str(), "MyFirstname", pwd.c_str());
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
             << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Send confirmation link to another email address failed (error: " << lastError[0] << ")";
