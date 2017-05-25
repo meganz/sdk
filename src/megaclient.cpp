@@ -4927,6 +4927,8 @@ void MegaClient::sc_chatupdate()
     }
 }
 
+#endif
+
 bool MegaClient::sc_uac()
 {
     for (;;)
@@ -4944,8 +4946,6 @@ bool MegaClient::sc_uac()
         }
     }
 }
-
-#endif
 
 // scan notified nodes for
 // - name differences with an existing LocalNode
