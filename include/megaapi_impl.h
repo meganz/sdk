@@ -239,7 +239,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false);
@@ -264,6 +264,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
+        virtual std::string *getFileAttrString();
         virtual int getTag();
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
@@ -320,6 +321,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle parenthandle;
         std::string nodekey;
         std::string attrstring;
+        std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
         int tag;
@@ -1848,7 +1850,7 @@ protected:
         void updatepcr_result(error, ipcactions_t);
 
         // file attribute fetch result
-        virtual void fa_complete(Node*, fatype, const char*, uint32_t);
+        virtual void fa_complete(handle, fatype, const char*, uint32_t);
         virtual int fa_failed(handle, fatype, int, error);
 
         // file attribute modification result
