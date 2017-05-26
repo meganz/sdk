@@ -5041,7 +5041,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getPrivateKey - Returns the session id to resume the process
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
          * If this request succeed, a new ephemeral session will be created for the new user
          * and a confirmation email will be sent to the specified email address. The app may
@@ -5072,7 +5072,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getPrivateKey - Returns the session id to resume the process
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
          * - MegaRequest::getParamType - Returns the value 1
          *
          * In case the account is already confirmed, the associated request will fail with
@@ -5092,7 +5092,14 @@ class MegaApi
          * - MegaRequest::getPrivateKey - Returns the private key calculated with MegaApi::getBase64PwKey
          * - MegaRequest::getName - Returns the name of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         *
+         * If this request succeed, a new ephemeral session will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5100,6 +5107,9 @@ class MegaApi
          * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
          * @param name Name of the user
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated and will eventually be removed. Instead,
+         * use the new version with firstname and lastname.
          */
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
 

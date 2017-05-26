@@ -4220,7 +4220,7 @@ void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, 
 void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-    request->setPrivateKey(sid);
+    request->setSessionKey(sid);
     request->setParamType(1);
     requestQueue.push(request);
     waiter->notify();
@@ -10351,7 +10351,7 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     sid.append("#");
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     sid.append(buf);
-    request->setPrivateKey(sid.c_str());
+    request->setSessionKey(sid.c_str());
 
     // chain a fetchnodes to get waitlink for ephemeral account
     requestMap.erase(request->getTag());
@@ -13483,10 +13483,11 @@ void MegaApiImpl::sendPendingRequests()
 			const char *password = request->getPassword();
             const char *name = request->getName();
             const char *pwkey = request->getPrivateKey();
+            const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
 
             if ( (!resumeProcess && (!email || !name || (!password && !pwkey))) ||
-                 (resumeProcess && !pwkey) )
+                 (resumeProcess && !sid) )
             {
                 e = API_EARGS; break;
             }
@@ -13495,12 +13496,12 @@ void MegaApiImpl::sendPendingRequests()
             handle uh;
             if (resumeProcess)
             {
-                unsigned pwkeyLen = strlen(pwkey);
+                unsigned pwkeyLen = strlen(sid);
                 unsigned pwkeyLenExpected = SymmCipher::KEYLENGTH * 4 / 3 + 3 + 10;
                 if (pwkeyLen != pwkeyLenExpected ||
-                        Base64::atob(pwkey, (byte*) &uh, sizeof uh) != sizeof uh ||
-                        uh == UNDEF || pwkey[11] != '#' ||
-                        Base64::atob(pwkey + 12, pwbuf, sizeof pwbuf) != sizeof pwbuf)
+                        Base64::atob(sid, (byte*) &uh, sizeof uh) != sizeof uh ||
+                        uh == UNDEF || sid[11] != '#' ||
+                        Base64::atob(sid + 12, pwbuf, sizeof pwbuf) != sizeof pwbuf)
                 {
                     e = API_EARGS; break;
                 }
