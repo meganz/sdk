@@ -9163,26 +9163,69 @@ void MegaApiImpl::fetchnodes_result(error e)
         return;
     }
     request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_FETCH_NODES))
+    if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_NODES) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) )
     {
         return;
     }
 
-    if (e == API_OK)
+    if (request->getType() == MegaRequest::TYPE_FETCH_NODES)
     {
-        // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootpublicfolder();
-        if (h != UNDEF)
+        if (e == API_OK)
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            // check if we fetched a folder link and the key is invalid
+            handle h = client->getrootpublicfolder();
+            if (h != UNDEF)
             {
-                request->setFlag(true);
+                Node *n = client->nodebyhandle(h);
+                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+                {
+                    request->setFlag(true);
+                }
             }
         }
-    }
 
-    fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, megaError);
+    }
+    else    // TYPE_CREATE_ACCOUNT
+    {
+        if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
+        {
+            fireOnRequestFinish(request, e);
+            return;
+        }
+        else    // new account has been created
+        {
+            // set names silently...
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+
+            if (request->getName())
+            {
+                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), strlen(request->getName()));
+            }
+            if (request->getText())
+            {
+                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
+            }
+
+            client->reqtag = creqtag;
+
+            // ...and send confirmation link
+            requestMap.erase(request->getTag());
+            int nextTag = client->nextreqtag();
+            request->setTag(nextTag);
+            requestMap[nextTag] = request;
+
+            byte pwkey[SymmCipher::KEYLENGTH];
+            if(!request->getPrivateKey())
+                client->pw_key(request->getPassword(),pwkey);
+            else
+                Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+
+            client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+        }
+    }
 }
 
 void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
@@ -10300,28 +10343,6 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
-    requestMap.erase(request->getTag());
-    int nextTag = client->nextreqtag();
-    request->setTag(nextTag);
-    requestMap[nextTag] = request;
-
-    if (request->getParamType() == 1)   // resuming ephemeral session
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        client->fetchnodes();
-        client->reqtag = creqtag;
-
-        fireOnRequestFinish(request, API_OK);
-        return;
-    }
-
-	byte pwkey[SymmCipher::KEYLENGTH];
-    if(!request->getPrivateKey())
-		client->pw_key(request->getPassword(),pwkey);
-	else
-		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
-
     // save uh and pwcipher for session resumption of ephemeral accounts
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
     Base64::btoa((byte*) &uh, sizeof uh, buf);
@@ -10332,22 +10353,13 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     sid.append(buf);
     request->setPrivateKey(sid.c_str());
 
-    client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+    // chain a fetchnodes to get waitlink for ephemeral account
+    requestMap.erase(request->getTag());
+    int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
+    requestMap[nextTag] = request;
 
-    int creqtag = client->reqtag;
-    client->reqtag = 0;
-
-    if (request->getName())
-    {
-        client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), strlen(request->getName()));
-    }
-    if (request->getText())
-    {
-        client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
-    }
     client->fetchnodes();
-
-    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
