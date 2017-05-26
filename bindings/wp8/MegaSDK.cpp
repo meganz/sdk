@@ -696,6 +696,25 @@ void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name
 		createDelegateMRequestListener(listener));
 }
 
+void MegaSDK::resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL);
+}
+
 void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener)
 {
     std::string utf8email;
