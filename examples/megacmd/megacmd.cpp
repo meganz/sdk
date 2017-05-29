@@ -2625,7 +2625,7 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 #endif
 
     OUTSTREAM << endl;
-    int nelements_per_col = cols/(max_length+1);
+    int nelements_per_col = (cols-1)/(max_length+1);
     for (int i=1; i < num_matches; i++)
     {
         OUTSTREAM << setw(max_length+1) << left << c[i];
