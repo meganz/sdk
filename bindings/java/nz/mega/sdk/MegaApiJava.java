@@ -767,6 +767,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name, MegaRequestListenerInterface listener) {
         megaApi.createAccount(email, password, name, createDelegateRequestListener(listener));
@@ -781,11 +784,14 @@ public class MegaApiJava {
      *            Password for the account.
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name) {
         megaApi.createAccount(email, password, name);
     }
-    
+
     /**
      * Initialize the creation of a new MEGA account, with firstname and lastname
      *
@@ -796,7 +802,14 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the firstname of the user
      * - MegaRequest::getText - Returns the lastname of the user
      *
-     * If this request succeed, a confirmation email will be sent to the users.
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeed, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
      * If an account with the same email already exists, you will get the error code
      * MegaError::API_EEXIST in onRequestFinish
      *
@@ -804,12 +817,64 @@ public class MegaApiJava {
      * @param password Password for the account
      * @param firstname Firstname of the user
      * @param lastname Lastname of the user
-     * @param listener MegaRequestListenerInterface to track this request
+     * @param listener MegaRequestListener to track this request
      */
     public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
     	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
     }
-    
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resumeCreateAccount(String sid, MegaRequestListenerInterface listener) {
+        megaApi.resumeCreateAccount(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     */
+    public void resumeCreateAccount(String sid) {
+        megaApi.resumeCreateAccount(sid);
+    }
 
     /**
      * Initialize the creation of a new MEGA account with precomputed keys.
@@ -832,6 +897,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name, MegaRequestListenerInterface listener) {
         megaApi.fastCreateAccount(email, base64pwkey, name, createDelegateRequestListener(listener));
@@ -846,9 +914,41 @@ public class MegaApiJava {
      *            Private key calculated with MegaApiJava.getBase64PwKey().
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name) {
         megaApi.fastCreateAccount(email, base64pwkey, name);
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendSignupLink(String email, String name, String password, MegaRequestListenerInterface listener) {
+        megaApi.sendSignupLink(email, name, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     */
+    public void sendSignupLink(String email, String name, String password) {
+        megaApi.sendSignupLink(email, name, password);
     }
 
     /**
