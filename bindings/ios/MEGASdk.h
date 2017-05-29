@@ -659,7 +659,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
- * If this request succeed, a confirmation email will be sent to the users.
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using MegaApi::resumeCreateAccount.
+ *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
  *
@@ -681,7 +688,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
- * If this request succeed, a confirmation email will be sent to the users.
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using MegaApi::resumeCreateAccount.
+ *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
  *
@@ -691,6 +705,55 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param lastname Lastname of the user
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process
+ *
+ * When a user begins the account registration process by calling [MEGASdk createAccountWithEmail:
+ * password:firstname:lastname:delegate:], an ephemeral account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also 
+ * to receive notifications in case the user confirms the account using another client 
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ * - [MEGARequest paramType] - Returns the value 1
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Resume a registration process
+ *
+ * When a user begins the account registration process by calling [MEGASdk createAccountWithEmail:
+ * password:firstname:lastname:delegate:], an ephemeral account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also
+ * to receive notifications in case the user confirms the account using another client
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ * - [MEGARequest paramType] - Returns the value 1
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ */
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
 /**
  * @brief Initialize the creation of a new MEGA account with precomputed keys
