@@ -1864,7 +1864,6 @@ void printAvailableCommands(int extensive = 0)
 
 
 #ifdef _WIN32
-//#include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
 
@@ -2611,11 +2610,40 @@ bool runningInBackground()
     return false;
 }
 
+#ifdef _WIN32
+void mycompletefunct(char **c, int num_matches, int max_length)
+{
+    int rows = 1, cols = 80;
+
+#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+
+            if (RL_ISSTATE(RL_STATE_INITIALIZED))
+            {
+                rl_resize_terminal();
+                rl_get_screen_size(&rows, &cols);
+            }
+#endif
+
+    OUTSTREAM << endl;
+    int nelements_per_col = cols/(max_length+1);
+    for (int i=1; i < num_matches; i++)
+    {
+        OUTSTREAM << setw(max_length+1) << left << c[i];
+        if ( (i%nelements_per_col == 0) && (i != num_matches-1))
+        {
+            OUTSTREAM << endl;
+        }
+    }
+    OUTSTREAM << endl;
+}
+#endif
+
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
-    setlocale(LC_ALL, ""); // "en_US.utf8" could be enough?
+    setlocale(LC_ALL, "");
+    rl_completion_display_matches_hook = mycompletefunct;
 #endif
 
 #ifdef __MACH__
