@@ -3723,6 +3723,7 @@ void CommandFetchNodes::procresult()
     if (client->json.isnumeric())
     {
         client->fetchingnodes = false;
+        client->fetchnodestag = 0;
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
@@ -3735,6 +3736,7 @@ void CommandFetchNodes::procresult()
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;
+                    client->fetchnodestag = 0;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3756,6 +3758,7 @@ void CommandFetchNodes::procresult()
                 if (!client->readusers(&client->json))
                 {
                     client->fetchingnodes = false;
+                    client->fetchnodestag = 0;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3775,6 +3778,7 @@ void CommandFetchNodes::procresult()
                 if (!client->setscsn(&client->json))
                 {
                     client->fetchingnodes = false;
+                    client->fetchnodestag = 0;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3805,6 +3809,7 @@ void CommandFetchNodes::procresult()
                 if (!*client->scsn)
                 {
                     client->fetchingnodes = false;
+                    client->fetchnodestag = 0;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
@@ -3822,6 +3827,7 @@ void CommandFetchNodes::procresult()
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
+                    client->fetchnodestag = 0;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }

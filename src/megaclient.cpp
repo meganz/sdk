@@ -813,6 +813,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
     
     fetchingnodes = false;
+    fetchnodestag = 0;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -1410,7 +1411,7 @@ void MegaClient::exec()
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
-                                reqtag = fetchnodestag;
+                                reqtag = fetchnodestag; // associate with ongoing request, if any
                                 fetchingnodes = false;
                                 fetchnodes(true);
                                 reqtag = creqtag;
@@ -2927,6 +2928,7 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
+    fetchnodestag = 0;
     overquotauntil = 0;
     scpaused = false;
 
@@ -3050,6 +3052,7 @@ bool MegaClient::procsc()
 
                             fetchingnodes = false;
                             restag = fetchnodestag;
+                            fetchnodestag = 0;
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
