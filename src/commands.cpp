@@ -2472,13 +2472,9 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
-        if (u)
-        {
-            u->setattr(at, &av, NULL);
-            u->setTag(tag ? tag : -1);
-
-            client->notifyuser(u);
-        }
+        u->setattr(at, &av, NULL);
+        u->setTag(tag ? tag : -1);
+        client->notifyuser(u);
     }
 
     client->app->putua_result(e);
