@@ -31,7 +31,7 @@
     // use logDebug level
     SimpleLogger::setLogLevel(logDebug);
     // set output to stdout for all messages
-    SimpleLogger::setAllOutputs(&std::COUT);
+    SimpleLogger::setAllOutputs(&std::cout);
 
     // add file for debug output only
     SimpleLogger::addOutput(logDebug, &debugfile);
@@ -48,7 +48,7 @@
     class MyOutput: public Logger {
     public:
         void log(const char *time, int loglevel, const char *source, const char *message) {
-            std::COUT << "{" << time << "}" << " [" << source << "] " << message << std::endl;
+            std::cout << "{" << time << "}" << " [" << source << "] " << message << std::endl;
         }
     };
 
@@ -60,7 +60,7 @@
     SimpleLogger::setOutputSettings(logDebug, true, true, true);
     SimpleLogger::setOutputSettings(logInfo, false, false, false);
     SimpleLogger::setLogLevel(logDebug);
-    SimpleLogger::setAllOutputs(&std::COUT);
+    SimpleLogger::setAllOutputs(&std::cout);
     SimpleLogger::setOutputClass(output);
     SimpleLogger::setOutputClass(&myOutput);
 
@@ -185,6 +185,7 @@ public:
     template <typename T>
     SimpleLogger& operator<<(T const& obj)
     {
+        ostr << obj;
         return *this;
     }
 

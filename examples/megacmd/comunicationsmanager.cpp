@@ -29,6 +29,11 @@ OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, const CmdPetition& p)
     return os << p.line;
 }
 
+std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
+{
+    return os << p.line;
+}
+
 ComunicationsManager::ComunicationsManager()
 {
 }

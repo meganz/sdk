@@ -1875,9 +1875,7 @@ void printAvailableCommands(int extensive = 0)
  */
 int getcharacterreadlineUTF16support (FILE *stream)
 {
-
     int result;
-    wchar_t c;
     char b[10];
     memset(b,0,10);
 

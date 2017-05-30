@@ -53,6 +53,8 @@ class CmdPetition
 
 OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetition const &p);
 
+std::ostream &operator<<(std::ostream &os, CmdPetition const &p);
+
 class ComunicationsManager
 {
 private:
