@@ -9237,7 +9237,6 @@ void MegaApiImpl::fetchnodes_result(error e)
             // set names silently...
             int creqtag = client->reqtag;
             client->reqtag = 0;
-
             if (request->getName())
             {
                 client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), strlen(request->getName()));
@@ -9247,21 +9246,16 @@ void MegaApiImpl::fetchnodes_result(error e)
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
             }
 
-            client->reqtag = creqtag;
-
-            // ...and send confirmation link
-            requestMap.erase(request->getTag());
-            int nextTag = client->nextreqtag();
-            request->setTag(nextTag);
-            requestMap[nextTag] = request;
-
             byte pwkey[SymmCipher::KEYLENGTH];
             if(!request->getPrivateKey())
                 client->pw_key(request->getPassword(),pwkey);
             else
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
 
+            // ...and finally send confirmation link
+            client->reqtag = client->restag;
             client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+            client->reqtag = creqtag;
         }
     }
 }
@@ -10393,12 +10387,10 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     request->setSessionKey(sid.c_str());
 
     // chain a fetchnodes to get waitlink for ephemeral account
-    requestMap.erase(request->getTag());
-    int nextTag = client->nextreqtag();
-    request->setTag(nextTag);
-    requestMap[nextTag] = request;
-
+    int creqtag = client->reqtag;
+    client->reqtag = client->restag;
     client->fetchnodes();
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
