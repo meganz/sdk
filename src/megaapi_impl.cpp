@@ -10401,26 +10401,6 @@ void MegaApiImpl::sendsignuplink_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
-    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-    {
-        requestMap.erase(request->getTag());
-        while (!requestMap.empty())
-        {
-            std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-        }
-
-        while (!transferMap.empty())
-        {
-            std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-            if (it->second)
-            {
-                it->second->setState(MegaTransfer::STATE_FAILED);
-                fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-        }
-    }
-
     fireOnRequestFinish(request, megaError);
 }
 
