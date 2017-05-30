@@ -29,10 +29,12 @@ OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, const CmdPetition& p)
     return os << p.line;
 }
 
+#ifdef _WIN32
 std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
 {
     return os << p.line;
 }
+#endif
 
 ComunicationsManager::ComunicationsManager()
 {
