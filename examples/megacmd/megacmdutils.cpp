@@ -1004,7 +1004,6 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
 
     for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
     {
-        /* std::cout << *it; ... */
         string w = ( string ) * it;
         if (w.length() && ( w.at(0) == '-' )) //begins with "-"
         {

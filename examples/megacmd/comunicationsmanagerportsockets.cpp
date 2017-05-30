@@ -338,7 +338,7 @@ int ComunicationsManagerPortSockets::waitForPetition()
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
@@ -350,7 +350,8 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
         delete inf;
         return;
     }
-    string sout = s->str();
+
+    OUTSTRING sout = s->str();
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0
 #elif _WIN32
@@ -361,7 +362,21 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
     {
         LOG_err << "ERROR writing output Code to socket: " << ERRNO;
     }
-    n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+
+#ifdef _WIN32
+   // determine the required buffer size
+   size_t buffer_size;
+   wcstombs_s(&buffer_size, NULL, 0, sout.c_str(), _TRUNCATE);
+
+   // do the actual conversion
+   char *buffer = (char*) malloc(buffer_size);
+   wcstombs_s(&buffer_size, buffer, buffer_size, sout.c_str(), _TRUNCATE);
+
+   n = send(connectedsocket, buffer, buffer_size, MSG_NOSIGNAL);
+#else
+   n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+#endif
+
     if (n == SOCKET_ERROR)
     {
         LOG_err << "ERROR writing to socket: " << ERRNO;
@@ -398,6 +413,18 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     memset(buffer, 0, 1024);
 
     int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
+#ifdef _WIN32
+    // convert the UTF16 string to widechar
+    size_t wbuffer_size;
+    mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
+    wchar_t *wbuffer = new wchar_t[wbuffer_size];
+    mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
+
+    // convert the UTF16 widechar to UTF8 string
+    string receivedutf8;
+    MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
+#endif
+
     if (n == SOCKET_ERROR)
     {
         LOG_fatal << "ERROR reading from socket";
@@ -423,9 +450,11 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
         return inf;
     }
     closeSocket(newsockfd);
-
+#if _WIN32
+    inf->line = strdup(receivedutf8.c_str());
+#else
     inf->line = strdup(buffer);
-
+#endif
     return inf;
 }
 

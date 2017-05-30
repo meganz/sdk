@@ -51,8 +51,11 @@ class CmdPetition
         void setPetitionThread(mega::MegaThread *value);
 };
 
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetition const &p);
 
-std::ostream &operator<<(std::ostream &os, CmdPetition const &p);
+#ifdef _WIN32
+std::ostream &operator<<(std::wostream &os, CmdPetition const &p);
+#endif
 
 class ComunicationsManager
 {
@@ -73,7 +76,7 @@ public:
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    virtual void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
+    virtual void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
 
     /**
      * @brief getPetition

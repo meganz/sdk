@@ -24,10 +24,17 @@
 using namespace std;
 using namespace mega;
 
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, const CmdPetition& p)
+{
+    return os << p.line;
+}
+
+#ifdef _WIN32
 std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
 {
     return os << p.line;
 }
+#endif
 
 ComunicationsManager::ComunicationsManager()
 {
@@ -72,7 +79,7 @@ int ComunicationsManager::waitForPetition()
     return 0;
 }
 
-void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     delete inf;
     return;

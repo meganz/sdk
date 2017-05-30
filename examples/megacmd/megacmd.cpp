@@ -42,6 +42,60 @@
 
 
 #ifdef _WIN32
+// convert UTF-8 to Windows Unicode wstring
+void stringtolocalw(const char* path, std::wstring* local)
+{
+    // make space for the worst case
+    local->resize((strlen(path) + 1) * sizeof(wchar_t));
+
+    int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
+    local->resize(wchars_num);
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);
+
+    if (len)
+    {
+        local->resize(len-1);
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+//override << operators for wostream for string and const char *
+
+std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
+{
+    std::wstring toout;
+    stringtolocalw(str.c_str(),&toout);
+    ostr << toout;
+
+return ( ostr );
+}
+
+std::wostream & operator<< ( std::wostream & ostr, const char * str )
+{
+    std::wstring toout;
+    stringtolocalw(str,&toout);
+    ostr << toout;
+    return ( ostr );
+}
+
+//override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
+std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
+{
+    //TODO: localtostring
+    //std::wstring toout;
+    //stringtolocalw(str,&toout);
+    //ostr << toout;
+    return ( ostr );
+}
+
+
+#endif
+
+#ifdef _WIN32
 #include "comunicationsmanagerportsockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerPortSockets
 #else
@@ -111,7 +165,11 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"};
+                             "history", "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"
+#ifdef _WIN32
+                             ,"unicode"
+#endif
+                           };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
 
 
@@ -255,8 +313,10 @@ static void store_line(char* l)
 {
     if (!l)
     {
+#ifndef _WIN32 // to prevent exit with Supr key
         doExit = true;
         rl_set_prompt("(CTRL+D) Exiting ...\n");
+#endif
         return;
     }
 
@@ -1062,6 +1122,10 @@ const char * getUsageStr(const char *command)
     {
         return "mount";
     }
+    if (!strcmp(command, "unicode"))
+    {
+        return "unicode";
+    }
     if (!strcmp(command, "ls"))
     {
         return "ls [-lRr] [remotepath]";
@@ -1353,6 +1417,14 @@ string getHelpStr(const char *command)
     else if (!strcmp(command, "mount"))
     {
         os << "Lists all the main nodes" << endl;
+    }
+    else if (!strcmp(command, "unicode"))
+    {
+        os << "Toogle unicode input enabled/disabled in interactive shell" << endl;
+        os << endl;
+        os << " Unicode mode is experimental, you might experience" << endl;
+        os << " some issues interacting with the console" << endl;
+        os << " (e.g. history navigation fails)" << endl;
     }
     else if (!strcmp(command, "ls"))
     {
@@ -1790,6 +1862,72 @@ void printAvailableCommands(int extensive = 0)
     }
 }
 
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+
+/**
+ * @brief getcharacterreadlineUTF16support
+ * while this works, somehow arrows and other readline stuff is disabled using this one.
+ * @param stream
+ * @return
+ */
+int getcharacterreadlineUTF16support (FILE *stream)
+{
+    int result;
+    char b[10];
+    memset(b,0,10);
+
+    while (1)
+    {
+        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
+
+        result = read (fileno (stream), &b, 10);
+        _setmode(fileno(stream), oldmode);
+
+        if (result == 0)
+        {
+            return (EOF);
+        }
+
+        // convert the UTF16 string to widechar
+        size_t wbuffer_size;
+        mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
+        wchar_t *wbuffer = new wchar_t[wbuffer_size];
+        mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
+
+        // convert the UTF16 widechar to UTF8 string
+        string receivedutf8;
+        MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
+
+        if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
+        {
+            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
+            {
+                rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
+                rl_point=rl_end;
+            }
+            rl_line_buffer[rl_end] = '\0';
+
+            return 0;
+        }
+
+        if (result =! 0)
+        {
+            return (b[0]);
+        }
+
+        /* If zero characters are returned, then the file that we are
+     reading from is empty!  Return EOF in that case. */
+        if (result == 0)
+        {
+            return (EOF);
+        }
+    }
+}
+#endif
+
 void executecommand(char* ptr)
 {
     vector<string> words = getlistOfWords(ptr);
@@ -1978,6 +2116,14 @@ void executecommand(char* ptr)
 #endif
         return;
     }
+#ifdef _WIN32
+    if (words[0] == "unicode")
+    {
+        rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
+        OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
+        return;
+    }
+#endif
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
@@ -2090,7 +2236,7 @@ void * doProcessLine(void *pointer)
 {
     CmdPetition *inf = (CmdPetition*)pointer;
 
-    std::ostringstream s;
+    OUTSTRINGSTREAM s;
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
@@ -2316,15 +2462,15 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
         width = msj.size();
     }
     if (encapsulated)
-        cout << "|";
+        COUT << "|";
     for (u_int i = 0; i < (width-msj.size())/2; i++)
-        cout << " ";
-    cout << msj;
+        COUT << " ";
+    COUT << msj;
     for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
-        cout << " ";
+        COUT << " ";
     if (encapsulated)
-        cout << "|";
-    cout << endl;
+        COUT << "|";
+    COUT << endl;
 }
 
 void printWelcomeMsg()
@@ -2348,23 +2494,23 @@ void printWelcomeMsg()
 #endif
     }
 
-    cout << endl;
-    cout << ".";
+    COUT << endl;
+    COUT << ".";
     for (u_int i = 0; i < width; i++)
-        cout << "=" ;
-    cout << ".";
-    cout << endl;
+        COUT << "=" ;
+    COUT << ".";
+    COUT << endl;
     printCenteredLine(" __  __                   ____ __  __ ____  ",width);
     printCenteredLine("|  \\/  | ___  __ _  __ _ / ___|  \\/  |  _ \\ ",width);
     printCenteredLine("| |\\/| |/ _ \\/ _` |/ _` | |   | |\\/| | | | |",width);
     printCenteredLine("| |  | |  __/ (_| | (_| | |___| |  | | |_| |",width);
     printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
     printCenteredLine("             |___/                          ",width);
-    cout << "|";
+    COUT << "|";
     for (u_int i = 0; i < width; i++)
-        cout << " " ;
-    cout << "|";
-    cout << endl;
+        COUT << " " ;
+    COUT << "|";
+    COUT << endl;
     printCenteredLine("Welcome to MegaCMD! A Command Line Interactive and Scriptable",width);
     printCenteredLine("Application to interact with your MEGA account",width);
     printCenteredLine("This is a BETA version, it might not be bug-free.",width);
@@ -2374,11 +2520,11 @@ void printWelcomeMsg()
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
     printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
 
-    cout << "`";
+    COUT << "`";
     for (u_int i = 0; i < width; i++)
-        cout << "=" ;
-    cout << "´";
-    cout << endl;
+        COUT << "=" ;
+    COUT << "´";
+    COUT << endl;
 
 }
 
@@ -2461,9 +2607,41 @@ bool runningInBackground()
     return false;
 }
 
+#ifdef _WIN32
+void mycompletefunct(char **c, int num_matches, int max_length)
+{
+    int rows = 1, cols = 80;
+
+#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+
+            if (RL_ISSTATE(RL_STATE_INITIALIZED))
+            {
+                rl_resize_terminal();
+                rl_get_screen_size(&rows, &cols);
+            }
+#endif
+
+    OUTSTREAM << endl;
+    int nelements_per_col = (cols-1)/(max_length+1);
+    for (int i=1; i < num_matches; i++)
+    {
+        OUTSTREAM << setw(max_length+1) << left << c[i];
+        if ( (i%nelements_per_col == 0) && (i != num_matches-1))
+        {
+            OUTSTREAM << endl;
+        }
+    }
+    OUTSTREAM << endl;
+}
+#endif
 
 int main(int argc, char* argv[])
 {
+#ifdef _WIN32
+    // Set Environment's default locale
+    setlocale(LC_ALL, "");
+    rl_completion_display_matches_hook = mycompletefunct;
+#endif
 
 #ifdef __MACH__
     initializeMacOSStuff(argc,argv);
@@ -2474,7 +2652,7 @@ int main(int argc, char* argv[])
     SimpleLogger::setAllOutputs(&null_stream);
     SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
-    loggerCMD = new MegaCMDLogger(&cout);
+    loggerCMD = new MegaCMDLogger(&COUT);
 
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);

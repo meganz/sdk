@@ -26,9 +26,9 @@
 
 #define OUTSTREAM getCurrentOut()
 
-std::ostream &getCurrentOut();
+OUTSTREAMTYPE &getCurrentOut();
 bool interactiveThread();
-void setCurrentThreadOutStream(std::ostream *);
+void setCurrentThreadOutStream(OUTSTREAMTYPE *);
 int getCurrentOutCode();
 void setCurrentOutCode(int);
 int getCurrentThreadLogLevel();
@@ -39,9 +39,9 @@ class MegaCMDLogger : public mega::MegaLogger
 private:
     int apiLoggerLevel;
     int cmdLoggerLevel;
-    std::ostream * output;
+    OUTSTREAMTYPE * output;
 public:
-    MegaCMDLogger(std::ostream * outstr)
+    MegaCMDLogger(OUTSTREAMTYPE * outstr)
     {
         this->output = outstr;
         this->apiLoggerLevel = mega::MegaApi::LOG_LEVEL_ERROR;
