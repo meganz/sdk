@@ -9229,7 +9229,7 @@ void MegaApiImpl::fetchnodes_result(error e)
     {
         if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
         {
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, megaError);
             return;
         }
         else    // new account has been created

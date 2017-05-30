@@ -4193,7 +4193,7 @@ class MegaListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -5028,7 +5028,7 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the name of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * If this request succeeds, a confirmation email will be sent to the users.
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5038,7 +5038,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version with firstname and lastname.
+         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
 
@@ -5056,7 +5056,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeed, a new ephemeral session will be created for the new user
+         * If this request succeeds, a new ephemeral session will be created for the new user
          * and a confirmation email will be sent to the specified email address. The app may
          * resume the create-account process by using MegaApi::resumeCreateAccount.
          *
@@ -5109,7 +5109,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeed, a new ephemeral session will be created for the new user
+         * If this request succeeds, a new ephemeral session will be created for the new user
          * and a confirmation email will be sent to the specified email address. The app may
          * resume the create-account process by using MegaApi::resumeCreateAccount.
          *
@@ -5122,7 +5122,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version with firstname and lastname.
+         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
 
@@ -5202,7 +5202,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
          *
-         * If this request succeed, a recovery link will be sent to the user.
+         * If this request succeeds, a recovery link will be sent to the user.
          * If no account is registered under the provided email, you will get the error code
          * MegaError::API_ENOENT in onRequestFinish
          *
@@ -5260,7 +5260,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
          *
-         * If this request succeed, a cancellation link will be sent to the email address of the user.
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * @see MegaApi::confirmCancelAccount
@@ -5313,7 +5313,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          *
-         * If this request succeed, a change-email link will be sent to the specified email address.
+         * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * @param email The new email to be associated to the account.
