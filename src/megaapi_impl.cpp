@@ -2699,7 +2699,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_USER_EMAIL: return "GET_USER_EMAIL";
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
-        case TYPE_SEND_SIGNUP_LINK: return "TYPE_SEND_SIGNUP_LINK";
+        case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
     }
     return "UNKNOWN";
 }
@@ -9202,7 +9202,7 @@ void MegaApiImpl::fetchnodes_result(error e)
     }
     request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_NODES) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) )
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
     {
         return;
     }

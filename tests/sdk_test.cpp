@@ -264,7 +264,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CREATE_ACCOUNT:
         if (lastError[apiIndex] == API_OK)
         {
-            sid = request->getPrivateKey();
+            sid = request->getSessionKey();
         }
         break;
 
