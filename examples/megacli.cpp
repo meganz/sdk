@@ -4728,6 +4728,18 @@ void DemoApp::nodes_current()
     LOG_debug << "Nodes current.";
 }
 
+void DemoApp::account_updated()
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
+    }
+    else
+    {
+        LOG_debug << "Account has been upgraded/downgraded.";
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
 {
     // FIXME: implement
