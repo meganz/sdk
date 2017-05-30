@@ -351,7 +351,6 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
         return;
     }
 
-    std::wostringstream bla;
     OUTSTRING sout = s->str();
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0

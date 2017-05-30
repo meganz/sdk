@@ -2340,7 +2340,6 @@ void megacmd()
     if (!consoleFailed)
     {
         readline_fd = fileno(rl_instream);
-        //_setmode(readline_fd, _O_U8TEXT);
     }
 
     for (;; )
