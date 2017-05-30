@@ -147,6 +147,12 @@
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
 
 /**
+ * @brief This function is called when the account has been updated (upgraded/downgraded)
+ * @param api MEGASdk object connected to the account
+ */
+- (void)onAccountUpdate:(MEGASdk *)api;
+
+/**
  * @brief This function is called when there are new or updated contact requests in the account
  *
  * When the full account is reloaded or a large number of server notifications arrives at once, the
