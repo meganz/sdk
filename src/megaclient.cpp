@@ -1413,6 +1413,7 @@ void MegaClient::exec()
                                 int creqtag = reqtag;
                                 reqtag = fetchnodestag; // associate with ongoing request, if any
                                 fetchingnodes = false;
+                                fetchnodestag = 0;
                                 fetchnodes(true);
                                 reqtag = creqtag;
                             }
