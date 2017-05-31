@@ -5479,6 +5479,8 @@ class MegaApi
          */
         static void setLogLevel(int logLevel);
 
+        static void setLogToConsole(bool enable);
+
         /**
          * @brief Set a MegaLogger implementation to receive SDK logs
          *

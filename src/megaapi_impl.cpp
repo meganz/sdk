@@ -3822,6 +3822,15 @@ void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
     externalLogger->setMegaLogger(megaLogger);
 }
 
+void MegaApiImpl::setLogToConsole(bool enable)
+{
+    if(!externalLogger)
+    {
+        externalLogger = new ExternalLogger();
+    }
+    externalLogger->setLogToConsole(enable);
+}
+
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
     if(!externalLogger)
@@ -15114,6 +15123,7 @@ ExternalLogger::ExternalLogger()
 {
 	mutex.init(true);
 	this->megaLogger = NULL;
+    this->logToConsole = true;
 	SimpleLogger::setOutputClass(this);
 
     //Initialize outputSettings map
@@ -15133,6 +15143,11 @@ void ExternalLogger::setMegaLogger(MegaLogger *logger)
 void ExternalLogger::setLogLevel(int logLevel)
 {
 	SimpleLogger::setLogLevel((LogLevel)logLevel);
+}
+
+void ExternalLogger::setLogToConsole(bool enable)
+{
+    this->logToConsole = enable;
 }
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
@@ -15177,7 +15192,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 	{
         megaLogger->log(time, loglevel, source, message);
 	}
-	else
+    else if (logToConsole)
 	{
 		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
 	}
