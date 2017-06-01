@@ -47,6 +47,9 @@ OUTSTREAMTYPE &getCurrentOut()
 
 bool interactiveThread()
 {
+
+    return 1;//TODO: delete && figure out a way to make interactiveThread return true for megacmdshell
+
     uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {

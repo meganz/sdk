@@ -609,7 +609,7 @@ vector<string> getlistOfWords(char *ptr)
     for (;; )
     {
         // skip leading blank space
-        while (*ptr > 0 && *ptr <= ' ')
+        while (*ptr > 0 && *ptr <= ' ' && *(ptr+1) )
         {
             ptr++;
         }
@@ -672,6 +672,8 @@ vector<string> getlistOfWords(char *ptr)
         }
         else
         {
+            while (*ptr == ' ') ptr++;// only possible if ptr+1 is the end
+
             wptr = ptr;
 
             char *prev = ptr;
@@ -687,7 +689,7 @@ vector<string> getlistOfWords(char *ptr)
                 ptr++;
             }
 
-            words.push_back(string(wptr, ptr - wptr));
+                words.push_back(string(wptr, ptr - wptr));
         }
     }
 

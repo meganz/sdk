@@ -1,6 +1,7 @@
 /**
- * @file examples/megacmd/megacmd.cpp
+ * @file examples/megacmd/megacmdshell.cpp
  * @brief MegaCMD: Interactive CLI and service application
+ * This is the shell application
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -19,18 +20,22 @@
  * program.
  */
 
-#include "megacmd.h"
+#include "megacmdshell.h"
+#include "megacmdshellcommunications.h"
 
-#include "megacmdsandbox.h"
-#include "megacmdexecuter.h"
-#include "megacmdutils.h"
-#include "configurationmanager.h"
-#include "megacmdlogger.h"
-#include "comunicationsmanager.h"
-#include "listeners.h"
 
-#include "megacmdplatform.h"
-#include "megacmdversion.h"
+//#include "megacmd.h"
+
+//#include "megacmdsandbox.h"
+//#include "megacmdexecuter.h"
+//#include "megacmdutils.h"
+//#include "configurationmanager.h"
+//#include "megacmdlogger.h"
+//#include "comunicationsmanager.h"
+//#include "listeners.h"
+
+//#include "megacmdplatform.h"
+//#include "megacmdversion.h"
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -39,6 +44,247 @@
 #include <readline/history.h>
 #include <iomanip>
 #include <string>
+#include <set>
+#include <map>
+#include <vector>
+#include <sstream>
+#include <algorithm>
+
+//TODO: check includes ok in windows:
+#include <sys/types.h>
+#include <unistd.h>
+#include <termios.h>
+
+
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
+
+//TODO: implement propper loggin
+#define LOG_verbose COUT
+#define LOG_debug COUT
+#define LOG_err COUT
+#define LOG_warn COUT
+#define LOG_fatal COUT
+
+using namespace std;
+
+
+//TODO: move utils functions somewhere else (common with megacmdserver?)
+
+
+vector<string> getlistOfWords(char *ptr)
+{
+    vector<string> words;
+
+    char* wptr;
+
+    // split line into words with quoting and escaping
+    for (;; )
+    {
+        // skip leading blank space
+        while (*ptr > 0 && *ptr <= ' ')
+        {
+            ptr++;
+        }
+
+        if (!*ptr)
+        {
+            break;
+        }
+
+        // quoted arg / regular arg
+        if (*ptr == '"')
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '"' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '"' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
+        else if (*ptr == '\'') // quoted arg / regular arg
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '\'' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '\'' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
+        else
+        {
+            wptr = ptr;
+
+            char *prev = ptr;
+            //while ((unsigned char)*ptr > ' ')
+            while ((*ptr != '\0') && !(*ptr ==' ' && *prev !='\\'))
+            {
+                if (*ptr == '"')
+                {
+                    while (*++ptr != '"' && *ptr != '\0')
+                    { }
+                }
+                prev=ptr;
+                ptr++;
+            }
+
+            words.push_back(string(wptr, ptr - wptr));
+        }
+    }
+
+    return words;
+}
+
+bool stringcontained(const char * s, vector<string> list)
+{
+    for (int i = 0; i < (int)list.size(); i++)
+    {
+        if (list[i] == s)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+char * dupstr(char* s)
+{
+    char *r;
+
+    r = (char*)malloc(sizeof( char ) * ( strlen(s) + 1 ));
+    strcpy(r, s);
+    return( r );
+}
+
+
+bool replace(std::string& str, const std::string& from, const std::string& to)
+{
+    size_t start_pos = str.find(from);
+    if (start_pos == std::string::npos)
+    {
+        return false;
+    }
+    str.replace(start_pos, from.length(), to);
+    return true;
+}
+
+void replaceAll(std::string& str, const std::string& from, const std::string& to)
+{
+    if (from.empty())
+    {
+        return;
+    }
+    size_t start_pos = 0;
+    while (( start_pos = str.find(from, start_pos)) != std::string::npos)
+    {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+}
+
+bool hasWildCards(string &what)
+{
+    return what.find('*') != string::npos || what.find('?') != string::npos;
+}
+
+bool isRegExp(string what)
+{
+#ifdef USE_PCRE
+    if (( what == "." ) || ( what == ".." ) || ( what == "/" ))
+    {
+        return false;
+    }
+
+    while (true){
+        if (what.find("./") == 0)
+        {
+            what=what.substr(2);
+        }
+        else if(what.find("../") == 0)
+        {
+            what=what.substr(3);
+        }
+        else if(what.size()>=3 && (what.find("/..") == what.size()-3))
+        {
+            what=what.substr(0,what.size()-3);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
+        else if(what.size()>=2 && (what.find("/.") == what.size()-2))
+        {
+            what=what.substr(0,what.size()-2);
+        }
+        else
+        {
+            break;
+        }
+    }
+    replaceAll(what, "/../", "/");
+    replaceAll(what, "/./", "/");
+    replaceAll(what, "/", "");
+
+    string s = pcrecpp::RE::QuoteMeta(what);
+    string ns = s;
+    replaceAll(ns, "\\\\\\", "\\");
+    bool isregex = strcmp(what.c_str(), ns.c_str());
+    return isregex;
+
+#elif __cplusplus >= 201103L
+    //TODO??
+#endif
+    return hasWildCards(what);
+}
+
+
+string getCurrentThreadLine() //TODO: rename to sth more sensefull
+{
+    char *saved_line = rl_copy_text(0, rl_point);
+    string toret(saved_line);
+    free(saved_line);
+    return toret;
+
+}
+
+
+/// end utily functions
+
+
 
 
 #ifdef _WIN32
@@ -95,46 +341,46 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
 
 #endif
 
-#ifdef _WIN32
-#include "comunicationsmanagerportsockets.h"
-#define COMUNICATIONMANAGER ComunicationsManagerPortSockets
-#else
-#include "comunicationsmanagerfilesockets.h"
-#define COMUNICATIONMANAGER ComunicationsManagerFileSockets
-#include <signal.h>
-#endif
+//#ifdef _WIN32
+//#include "comunicationsmanagerportsockets.h"
+//#define COMUNICATIONMANAGER ComunicationsManagerPortSockets
+//#else
+//#include "comunicationsmanagerfilesockets.h"
+//#define COMUNICATIONMANAGER ComunicationsManagerFileSockets
+//#include <signal.h>
+//#endif
 
-using namespace mega;
+//using namespace mega;
 
-MegaCmdExecuter *cmdexecuter;
-MegaCmdSandbox *sandboxCMD;
+//MegaCmdExecuter *cmdexecuter;
+//MegaCmdSandbox *sandboxCMD;
 
-MegaSemaphore semaphoreClients; //to limit max parallel petitions
+//MegaSemaphore semaphoreClients; //to limit max parallel petitions
 
-MegaApi *api;
+//MegaApi *api;
 
-//api objects for folderlinks
-std::queue<MegaApi *> apiFolders;
-std::vector<MegaApi *> occupiedapiFolders;
-MegaSemaphore semaphoreapiFolders;
-MegaMutex mutexapiFolders;
+////api objects for folderlinks
+//std::queue<MegaApi *> apiFolders;
+//std::vector<MegaApi *> occupiedapiFolders;
+//MegaSemaphore semaphoreapiFolders;
+//MegaMutex mutexapiFolders;
 
-MegaCMDLogger *loggerCMD;
+//MegaCMDLogger *loggerCMD;
 
-MegaMutex mutexEndedPetitionThreads;
-std::vector<MegaThread *> petitionThreads;
-std::vector<MegaThread *> endedPetitionThreads;
+//MegaMutex mutexEndedPetitionThreads;
+//std::vector<MegaThread *> petitionThreads;
+//std::vector<MegaThread *> endedPetitionThreads;
 
 
-//Comunications Manager
-ComunicationsManager * cm;
+////Comunications Manager
+//ComunicationsManager * cm;
 
-// global listener
-MegaCmdGlobalListener* megaCmdGlobalListener;
+//// global listener
+//MegaCmdGlobalListener* megaCmdGlobalListener;
 
-MegaCmdMegaListener* megaCmdMegaListener;
+//MegaCmdMegaListener* megaCmdMegaListener;
 
-bool loginInAtStartup = false;
+//bool loginInAtStartup = false;
 
 string validGlobalParameters[] = {"v", "help"};
 
@@ -189,48 +435,53 @@ static prompttype prompt = COMMAND;
 static char pw_buf[256];
 static int pw_buf_pos;
 
-// local console
-Console* console;
+// communications with megacmdserver:
+MegaCmdShellCommunications *comms;
 
-MegaMutex mutexHistory;
 
-map<int, string> threadline;
+//// local console
+//Console* console; //TODO: use MEGA console // repeat sources??? // include them as in the sdk.pri
+
+//MegaMutex mutexHistory;
+
+//map<int, string> threadline;
 
 void printWelcomeMsg();
 
-string getCurrentThreadLine()
-{
-    uint64_t currentThread = MegaThread::currentThreadId();
-    if (threadline.find(currentThread) == threadline.end())
-    {
-        char *saved_line = rl_copy_text(0, rl_point);
-        string toret(saved_line);
-        free(saved_line);
-        return toret;
-    }
-    else
-    {
-        return threadline[currentThread];
-    }
-}
+//string getCurrentThreadLine()
+//{
+//    uint64_t currentThread = MegaThread::currentThreadId();
+//    if (threadline.find(currentThread) == threadline.end())
+//    {
+//        char *saved_line = rl_copy_text(0, rl_point);
+//        string toret(saved_line);
+//        free(saved_line);
+//        return toret;
+//    }
+//    else
+//    {
+//        return threadline[currentThread];
+//    }
+//}
 
-void setCurrentThreadLine(string s)
-{
-    threadline[MegaThread::currentThreadId()] = s;
-}
+//void setCurrentThreadLine(string s)
+//{
+//    threadline[MegaThread::currentThreadId()] = s;
+//}
 
-void setCurrentThreadLine(const vector<string>& vec)
-{
-   setCurrentThreadLine(joinStrings(vec));
-}
+//void setCurrentThreadLine(const vector<string>& vec)
+//{
+//   setCurrentThreadLine(joinStrings(vec));
+//}
 
 void sigint_handler(int signum)
 {
-    LOG_verbose << "Received signal: " << signum;
-    if (loginInAtStartup)
-    {
-        exit(-2);
-    }
+//    LOG_verbose << "Received signal: " << signum;
+
+//    if (loginInAtStartup)
+//    {
+//        exit(-2);
+//    }
 
     if (prompt != COMMAND)
     {
@@ -285,7 +536,7 @@ void setprompt(prompttype p, string arg)
 
     if (p == COMMAND)
     {
-        console->setecho(true);
+//        console->setecho(true); //TODO: use console
     }
     else
     {
@@ -299,7 +550,7 @@ void setprompt(prompttype p, string arg)
             OUTSTREAM << prompts[p] << flush;
         }
 
-        console->setecho(false);
+//        console->setecho(false);//TODO: use console
     }
 }
 
@@ -322,9 +573,9 @@ static void store_line(char* l)
 
     if (*l && ( prompt == COMMAND ))
     {
-        mutexHistory.lock();
+//        mutexHistory.lock(); //TODO: use mutex!
         add_history(l);
-        mutexHistory.unlock();
+//        mutexHistory.unlock();
     }
 
     line = l;
@@ -493,6 +744,7 @@ void unescapeEspace(string &orig)
     replaceAll(orig,"\\ ", " ");
 }
 
+
 char* empty_completion(const char* text, int state)
 {
     // we offer 2 different options so that it doesn't complete (no space is inserted)
@@ -506,6 +758,476 @@ char* empty_completion(const char* text, int state)
     }
     return NULL;
 }
+
+//char* generic_completion(const char* text, int state, vector<string> validOptions)
+//{
+//    static size_t list_index, len;
+//    static bool foundone;
+//    string name;
+//    if (!validOptions.size()) // no matches
+//    {
+//        return empty_completion(text,state); //dont fall back to filenames
+//    }
+//    if (!state)
+//    {
+//        list_index = 0;
+//        foundone = false;
+//        len = strlen(text);
+//    }
+//    while (list_index < validOptions.size())
+//    {
+//        name = validOptions.at(list_index);
+//        if (!rl_completion_quote_character) {
+////        if (!rl_completion_quote_character && interactiveThread()) {
+//            escapeEspace(name);
+//        }
+
+//        list_index++;
+
+//        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
+//        {
+//            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
+//            {
+//                rl_completion_suppress_append = 1;
+//            }
+//            foundone = true;
+//            return dupstr((char*)name.c_str());
+//        }
+//    }
+
+//    if (!foundone)
+//    {
+//        return empty_completion(text,state); //dont fall back to filenames
+//    }
+
+//    return((char*)NULL );
+//}
+
+//char* commands_completion(const char* text, int state)
+//{
+//    return generic_completion(text, state, validCommands);
+//}
+
+//char* local_completion(const char* text, int state)
+//{
+//    return((char*)NULL );  //matches will be NULL: readline will use local completion
+//}
+
+//void addGlobalFlags(set<string> *setvalidparams)
+//{
+//    for (size_t i = 0; i < sizeof( validGlobalParameters ) / sizeof( *validGlobalParameters ); i++)
+//    {
+//        setvalidparams->insert(validGlobalParameters[i]);
+//    }
+//}
+
+//char * flags_completion(const char*text, int state)
+//{
+//    static vector<string> validparams;
+//    if (state == 0)
+//    {
+//        validparams.clear();
+//        char *saved_line = strdup(getCurrentThreadLine().c_str());
+//        vector<string> words = getlistOfWords(saved_line);
+//        free(saved_line);
+//        if (words.size())
+//        {
+//            set<string> setvalidparams;
+//            set<string> setvalidOptValues;
+//            addGlobalFlags(&setvalidparams);
+
+//            string thecommand = words[0];
+//            insertValidParamsPerCommand(&setvalidparams, thecommand, &setvalidOptValues);
+//            set<string>::iterator it;
+//            for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
+//            {
+//                string param = *it;
+//                string toinsert;
+
+//                if (param.size() > 1)
+//                {
+//                    toinsert = "--" + param;
+//                }
+//                else
+//                {
+//                    toinsert = "-" + param;
+//                }
+
+//                validparams.push_back(toinsert);
+//            }
+
+//            for (it = setvalidOptValues.begin(); it != setvalidOptValues.end(); it++)
+//            {
+//                string param = *it;
+//                string toinsert;
+
+//                if (param.size() > 1)
+//                {
+//                    toinsert = "--" + param + '=';
+//                }
+//                else
+//                {
+//                    toinsert = "-" + param + '=';
+//                }
+
+//                validparams.push_back(toinsert);
+//            }
+//        }
+//    }
+//    char *toret = generic_completion(text, state, validparams);
+//    return toret;
+//}
+
+//char * flags_value_completion(const char*text, int state)
+//{
+//    static vector<string> validValues;
+
+//    if (state == 0)
+//    {
+//        validValues.clear();
+
+//        char *saved_line = strdup(getCurrentThreadLine().c_str());
+//        vector<string> words = getlistOfWords(saved_line);
+//        free(saved_line);
+//        if (words.size() > 1)
+//        {
+//            string thecommand = words[0];
+//            string currentFlag = words[words.size() - 1];
+
+//            map<string, string> cloptions;
+//            map<string, int> clflags;
+
+//            set<string> validParams;
+
+//            insertValidParamsPerCommand(&validParams, thecommand);
+
+//            if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
+//            {
+//                // return invalid??
+//            }
+
+//            if (thecommand == "share")
+//            {
+//                if (currentFlag.find("--level=") == 0)
+//                {
+//                    string prefix = strncmp(text, "--level=", strlen("--level="))?"":"--level=";
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READ));
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READWRITE));
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_FULL));
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_OWNER));
+//                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
+//                }
+//                if (currentFlag.find("--with=") == 0)
+//                {
+////                    validValues = cmdexecuter->getlistusers(); //TODO: this should be asked via socket
+//                    string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
+//                    for (u_int i=0;i<validValues.size();i++)
+//                    {
+//                        validValues.at(i)=prefix+validValues.at(i);
+//                    }
+//                }
+//            }
+//            if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
+//            {
+////                validValues = cmdexecuter->getlistusers(); //TODO: this should be asked via socket
+//                string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
+//                for (u_int i=0;i<validValues.size();i++)
+//                {
+//                    validValues.at(i)=prefix+validValues.at(i);
+//                }
+//            }
+//        }
+//    }
+
+//    char *toret = generic_completion(text, state, validValues);
+//    return toret;
+//}
+
+//void unescapeifRequired(string &what)
+//{
+//    if (!rl_completion_quote_character) {
+//        return unescapeEspace(what);
+//    }
+//}
+
+//char* remotepaths_completion(const char* text, int state)
+//{
+//    static vector<string> validpaths;
+//    if (state == 0)
+//    {
+//        string wildtext(text);
+//#ifdef USE_PCRE
+//        wildtext += ".";
+//#elif __cplusplus >= 201103L
+//        wildtext += ".";
+//#endif
+//        wildtext += "*";
+
+//        if (!rl_completion_quote_character) {
+//            unescapeEspace(wildtext);
+//        }
+////        validpaths = cmdexecuter->listpaths(wildtext); //TODO: this should be asked via socket
+//    }
+//    return generic_completion(text, state, validpaths);
+//}
+
+//char* remotefolders_completion(const char* text, int state)
+//{
+//    static vector<string> validpaths;
+//    if (state == 0)
+//    {
+//        string wildtext(text);
+//#ifdef USE_PCRE
+//        wildtext += ".";
+//#elif __cplusplus >= 201103L
+//        wildtext += ".";
+//#endif
+//        wildtext += "*";
+
+////        validpaths = cmdexecuter->listpaths(wildtext, true); //TODO: this should be asked via socket
+//    }
+//    return generic_completion(text, state, validpaths);
+//}
+
+//char* loglevels_completion(const char* text, int state)
+//{
+//    static vector<string> validloglevels;
+//    if (state == 0)
+//    {
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_FATAL));
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_ERROR));
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_WARNING));
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_INFO));
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_DEBUG));
+//        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_MAX));
+//    }
+//    return generic_completion(text, state, validloglevels);
+//}
+
+//char* contacts_completion(const char* text, int state)
+//{
+//    static vector<string> validcontacts;
+//    if (state == 0)
+//    {
+////        validcontacts = cmdexecuter->getlistusers(); //TODO: this should be asked via socket
+//    }
+//    return generic_completion(text, state, validcontacts);
+//}
+
+//char* sessions_completion(const char* text, int state)
+//{
+//    static vector<string> validSessions;
+//    if (state == 0)
+//    {
+////        validSessions = cmdexecuter->getsessions(); //TODO: this should be asked via socket
+//    }
+
+//    if (validSessions.size() == 0)
+//    {
+//        return empty_completion(text, state);
+//    }
+
+//    return generic_completion(text, state, validSessions);
+//}
+
+//char* nodeattrs_completion(const char* text, int state)
+//{
+//    static vector<string> validAttrs;
+//    if (state == 0)
+//    {
+//        validAttrs.clear();
+//        char *saved_line = strdup(getCurrentThreadLine().c_str());
+//        vector<string> words = getlistOfWords(saved_line);
+//        free(saved_line);
+//        if (words.size() > 1)
+//        {
+////            validAttrs = cmdexecuter->getNodeAttrs(words[1]); //TODO: this should be asked via socket
+//        }
+//    }
+
+//    if (validAttrs.size() == 0)
+//    {
+//        return empty_completion(text, state);
+//    }
+
+//    return generic_completion(text, state, validAttrs);
+//}
+
+//char* userattrs_completion(const char* text, int state)
+//{
+//    static vector<string> validAttrs;
+//    if (state == 0)
+//    {
+//        validAttrs.clear();
+////        validAttrs = cmdexecuter->getUserAttrs(); //TODO: this should be asked via socket
+//    }
+
+//    if (validAttrs.size() == 0)
+//    {
+//        return empty_completion(text, state);
+//    }
+
+//    return generic_completion(text, state, validAttrs);
+//}
+
+//void discardOptionsAndFlags(vector<string> *ws)
+//{
+//    for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
+//    {
+//        /* std::cout << *it; ... */
+//        string w = ( string ) * it;
+//        if (w.length() && ( w.at(0) == '-' )) //begins with "-"
+//        {
+//            it = ws->erase(it);
+//        }
+//        else //not an option/flag
+//        {
+//            ++it;
+//        }
+//    }
+//}
+
+//rl_compentry_func_t *getCompletionFunction(vector<string> words)
+//{
+//    // Strip words without flags
+//    string thecommand = words[0];
+
+//    if (words.size() > 1)
+//    {
+//        string lastword = words[words.size() - 1];
+//        if (lastword.find_first_of("-") == 0)
+//        {
+//            if (lastword.find_last_of("=") != string::npos)
+//            {
+//                return flags_value_completion;
+//            }
+//            else
+//            {
+//                return flags_completion;
+//            }
+//        }
+//    }
+//    discardOptionsAndFlags(&words);
+
+//    int currentparameter = words.size() - 1;
+//    if (stringcontained(thecommand.c_str(), localremotefolderpatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return local_completion;
+//        }
+//        if (currentparameter == 2)
+//        {
+//            return remotefolders_completion;
+//        }
+//    }
+//    else if (thecommand == "put")
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return local_completion;
+//        }
+//        else
+//        {
+//            return remotepaths_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), remotepatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return remotepaths_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), remotefolderspatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return remotefolders_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), multipleremotepatterncommands))
+//    {
+//        if (currentparameter >= 1)
+//        {
+//            return remotepaths_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), localpatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return local_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), remoteremotepatterncommands))
+//    {
+//        if (( currentparameter == 1 ) || ( currentparameter == 2 ))
+//        {
+//            return remotepaths_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), remotelocalpatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return remotepaths_completion;
+//        }
+//        if (currentparameter == 2)
+//        {
+//            return local_completion;
+//        }
+//    }
+//    else if (stringcontained(thecommand.c_str(), emailpatterncommands))
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return contacts_completion;
+//        }
+//    }
+//    else if (thecommand == "import")
+//    {
+//        if (currentparameter == 2)
+//        {
+//            return remotepaths_completion;
+//        }
+//    }
+//    else if (thecommand == "killsession")
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return sessions_completion;
+//        }
+//    }
+//    else if (thecommand == "attr")
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return remotepaths_completion;
+//        }
+//        if (currentparameter == 2)
+//        {
+//            return nodeattrs_completion;
+//        }
+//    }
+//    else if (thecommand == "userattr")
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return userattrs_completion;
+//        }
+//    }
+//    else if (thecommand == "log")
+//    {
+//        if (currentparameter == 1)
+//        {
+//            return loglevels_completion;
+//        }
+//    }
+//    return empty_completion;
+//}
+
 
 char* generic_completion(const char* text, int state, vector<string> validOptions)
 {
@@ -525,7 +1247,7 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        if (!rl_completion_quote_character && interactiveThread()) {
+        if (!rl_completion_quote_character) {
             escapeEspace(name);
         }
 
@@ -550,429 +1272,79 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     return((char*)NULL );
 }
 
-char* commands_completion(const char* text, int state)
+inline bool ends_with(std::string const & value, std::string const & ending)
 {
-    return generic_completion(text, state, validCommands);
+    if (ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+char* remote_completion(const char* text, int state)
+{
+
+    char *saved_line = strdup(getCurrentThreadLine().c_str());
+
+    static vector<string> validOptions;
+    if (state == 0)
+    {
+        validOptions.clear();
+        string completioncommand("completionshell ");
+        completioncommand+=saved_line;
+//        if (ends_with(completioncommand))
+
+        string s;
+        ostringstream oss(s);
+
+        comms->executeCommand(completioncommand,oss);
+
+        string outputcommand = oss.str();
+//        cout << "OUTPUT completion values: " << outputcommand << endl; //TODO: delete
+
+
+        char *ptr = (char *)outputcommand.c_str();
+        char *beginopt = ptr;
+        while (*ptr)
+        {
+            if (*ptr == 0x1F)
+            {
+                *ptr = '\0';
+//                string topush;
+//                if (strncmp(text,beginopt,strlen(text))) //not begins with text
+//                {
+//                    topush+=text;
+//                }
+//                topush+=beginopt;
+//                validOptions.push_back(topush);
+                validOptions.push_back(beginopt);
+
+                beginopt=ptr+1;
+            }
+            ptr++;
+        }
+        if (*beginopt)
+        {
+//            string topush;
+//            if (strncmp(text,beginopt,strlen(text))) //not begins with text
+//            {
+//                topush+=text;
+//            }
+//            topush+=beginopt;
+//            validOptions.push_back(topush);
+            validOptions.push_back(beginopt);
+
+        }
+    }
+
+//    cout << "completion values: " << oss.str() << endl; //TODO: delete
+
+
+    free(saved_line);
+
+    return generic_completion(text, state, validOptions);
 }
 
 char* local_completion(const char* text, int state)
 {
     return((char*)NULL );  //matches will be NULL: readline will use local completion
-}
-
-void addGlobalFlags(set<string> *setvalidparams)
-{
-    for (size_t i = 0; i < sizeof( validGlobalParameters ) / sizeof( *validGlobalParameters ); i++)
-    {
-        setvalidparams->insert(validGlobalParameters[i]);
-    }
-}
-
-char * flags_completion(const char*text, int state)
-{
-    static vector<string> validparams;
-    if (state == 0)
-    {
-        validparams.clear();
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        free(saved_line);
-        if (words.size())
-        {
-            set<string> setvalidparams;
-            set<string> setvalidOptValues;
-            addGlobalFlags(&setvalidparams);
-
-            string thecommand = words[0];
-            insertValidParamsPerCommand(&setvalidparams, thecommand, &setvalidOptValues);
-            set<string>::iterator it;
-            for (it = setvalidparams.begin(); it != setvalidparams.end(); it++)
-            {
-                string param = *it;
-                string toinsert;
-
-                if (param.size() > 1)
-                {
-                    toinsert = "--" + param;
-                }
-                else
-                {
-                    toinsert = "-" + param;
-                }
-
-                validparams.push_back(toinsert);
-            }
-
-            for (it = setvalidOptValues.begin(); it != setvalidOptValues.end(); it++)
-            {
-                string param = *it;
-                string toinsert;
-
-                if (param.size() > 1)
-                {
-                    toinsert = "--" + param + '=';
-                }
-                else
-                {
-                    toinsert = "-" + param + '=';
-                }
-
-                validparams.push_back(toinsert);
-            }
-        }
-    }
-    char *toret = generic_completion(text, state, validparams);
-    return toret;
-}
-
-char * flags_value_completion(const char*text, int state)
-{
-    static vector<string> validValues;
-
-    if (state == 0)
-    {
-        validValues.clear();
-
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        free(saved_line);
-        if (words.size() > 1)
-        {
-            string thecommand = words[0];
-            string currentFlag = words[words.size() - 1];
-
-            map<string, string> cloptions;
-            map<string, int> clflags;
-
-            set<string> validParams;
-
-            insertValidParamsPerCommand(&validParams, thecommand);
-
-            if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
-            {
-                // return invalid??
-            }
-
-            if (thecommand == "share")
-            {
-                if (currentFlag.find("--level=") == 0)
-                {
-                    string prefix = strncmp(text, "--level=", strlen("--level="))?"":"--level=";
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READ));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_READWRITE));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_FULL));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_OWNER));
-                    validValues.push_back(prefix+getShareLevelStr(MegaShare::ACCESS_UNKNOWN));
-                }
-                if (currentFlag.find("--with=") == 0)
-                {
-                    validValues = cmdexecuter->getlistusers();
-                    string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
-                    for (u_int i=0;i<validValues.size();i++)
-                    {
-                        validValues.at(i)=prefix+validValues.at(i);
-                    }
-                }
-            }
-            if (( thecommand == "userattr" ) && ( currentFlag.find("--user=") == 0 ))
-            {
-                validValues = cmdexecuter->getlistusers();
-                string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
-                for (u_int i=0;i<validValues.size();i++)
-                {
-                    validValues.at(i)=prefix+validValues.at(i);
-                }
-            }
-        }
-    }
-
-    char *toret = generic_completion(text, state, validValues);
-    return toret;
-}
-
-void unescapeifRequired(string &what)
-{
-    if (!rl_completion_quote_character && interactiveThread() ) {
-        return unescapeEspace(what);
-    }
-}
-
-char* remotepaths_completion(const char* text, int state)
-{
-    static vector<string> validpaths;
-    if (state == 0)
-    {
-        string wildtext(text);
-#ifdef USE_PCRE
-        wildtext += ".";
-#elif __cplusplus >= 201103L
-        wildtext += ".";
-#endif
-        wildtext += "*";
-
-        if (!rl_completion_quote_character) {
-            unescapeEspace(wildtext);
-        }
-        validpaths = cmdexecuter->listpaths(wildtext);
-    }
-    return generic_completion(text, state, validpaths);
-}
-
-char* remotefolders_completion(const char* text, int state)
-{
-    static vector<string> validpaths;
-    if (state == 0)
-    {
-        string wildtext(text);
-#ifdef USE_PCRE
-        wildtext += ".";
-#elif __cplusplus >= 201103L
-        wildtext += ".";
-#endif
-        wildtext += "*";
-
-        validpaths = cmdexecuter->listpaths(wildtext, true);
-    }
-    return generic_completion(text, state, validpaths);
-}
-
-char* loglevels_completion(const char* text, int state)
-{
-    static vector<string> validloglevels;
-    if (state == 0)
-    {
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_FATAL));
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_ERROR));
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_WARNING));
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_INFO));
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_DEBUG));
-        validloglevels.push_back(getLogLevelStr(MegaApi::LOG_LEVEL_MAX));
-    }
-    return generic_completion(text, state, validloglevels);
-}
-
-char* contacts_completion(const char* text, int state)
-{
-    static vector<string> validcontacts;
-    if (state == 0)
-    {
-        validcontacts = cmdexecuter->getlistusers();
-    }
-    return generic_completion(text, state, validcontacts);
-}
-
-char* sessions_completion(const char* text, int state)
-{
-    static vector<string> validSessions;
-    if (state == 0)
-    {
-        validSessions = cmdexecuter->getsessions();
-    }
-
-    if (validSessions.size() == 0)
-    {
-        return empty_completion(text, state);
-    }
-
-    return generic_completion(text, state, validSessions);
-}
-
-char* nodeattrs_completion(const char* text, int state)
-{
-    static vector<string> validAttrs;
-    if (state == 0)
-    {
-        validAttrs.clear();
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        free(saved_line);
-        if (words.size() > 1)
-        {
-            validAttrs = cmdexecuter->getNodeAttrs(words[1]);
-        }
-    }
-
-    if (validAttrs.size() == 0)
-    {
-        return empty_completion(text, state);
-    }
-
-    return generic_completion(text, state, validAttrs);
-}
-
-char* userattrs_completion(const char* text, int state)
-{
-    static vector<string> validAttrs;
-    if (state == 0)
-    {
-        validAttrs.clear();
-        validAttrs = cmdexecuter->getUserAttrs();
-    }
-
-    if (validAttrs.size() == 0)
-    {
-        return empty_completion(text, state);
-    }
-
-    return generic_completion(text, state, validAttrs);
-}
-
-void discardOptionsAndFlags(vector<string> *ws)
-{
-    for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
-    {
-        /* std::cout << *it; ... */
-        string w = ( string ) * it;
-        if (w.length() && ( w.at(0) == '-' )) //begins with "-"
-        {
-            it = ws->erase(it);
-        }
-        else //not an option/flag
-        {
-            ++it;
-        }
-    }
-}
-
-rl_compentry_func_t *getCompletionFunction(vector<string> words)
-{
-    // Strip words without flags
-    string thecommand = words[0];
-
-    if (words.size() > 1)
-    {
-        string lastword = words[words.size() - 1];
-        if (lastword.find_first_of("-") == 0)
-        {
-            if (lastword.find_last_of("=") != string::npos)
-            {
-                return flags_value_completion;
-            }
-            else
-            {
-                return flags_completion;
-            }
-        }
-    }
-    discardOptionsAndFlags(&words);
-
-    int currentparameter = words.size() - 1;
-    if (stringcontained(thecommand.c_str(), localremotefolderpatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return local_completion;
-        }
-        if (currentparameter == 2)
-        {
-            return remotefolders_completion;
-        }
-    }
-    else if (thecommand == "put")
-    {
-        if (currentparameter == 1)
-        {
-            return local_completion;
-        }
-        else
-        {
-            return remotepaths_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), remotepatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return remotepaths_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), remotefolderspatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return remotefolders_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), multipleremotepatterncommands))
-    {
-        if (currentparameter >= 1)
-        {
-            return remotepaths_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), localpatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return local_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), remoteremotepatterncommands))
-    {
-        if (( currentparameter == 1 ) || ( currentparameter == 2 ))
-        {
-            return remotepaths_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), remotelocalpatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return remotepaths_completion;
-        }
-        if (currentparameter == 2)
-        {
-            return local_completion;
-        }
-    }
-    else if (stringcontained(thecommand.c_str(), emailpatterncommands))
-    {
-        if (currentparameter == 1)
-        {
-            return contacts_completion;
-        }
-    }
-    else if (thecommand == "import")
-    {
-        if (currentparameter == 2)
-        {
-            return remotepaths_completion;
-        }
-    }
-    else if (thecommand == "killsession")
-    {
-        if (currentparameter == 1)
-        {
-            return sessions_completion;
-        }
-    }
-    else if (thecommand == "attr")
-    {
-        if (currentparameter == 1)
-        {
-            return remotepaths_completion;
-        }
-        if (currentparameter == 2)
-        {
-            return nodeattrs_completion;
-        }
-    }
-    else if (thecommand == "userattr")
-    {
-        if (currentparameter == 1)
-        {
-            return userattrs_completion;
-        }
-    }
-    else if (thecommand == "log")
-    {
-        if (currentparameter == 1)
-        {
-            return loglevels_completion;
-        }
-    }
-    return empty_completion;
 }
 
 static char** getCompletionMatches(const char * text, int start, int end)
@@ -985,7 +1357,7 @@ static char** getCompletionMatches(const char * text, int start, int end)
 
     if (start == 0)
     {
-        matches = rl_completion_matches((char*)text, &commands_completion);
+//        matches = rl_completion_matches((char*)text, &commands_completion); //TODO: this should be queried to the server
         if (matches == NULL)
         {
             matches = rl_completion_matches((char*)text, &empty_completion);
@@ -993,65 +1365,57 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
+        matches = rl_completion_matches((char*)text, remote_completion); //TODO: this should be queried to the server
 
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
-        {
-            words.push_back("");
-        }
-        free(saved_line);
-
-        matches = rl_completion_matches((char*)text, getCompletionFunction(words));
     }
     return( matches );
 }
 
-string getListOfCompletionValues(vector<string> words, char separator = ' ', bool suppressflag = true)
-{
-    string completionValues;
-    rl_compentry_func_t * compfunction = getCompletionFunction(words);
-    if (compfunction == local_completion)
-    {
-        return "MEGACMD_USE_LOCAL_COMPLETION";
-    }
-    int state=0;
-    if (words.size()>1)
-    while (true)
-    {
-        char *newval;
-        string &lastword = words[words.size()-1];
-        if (suppressflag && lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
-        {
-            newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
-        }
-        else
-        {
-            newval = compfunction(lastword.c_str(), state);
-        }
+//string getListOfCompletionValues(vector<string> words)
+//{
+//    string completionValues;
+//    rl_compentry_func_t * compfunction = getCompletionFunction(words);
+//    if (compfunction == local_completion)
+//    {
+//        return "MEGACMD_USE_LOCAL_COMPLETION";
+//    }
+//    int state=0;
+//    if (words.size()>1)
+//    while (true)
+//    {
+//        char *newval;
+//        string &lastword = words[words.size()-1];
+//        if (lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
+//        {
+//            newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
+//        }
+//        else
+//        {
+//            newval = compfunction(lastword.c_str(), state);
+//        }
 
-        if (!newval) break;
-        if (completionValues.size())
-        {
-            completionValues+=separator;
-        }
+//        if (!newval) break;
+//        if (completionValues.size())
+//        {
+//            completionValues+=" ";
+//        }
 
-        if (strchr(newval,separator))
-        {
-            completionValues+="\"";
-            completionValues+=newval;
-            completionValues+="\"";
-        }
-        else
-        {
-            completionValues+=newval;
-        }
-        free(newval);
+//        if (strstr(newval," "))
+//        {
+//            completionValues+="\"";
+//            completionValues+=newval;
+//            completionValues+="\"";
+//        }
+//        else
+//        {
+//            completionValues+=newval;
+//        }
+//        free(newval);
 
-        state++;
-    }
-    return completionValues;
-}
+//        state++;
+//    }
+//    return completionValues;
+//}
 
 
 
@@ -1066,35 +1430,35 @@ void printHistory()
         rest = rest / 10;
     }
 
-    mutexHistory.lock();
+//    mutexHistory.lock(); //TODO: use mutex
     for (int i = 0; i < length; i++)
     {
         history_set_pos(i);
         OUTSTREAM << setw(offset) << i << "  " << current_history()->line << endl;
     }
 
-    mutexHistory.unlock();
+//    mutexHistory.unlock();
 }
 
-MegaApi* getFreeApiFolder()
-{
-    semaphoreapiFolders.wait();
-    mutexapiFolders.lock();
-    MegaApi* toret = apiFolders.front();
-    apiFolders.pop();
-    occupiedapiFolders.push_back(toret);
-    mutexapiFolders.unlock();
-    return toret;
-}
+//MegaApi* getFreeApiFolder()
+//{
+//    semaphoreapiFolders.wait();
+//    mutexapiFolders.lock();
+//    MegaApi* toret = apiFolders.front();
+//    apiFolders.pop();
+//    occupiedapiFolders.push_back(toret);
+//    mutexapiFolders.unlock();
+//    return toret;
+//}
 
-void freeApiFolder(MegaApi *apiFolder)
-{
-    mutexapiFolders.lock();
-    occupiedapiFolders.erase(std::remove(occupiedapiFolders.begin(), occupiedapiFolders.end(), apiFolder), occupiedapiFolders.end());
-    apiFolders.push(apiFolder);
-    semaphoreapiFolders.release();
-    mutexapiFolders.unlock();
-}
+//void freeApiFolder(MegaApi *apiFolder)
+//{
+//    mutexapiFolders.lock();
+//    occupiedapiFolders.erase(std::remove(occupiedapiFolders.begin(), occupiedapiFolders.end(), apiFolder), occupiedapiFolders.end());
+//    apiFolders.push(apiFolder);
+//    semaphoreapiFolders.release();
+//    mutexapiFolders.unlock();
+//}
 
 const char * getUsageStr(const char *command)
 {
@@ -1928,417 +2292,429 @@ int getcharacterreadlineUTF16support (FILE *stream)
 }
 #endif
 
-void executecommand(char* ptr)
+//void executecommand(char* ptr)
+//{
+//    vector<string> words = getlistOfWords(ptr);
+//    if (!words.size())
+//    {
+//        return;
+//    }
+
+//    string thecommand = words[0];
+
+//    if (( thecommand == "?" ) || ( thecommand == "h" ))
+//    {
+//        printAvailableCommands();
+//        return;
+//    }
+
+//    if (words[0] == "completion")
+//    {
+//        if (words.size() < 3) words.push_back("");
+//        vector<string> wordstocomplete(words.begin()+1,words.end());
+//        setCurrentThreadLine(wordstocomplete);
+//        OUTSTREAM << getListOfCompletionValues(wordstocomplete);
+//        return;
+//    }
+
+//    map<string, string> cloptions;
+//    map<string, int> clflags;
+
+//    set<string> validParams;
+//    addGlobalFlags(&validParams);
+
+//    if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
+//    {
+//        setCurrentOutCode(MCMD_EARGS);
+//        LOG_err << "      " << getUsageStr(thecommand.c_str());
+//        return;
+//    }
+
+//    insertValidParamsPerCommand(&validParams, thecommand);
+
+//    if (!validCommand(thecommand))   //unknown command
+//    {
+//        setCurrentOutCode(MCMD_EARGS);
+//        LOG_err << "      " << getUsageStr("unknwon");
+//        return;
+//    }
+
+//    if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams))
+//    {
+//        setCurrentOutCode(MCMD_EARGS);
+//        LOG_err << "      " << getUsageStr(thecommand.c_str());
+//        return;
+//    }
+//    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR + (getFlag(&clflags, "v")?(1+getFlag(&clflags, "v")):0));
+
+//    if (getFlag(&clflags, "help"))
+//    {
+//        string h = getHelpStr(thecommand.c_str());
+//        OUTSTREAM << h << endl;
+//        return;
+//    }
+
+
+//    if ( thecommand == "help" )
+//    {
+//        if (getFlag(&clflags,"upgrade"))
+//        {
+
+//             const char *userAgent = api->getUserAgent();
+//             char* url = new char[strlen(userAgent)+10];
+
+//             sprintf(url, "pro/uao=%s",userAgent);
+
+//             string theurl;
+
+//             if (api->isLoggedIn())
+//             {
+
+//                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
+//                 api->getSessionTransferURL(url, megaCmdListener);
+//                 megaCmdListener->wait();
+//                 if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
+//                 {
+//                     theurl = megaCmdListener->getRequest()->getLink();
+//                 }
+//                 else
+//                 {
+//                     setCurrentOutCode(MCMD_EUNEXPECTED);
+//                     LOG_warn << "Unable to get session transfer url: " << megaCmdListener->getError()->getErrorString();
+//                 }
+//                 delete megaCmdListener;
+//             }
+
+//             if (!theurl.size())
+//             {
+//                 theurl = url;
+//             }
+
+//             OUTSTREAM << "MEGA offers different PRO plans to increase your allowed transfer quota and user storage." << endl;
+//             OUTSTREAM << "Open the following link in your browser to obtain a PRO account: " << endl;
+//             OUTSTREAM << "  " << theurl << endl;
+
+//             delete [] url;
+//        }
+//        else if (getFlag(&clflags,"non-interactive"))
+//        {
+//            OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
+//            OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
+//            OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
+//            OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
+//#ifdef _WIN32
+
+//            OUTSTREAM << "Along with the interactive shell, there should be several mega-*.bat scripts" << endl;
+//            OUTSTREAM << "installed with MEGAcmd. You can use them writting their absolute paths, " << endl;
+//            OUTSTREAM << "or including their location into your environment PATH and execute simply with mega-*" << endl;
+//            OUTSTREAM << "If you use PowerShell, you can add the the location of the scripts to the PATH with:" << endl;
+//            OUTSTREAM << "  $env:PATH += \";$env:LOCALAPPDATA\\MEGAcmd\"" << endl;
+//            OUTSTREAM << "Client commands completion requires bash, hence, it is not available for Windows. " << endl;
+//            OUTSTREAM << endl;
+
+//           OUTSTREAM << "  Security caveats:" << endl;
+//           OUTSTREAM << "For the current Windows version of MEGAcmd, the server will be using network sockets " << endl;
+//           OUTSTREAM << "for attending client commands. This socket is open for petitions on localhost, hence, " << endl;
+//           OUTSTREAM << "you should not use it in a multiuser environment." << endl;
+//#elif __MACH__
+//            OUTSTREAM << "After installing the dmg, along with the interactive shell, client commands" << endl;
+//            OUTSTREAM << "should be located at /Applications/MEGAcmd.app/Contents/MacOS" << endl;
+//            OUTSTREAM << "If you wish to use the client commands from MacOS Terminal, open the Terminal and " << endl;
+//            OUTSTREAM << "include the installation folder in the PATH. Typically:" << endl;
+//            OUTSTREAM << endl;
+//            OUTSTREAM << " export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH" << endl;
+//            OUTSTREAM << endl;
+//            OUTSTREAM << "And for bash completion, source megacmd_completion.sh:" << endl;
+//            OUTSTREAM << " source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh" << endl;
+//#else
+//            OUTSTREAM << "If you have installed MEGAcmd using one of the available packages" << endl;
+//            OUTSTREAM << "both the interactive shell (mega-cmd) and the different client commands (mega-*) " << endl;
+//            OUTSTREAM << "will be in your PATH (you might need to open your shell again). " << endl;
+//            OUTSTREAM << "If you are using bash, you should also have autocompletion for client commands working. " << endl;
+
+//#endif
+//        }
+//        else
+//        {
+//            OUTSTREAM << "Here is the list of available commands and their usage" << endl;
+//            OUTSTREAM << "Use \"help -f\" to get a brief description of the commands" << endl;
+//            OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
+//            OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
+//            OUTSTREAM << "Use \"help --non-interactive\" to learn how to use MEGAcmd with scripts" << endl;
+//            OUTSTREAM << "Use \"help --upgrade\" to learn about the limitations and obtaining PRO accounts" << endl;
+
+//            OUTSTREAM << endl << "Commands:" << endl;
+
+//            printAvailableCommands(getFlag(&clflags,"f"));
+//            OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+//        }
+//        return;
+//    }
+
+//    if ( thecommand == "clear" )
+//    {
+//#ifdef _WIN32
+//        HANDLE hStdOut;
+//        CONSOLE_SCREEN_BUFFER_INFO csbi;
+//        DWORD count;
+
+//        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
+//        if (hStdOut == INVALID_HANDLE_VALUE) return;
+
+//        /* Get the number of cells in the current buffer */
+//        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
+//        /* Fill the entire buffer with spaces */
+//        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
+//        {
+//            return;
+//        }
+//        /* Fill the entire buffer with the current colors and attributes */
+//        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
+//        {
+//            return;
+//        }
+//        /* Move the cursor home */
+//        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
+//#else
+//        rl_clear_screen(0,0);
+//#endif
+//        return;
+//    }
+//#ifdef _WIN32
+//    if (words[0] == "unicode")
+//    {
+//        rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
+//        OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
+//        return;
+//    }
+//#endif
+////    cmdexecuter->executecommand(words, &clflags, &cloptions); //TODO: this should be asked via socket
+//}
+
+
+//static bool process_line(char* l)
+//{
+//    switch (prompt)
+//    {
+//        case AREYOUSURETODELETE:
+//            if (!strcmp(l,"yes") || !strcmp(l,"YES") || !strcmp(l,"y") || !strcmp(l,"Y"))
+//            {
+//                cmdexecuter->confirmDelete();
+//            }
+//            else if (!strcmp(l,"no") || !strcmp(l,"NO") || !strcmp(l,"n") || !strcmp(l,"N"))
+//            {
+//                cmdexecuter->discardDelete();
+//            }
+//            else
+//            {
+//                //Do nth, ask again
+//                OUTSTREAM << "Please enter [y]es/[n]o: " << flush;
+//            }
+//        break;
+//        case LOGINPASSWORD:
+//        {
+//            if (!strlen(l))
+//            {
+//                break;
+//            }
+//            if (!cmdexecuter->confirming)
+//            {
+//                cmdexecuter->loginWithPassword(l);
+//            }
+//            else
+//            {
+//                cmdexecuter->confirmWithPassword(l);
+//                cmdexecuter->confirming = false;
+//            }
+//            setprompt(COMMAND);
+//            break;
+//        }
+
+//        case OLDPASSWORD:
+//        {
+//            if (!strlen(l))
+//            {
+//                break;
+//            }
+//            oldpasswd = l;
+//            OUTSTREAM << endl;
+//            setprompt(NEWPASSWORD);
+//            break;
+//        }
+
+//        case NEWPASSWORD:
+//        {
+//            if (!strlen(l))
+//            {
+//                break;
+//            }
+//            newpasswd = l;
+//            OUTSTREAM << endl;
+//            setprompt(PASSWORDCONFIRM);
+//        }
+//        break;
+
+//        case PASSWORDCONFIRM:
+//        {
+//            if (!strlen(l))
+//            {
+//                break;
+//            }
+//            if (l != newpasswd)
+//            {
+//                OUTSTREAM << endl << "New passwords differ, please try again" << endl;
+//            }
+//            else
+//            {
+//                OUTSTREAM << endl;
+//                if (!cmdexecuter->signingup)
+//                {
+//                    cmdexecuter->changePassword(oldpasswd.c_str(), newpasswd.c_str());
+//                }
+//                else
+//                {
+//                    cmdexecuter->signupWithPassword(l);
+//                    cmdexecuter->signingup = false;
+//                }
+//            }
+
+//            setprompt(COMMAND);
+//            break;
+//        }
+
+//        case COMMAND:
+//        {
+//            if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
+//            {
+//                //                store_line(NULL);
+//                return true; // exit
+//            }
+//            executecommand(l);
+//            break;
+//        }
+//    }
+//    return false; //Do not exit
+//}
+
+//void * doProcessLine(void *pointer)
+//{
+//    CmdPetition *inf = (CmdPetition*)pointer;
+
+//    OUTSTRINGSTREAM s;
+//    setCurrentThreadOutStream(&s);
+//    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
+//    setCurrentOutCode(MCMD_OK);
+
+//    LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
+
+//    doExit = process_line(inf->getLine());
+
+//    LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
+
+//    MegaThread * petitionThread = inf->getPetitionThread();
+//    cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
+
+//    semaphoreClients.release();
+//    if (doExit)
+//    {
+//        exit(0);
+//    }
+
+//    mutexEndedPetitionThreads.lock();
+//    endedPetitionThreads.push_back(petitionThread);
+//    mutexEndedPetitionThreads.unlock();
+
+//    return NULL;
+//}
+
+
+//void delete_finished_threads()
+//{
+//    mutexEndedPetitionThreads.lock();
+//    for (std::vector<MegaThread *>::iterator it = endedPetitionThreads.begin(); it != endedPetitionThreads.end(); )
+//    {
+//        MegaThread *mt = (MegaThread*)*it;
+//        for (std::vector<MegaThread *>::iterator it2 = petitionThreads.begin(); it2 != petitionThreads.end(); )
+//        {
+//            if (mt == (MegaThread*)*it2)
+//            {
+//                it2 = petitionThreads.erase(it2);
+//            }
+//            else
+//            {
+//                ++it2;
+//            }
+//        }
+
+//        mt->join();
+//        delete mt;
+//        it = endedPetitionThreads.erase(it);
+//    }
+//    mutexEndedPetitionThreads.unlock();
+//}
+
+
+
+//void finalize()
+//{
+//    static bool alreadyfinalized = false;
+//    if (alreadyfinalized)
+//        return;
+//    alreadyfinalized = true;
+//    LOG_info << "closing application ...";
+//    delete_finished_threads();
+//    delete cm;
+//    if (!consoleFailed)
+//    {
+//        delete console;
+//    }
+//    delete megaCmdMegaListener;
+//    delete api;
+//    while (!apiFolders.empty())
+//    {
+//        delete apiFolders.front();
+//        apiFolders.pop();
+//    }
+
+//    for (std::vector< MegaApi * >::iterator it = occupiedapiFolders.begin(); it != occupiedapiFolders.end(); ++it)
+//    {
+//        delete ( *it );
+//    }
+
+//    occupiedapiFolders.clear();
+
+//    delete megaCmdGlobalListener;
+//    delete cmdexecuter;
+
+//    LOG_debug << "resources have been cleaned ...";
+//    delete loggerCMD;
+//    ConfigurationManager::unloadConfiguration();
+
+//}
+
+
+void wait_for_input(int readline_fd)
 {
-    vector<string> words = getlistOfWords(ptr);
-    if (!words.size())
+    //TODO: test in windows
+    fd_set fds;
+
+    FD_ZERO(&fds);
+    FD_SET(readline_fd, &fds);
+
+    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
+    if (rc < 0)
     {
-        return;
-    }
-
-    string thecommand = words[0];
-
-    if (( thecommand == "?" ) || ( thecommand == "h" ))
-    {
-        printAvailableCommands();
-        return;
-    }
-
-    if (words[0] == "completion")
-    {
-        if (words.size() < 3) words.push_back("");
-        vector<string> wordstocomplete(words.begin()+1,words.end());
-        setCurrentThreadLine(wordstocomplete);
-        OUTSTREAM << getListOfCompletionValues(wordstocomplete);
-        return;
-    }
-    if (words[0] == "completionshell")
-    {
-        // TODO: rethink all this carefully for megacmdclient and probably keeping eveything escaped and use in both sides the 0x1F might be the best option
-
-        if (words.size() < 3) words.push_back("");
-        vector<string> wordstocomplete(words.begin()+1,words.end());
-        setCurrentThreadLine(wordstocomplete);
-        OUTSTREAM << getListOfCompletionValues(wordstocomplete,(char)0x1F, false);
-
-        return;
-    }
-
-
-    map<string, string> cloptions;
-    map<string, int> clflags;
-
-    set<string> validParams;
-    addGlobalFlags(&validParams);
-
-    if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams, true))
-    {
-        setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "      " << getUsageStr(thecommand.c_str());
-        return;
-    }
-
-    insertValidParamsPerCommand(&validParams, thecommand);
-
-    if (!validCommand(thecommand))   //unknown command
-    {
-        setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "      " << getUsageStr("unknwon");
-        return;
-    }
-
-    if (setOptionsAndFlags(&cloptions, &clflags, &words, validParams))
-    {
-        setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "      " << getUsageStr(thecommand.c_str());
-        return;
-    }
-    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR + (getFlag(&clflags, "v")?(1+getFlag(&clflags, "v")):0));
-
-    if (getFlag(&clflags, "help"))
-    {
-        string h = getHelpStr(thecommand.c_str());
-        OUTSTREAM << h << endl;
-        return;
-    }
-
-
-    if ( thecommand == "help" )
-    {
-        if (getFlag(&clflags,"upgrade"))
+        if (errno != EINTR)  //syscall
         {
-
-             const char *userAgent = api->getUserAgent();
-             char* url = new char[strlen(userAgent)+10];
-
-             sprintf(url, "pro/uao=%s",userAgent);
-
-             string theurl;
-
-             if (api->isLoggedIn())
-             {
-
-                 MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
-                 api->getSessionTransferURL(url, megaCmdListener);
-                 megaCmdListener->wait();
-                 if (megaCmdListener->getError() && megaCmdListener->getError()->getErrorCode() == MegaError::API_OK)
-                 {
-                     theurl = megaCmdListener->getRequest()->getLink();
-                 }
-                 else
-                 {
-                     setCurrentOutCode(MCMD_EUNEXPECTED);
-                     LOG_warn << "Unable to get session transfer url: " << megaCmdListener->getError()->getErrorString();
-                 }
-                 delete megaCmdListener;
-             }
-
-             if (!theurl.size())
-             {
-                 theurl = url;
-             }
-
-             OUTSTREAM << "MEGA offers different PRO plans to increase your allowed transfer quota and user storage." << endl;
-             OUTSTREAM << "Open the following link in your browser to obtain a PRO account: " << endl;
-             OUTSTREAM << "  " << theurl << endl;
-
-             delete [] url;
-        }
-        else if (getFlag(&clflags,"non-interactive"))
-        {
-            OUTSTREAM << "MEGAcmd features two modes of interaction:" << endl;
-            OUTSTREAM << " - interactive: entering commands in this shell. Enter \"help\" to list available commands" << endl;
-            OUTSTREAM << " - non-interactive: MEGAcmd is also listening to outside petitions" << endl;
-            OUTSTREAM << "For the non-interactive mode, there are client commands you can use. " << endl;
 #ifdef _WIN32
-
-            OUTSTREAM << "Along with the interactive shell, there should be several mega-*.bat scripts" << endl;
-            OUTSTREAM << "installed with MEGAcmd. You can use them writting their absolute paths, " << endl;
-            OUTSTREAM << "or including their location into your environment PATH and execute simply with mega-*" << endl;
-            OUTSTREAM << "If you use PowerShell, you can add the the location of the scripts to the PATH with:" << endl;
-            OUTSTREAM << "  $env:PATH += \";$env:LOCALAPPDATA\\MEGAcmd\"" << endl;
-            OUTSTREAM << "Client commands completion requires bash, hence, it is not available for Windows. " << endl;
-            OUTSTREAM << endl;
-
-           OUTSTREAM << "  Security caveats:" << endl;
-           OUTSTREAM << "For the current Windows version of MEGAcmd, the server will be using network sockets " << endl;
-           OUTSTREAM << "for attending client commands. This socket is open for petitions on localhost, hence, " << endl;
-           OUTSTREAM << "you should not use it in a multiuser environment." << endl;
-#elif __MACH__
-            OUTSTREAM << "After installing the dmg, along with the interactive shell, client commands" << endl;
-            OUTSTREAM << "should be located at /Applications/MEGAcmd.app/Contents/MacOS" << endl;
-            OUTSTREAM << "If you wish to use the client commands from MacOS Terminal, open the Terminal and " << endl;
-            OUTSTREAM << "include the installation folder in the PATH. Typically:" << endl;
-            OUTSTREAM << endl;
-            OUTSTREAM << " export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH" << endl;
-            OUTSTREAM << endl;
-            OUTSTREAM << "And for bash completion, source megacmd_completion.sh:" << endl;
-            OUTSTREAM << " source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh" << endl;
-#else
-            OUTSTREAM << "If you have installed MEGAcmd using one of the available packages" << endl;
-            OUTSTREAM << "both the interactive shell (mega-cmd) and the different client commands (mega-*) " << endl;
-            OUTSTREAM << "will be in your PATH (you might need to open your shell again). " << endl;
-            OUTSTREAM << "If you are using bash, you should also have autocompletion for client commands working. " << endl;
-
+            if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
 #endif
-        }
-        else
-        {
-            OUTSTREAM << "Here is the list of available commands and their usage" << endl;
-            OUTSTREAM << "Use \"help -f\" to get a brief description of the commands" << endl;
-            OUTSTREAM << "You can get further help on a specific command with \"command\" --help " << endl;
-            OUTSTREAM << "Alternatively, you can use \"help\" -ff to get a complete description of all commands" << endl;
-            OUTSTREAM << "Use \"help --non-interactive\" to learn how to use MEGAcmd with scripts" << endl;
-            OUTSTREAM << "Use \"help --upgrade\" to learn about the limitations and obtaining PRO accounts" << endl;
-
-            OUTSTREAM << endl << "Commands:" << endl;
-
-            printAvailableCommands(getFlag(&clflags,"f"));
-            OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
-        }
-        return;
-    }
-
-    if ( thecommand == "clear" )
-    {
-#ifdef _WIN32
-        HANDLE hStdOut;
-        CONSOLE_SCREEN_BUFFER_INFO csbi;
-        DWORD count;
-
-        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
-        if (hStdOut == INVALID_HANDLE_VALUE) return;
-
-        /* Get the number of cells in the current buffer */
-        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
-        /* Fill the entire buffer with spaces */
-        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
-        {
+                LOG_fatal << "Error at select: " << errno; //TODO: implement logging?
             return;
         }
-        /* Fill the entire buffer with the current colors and attributes */
-        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
-        {
-            return;
-        }
-        /* Move the cursor home */
-        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
-#else
-        rl_clear_screen(0,0);
-#endif
-        return;
     }
-#ifdef _WIN32
-    if (words[0] == "unicode")
-    {
-        rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
-        OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
-        return;
-    }
-#endif
-    cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
-
-static bool process_line(char* l)
-{
-    switch (prompt)
-    {
-        case AREYOUSURETODELETE:
-            if (!strcmp(l,"yes") || !strcmp(l,"YES") || !strcmp(l,"y") || !strcmp(l,"Y"))
-            {
-                cmdexecuter->confirmDelete();
-            }
-            else if (!strcmp(l,"no") || !strcmp(l,"NO") || !strcmp(l,"n") || !strcmp(l,"N"))
-            {
-                cmdexecuter->discardDelete();
-            }
-            else
-            {
-                //Do nth, ask again
-                OUTSTREAM << "Please enter [y]es/[n]o: " << flush;
-            }
-        break;
-        case LOGINPASSWORD:
-        {
-            if (!strlen(l))
-            {
-                break;
-            }
-            if (!cmdexecuter->confirming)
-            {
-                cmdexecuter->loginWithPassword(l);
-            }
-            else
-            {
-                cmdexecuter->confirmWithPassword(l);
-                cmdexecuter->confirming = false;
-            }
-            setprompt(COMMAND);
-            break;
-        }
-
-        case OLDPASSWORD:
-        {
-            if (!strlen(l))
-            {
-                break;
-            }
-            oldpasswd = l;
-            OUTSTREAM << endl;
-            setprompt(NEWPASSWORD);
-            break;
-        }
-
-        case NEWPASSWORD:
-        {
-            if (!strlen(l))
-            {
-                break;
-            }
-            newpasswd = l;
-            OUTSTREAM << endl;
-            setprompt(PASSWORDCONFIRM);
-        }
-        break;
-
-        case PASSWORDCONFIRM:
-        {
-            if (!strlen(l))
-            {
-                break;
-            }
-            if (l != newpasswd)
-            {
-                OUTSTREAM << endl << "New passwords differ, please try again" << endl;
-            }
-            else
-            {
-                OUTSTREAM << endl;
-                if (!cmdexecuter->signingup)
-                {
-                    cmdexecuter->changePassword(oldpasswd.c_str(), newpasswd.c_str());
-                }
-                else
-                {
-                    cmdexecuter->signupWithPassword(l);
-                    cmdexecuter->signingup = false;
-                }
-            }
-
-            setprompt(COMMAND);
-            break;
-        }
-
-        case COMMAND:
-        {
-            if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
-            {
-                //                store_line(NULL);
-                return true; // exit
-            }
-            executecommand(l);
-            break;
-        }
-    }
-    return false; //Do not exit
-}
-
-void * doProcessLine(void *pointer)
-{
-    CmdPetition *inf = (CmdPetition*)pointer;
-
-    OUTSTRINGSTREAM s;
-    setCurrentThreadOutStream(&s);
-    setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
-    setCurrentOutCode(MCMD_OK);
-
-    LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
-
-    doExit = process_line(inf->getLine());
-
-    LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
-
-    MegaThread * petitionThread = inf->getPetitionThread();
-    cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
-
-    semaphoreClients.release();
-    if (doExit)
-    {
-        exit(0);
-    }
-
-    mutexEndedPetitionThreads.lock();
-    endedPetitionThreads.push_back(petitionThread);
-    mutexEndedPetitionThreads.unlock();
-
-    return NULL;
-}
-
-
-void delete_finished_threads()
-{
-    mutexEndedPetitionThreads.lock();
-    for (std::vector<MegaThread *>::iterator it = endedPetitionThreads.begin(); it != endedPetitionThreads.end(); )
-    {
-        MegaThread *mt = (MegaThread*)*it;
-        for (std::vector<MegaThread *>::iterator it2 = petitionThreads.begin(); it2 != petitionThreads.end(); )
-        {
-            if (mt == (MegaThread*)*it2)
-            {
-                it2 = petitionThreads.erase(it2);
-            }
-            else
-            {
-                ++it2;
-            }
-        }
-
-        mt->join();
-        delete mt;
-        it = endedPetitionThreads.erase(it);
-    }
-    mutexEndedPetitionThreads.unlock();
-}
-
-
-
-void finalize()
-{
-    static bool alreadyfinalized = false;
-    if (alreadyfinalized)
-        return;
-    alreadyfinalized = true;
-    LOG_info << "closing application ...";
-    delete_finished_threads();
-    delete cm;
-    if (!consoleFailed)
-    {
-        delete console;
-    }
-    delete megaCmdMegaListener;
-    delete api;
-    while (!apiFolders.empty())
-    {
-        delete apiFolders.front();
-        apiFolders.pop();
-    }
-
-    for (std::vector< MegaApi * >::iterator it = occupiedapiFolders.begin(); it != occupiedapiFolders.end(); ++it)
-    {
-        delete ( *it );
-    }
-
-    occupiedapiFolders.clear();
-
-    delete megaCmdGlobalListener;
-    delete cmdexecuter;
-
-    LOG_debug << "resources have been cleaned ...";
-    delete loggerCMD;
-    ConfigurationManager::unloadConfiguration();
-
-}
 
 // main loop
 void megacmd()
@@ -2378,53 +2754,22 @@ void megacmd()
         // command editing loop - exits when a line is submitted
         for (;; )
         {
-            if (Waiter::HAVESTDIN)
+
+            if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
             {
-                if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
+                wait_for_input(readline_fd);
+
+                //api->retryPendingConnections(); //TODO: this should go to the server!
+
+                rl_callback_read_char();
+                if (doExit)
                 {
-                    if (consoleFailed)
-                    {
-                        cm->waitForPetition();
-                    }
-                    else
-                    {
-                        cm->waitForPetitionOrReadlineInput(readline_fd);
-                    }
-                    api->retryPendingConnections();
-
-                    if (!consoleFailed && cm->receivedReadlineInput(readline_fd))
-                    {
-                        rl_callback_read_char();
-                        if (doExit)
-                        {
-                            return;
-                        }
-                    }
-                    else if (cm->receivedPetition())
-                    {
-                        semaphoreClients.wait();
-                        LOG_verbose << "Client connected ";
-
-                        CmdPetition *inf = cm->getPetition();
-
-                        LOG_verbose << "petition registered: " << *inf;
-
-                        delete_finished_threads();
-
-                        //append new one
-                        MegaThread * petitionThread = new MegaThread();
-                        petitionThreads.push_back(petitionThread);
-                        inf->setPetitionThread(petitionThread);
-
-                        LOG_debug << "starting processing: <" << *inf << ">";
-
-                        petitionThread->start(doProcessLine, (void*)inf);
-                    }
+                    return;
                 }
-                else
-                {
-                    console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
-                }
+            }
+            else
+            {
+                //console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);//TODO: use console
             }
 
             if (line)
@@ -2444,8 +2789,14 @@ void megacmd()
 
         if (line)
         {
-            // execute user command
-            doExit = doExit || process_line(line);
+            if (strlen(line))
+            {
+                // execute user command
+    //            doExit = doExit || process_line(line); //TODO: this should be asked via socket and keep printing the output in the meanwhile
+                comms->executeCommand(line);
+                // TODO: handle exit
+                //doExit = doExit;
+            }
             free(line);
             line = NULL;
         }
@@ -2571,7 +2922,7 @@ void initializeMacOSStuff(int argc, char* argv[])
 #ifdef QT_DEBUG
         return;
 #endif
-
+asd
     int fd = -1;
     if (argc)
     {
@@ -2659,80 +3010,83 @@ int main(int argc, char* argv[])
     initializeMacOSStuff(argc,argv);
 #endif
 
-    NullBuffer null_buffer;
-    std::ostream null_stream(&null_buffer);
-    SimpleLogger::setAllOutputs(&null_stream);
-    SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
+//    NullBuffer null_buffer;
+//    std::ostream null_stream(&null_buffer);
+//    SimpleLogger::setAllOutputs(&null_stream);
+//    SimpleLogger::setLogLevel(logMax); // do not filter anything here, log level checking is done by loggerCMD
 
-    loggerCMD = new MegaCMDLogger(&COUT);
+//    loggerCMD = new MegaCMDLogger(&COUT);
 
-    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
-    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
+//    loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
+//    loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
 
-    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
-    {
-        loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
-    }
+//    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
+//    {
+//        loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+//        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+//    }
 
-    mutexHistory.init(false);
+//    mutexHistory.init(false);
 
-    mutexEndedPetitionThreads.init(false);
+//    mutexEndedPetitionThreads.init(false);
 
-    ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
+//    ConfigurationManager::loadConfiguration(( argc > 1 ) && !( strcmp(argv[1], "--debug")));
 
-    char userAgent[30];
-    sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
+//    char userAgent[30];
+//    sprintf(userAgent, "MEGAcmd/%d.%d.%d.0", MEGACMD_MAJOR_VERSION,MEGACMD_MINOR_VERSION,MEGACMD_MICRO_VERSION);
 
-#if defined(__MACH__) && defined(ENABLE_SYNC)
-    int fd = -1;
-    if (argc)
-    {
-        long int value = strtol(argv[argc-1], NULL, 10);
-        if (value > 0 && value < INT_MAX)
-        {
-            fd = value;
-        }
-    }
+//#if defined(__MACH__) && defined(ENABLE_SYNC)
+//    int fd = -1;
+//    if (argc)
+//    {
+//        long int value = strtol(argv[argc-1], NULL, 10);
+//        if (value > 0 && value < INT_MAX)
+//        {
+//            fd = value;
+//        }
+//    }
 
-    if (fd >= 0)
-    {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent, fd);
-    }
-    else
-    {
-        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
-    }
-#else
-    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
-#endif
+//    if (fd >= 0)
+//    {
+//        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent, fd);
+//    }
+//    else
+//    {
+//        api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
+//    }
+//#else
+//    api = new MegaApi("BdARkQSQ", ConfigurationManager::getConfigFolder().c_str(), userAgent);
+//#endif
 
-    for (int i = 0; i < 5; i++)
-    {
-        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
-        apiFolders.push(apiFolder);
-        apiFolder->setLoggerObject(loggerCMD);
-        apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
-        semaphoreapiFolders.release();
-    }
+//    for (int i = 0; i < 5; i++)
+//    {
+//        MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
+//        apiFolders.push(apiFolder);
+//        apiFolder->setLoggerObject(loggerCMD);
+//        apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+//        semaphoreapiFolders.release();
+//    }
 
-    for (int i = 0; i < 100; i++)
-    {
-        semaphoreClients.release();
-    }
+//    for (int i = 0; i < 100; i++)
+//    {
+//        semaphoreClients.release();
+//    }
 
-    mutexapiFolders.init(false);
+//    mutexapiFolders.init(false);
 
-    api->setLoggerObject(loggerCMD);
-    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+//    api->setLoggerObject(loggerCMD);
+//    api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
-    sandboxCMD = new MegaCmdSandbox();
-    cmdexecuter = new MegaCmdExecuter(api, loggerCMD, sandboxCMD);
+//    sandboxCMD = new MegaCmdSandbox();
+//    cmdexecuter = new MegaCmdExecuter(api, loggerCMD, sandboxCMD);
 
-    megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD, sandboxCMD);
-    megaCmdMegaListener = new MegaCmdMegaListener(api, NULL);
-    api->addGlobalListener(megaCmdGlobalListener);
-    api->addListener(megaCmdMegaListener);
+//    megaCmdGlobalListener = new MegaCmdGlobalListener(loggerCMD, sandboxCMD);
+//    megaCmdMegaListener = new MegaCmdMegaListener(api, NULL);
+//    api->addGlobalListener(megaCmdGlobalListener);
+//    api->addListener(megaCmdMegaListener);
+
+    // intialize the comms object
+    comms = new MegaCmdShellCommunications();
 
     // set up the console
 #ifdef _WIN32
@@ -2742,14 +3096,14 @@ int main(int argc, char* argv[])
     if ( ( tcgetattr(STDIN_FILENO, &term) < 0 ) || runningInBackground() ) //try console
     {
         consoleFailed = true;
-        console = NULL;
+//        console = NULL;//TODO: use console
     }
     else
     {
-        console = new CONSOLE_CLASS;
+//        console = new CONSOLE_CLASS; //TODO: use console
     }
 #endif
-    cm = new COMUNICATIONMANAGER();
+//    cm = new COMUNICATIONMANAGER();
 
 #if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
@@ -2767,8 +3121,9 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    atexit(finalize);
+//    atexit(finalize);//TODO: reset?
 
+    //TODO: local completion is failing
     rl_attempted_completion_function = getCompletionMatches;
     rl_completer_quote_characters = "\"'";
     rl_filename_quote_characters  = " ";
@@ -2790,16 +3145,16 @@ int main(int argc, char* argv[])
         LOG_warn << "Couldn't initialize interactive CONSOLE. Running as non-interactive ONLY";
     }
 
-    if (!ConfigurationManager::session.empty())
-    {
-        loginInAtStartup = true;
-        stringstream logLine;
-        logLine << "login " << ConfigurationManager::session;
-        LOG_debug << "Executing ... " << logLine.str();
-        process_line((char*)logLine.str().c_str());
-        loginInAtStartup = false;
-    }
+//    if (!ConfigurationManager::session.empty())
+//    {
+//        loginInAtStartup = true;
+//        stringstream logLine;
+//        logLine << "login " << ConfigurationManager::session;
+//        LOG_debug << "Executing ... " << logLine.str();
+//        process_line((char*)logLine.str().c_str());
+//        loginInAtStartup = false;
+//    }
 
     megacmd();
-    finalize();
+//    finalize(); //TODO: reset?
 }
