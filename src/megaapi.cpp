@@ -1337,6 +1337,11 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
+void MegaApi::setLogToConsole(bool enable)
+{
+    MegaApiImpl::setLogToConsole(enable);
+}
+
 void MegaApi::setLoggerObject(MegaLogger *megaLogger)
 {
     MegaApiImpl::setLoggerClass(megaLogger);

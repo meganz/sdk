@@ -147,12 +147,14 @@ public:
     ExternalLogger();
     void setMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
+    void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
     virtual void log(const char *time, int loglevel, const char *source, const char *message);
 
 private:
     MegaMutex mutex;
     MegaLogger *megaLogger;
+    bool logToConsole;
 };
 
 class MegaTransferPrivate;
@@ -1366,6 +1368,7 @@ class MegaApiImpl : public MegaApp
 #endif
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
+        static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
