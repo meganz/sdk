@@ -147,12 +147,14 @@ public:
     ExternalLogger();
     void setMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
+    void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
     virtual void log(const char *time, int loglevel, const char *source, const char *message);
 
 private:
     MegaMutex mutex;
     MegaLogger *megaLogger;
+    bool logToConsole;
 };
 
 class MegaTransferPrivate;
@@ -1360,6 +1362,8 @@ class MegaApiImpl : public MegaApp
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
+        void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
@@ -1383,6 +1387,7 @@ class MegaApiImpl : public MegaApp
 #endif
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
+        static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);

@@ -1968,7 +1968,8 @@ class MegaRequest
             TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
-            TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT
+            TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
+            TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -4018,7 +4019,7 @@ class MegaGlobalListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -4281,7 +4282,7 @@ class MegaListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -5116,7 +5117,7 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the name of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * If this request succeeds, a confirmation email will be sent to the users.
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5126,7 +5127,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version with firstname and lastname.
+         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
 
@@ -5140,7 +5141,14 @@ class MegaApi
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         *
+         * If this request succeeds, a new ephemeral session will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5153,6 +5161,31 @@ class MegaApi
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Resume a registration process
+         *
+         * When a user begins the account registration process by calling MegaApi::createAccount,
+         * an ephemeral account is created.
+         *
+         * Until the user successfully confirms the signup link sent to the provided email address,
+         * you can resume the ephemeral session in order to change the email address, resend the
+         * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+         * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+         * MegaListener::onAccountUpdate).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         * - MegaRequest::getParamType - Returns the value 1
+         *
+         * In case the account is already confirmed, the associated request will fail with
+         * error MegaError::API_EARGS.
+         *
+         * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Initialize the creation of a new MEGA account with precomputed keys
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
@@ -5161,7 +5194,14 @@ class MegaApi
          * - MegaRequest::getPrivateKey - Returns the private key calculated with MegaApi::getBase64PwKey
          * - MegaRequest::getName - Returns the name of the user
          *
-         * If this request succeed, a confirmation email will be sent to the users.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         *
+         * If this request succeeds, a new ephemeral session will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
@@ -5169,8 +5209,24 @@ class MegaApi
          * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
          * @param name Name of the user
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated and will eventually be removed. Instead,
+         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sends the confirmation email for a new account
+         *
+         * This function is useful to send the confirmation link again or to send it to a different
+         * email address, in case the user mistyped the email at the registration form.
+         *
+         * @param email Email for the account
+         * @param name Firstname of the user
+         * @param password Password for the account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get information about a confirmation link or a new signup link
@@ -5235,7 +5291,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
          *
-         * If this request succeed, a recovery link will be sent to the user.
+         * If this request succeeds, a recovery link will be sent to the user.
          * If no account is registered under the provided email, you will get the error code
          * MegaError::API_ENOENT in onRequestFinish
          *
@@ -5293,7 +5349,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
          *
-         * If this request succeed, a cancellation link will be sent to the email address of the user.
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * @see MegaApi::confirmCancelAccount
@@ -5346,7 +5402,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          *
-         * If this request succeed, a change-email link will be sent to the specified email address.
+         * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * @param email The new email to be associated to the account.
@@ -5510,6 +5566,18 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+         * @brief Enable log to console
+         *
+         * This function allows to set whether the log messages should be printed in the
+         * console in the absence of a dedicated logger set by MegaApi::setLoggerObject.
+         *
+         * By default, log to console is enabled.
+         *
+         * @param enable True to show messages in console, false to skip them.
+         */
+        static void setLogToConsole(bool enable);
 
         /**
          * @brief Set a MegaLogger implementation to receive SDK logs

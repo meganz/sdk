@@ -2474,7 +2474,6 @@ void CommandPutUA::procresult()
         User *u = client->ownuser();
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
-
         client->notifyuser(u);
     }
 
@@ -3505,7 +3504,8 @@ void CommandCreateEphemeralSession::procresult()
     }
     else
     {
-        client->resumeephemeral(client->json.gethandle(MegaClient::USERHANDLE), pw, tag);
+        client->me = client->json.gethandle(MegaClient::USERHANDLE);
+        client->resumeephemeral(client->me, pw, tag);
     }
 }
 
@@ -3652,6 +3652,8 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
     cmd("up");
     arg("c", code, len);
     arg("uh", (byte*)&emailhash, sizeof emailhash);
+
+    notself(client);
 
     tag = client->reqtag;
 }

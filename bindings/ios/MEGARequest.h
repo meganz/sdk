@@ -99,7 +99,10 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeMoveTransfer,
     MEGARequestTypeChatPresenceUrl,
     MEGARequestTypeRegisterPushNotification,
-    MEGARequestTypeGetUserEmail
+    MEGARequestTypeGetUserEmail,
+    MEGARequestTypeAppVersion,
+    MEGARequestTypeGetLocalSSLCertificate,
+    MEGARequestTypeSendSignupLink
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

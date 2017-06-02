@@ -174,6 +174,10 @@ namespace mega
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
+        void resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener);
+        void resumeCreateAccount(String^ sid);
+        void sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener);
+        void sendSignupLink(String^ email, String^ name, String^ password);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
         void querySignupLink(String^ link);
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);

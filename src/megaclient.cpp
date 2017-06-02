@@ -813,6 +813,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
     
     fetchingnodes = false;
+    fetchnodestag = 0;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -1410,8 +1411,9 @@ void MegaClient::exec()
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
-                                reqtag = 0;
+                                reqtag = fetchnodestag; // associate with ongoing request, if any
                                 fetchingnodes = false;
+                                fetchnodestag = 0;
                                 fetchnodes(true);
                                 reqtag = creqtag;
                             }
@@ -2927,6 +2929,7 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
+    fetchnodestag = 0;
     overquotauntil = 0;
     scpaused = false;
 
@@ -3050,6 +3053,7 @@ bool MegaClient::procsc()
 
                             fetchingnodes = false;
                             restag = fetchnodestag;
+                            fetchnodestag = 0;
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -3326,6 +3330,12 @@ bool MegaClient::procsc()
                                 sc_chatnode();
                                 break;
 #endif
+                            case MAKENAMEID3('u', 'a', 'c'):
+                                if (sc_uac())
+                                {
+                                    app->account_updated();
+                                }
+                                break;
                         }
                     }
                 }
@@ -5001,6 +5011,24 @@ void MegaClient::sc_chatnode()
 }
 
 #endif
+
+bool MegaClient::sc_uac()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case EOO:
+                return true;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return false;
+                }
+        }
+    }
+}
 
 // scan notified nodes for
 // - name differences with an existing LocalNode

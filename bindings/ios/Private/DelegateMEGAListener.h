@@ -42,6 +42,7 @@ public:
     void onTransferTemporaryError(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError *e);
     void onUsersUpdate(mega::MegaApi* api, mega::MegaUserList* userList);
     void onNodesUpdate(mega::MegaApi* api, mega::MegaNodeList* nodeList);
+    void onAccountUpdate(mega::MegaApi *api);
     void onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList);
     void onReloadNeeded(mega::MegaApi *api);
     
