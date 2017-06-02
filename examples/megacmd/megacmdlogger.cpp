@@ -31,6 +31,7 @@ using namespace mega;
 map<uint64_t, OUTSTREAMTYPE *> outstreams;
 map<uint64_t, int> threadLogLevel;
 map<uint64_t, int> threadoutCode;
+map<uint64_t, bool> threadIsCmdShell;
 
 OUTSTREAMTYPE &getCurrentOut()
 {
@@ -47,8 +48,10 @@ OUTSTREAMTYPE &getCurrentOut()
 
 bool interactiveThread()
 {
-
-    return 1;//TODO: delete && figure out a way to make interactiveThread return true for megacmdshell
+    if (getCurrentThreadIsCmdShell())
+    {
+        return true;
+    }
 
     uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
@@ -88,6 +91,20 @@ int getCurrentThreadLogLevel()
     }
 }
 
+bool getCurrentThreadIsCmdShell()
+{
+    uint64_t currentThread = MegaThread::currentThreadId();
+    if (threadIsCmdShell.find(currentThread) == threadIsCmdShell.end())
+    {
+        return false; //default not
+    }
+    else
+    {
+        return threadIsCmdShell[currentThread];
+    }
+}
+
+
 void setCurrentThreadLogLevel(int level)
 {
     threadLogLevel[MegaThread::currentThreadId()] = level;
@@ -96,6 +113,12 @@ void setCurrentThreadLogLevel(int level)
 void setCurrentThreadOutStream(OUTSTREAMTYPE *s)
 {
     outstreams[MegaThread::currentThreadId()] = s;
+}
+
+
+void setCurrentThreadIsCmdShell(bool isit)
+{
+    threadIsCmdShell[MegaThread::currentThreadId()] = isit;
 }
 
 void setCurrentOutCode(int outCode)

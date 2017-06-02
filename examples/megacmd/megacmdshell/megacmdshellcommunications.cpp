@@ -145,6 +145,7 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
         return INVALID_SOCKET;
     }
 
+    command="X"+command;
     int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
     if (n == SOCKET_ERROR)
     {

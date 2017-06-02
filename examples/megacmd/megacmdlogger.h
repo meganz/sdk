@@ -34,6 +34,10 @@ void setCurrentOutCode(int);
 int getCurrentThreadLogLevel();
 void setCurrentThreadLogLevel(int);
 
+void setCurrentThreadIsCmdShell(bool isit);
+bool getCurrentThreadIsCmdShell();
+
+
 class MegaCMDLogger : public mega::MegaLogger
 {
 private:

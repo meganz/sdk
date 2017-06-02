@@ -525,13 +525,16 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        if (!rl_completion_quote_character && interactiveThread()) {
+        //Notice: do not escape options for cmdshell. Plus, we won't filter here, because we don't know if the value of rl_completion_quote_chararcter of megacmdshell
+        // The filtering and escaping will be performed by the completion function in megacmd shell
+        //TODO: change name of validOptions to possibleOptions. Document and change name of generic_completion in cmdshell to a better one
+        if (!rl_completion_quote_character && interactiveThread() && !getCurrentThreadIsCmdShell()) {
             escapeEspace(name);
         }
 
         list_index++;
 
-        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
+        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) || getCurrentThreadIsCmdShell() ))
         {
             if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
             {
@@ -2252,6 +2255,13 @@ void * doProcessLine(void *pointer)
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
+    if (inf->getLine() && *(inf->getLine())=='X')
+    {
+        setCurrentThreadIsCmdShell(true);
+        char * aux = inf->line;
+        inf->line=strdup(inf->line+1);
+        free(aux);
+    }
 
     LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
