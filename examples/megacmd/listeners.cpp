@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/listeners.cpp
- * @brief MegaCMD: Listeners
+ * @brief MEGAcmd: Listeners
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *

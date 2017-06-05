@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmd.cpp
- * @brief MegaCMD: Interactive CLI and service application
+ * @brief MEGAcmd: Interactive CLI and service application
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -2228,7 +2228,7 @@ void printWelcomeMsg()
         cout << " " ;
     cout << "|";
     cout << endl;
-    printCenteredLine("Welcome to MegaCMD! A Command Line Interactive and Scriptable",width);
+    printCenteredLine("Welcome to MEGAcmd! A Command Line Interactive and Scriptable",width);
     printCenteredLine("Application to interact with your MEGA account",width);
     printCenteredLine("This is a BETA version, it might not be bug-free.",width);
     printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
