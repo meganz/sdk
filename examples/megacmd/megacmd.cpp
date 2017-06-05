@@ -2217,12 +2217,13 @@ void printWelcomeMsg()
         cout << "=" ;
     cout << ".";
     cout << endl;
-    printCenteredLine(" __  __                   ____ __  __ ____  ",width);
-    printCenteredLine("|  \\/  | ___  __ _  __ _ / ___|  \\/  |  _ \\ ",width);
-    printCenteredLine("| |\\/| |/ _ \\/ _` |/ _` | |   | |\\/| | | | |",width);
-    printCenteredLine("| |  | |  __/ (_| | (_| | |___| |  | | |_| |",width);
-    printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
-    printCenteredLine("             |___/                          ",width);
+
+    printCenteredLine(" __  __ _____ ____    _                      _ ",width);
+    printCenteredLine("|  \\/  | ___|/ ___|  / \\   ___ _ __ ___   __| |",width);
+    printCenteredLine("| |\\/| | \\  / |  _  / _ \\ / __| '_ ` _ \\ / _` |",width);
+    printCenteredLine("| |  | | /__\\ |_| |/ ___ \\ (__| | | | | | (_| |",width);
+    printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
+
     cout << "|";
     for (u_int i = 0; i < width; i++)
         cout << " " ;
