@@ -43,14 +43,20 @@ public:
 
     int executeCommand(std::string command, std::ostream &output = std::cout); //TODO: COUT?? (wcout for windows)
 
+    int registerForStateChanges();
+
+
+
 private:
-    bool socketValid(int socket);
-    void closeSocket(int socket);
+    static bool socketValid(int socket);
+    static void closeSocket(int socket);
+    static int listenToStateChanges(int receiveSocket);
+
 
 #ifdef _WIN32
-int createSocket(int number = 0, bool net = true);
+static int createSocket(int number = 0, bool net = true);
 #else
-int createSocket(int number = 0, bool net = false);
+static int createSocket(int number = 0, bool net = false);
 #endif
 
 

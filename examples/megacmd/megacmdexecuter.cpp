@@ -271,6 +271,11 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
     MegaNode* n = NULL;
     MegaNode* nn = NULL;
 
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node whose path is \"\"";
+        return NULL;
+    }
     // split path by / or :
     do
     {
@@ -591,6 +596,12 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
     int remote = 0; //shared
     MegaNode* n = NULL;
     bool isrelative = false;
+
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node Paths for a node whose path is \"\"";
+        return pathsMatching;
+    }
 
     // split path by / or :
     do
@@ -1047,6 +1058,13 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
     const char* bptr = ptr;
     int remote = 0; //shared
     MegaNode* n = NULL;
+
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node whose path is \"\"";
+        return nodesMatching;
+    }
+
 
     // split path by / or :
     do
@@ -2112,7 +2130,7 @@ void MegaCmdExecuter::doDeleteNode(MegaNode *nodeToDelete,MegaApi* api)
  */
 void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive, int force)
 {
-    if (( nodeToDelete->getType() == MegaNode::TYPE_FOLDER ) && !recursive)
+    if (( nodeToDelete->getType() != MegaNode::TYPE_FILE ) && !recursive)
     {
         char *nodePath = api->getNodePath(nodeToDelete);
         setCurrentOutCode(MCMD_INVALIDTYPE);
@@ -2121,7 +2139,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
     else
     {
-        if (interactiveThread() && !force && nodeToDelete->getType() == MegaNode::TYPE_FOLDER)
+        if (interactiveThread() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
         {
             bool alreadythere = false;
             for (std::vector< MegaNode * >::iterator it = nodesToConfirmDelete.begin(); it != nodesToConfirmDelete.end(); ++it)
@@ -2802,7 +2820,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if ((int)words.size() > 1)
         {
-             unescapeifRequired(words[1]);
+
+            unescapeifRequired(words[1]);
 
             string rNpath = "NULL";
             if (words[1].find('/') != string::npos)
@@ -2861,7 +2880,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 else
                 {
                     setCurrentOutCode(MCMD_NOTFOUND);
-                    LOG_err << "Couldn't find " << words[1];
+                    LOG_err << "Couldn't find \"" << words[1] << "\"";
                 }
             }
             else
@@ -3021,7 +3040,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 nodesToConfirmDelete.clear();
             }
-
 
             for (u_int i = 1; i < words.size(); i++)
             {

@@ -90,7 +90,7 @@ std::string &ltrim(std::string &s, const char &c);
 // trim at the end
 std::string &rtrim(std::string &s, const char &c);
 
-std::vector<std::string> getlistOfWords(char *ptr);
+std::vector<std::string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces = false);
 
 bool stringcontained(const char * s, std::vector<std::string> list);
 

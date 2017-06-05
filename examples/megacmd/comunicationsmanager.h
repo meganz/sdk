@@ -49,6 +49,7 @@ class CmdPetition
         }
         mega::MegaThread *getPetitionThread() const;
         void setPetitionThread(mega::MegaThread *value);
+
 };
 
 OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetition const &p);
@@ -61,6 +62,7 @@ class ComunicationsManager
 {
 private:
     fd_set fds;
+    std::vector<CmdPetition *> stateListenersPetitions;
 
 public:
     ComunicationsManager();
@@ -69,14 +71,34 @@ public:
 
     virtual bool receivedPetition();
 
+    void registerStateListener(CmdPetition *inf);
+
     virtual int waitForPetitionOrReadlineInput(int readline_fd);
     virtual int waitForPetition();
 
     /**
      * @brief returnAndClosePetition
-     * I will clean struct and close the socket within
+     * It will clean struct and close the socket within
      */
     virtual void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
+
+    /**
+     * @brief Sends an status message (e.g. prompt:who@/new/prompt:) to all registered listeners
+     * @param s
+     */
+    void informStateListeners(std::string &s);
+
+    /**
+     * @brief informStateListener
+     * @param inf This contains the petition that originated the register. It should contain the implementation details that identify a listener
+     *   (e.g. In a socket implementation, the socket identifier)
+     * @param s
+     * @return -1 if connection closed by listener (removal required)
+     */
+    virtual int informStateListener(CmdPetition *inf, std::string &s);
+
+
+
 
     /**
      * @brief getPetition

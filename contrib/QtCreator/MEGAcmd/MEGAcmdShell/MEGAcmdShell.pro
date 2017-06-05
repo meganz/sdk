@@ -35,7 +35,7 @@ DEFINES -= USE_QT
 #}
 #else{
 #    SOURCES += src/thread/posixthread.cpp
-#    LIBS += -lpthread
+    LIBS += -lpthread
 #}
 
 

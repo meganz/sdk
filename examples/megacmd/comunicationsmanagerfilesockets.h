@@ -70,11 +70,15 @@ public:
     int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
 
+    void registerStateListener(CmdPetition *inf);
+
     /**
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
     void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
+
+    int informStateListener(CmdPetition *inf, std::string &s);
 
 
     /**

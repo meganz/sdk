@@ -1,6 +1,9 @@
+#include "megacmdshell.h"
 #include "megacmdshellcommunications.h"
 
 #include <iostream>
+
+#include <thread> //TODO: delete if using MegaThread
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -211,6 +214,101 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
     closeSocket(thesock);
     return outcode;
 }
+
+int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
+{
+    int newsockfd = createSocket(receiveSocket);
+
+    while (true)
+    {
+        if (newsockfd == INVALID_SOCKET)
+            return INVALID_SOCKET;
+
+        string newstate;
+
+        int BUFFERSIZE = 1024;
+        char buffer[1025];
+        int n = SOCKET_ERROR;
+        do{
+            n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
+            if (n)
+            {
+    #ifdef _WIN32
+                buffer[n]='\0';
+
+                // determine the required buffer size
+                size_t wbuffer_size;
+                mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
+
+                // do the actual conversion
+                wchar_t *wbuffer = new wchar_t[wbuffer_size];
+                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
+
+    //            wcout << wbuffer; //TODO: review windows version
+                newstate += buffer;
+                delete [] wbuffer;
+    #else
+                buffer[n]='\0';
+                newstate += buffer;
+    #endif
+            }
+        } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
+
+        if (n == SOCKET_ERROR)
+        {
+            cerr << "ERROR reading output: " << ERRNO << endl;
+            return -1;;
+        }
+//        cout << "received state change: " << newstate << endl;//TODO: delete
+
+        if (newstate.compare(0, 7, "prompt:") == 0)
+        {
+            changeprompt(newstate.substr(7).c_str(),true);
+        }
+
+    }
+
+    // TODO: deal with newsockfd cleanup upon exit (implement a way to quit the loop
+
+
+//    closeSocket(newsockfd);
+
+}
+
+int MegaCmdShellCommunications::registerForStateChanges()
+{
+    int thesock = createSocket(); //TODO: could this go into the class and created only in constructor?
+    if (thesock == INVALID_SOCKET)
+    {
+        return INVALID_SOCKET;
+    }
+
+    string command="registerstatelistener";
+    int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
+        return -1;;
+    }
+
+    int receiveSocket = SOCKET_ERROR ;
+
+    n = recv(thesock, (char *)&receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR reading output socket" << endl;
+        return -1;;
+    }
+
+
+    //TODO: consider using MegaThread (will require to copy the sources here)
+    std::thread *athread = new std::thread(listenToStateChanges,receiveSocket);
+    //TODO: athread join in destructor???
+
+    closeSocket(thesock);
+    return 0;
+}
+
 
 
 

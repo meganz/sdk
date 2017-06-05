@@ -334,6 +334,12 @@ int ComunicationsManagerPortSockets::waitForPetition()
     return 0;
 }
 
+void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
+{
+    LOG_debug << "Registering state listener petition with socket: " << ((CmdPetitionPortSockets *) inf)->outSocket;
+    ComunicationsManager::registerStateListener(inf);
+}
+
 /**
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
@@ -384,6 +390,11 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
     closeSocket(connectedsocket);
     closeSocket(((CmdPetitionPortSockets *)inf)->outSocket);
     delete inf;
+}
+
+int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, string &s)
+{
+    //TODO: implement
 }
 
 /**

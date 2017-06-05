@@ -51,7 +51,7 @@ enum
     MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
 };
 
-void changeprompt(const char *newprompt);
+void changeprompt(const char *newprompt, bool redisplay = false);
 
 //mega::MegaApi* getFreeApiFolder();
 //void freeApiFolder(mega::MegaApi *apiFolder);

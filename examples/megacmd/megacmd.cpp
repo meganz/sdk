@@ -306,6 +306,9 @@ void setprompt(prompttype p, string arg)
 void changeprompt(const char *newprompt)
 {
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+    string s = "prompt:";
+    s+=dynamicprompt;
+    cm->informStateListeners(s);
 }
 
 // readline callback - exit if EOF, add to history unless password
@@ -1957,8 +1960,6 @@ void executecommand(char* ptr)
     }
     if (words[0] == "completionshell")
     {
-        // TODO: rethink all this carefully for megacmdclient and probably keeping eveything escaped and use in both sides the 0x1F might be the best option
-
         if (words.size() < 3) words.push_back("");
         vector<string> wordstocomplete(words.begin()+1,words.end());
         setCurrentThreadLine(wordstocomplete);
@@ -1967,6 +1968,7 @@ void executecommand(char* ptr)
         return;
     }
 
+    words = getlistOfWords(ptr,true); //Get words again ignoring trailing spaces (only reasonable for completion)
 
     map<string, string> cloptions;
     map<string, int> clflags;
@@ -1986,7 +1988,7 @@ void executecommand(char* ptr)
     if (!validCommand(thecommand))   //unknown command
     {
         setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "      " << getUsageStr("unknwon");
+        LOG_err << "Command not found: " << thecommand;
         return;
     }
 
@@ -2421,14 +2423,28 @@ void megacmd()
 
                         delete_finished_threads();
 
-                        //append new one
-                        MegaThread * petitionThread = new MegaThread();
-                        petitionThreads.push_back(petitionThread);
-                        inf->setPetitionThread(petitionThread);
+                        // if state register petition
+                        if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
+                                !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
+                        {
+                            cm->registerStateListener(inf);
 
-                        LOG_debug << "starting processing: <" << *inf << ">";
+                            // communicate status info
+                            string s = "prompt:";
+                            s+=dynamicprompt;
+                            cm->informStateListener(inf,s);
+                        }
+                        else
+                        { // normal petition
+                            //append new one
+                            MegaThread * petitionThread = new MegaThread();
+                            petitionThreads.push_back(petitionThread);
+                            inf->setPetitionThread(petitionThread);
 
-                        petitionThread->start(doProcessLine, (void*)inf);
+                            LOG_debug << "starting processing: <" << *inf << ">";
+
+                            petitionThread->start(doProcessLine, (void*)inf);
+                        }
                     }
                 }
                 else

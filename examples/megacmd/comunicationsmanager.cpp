@@ -40,9 +40,6 @@ ComunicationsManager::ComunicationsManager()
 {
 }
 
-
-
-
 bool ComunicationsManager::receivedReadlineInput(int readline_fd)
 {
     return FD_ISSET(readline_fd, &fds);
@@ -51,6 +48,12 @@ bool ComunicationsManager::receivedReadlineInput(int readline_fd)
 bool ComunicationsManager::receivedPetition()
 {
     return false;
+}
+
+void ComunicationsManager::registerStateListener(CmdPetition *inf)
+{
+    stateListenersPetitions.push_back(inf);
+    return;
 }
 
 int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
@@ -79,11 +82,33 @@ int ComunicationsManager::waitForPetition()
     return 0;
 }
 
+void ComunicationsManager::informStateListeners(string &s)
+{
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        if (informStateListener((CmdPetition *)*it, s) <0)
+        {
+            delete *it;
+            it = stateListenersPetitions.erase(it);
+        }
+        else
+        {
+             ++it;
+        }
+    }
+}
+
+int ComunicationsManager::informStateListener(CmdPetition *inf, string &s)
+{
+    return 0;
+}
+
 void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     delete inf;
     return;
 }
+
 
 /**
  * @brief getPetition

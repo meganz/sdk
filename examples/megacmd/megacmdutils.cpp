@@ -599,7 +599,7 @@ std::string &rtrim(std::string &s, const char &c)
     return s;
 }
 
-vector<string> getlistOfWords(char *ptr)
+vector<string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces)
 {
     vector<string> words;
 
@@ -609,7 +609,7 @@ vector<string> getlistOfWords(char *ptr)
     for (;; )
     {
         // skip leading blank space
-        while (*ptr > 0 && *ptr <= ' ' && *(ptr+1) )
+        while (*ptr > 0 && *ptr <= ' ' && (ignoreTrailingSpaces || *(ptr+1)))
         {
             ptr++;
         }

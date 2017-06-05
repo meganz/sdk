@@ -426,6 +426,9 @@ string newpasswd;
 bool doExit = false;
 bool consoleFailed = false;
 
+bool handlerinstalled = false;
+
+
 static char dynamicprompt[128];
 
 static char* line;
@@ -554,10 +557,6 @@ void setprompt(prompttype p, string arg)
     }
 }
 
-void changeprompt(const char *newprompt)
-{
-    strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
-}
 
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
@@ -579,6 +578,27 @@ static void store_line(char* l)
     }
 
     line = l;
+}
+
+void changeprompt(const char *newprompt, bool redisplay)
+{
+    strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+
+    if (redisplay)
+    {
+        rl_crlf();
+//        rl_redisplay();
+//        rl_forced_update_display(); //this is not enough.  The problem is that the prompt is actually printed when calling rl_callback_handeler_install or after an enter
+        rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+        handlerinstalled = true;
+
+        //TODO: problems:
+        // - concurrency issues?
+        // - current command being written is lost here //play with save_line. Again, deal with concurrency
+        // - whenever I fix the hang when I was the one that triggered the state change. If I was in a new line and handler_install was already called none of this should be
+        //    required. But what if the external communication was faster or slower than me. Think and test
+
+    }
 }
 
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
@@ -2715,7 +2735,6 @@ void wait_for_input(int readline_fd)
     }
 }
 
-
 // main loop
 void megacmd()
 {
@@ -2730,26 +2749,37 @@ void megacmd()
         readline_fd = fileno(rl_instream);
     }
 
+    static bool firstloop = true;
+
+    comms->registerForStateChanges();
+    usleep(1000); //give it a while to communicate the state
+
     for (;; )
     {
         if (prompt == COMMAND)
         {
-
-            if (!consoleFailed)
+            if (!handlerinstalled || !firstloop)
             {
-                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
-            }
+                if (!consoleFailed)
+                {
+                    rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+                }
+                handlerinstalled = false;
 
-            // display prompt
-            if (saved_line)
-            {
-                rl_replace_line(saved_line, 0);
-                free(saved_line);
-            }
+                // display prompt
+                if (saved_line)
+                {
+                    rl_replace_line(saved_line, 0);
+                    free(saved_line);
+                }
 
-            rl_point = saved_point;
-            rl_redisplay();
+                rl_point = saved_point;
+                rl_redisplay();
+            }
         }
+
+        firstloop = false;
+
 
         // command editing loop - exits when a line is submitted
         for (;; )
@@ -3131,13 +3161,13 @@ int main(int argc, char* argv[])
 
     rl_char_is_quoted_p = &quote_detector;
 
+
     if (!runningInBackground())
     {
-        rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
+        rl_initialize(); // initializes readline,
         // so that we can use rl_message or rl_resize_terminal safely before ever
         // prompting anything.
     }
-
 
     printWelcomeMsg();
     if (consoleFailed)
