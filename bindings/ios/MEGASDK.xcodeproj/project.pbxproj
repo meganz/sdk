@@ -863,6 +863,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/3rdparty/lib",
 				);
+				OTHER_CFLAGS = "-DNDEBUG";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = MEGASDK;
 				SKIP_INSTALL = YES;

@@ -35,7 +35,7 @@
  * @brief This function is called when there are new or updated contacts in the account.
  *
  * @param api MEGASdk object connected to the account.
- * @param users List that contains the new or updated contacts.
+ * @param userList List that contains the new or updated contacts.
  */
 - (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList;
 
@@ -46,12 +46,12 @@
  * second parameter will be nil.
  *
  * @param api MEGASdk object connected to the account.
- * @param nodes List that contains the new or updated nodes.
+ * @param nodeList List that contains the new or updated nodes.
  */
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
 
 /**
- * @brief This function is called when the account has been updated (upgraded/downgraded)
+ * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
  * @param api MEGASdk object connected to the account
  */
 - (void)onAccountUpdate:(MEGASdk *)api;

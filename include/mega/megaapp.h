@@ -112,7 +112,7 @@ struct MEGA_API MegaApp
     virtual void updatepcr_result(error, ipcactions_t) { }
 
     // file attribute fetch result
-    virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
+    virtual void fa_complete(handle, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int, error)
     {
         return 0;

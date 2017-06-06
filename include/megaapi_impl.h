@@ -147,12 +147,14 @@ public:
     ExternalLogger();
     void setMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
+    void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
     virtual void log(const char *time, int loglevel, const char *source, const char *message);
 
 private:
     MegaMutex mutex;
     MegaLogger *megaLogger;
+    bool logToConsole;
 };
 
 class MegaTransferPrivate;
@@ -239,7 +241,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false);
@@ -264,6 +266,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
+        virtual std::string *getFileAttrString();
         virtual int getTag();
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
@@ -320,6 +323,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle parenthandle;
         std::string nodekey;
         std::string attrstring;
+        std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
         int tag;
@@ -1339,6 +1343,8 @@ class MegaApiImpl : public MegaApp
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
+        void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
@@ -1362,6 +1368,7 @@ class MegaApiImpl : public MegaApp
 #endif
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
+        static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
@@ -1846,7 +1853,7 @@ protected:
         void updatepcr_result(error, ipcactions_t);
 
         // file attribute fetch result
-        virtual void fa_complete(Node*, fatype, const char*, uint32_t);
+        virtual void fa_complete(handle, fatype, const char*, uint32_t);
         virtual int fa_failed(handle, fatype, int, error);
 
         // file attribute modification result

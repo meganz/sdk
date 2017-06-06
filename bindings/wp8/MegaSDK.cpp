@@ -691,9 +691,63 @@ void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name
 		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
 
 	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(email != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8name.c_str() : NULL,
+		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+		(name != nullptr) ? utf8name.c_str() : NULL,
 		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL);
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
 }
 
 void MegaSDK::querySignupLink(String^ link)

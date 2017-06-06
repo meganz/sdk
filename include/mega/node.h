@@ -130,6 +130,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // check presence of file attribute
     int hasfileattribute(fatype) const;
+    static int hasfileattribute(const string *fileattrstring, fatype);
 
     // decrypt node attribute string
     static byte* decryptattr(SymmCipher*, const char*, int);

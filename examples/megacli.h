@@ -115,6 +115,7 @@ struct DemoApp : public MegaApp
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();
+    void account_updated();
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error);
@@ -149,7 +150,7 @@ struct DemoApp : public MegaApp
     void setpcr_result(handle, error, opcactions_t);
     void updatepcr_result(error, ipcactions_t);
 
-    void fa_complete(Node*, fatype, const char*, uint32_t);
+    void fa_complete(handle, fatype, const char*, uint32_t);
     int fa_failed(handle, fatype, int, error);
 
     void putfa_result(handle, fatype, error);

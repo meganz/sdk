@@ -261,6 +261,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 #endif
 
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        if (lastError[apiIndex] == API_OK)
+        {
+            sid = request->getSessionKey();
+        }
+        break;
+
     }
 }
 
@@ -286,6 +293,27 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
 
     if (lastError[apiIndex] == MegaError::API_OK)
         h = transfer->getNodeHandle();
+}
+
+
+void SdkTest::onAccountUpdate(MegaApi* api)
+{
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
+    accountUpdated[apiIndex] = true;
 }
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
@@ -803,17 +831,47 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
  * @brief TEST_F SdkTestCreateAccount
  *
  * It tests the creation of a new account for a random user.
+ *  - Create account and send confirmation link
+ *  - Logout and resume the create-account process
+ *  - Send the confirmation link to a different email address
+ *  - Wait for confirmation of account by a different client
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    string email1 = "user@domain.com";
+    string pwd = "pwd";
+    string email2 = "other-user@domain.com";
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
+    // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount(email1.c_str(), pwd.c_str(), "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
-
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Logout from ephemeral session and resume session
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
+    requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
+    megaApi[0]->resumeCreateAccount(sid.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
+            << "Account creation has failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Send the confirmation link to a different email address
+    requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
+    megaApi[0]->sendSignupLink(email2.c_str(), "MyFirstname", pwd.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
+            << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Send confirmation link to another email address failed (error: " << lastError[0] << ")";
+
+    // Now, confirm the account by using a different client...
+
+    // ...and wait for the AP notifying the confirmation
+    bool *flag = &accountUpdated[0]; *flag = false;
+    ASSERT_TRUE( waitForResponse(flag) )
+            << "Account confirmation not received after " << maxTimeout << " seconds";
 }
 
 /**
