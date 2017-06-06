@@ -5463,8 +5463,8 @@ class MegaApi
         /**
          * @brief Set the active log level
          *
-         * This function sets the log level of the logging system. If you set a log listener using
-         * MegaApi::setLoggerObject, you will receive logs with the same or a lower level than
+         * This function sets the log level of the logging system. Any log listener registered by
+         * MegaApi::addLoggerObject will receive logs with the same or a lower level than
          * the one passed to this function.
          *
          * @param logLevel Active log level
@@ -5485,24 +5485,34 @@ class MegaApi
          * This function allows to set whether the log messages should be printed in the
          * console in the absence of a dedicated logger set by MegaApi::setLoggerObject.
          *
-         * By default, log to console is enabled.
+         * By default, log to console is false.
          *
          * @param enable True to show messages in console, false to skip them.
          */
         static void setLogToConsole(bool enable);
 
         /**
-         * @brief Set a MegaLogger implementation to receive SDK logs
+         * @brief Add a MegaLogger implementation to receive SDK logs
          *
          * Logs received by this objects depends on the active log level.
          * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
          * using MegaApi::setLogLevel.
          *
-         * You can remove the existing logger by passing NULL to this function.
+         * You can remove the existing logger by using MegaApi::removeLoggerObject.
          *
          * @param megaLogger MegaLogger implementation
          */
-        static void setLoggerObject(MegaLogger *megaLogger);
+        static void addLoggerObject(MegaLogger *megaLogger);
+
+        /**
+         * @brief Remove a MegaLogger implementation to stop receiving SDK logs
+         *
+         * If the logger was registered in the past, it will stop receiving log
+         * messages after the call to this function.
+         *
+         * @param megaLogger Previously registered MegaLogger implementation
+         */
+        static void removeLoggerObject(MegaLogger *megaLogger);
 
         /**
          * @brief Send a log to the logging system
