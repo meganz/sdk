@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmdutils.cpp
- * @brief MegaCMD: Auxiliary methods
+ * @brief MEGAcmd: Auxiliary methods
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
