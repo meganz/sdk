@@ -15116,7 +15116,7 @@ ExternalLogger::ExternalLogger()
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
-    if (logger)
+    if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
