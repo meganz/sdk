@@ -33,6 +33,8 @@ enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 
 SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line)
 {
+    this->level = ll;
+
     ostr << "[" << getTime() << "] ";
     ostr << "[" << toStr(ll) << "] ";
     ostr << filename << ":" << line << " ";
