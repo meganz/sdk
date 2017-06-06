@@ -159,6 +159,16 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
     }
 }
 
+void DelegateMEGAListener::onAccountUpdate(mega::MegaApi *api) {
+    MEGASdk *tempMegaSDK = this->megaSDK;
+    id<MEGADelegate> tempListener = this->listener;
+    if (listener !=nil && [listener respondsToSelector:@selector(onAccountUpdate:)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onAccountUpdate:tempMegaSDK];
+        });
+    }
+}
+
 void DelegateMEGAListener::onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList) {
     if (listener != nil && [listener respondsToSelector:@selector(onContactRequestsUpdate:contactRequestList:)]) {
         MegaContactRequestList *tempContactRequestList = NULL;

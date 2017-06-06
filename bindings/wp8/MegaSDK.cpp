@@ -691,9 +691,63 @@ void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name
 		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
 
 	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(email != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8name.c_str() : NULL,
+		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+		(name != nullptr) ? utf8name.c_str() : NULL,
 		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL);
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
 }
 
 void MegaSDK::querySignupLink(String^ link)
@@ -2687,6 +2741,11 @@ bool MegaSDK::isWaiting()
     return megaApi->isWaiting();
 }
 
+bool MegaSDK::areServersBusy()
+{
+    return megaApi->areServersBusy();
+}
+
 int MegaSDK::getNumPendingUploads()
 {
 	return megaApi->getNumPendingUploads();
@@ -2722,6 +2781,11 @@ void MegaSDK::updateStats()
     megaApi->updateStats();
 }
 
+uint64 MegaSDK::getNumNodes()
+{
+    return megaApi->getNumNodes();
+}
+
 uint64 MegaSDK::getTotalDownloadedBytes()
 {
     return megaApi->getTotalDownloadedBytes();
@@ -2730,6 +2794,16 @@ uint64 MegaSDK::getTotalDownloadedBytes()
 uint64 MegaSDK::getTotalUploadedBytes()
 {
     return megaApi->getTotalUploadedBytes();
+}
+
+uint64 MegaSDK::getTotalDownloadBytes()
+{
+    return megaApi->getTotalDownloadBytes();
+}
+
+uint64 MegaSDK::getTotalUploadBytes()
+{
+    return megaApi->getTotalUploadBytes();
 }
 
 int MegaSDK::getNumChildren(MNode^ parent)
@@ -2755,6 +2829,11 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent, int order)
 MNodeList^ MegaSDK::getChildren(MNode^ parent)
 {
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
+bool MegaSDK::hasChildren(MNode^ parent)
+{
+    return megaApi->hasChildren((parent != nullptr) ? parent->getCPtr() : NULL);
 }
 
 int MegaSDK::getIndex(MNode^ node, int order)
@@ -3227,6 +3306,33 @@ bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
 MNode^ MegaSDK::authorizeNode(MNode^ node)
 {
     return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);
+}
+
+void MegaSDK::changeApiUrl(String^ apiURL, bool disablepkp)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, disablepkp);
+}
+
+void MegaSDK::changeApiUrl(String^ apiURL)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, false);
+}
+
+bool MegaSDK::setLanguage(String^ languageCode)
+{
+    std::string utf8languageCode;
+    if (languageCode != nullptr)
+        MegaApi::utf16ToUtf8(languageCode->Data(), languageCode->Length(), &utf8languageCode);
+
+    return megaApi->setLanguage((languageCode != nullptr) ? utf8languageCode.c_str() : NULL);
 }
 
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)

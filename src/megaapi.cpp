@@ -394,6 +394,11 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
+string *MegaNode::getFileAttrString()
+{
+    return NULL;
+}
+
 string *MegaNode::getPrivateAuth()
 {
     return NULL;
@@ -412,6 +417,25 @@ string *MegaNode::getPublicAuth()
 MegaNodeList *MegaNode::getChildren()
 {
     return NULL;
+}
+
+char *MegaNode::serialize()
+{
+    return NULL;
+}
+
+MegaNode *MegaNode::unserialize(const char *d)
+{
+    if (!d)
+    {
+        return NULL;
+    }
+
+    string data;
+    data.resize(strlen(d) * 3 / 4 + 3);
+    data.resize(Base64::atob(d, (byte*)data.data(), data.size()));
+
+    return MegaNodePrivate::unserialize(&data);
 }
 
 #ifdef ENABLE_SYNC
@@ -1313,6 +1337,11 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
+void MegaApi::setLogToConsole(bool enable)
+{
+    MegaApiImpl::setLogToConsole(enable);
+}
+
 void MegaApi::setLoggerObject(MegaLogger *megaLogger)
 {
     MegaApiImpl::setLoggerClass(megaLogger);
@@ -1455,9 +1484,19 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
     pImpl->createAccount(email, password, firstname, lastname, listener);
 }
 
+void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
+{
+    pImpl->resumeCreateAccount(sid, listener);
+}
+
 void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
 {
     pImpl->fastCreateAccount(email, base64pwkey, name, listener);
+}
+
+void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
+{
+    pImpl->sendSignupLink(email, name, password, listener);
 }
 
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)

@@ -344,7 +344,7 @@ public:
     void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
-    error getfa(Node*, fatype, int = 0);
+    error getfa(handle h, string *fileattrstring, string *nodekey, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
@@ -654,6 +654,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
 #endif
+    bool sc_uac();
 
     void init();
 

@@ -1,10 +1,10 @@
-# MEGACMD - Command Line Interactive and Scriptable Application
+# MEGAcmd - Command Line Interactive and Scriptable Application
 
-MegaCMD provides non UI access to MEGA services. It intends to offer all the 
+MEGAcmd provides non UI access to MEGA services. It intends to offer all the 
 functionality with your MEGA account via commands. 
 
 Available packages for MEGAcmd in all supported platforms should be found 
-[here](https://mega.nz/#megacmd). 
+[here](https://mega.nz/cmd). 
 
 It features 2 modes of interaction: 
 
@@ -19,7 +19,7 @@ this application will act as a server. That is, it will be listening to petition
 from the client commands. 
 
 # Building MEGAcmd
-If you wish to build megacmd using this repository, here are a list of 
+If you wish to build MEGAcmd using this repository, here are a list of 
 requirements and building instructions.
 
 ## Requirements
@@ -34,7 +34,7 @@ libreadline-dev libpcre++-dev libsodium-dev`
 
 ## Building and installing
 
-For platforms with Autotools, MegaCMD is included in the generic compilation 
+For platforms with Autotools, MEGAcmd is included in the generic compilation 
 of the sdk. To build and install:
 
     sh autogen.sh
@@ -44,7 +44,7 @@ of the sdk. To build and install:
     
 * You will need to run `make install` as root
 
-* To disable megacmd use `configure` with `--disable-megacmd`
+* To disable MEGAcmd use `configure` with `--disable-megacmd`
 
 `Note`: if you use a prefix in configure, autocompletion from non-interactive usage
 won't work. You would need to `source /YOUR/PREFIX/etc/bash_completion.d/megacmd_completion.sh` 
@@ -53,8 +53,8 @@ won't work. You would need to `source /YOUR/PREFIX/etc/bash_completion.d/megacmd
 ## Usage
 
 Before explaining the two ways of interaction, it is important to understand how 
-MegaCMD works. When you login with MegaCMD, your session, the list of synced folders,
-and some cache database are stored in your local home folder. MegaCMD also stores
+MEGAcmd works. When you login with MEGAcmd, your session, the list of synced folders,
+and some cache database are stored in your local home folder. MEGAcmd also stores
 some other configuration in that folder. Closing it does not delete those and 
 restarting your computer will restore your previous session (the same as megasync 
 won't ask for user/password once you restart your computer). 
@@ -89,7 +89,7 @@ Ideally, you would like to have these commands in your PATH
 #Platforms
 
 ## Linux
-If you install using one of the available packages at [here](https://mega.nz/#megacmd), 
+If you install using one of the available packages at [here](https://mega.nz/cmd), 
 or have it built without `--prefix`, both the server (`mega-cmd`) and 
 the different client commands (`mega-*`) will be in your PATH 
 (you might need to open your shell again). If you are using bash, 
@@ -134,7 +134,7 @@ source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh
 
 ## Autocompletion:
 
-MegaCMD features autocompletion in both interactive and non-interactive 
+MEGAcmd features autocompletion in both interactive and non-interactive 
 (only for bash) mode. It will help completing both local and remote (Mega Cloud) 
 files, flags for commands, values for flags/access levels, even contacts.  
 
@@ -142,14 +142,14 @@ files, flags for commands, values for flags/access levels, even contacts.
 
 There are two different kinds of logging messages:
 - SDK based: those messages reported by the sdk and dependent libraries.
-- MegaCMD based: those messages reported by MegaCMD itself.
+- MEGAcmd based: those messages reported by MEGAcmd itself.
 
 You can adjust the level of logging for those kinds with `log` command.
 However, for non interactive commands, passing `-v` (`-vv`, `-vvv`, and so on 
 for a more verbose output) will use higher level of verbosity to an specific command.
 
 ## Regular Expressions
-If you have compiled MegaCMD with PCRE (enabled by default), 
+If you have compiled MEGAcmd with PCRE (enabled by default), 
 you can use PCRE compatible expressions. Otherwise, if compiled with c++11, 
 c++11 regular expressions will be used. If non of the above is the case, 
 you can only use "*" for any number of characters or "?" for a single unknown character.
@@ -161,7 +161,7 @@ Options:
  --pattern=PATTERN	Pattern to match (Perl Compatible Regular Expressions)
 ```
 
-Notice: if you use MegaCMD in non interactive mode, notice that shell pattern will 
+Notice: if you use MEGAcmd in non interactive mode, notice that shell pattern will 
 take precedence. You will need to either escape symbols like `*` (`\*`) 
 or surround them between quotes (e.g: "*.txt")
 

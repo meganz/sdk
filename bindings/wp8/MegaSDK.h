@@ -174,6 +174,10 @@ namespace mega
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
+        void resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener);
+        void resumeCreateAccount(String^ sid);
+        void sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener);
+        void sendSignupLink(String^ email, String^ name, String^ password);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
         void querySignupLink(String^ link);
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
@@ -421,6 +425,7 @@ namespace mega
         MTransferList^ getChildTransfers(int transferTag);
         
         bool isWaiting();
+        bool areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -430,8 +435,11 @@ namespace mega
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        uint64 getNumNodes();
         uint64 getTotalDownloadedBytes();
         uint64 getTotalUploadedBytes();
+        uint64 getTotalDownloadBytes();
+        uint64 getTotalUploadBytes();
         
         //Filesystem
         int getNumChildren(MNode^ parent);
@@ -439,6 +447,7 @@ namespace mega
         int getNumChildFolders(MNode^ parent);
         MNodeList^ getChildren(MNode^ parent, int order);
         MNodeList^ getChildren(MNode^ parent);
+        bool hasChildren(MNode^ parent);
         int getIndex(MNode^ node, int order);
         int getIndex(MNode^ node);
         MNode^ getChildNode(MNode^ parent, String^ name);
@@ -511,6 +520,10 @@ namespace mega
 
         MNode^ authorizeNode(MNode^ node);
         
+        void changeApiUrl(String^ apiURL, bool disablepkp);
+        void changeApiUrl(String^ apiURL);
+        bool setLanguage(String^ languageCode);
+
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);
 

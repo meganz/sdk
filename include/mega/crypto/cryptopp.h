@@ -359,14 +359,13 @@ public:
     void serializekey(string* d, int keytype);
 
     /**
-     * @brief Serialize key for compatibility with the webclient.
+     * @brief Serialize public key for compatibility with the webclient.
      *
      * @param d String to take the serialized key without size-headers
-     * @param keytype Key type indication by number of integers for key type
-     *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
+     * @param fixedSize Boolean to indicate if PUB_E size is forced to 4 bytes
      * @return Void.
      */
-    void serializekeyforjs(string* d, int keytype);
+    void serializekeyforjs(string& d, bool fixedSize = false);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
