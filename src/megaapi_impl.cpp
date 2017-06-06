@@ -15125,14 +15125,6 @@ ExternalLogger::ExternalLogger()
 	this->megaLogger = NULL;
     this->logToConsole = true;
 	SimpleLogger::setOutputClass(this);
-
-    //Initialize outputSettings map
-    SimpleLogger::outputSettings[(LogLevel)logFatal];
-    SimpleLogger::outputSettings[(LogLevel)logError];
-    SimpleLogger::outputSettings[(LogLevel)logWarning];
-    SimpleLogger::outputSettings[(LogLevel)logInfo];
-    SimpleLogger::outputSettings[(LogLevel)logDebug];
-    SimpleLogger::outputSettings[(LogLevel)logMax];
 }
 
 void ExternalLogger::setMegaLogger(MegaLogger *logger)
