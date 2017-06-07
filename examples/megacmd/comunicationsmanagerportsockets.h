@@ -83,6 +83,8 @@ public:
     int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
 
+    virtual void stopWaiting();
+
     void registerStateListener(CmdPetition *inf);
 
     /**

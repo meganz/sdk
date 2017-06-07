@@ -202,6 +202,17 @@ int ComunicationsManagerFileSockets::waitForPetition()
     return 0;
 }
 
+void ComunicationsManagerFileSockets::stopWaiting()
+{
+#ifdef _WIN32
+    //TODO: implement for windows
+#else
+    shutdown(sockfd,SHUT_RDWR);
+#endif
+
+}
+
+
 void ComunicationsManagerFileSockets::registerStateListener(CmdPetition *inf)
 {
     LOG_debug << "Registering state listener petition with socket: " << ((CmdPetitionPosixSockets *) inf)->outSocket;
@@ -234,7 +245,7 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, O
     {
         LOG_err << "ERROR writing output Code to socket: " << errno;
     }
-    n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+    n = send(connectedsocket, sout.data(), max(1,(int)sout.size()), MSG_NOSIGNAL); // for some reason without the max recv never quits in the client for empty responses
     if (n < 0)
     {
         LOG_err << "ERROR writing to socket: " << errno;

@@ -5,11 +5,24 @@
 
 #include <thread> //TODO: delete if using MegaThread
 
+#include <fcntl.h>
+
+#include <sstream>
+
+#ifdef _WIN32
+#include <shlobj.h> //SHGetFolderPath
+#include <Shlwapi.h> //PathAppend
+#else
+#include <pwd.h>  //getpwuid_r
+#endif
+
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
 #endif
 
 using namespace std;
+
+bool MegaCmdShellCommunications::serverinitiatedfromshell;
 
 bool MegaCmdShellCommunications::socketValid(int socket)
 {
@@ -26,6 +39,59 @@ void MegaCmdShellCommunications::closeSocket(int socket){
 #else
     close(socket);
 #endif
+}
+
+
+string createAndRetrieveConfigFolder()
+{
+    string configFolder;
+
+#ifdef _WIN32
+
+   TCHAR szPath[MAX_PATH];
+    if (!SUCCEEDED(GetModuleFileName(NULL, szPath , MAX_PATH)))
+    {
+        LOG_fatal << "Couldnt get EXECUTABLE folder";
+    }
+    else
+    {
+        if (SUCCEEDED(PathRemoveFileSpec(szPath)))
+        {
+            if (PathAppend(szPath,TEXT(".megaCmd")))
+            {
+                MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+            }
+        }
+    }
+#else
+    const char *homedir = NULL;
+
+    homedir = getenv("HOME");
+    if (!homedir)
+    {
+        struct passwd pd;
+        struct passwd* pwdptr = &pd;
+        struct passwd* tempPwdPtr;
+        char pwdbuffer[200];
+        int pwdlinelen = sizeof( pwdbuffer );
+
+        if (( getpwuid_r(22, pwdptr, pwdbuffer, pwdlinelen, &tempPwdPtr)) != 0)
+        {
+            cerr << "Couldnt get HOME folder" << endl;
+            return "/tmp";
+        }
+        else
+        {
+            homedir = pwdptr->pw_dir;
+        }
+    }
+    stringstream sconfigDir;
+    sconfigDir << homedir << "/" << ".megaCmd";
+    configFolder = sconfigDir.str();
+#endif
+
+    return configFolder;
+
 }
 
 //TODO: clients concurrency? (I believe it to be ok, should be think through twice)
@@ -96,18 +162,80 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
         addr.sun_family = AF_UNIX;
         strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
 
+
         if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
         {
-            cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
             if (!number)
             {
-#ifdef __linux__
-                cerr << "Please ensure mega-cmd is running" << endl;
+                //launch server
+                #ifdef _WIN32
+                        //TODO: implement this
+                #else
+//                if (fork()) //fork() -> child is megacmdshell (debug megacmd server)
+                if (!fork()) //!fork -> child is server. (debug megacmdshell)
+                {
+                    string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
+                    sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
+                    OUTSTREAM << "Server not running. Initiating in the background." << endl;
+                    OUTSTREAM << " The output will logged to " << pathtolog << endl;
+
+                    close(0); //close stdin
+                    dup2(1, 2);  //redirects stderr to stdout below this line.
+                    freopen(pathtolog.c_str(),"w",stdout);
+
+#ifndef NDEBUG //TODO: I fear this might not work via autotools
+                    const char executable[] = "../MEGAcmdServer/MEGAcmd";
 #else
-                cerr << "Please ensure MegaCMD is running" << endl;
+                    const char executable[] = "mega-cmd"; //TODO: if changed to mega-cmd-server (and kept mega-cmd for the interactive shell, change it here)
 #endif
+                    char * args[] = {""};
+
+                    int ret = execvp(executable,args);
+                    if (ret)
+                    {
+                        if (errno == 2 )
+                        {
+                            cerr << "Couln't initiate MEGAcmd server: executable not found: " << executable << endl;
+
+                        }
+                        else
+                        {
+                            cerr << "MEGAcmd server exit with code " << ret << " . errno = " << errno << endl;
+                        }
+                    }
+                    exit(0);
+                }
+
+                #endif
+
+                //try again:
+                int attempts = 12;
+                int waitimet = 1500;
+                while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
+                {
+#if _WIN32
+                    Sleep(waittime/1000);
+#else
+                    usleep(waitimet);
+#endif
+                    waitimet=waitimet*2;
+                }
+                if (attempts<0)
+                {
+
+                    cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
+#ifdef __linux__
+                    cerr << "Please ensure mega-cmd is running" << endl;
+#else
+                    cerr << "Please ensure MegaCMD is running" << endl;
+#endif
+                    return INVALID_SOCKET;
+                }
+                else
+                {
+                    serverinitiatedfromshell = true;
+                }
             }
-            return INVALID_SOCKET;
         }
 
         return thesock;
@@ -138,6 +266,8 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
     }
 #endif
 
+    serverinitiatedfromshell = false;
+
 }
 
 int MegaCmdShellCommunications::executeCommand(string command, std::ostream &output)
@@ -153,7 +283,7 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
-        return -1;;
+        return -1;
     }
 
     int receiveSocket = SOCKET_ERROR ;
@@ -162,7 +292,7 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output socket" << endl;
-        return -1;;
+        return -1;
     }
 
     int newsockfd =createSocket(receiveSocket);

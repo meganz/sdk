@@ -82,6 +82,11 @@ int ComunicationsManager::waitForPetition()
     return 0;
 }
 
+
+void ComunicationsManager::stopWaiting()
+{
+}
+
 void ComunicationsManager::informStateListeners(string &s)
 {
     for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)

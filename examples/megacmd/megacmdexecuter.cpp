@@ -1748,19 +1748,28 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
         {
             OUTSTREAM << "\tAvailable storage: " << details->getStorageMax() << " byte(s)" << endl;
             MegaNode *n = api->getRootNode();
-            OUTSTREAM << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
             n = api->getInboxNode();
-            OUTSTREAM << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
             n = api->getRubbishNode();
-            OUTSTREAM << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
 
             MegaNodeList *inshares = api->getInShares();

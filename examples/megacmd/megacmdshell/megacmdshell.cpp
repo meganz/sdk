@@ -428,7 +428,6 @@ bool consoleFailed = false;
 
 bool handlerinstalled = false;
 
-
 static char dynamicprompt[128];
 
 static char* line;
@@ -566,6 +565,10 @@ static void store_line(char* l)
 #ifndef _WIN32 // to prevent exit with Supr key
         doExit = true;
         rl_set_prompt("(CTRL+D) Exiting ...\n");
+        if (comms->serverinitiatedfromshell)
+        {
+            comms->executeCommand("exit");
+        }
 #endif
         return;
     }
@@ -2822,10 +2825,11 @@ void megacmd()
             if (strlen(line))
             {
                 // execute user command
-    //            doExit = doExit || process_line(line); //TODO: this should be asked via socket and keep printing the output in the meanwhile
                 comms->executeCommand(line);
-                // TODO: handle exit
-                //doExit = doExit;
+                if (!strcmp(line,"exit") || !strcmp(line,"quit"))
+                {
+                    doExit = true;
+                }
             }
             free(line);
             line = NULL;

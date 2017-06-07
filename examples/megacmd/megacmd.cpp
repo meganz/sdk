@@ -2275,9 +2275,10 @@ void * doProcessLine(void *pointer)
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
     semaphoreClients.release();
-    if (doExit)
+
+    if (doExit && (!interactiveThread() || getCurrentThreadIsCmdShell() ))
     {
-        exit(0);
+        cm->stopWaiting();
     }
 
     mutexEndedPetitionThreads.lock();
@@ -2328,8 +2329,10 @@ void finalize()
     {
         delete console;
     }
+
     delete megaCmdMegaListener;
     delete api;
+
     while (!apiFolders.empty())
     {
         delete apiFolders.front();
@@ -2403,17 +2406,24 @@ void megacmd()
                         cm->waitForPetitionOrReadlineInput(readline_fd);
                     }
                     api->retryPendingConnections();
+                    if (doExit)
+                    {
+                        LOG_verbose << "closing after wait ..." ;
+                        return;
+                    }
 
                     if (!consoleFailed && cm->receivedReadlineInput(readline_fd))
                     {
                         rl_callback_read_char();
                         if (doExit)
                         {
+                            LOG_verbose << "closing ..." ;
                             return;
                         }
                     }
                     else if (cm->receivedPetition())
                     {
+
                         semaphoreClients.wait();
                         LOG_verbose << "Client connected ";
 

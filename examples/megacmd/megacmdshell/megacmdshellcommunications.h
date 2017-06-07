@@ -45,7 +45,7 @@ public:
 
     int registerForStateChanges();
 
-
+    static bool serverinitiatedfromshell;
 
 private:
     static bool socketValid(int socket);

@@ -334,6 +334,11 @@ int ComunicationsManagerPortSockets::waitForPetition()
     return 0;
 }
 
+void ComunicationsManagerPortSockets::stopWaiting()
+{
+    //TODO: implement
+}
+
 void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
 {
     LOG_debug << "Registering state listener petition with socket: " << ((CmdPetitionPortSockets *) inf)->outSocket;
@@ -380,7 +385,7 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
 
    n = send(connectedsocket, buffer, buffer_size, MSG_NOSIGNAL);
 #else
-   n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+   n = send(connectedsocket, sout.data(), max(1,(int)sout.size()), MSG_NOSIGNAL); //TODO: test this max and do it for windows
 #endif
 
     if (n == SOCKET_ERROR)

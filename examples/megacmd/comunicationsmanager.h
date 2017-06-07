@@ -76,6 +76,8 @@ public:
     virtual int waitForPetitionOrReadlineInput(int readline_fd);
     virtual int waitForPetition();
 
+    virtual void stopWaiting();
+
     /**
      * @brief returnAndClosePetition
      * It will clean struct and close the socket within
