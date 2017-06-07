@@ -1960,10 +1960,29 @@ void executecommand(char* ptr)
     }
     if (words[0] == "completionshell")
     {
-        if (words.size() < 3) words.push_back("");
-        vector<string> wordstocomplete(words.begin()+1,words.end());
-        setCurrentThreadLine(wordstocomplete);
-        OUTSTREAM << getListOfCompletionValues(wordstocomplete,(char)0x1F, false);
+        if (words.size() == 2)
+        {
+            vector<string> validCommandsOrdered = validCommands;
+            sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
+            for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+            {
+                if (validCommandsOrdered.at(i)!="completion")
+                {
+                    OUTSTREAM << validCommandsOrdered.at(i);
+                    if (i != validCommandsOrdered.size() -1)
+                    {
+                        OUTSTREAM << (char)0x1F;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (words.size() < 3) words.push_back("");
+            vector<string> wordstocomplete(words.begin()+1,words.end());
+            setCurrentThreadLine(wordstocomplete);
+            OUTSTREAM << getListOfCompletionValues(wordstocomplete,(char)0x1F, false);
+        }
 
         return;
     }
