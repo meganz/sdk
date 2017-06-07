@@ -1301,6 +1301,11 @@ inline bool ends_with(std::string const & value, std::string const & ending)
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+char* local_completion(const char* text, int state)
+{
+    return((char*)NULL );  //matches will be NULL: readline will use local completion
+}
+
 char* remote_completion(const char* text, int state)
 {
 
@@ -1312,7 +1317,6 @@ char* remote_completion(const char* text, int state)
         validOptions.clear();
         string completioncommand("completionshell ");
         completioncommand+=saved_line;
-//        if (ends_with(completioncommand))
 
         string s;
         ostringstream oss(s);
@@ -1320,8 +1324,10 @@ char* remote_completion(const char* text, int state)
         comms->executeCommand(completioncommand,oss);
 
         string outputcommand = oss.str();
-//        cout << "OUTPUT completion values: " << outputcommand << endl; //TODO: delete
-
+        if (outputcommand == "MEGACMD_USE_LOCAL_COMPLETION")
+        {
+            return local_completion(text,state); //fallback to local path completion
+        }
 
         char *ptr = (char *)outputcommand.c_str();
         char *beginopt = ptr;
@@ -1330,13 +1336,6 @@ char* remote_completion(const char* text, int state)
             if (*ptr == 0x1F)
             {
                 *ptr = '\0';
-//                string topush;
-//                if (strncmp(text,beginopt,strlen(text))) //not begins with text
-//                {
-//                    topush+=text;
-//                }
-//                topush+=beginopt;
-//                validOptions.push_back(topush);
                 validOptions.push_back(beginopt);
 
                 beginopt=ptr+1;
@@ -1345,29 +1344,13 @@ char* remote_completion(const char* text, int state)
         }
         if (*beginopt)
         {
-//            string topush;
-//            if (strncmp(text,beginopt,strlen(text))) //not begins with text
-//            {
-//                topush+=text;
-//            }
-//            topush+=beginopt;
-//            validOptions.push_back(topush);
             validOptions.push_back(beginopt);
-
         }
     }
-
-//    cout << "completion values: " << oss.str() << endl; //TODO: delete
-
 
     free(saved_line);
 
     return generic_completion(text, state, validOptions);
-}
-
-char* local_completion(const char* text, int state)
-{
-    return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
 static char** getCompletionMatches(const char * text, int start, int end)
