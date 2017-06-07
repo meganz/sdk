@@ -6,7 +6,7 @@
 #include <Foundation/Foundation.h>
 #endif
 
-#include "megaapi.h"
+#include "mega.h"
 
 using namespace mega;
 using namespace std;
@@ -31,7 +31,7 @@ void path2localMac(string* path, string* local)
     }
     @catch (NSException *e)
     {
-         MegaApi::log(MegaApi::LOG_LEVEL_ERROR, "Failed getting file system representation (APFS filesystem)");
+         LOG_err << "Failed getting file system representation (APFS filesystem)";
          local->clear();
          return;
     }
