@@ -1363,7 +1363,6 @@ static char** getCompletionMatches(const char * text, int start, int end)
 
     if (start == 0)
     {
-//        matches = rl_completion_matches((char*)text, &commands_completion); //TODO: this should be queried to the server
         if (matches == NULL)
         {
             matches = rl_completion_matches((char*)text, &empty_completion);
@@ -1371,59 +1370,11 @@ static char** getCompletionMatches(const char * text, int start, int end)
     }
     else
     {
-        matches = rl_completion_matches((char*)text, remote_completion); //TODO: this should be queried to the server
+        matches = rl_completion_matches((char*)text, remote_completion);
 
     }
     return( matches );
 }
-
-//string getListOfCompletionValues(vector<string> words)
-//{
-//    string completionValues;
-//    rl_compentry_func_t * compfunction = getCompletionFunction(words);
-//    if (compfunction == local_completion)
-//    {
-//        return "MEGACMD_USE_LOCAL_COMPLETION";
-//    }
-//    int state=0;
-//    if (words.size()>1)
-//    while (true)
-//    {
-//        char *newval;
-//        string &lastword = words[words.size()-1];
-//        if (lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
-//        {
-//            newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
-//        }
-//        else
-//        {
-//            newval = compfunction(lastword.c_str(), state);
-//        }
-
-//        if (!newval) break;
-//        if (completionValues.size())
-//        {
-//            completionValues+=" ";
-//        }
-
-//        if (strstr(newval," "))
-//        {
-//            completionValues+="\"";
-//            completionValues+=newval;
-//            completionValues+="\"";
-//        }
-//        else
-//        {
-//            completionValues+=newval;
-//        }
-//        free(newval);
-
-//        state++;
-//    }
-//    return completionValues;
-//}
-
-
 
 void printHistory()
 {
@@ -1442,29 +1393,9 @@ void printHistory()
         history_set_pos(i);
         OUTSTREAM << setw(offset) << i << "  " << current_history()->line << endl;
     }
-
 //    mutexHistory.unlock();
 }
 
-//MegaApi* getFreeApiFolder()
-//{
-//    semaphoreapiFolders.wait();
-//    mutexapiFolders.lock();
-//    MegaApi* toret = apiFolders.front();
-//    apiFolders.pop();
-//    occupiedapiFolders.push_back(toret);
-//    mutexapiFolders.unlock();
-//    return toret;
-//}
-
-//void freeApiFolder(MegaApi *apiFolder)
-//{
-//    mutexapiFolders.lock();
-//    occupiedapiFolders.erase(std::remove(occupiedapiFolders.begin(), occupiedapiFolders.end(), apiFolder), occupiedapiFolders.end());
-//    apiFolders.push(apiFolder);
-//    semaphoreapiFolders.release();
-//    mutexapiFolders.unlock();
-//}
 
 const char * getUsageStr(const char *command)
 {

@@ -14,6 +14,7 @@
 #include <Shlwapi.h> //PathAppend
 #else
 #include <pwd.h>  //getpwuid_r
+#include <signal.h>
 #endif
 
 #ifndef INVALID_SOCKET
@@ -174,6 +175,8 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 //                if (fork()) //fork() -> child is megacmdshell (debug megacmd server)
                 if (!fork()) //!fork -> child is server. (debug megacmdshell)
                 {
+                    signal(SIGINT, SIG_IGN); //ignore Ctrl+C in the server
+
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
                     sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
                     OUTSTREAM << "Server not running. Initiating in the background." << endl;
