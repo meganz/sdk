@@ -993,15 +993,17 @@ void CommandPutNodes::procresult()
             return client->putnodes_sync_result(e, nn, nnsize);
         }
         else
+        {
 #endif
         if (source == PUTNODES_APP)
         {
             return client->app->putnodes_result(e, type, nn);
         }
 #ifdef ENABLE_SYNC
-        else
-        {
-            return client->putnodes_syncdebris_result(e, nn);
+            else
+            {
+                return client->putnodes_syncdebris_result(e, nn);
+            }
         }
 #endif
     }

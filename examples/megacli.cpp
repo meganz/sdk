@@ -139,6 +139,8 @@ const char* errorstring(error e)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         default:
             return "Unknown error";
     }
