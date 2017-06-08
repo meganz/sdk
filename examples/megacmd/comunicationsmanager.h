@@ -78,6 +78,8 @@ public:
 
     virtual void stopWaiting();
 
+    virtual int get_next_comm_id();
+
     /**
      * @brief returnAndClosePetition
      * It will clean struct and close the socket within
@@ -107,6 +109,8 @@ public:
      * @return pointer to new CmdPetition. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
      */
     virtual CmdPetition *getPetition();
+
+    virtual bool getConfirmation(CmdPetition *inf, std::string message);
 
     /**
      * @brief get_petition_details

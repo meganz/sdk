@@ -23,7 +23,9 @@
 
 using namespace std;
 
+
 bool MegaCmdShellCommunications::serverinitiatedfromshell;
+bool MegaCmdShellCommunications::confirmResponse;
 
 bool MegaCmdShellCommunications::socketValid(int socket)
 {
@@ -39,6 +41,15 @@ void MegaCmdShellCommunications::closeSocket(int socket){
     closesocket(socket);
 #else
     close(socket);
+#endif
+}
+
+void sleepSeconds(int seconds)
+{
+#ifdef _WIN32
+    Sleep(1000*seconds);
+#else
+    sleep(seconds);
 #endif
 }
 
@@ -236,6 +247,10 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                 }
                 else
                 {
+                    //TODO: execute this in another thread
+                    // or after the current command is executed
+                    // registerForStateChanges(); // register again for state changes
+
                     serverinitiatedfromshell = true;
                 }
             }
@@ -270,7 +285,6 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
 #endif
 
     serverinitiatedfromshell = false;
-
 }
 
 int MegaCmdShellCommunications::executeCommand(string command, std::ostream &output)
@@ -309,6 +323,51 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
     {
         cerr << "ERROR reading output code: " << ERRNO << endl;
         return -1;
+    }
+
+    while (outcode == MCMD_REQCONFIRM)
+    {
+        int BUFFERSIZE = 1024;
+        char confirmQuestion[1025];
+        do{
+            n = recv(newsockfd, confirmQuestion, BUFFERSIZE, MSG_NOSIGNAL);
+            if (n)
+            {
+    #ifdef _WIN32
+                confirmQuestion[n]='\0';
+
+                // determine the required confirmQuestion size
+                size_t wbuffer_size;
+                mbstowcs_s(&wbuffer_size, NULL, 0, confirmQuestion, _TRUNCATE);
+
+                // do the actual conversion
+                wchar_t *wbuffer = new wchar_t[wbuffer_size];
+                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, confirmQuestion, _TRUNCATE);
+
+                wcout << wbuffer; //TODO: use output
+                delete [] wbuffer;
+    #else
+                confirmQuestion[n]='\0';
+
+    #endif
+            }
+        } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
+
+        bool response = readconfirmationloop(confirmQuestion);
+
+        n = send(newsockfd, (const char *) &response, sizeof(response), MSG_NOSIGNAL);
+        if (n == SOCKET_ERROR)
+        {
+            cerr << "ERROR writing confirm response to to socket: " << ERRNO << endl;
+            return -1;
+        }
+
+        n = recv(newsockfd, (char *)&outcode, sizeof(outcode), MSG_NOSIGNAL);
+        if (n == SOCKET_ERROR)
+        {
+            cerr << "ERROR reading output code: " << ERRNO << endl;
+            return -1;
+        }
     }
 
     int BUFFERSIZE = 1024;
@@ -352,6 +411,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
 {
     int newsockfd = createSocket(receiveSocket);
 
+    bool notified_server_might_be_down = false;
     while (true)
     {
         if (newsockfd == INVALID_SOCKET)
@@ -366,7 +426,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
             n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
             if (n)
             {
-    #ifdef _WIN32
+#ifdef _WIN32
                 buffer[n]='\0';
 
                 // determine the required buffer size
@@ -377,13 +437,13 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
                 wchar_t *wbuffer = new wchar_t[wbuffer_size];
                 mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
 
-    //            wcout << wbuffer; //TODO: review windows version
+                //            wcout << wbuffer; //TODO: review windows version
                 newstate += buffer;
                 delete [] wbuffer;
-    #else
+#else
                 buffer[n]='\0';
                 newstate += buffer;
-    #endif
+#endif
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
@@ -392,11 +452,28 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
             cerr << "ERROR reading output: " << ERRNO << endl;
             return -1;;
         }
-//        cout << "received state change: " << newstate << endl;//TODO: delete
 
-        if (newstate.compare(0, 7, "prompt:") == 0)
+        if (!n)
         {
-            changeprompt(newstate.substr(7).c_str(),true);
+            if (!notified_server_might_be_down)
+            {
+                cerr << "Server probably down, you should problably restart MEGAcmd SHELL" << endl;
+                //TODO: if re-registering ever works, change the former message
+                notified_server_might_be_down = true;
+                sleepSeconds(1);
+            }
+            continue;
+        }
+
+        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+        {
+            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
+        }
+        else
+        {
+            cerr << "received unrecognized state change: " << newstate << endl;
+            //sleep a while to avoid continuous looping
+            sleepSeconds(1);
         }
 
     }
@@ -442,8 +519,10 @@ int MegaCmdShellCommunications::registerForStateChanges()
     return 0;
 }
 
-
-
+void MegaCmdShellCommunications::setResponseConfirmation(bool confirmation)
+{
+    confirmResponse = confirmation;
+}
 
 MegaCmdShellCommunications::~MegaCmdShellCommunications()
 {

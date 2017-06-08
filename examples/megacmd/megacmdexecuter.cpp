@@ -2148,7 +2148,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
     else
     {
-        if (interactiveThread() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
+        if (!getCurrentThreadIsCmdShell() && interactiveThread() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
         {
             bool alreadythere = false;
             for (std::vector< MegaNode * >::iterator it = nodesToConfirmDelete.begin(); it != nodesToConfirmDelete.end(); ++it)
@@ -2175,6 +2175,23 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
             }
 
             return;
+        }
+        else if (getCurrentThreadIsCmdShell() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
+        {
+
+            string confirmationQuery("Are you sure to delete ");
+            confirmationQuery+=nodeToDelete->getName();
+            confirmationQuery+=" ? (Yes/No): ";
+
+            if (askforConfirmation(confirmationQuery))
+            {
+                LOG_debug << "confirmation received"; //TODO: doDeleteNode
+                doDeleteNode(nodeToDelete, api);
+            }
+            else
+            {
+                LOG_debug << "confirmation denied"; //TODO: delete, log and do nth
+            }
         }
         else
         {

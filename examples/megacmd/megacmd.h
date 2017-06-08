@@ -66,6 +66,8 @@ enum
 {
     MCMD_OK = 0,              ///< Everything OK
 
+    MCMD_REQCONFIRM = -2,     ///< Confirmation required
+
     MCMD_EARGS = -51,         ///< Wrong arguments
     MCMD_INVALIDEMAIL = -52,  ///< Invalid email
     MCMD_NOTFOUND = -53,      ///< Resource not found
@@ -92,6 +94,9 @@ void setprompt(prompttype p, std::string arg = "");
 prompttype getprompt();
 
 void printHistory();
+
+bool askforConfirmation(std::string message);
+
 
 
 #endif

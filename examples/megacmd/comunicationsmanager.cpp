@@ -87,6 +87,11 @@ void ComunicationsManager::stopWaiting()
 {
 }
 
+int ComunicationsManager::get_next_comm_id()
+{
+    return 0;
+}
+
 void ComunicationsManager::informStateListeners(string &s)
 {
     for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
@@ -114,7 +119,6 @@ void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTR
     return;
 }
 
-
 /**
  * @brief getPetition
  * @return pointer to new CmdPetition. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
@@ -123,6 +127,11 @@ CmdPetition * ComunicationsManager::getPetition()
 {
     CmdPetition *inf = new CmdPetition();
     return inf;
+}
+
+bool ComunicationsManager::getConfirmation(CmdPetition *inf, string message)
+{
+    return false;
 }
 
 string ComunicationsManager::get_petition_details(CmdPetition *inf)

@@ -28,7 +28,7 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
 #include <string>
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, AREYOUSURETODELETE
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, AREYOUSURE
 };
 
 static const char* const prompts[] =
@@ -40,6 +40,8 @@ enum
 {
     MCMD_OK = 0,              ///< Everything OK
 
+    MCMD_REQCONFIRM = -2,     ///< Confirmation required
+
     MCMD_EARGS = -51,         ///< Wrong arguments
     MCMD_INVALIDEMAIL = -52,  ///< Invalid email
     MCMD_NOTFOUND = -53,      ///< Resource not found
@@ -49,12 +51,13 @@ enum
     MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
     MCMD_NOFETCH = -58,       ///< Nodes not fetched
     MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+
 };
 
-void changeprompt(const char *newprompt, bool redisplay = false);
+void restoreprompt();
 
-//mega::MegaApi* getFreeApiFolder();
-//void freeApiFolder(mega::MegaApi *apiFolder);
+void changeprompt(const char *newprompt, bool redisplay = false);
 
 const char * getUsageStr(const char *command);
 
@@ -65,6 +68,8 @@ void setprompt(prompttype p, std::string arg = "");
 prompttype getprompt();
 
 void printHistory();
+
+bool readconfirmationloop(const char *question);
 
 
 #endif // MEGACMDSHELL_H

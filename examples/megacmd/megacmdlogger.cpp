@@ -31,6 +31,7 @@ using namespace mega;
 map<uint64_t, OUTSTREAMTYPE *> outstreams;
 map<uint64_t, int> threadLogLevel;
 map<uint64_t, int> threadoutCode;
+map<uint64_t, CmdPetition *> threadpetition;
 map<uint64_t, bool> threadIsCmdShell;
 
 OUTSTREAMTYPE &getCurrentOut()
@@ -78,6 +79,19 @@ int getCurrentOutCode()
 }
 
 
+CmdPetition * getCurrentPetition()
+{
+    uint64_t currentThread = MegaThread::currentThreadId();
+    if (threadpetition.find(currentThread) == threadpetition.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return threadpetition[currentThread];
+    }
+}
+
 int getCurrentThreadLogLevel()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
@@ -115,7 +129,6 @@ void setCurrentThreadOutStream(OUTSTREAMTYPE *s)
     outstreams[MegaThread::currentThreadId()] = s;
 }
 
-
 void setCurrentThreadIsCmdShell(bool isit)
 {
     threadIsCmdShell[MegaThread::currentThreadId()] = isit;
@@ -124,6 +137,11 @@ void setCurrentThreadIsCmdShell(bool isit)
 void setCurrentOutCode(int outCode)
 {
     threadoutCode[MegaThread::currentThreadId()] = outCode;
+}
+
+void setCurrentPetition(CmdPetition *petition)
+{
+    threadpetition[MegaThread::currentThreadId()] = petition;
 }
 
 void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)

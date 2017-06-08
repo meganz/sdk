@@ -36,6 +36,9 @@
 #include <sstream>
 #include <algorithm>
 
+#include <mutex>
+
+
 //TODO: check includes ok in windows:
 #include <sys/types.h>
 #include <unistd.h>
@@ -73,16 +76,86 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
     }
 }
 
-string getCurrentThreadLine() //TODO: rename to sth more sensefull
+string getCurrentLine()
 {
     char *saved_line = rl_copy_text(0, rl_point);
     string toret(saved_line);
     free(saved_line);
     return toret;
-
 }
 // end utily functions
 
+
+// Console related functions:
+void console_readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
+{
+#ifdef _WIN32
+    char c;
+      DWORD cread;
+
+      if (ReadConsole(GetStdHandle(STD_INPUT_HANDLE), &c, 1, &cread, NULL) == 1)
+      {
+          if ((c == 8) && *pw_buf_pos)
+          {
+              (*pw_buf_pos)--;
+          }
+          else if (c == 13)
+          {
+              *line = (char*)malloc(*pw_buf_pos + 1);
+              memcpy(*line, pw_buf, *pw_buf_pos);
+              (*line)[*pw_buf_pos] = 0;
+          }
+          else if (*pw_buf_pos < pw_buf_size)
+          {
+              pw_buf[(*pw_buf_pos)++] = c;
+          }
+      }
+#else
+    // FIXME: UTF-8 compatibility
+
+    char c;
+
+    if (read(STDIN_FILENO, &c, 1) == 1)
+    {
+        if (c == 8 && *pw_buf_pos)
+        {
+            (*pw_buf_pos)--;
+        }
+        else if (c == 13)
+        {
+            *line = (char*) malloc(*pw_buf_pos + 1);
+            memcpy(*line, pw_buf, *pw_buf_pos);
+            (*line)[*pw_buf_pos] = 0;
+        }
+        else if (*pw_buf_pos < pw_buf_size)
+        {
+            pw_buf[(*pw_buf_pos)++] = c;
+        }
+    }
+#endif
+}
+void console_setecho(bool echo)
+{
+#ifdef _WIN32
+    HANDLE hCon = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+
+    GetConsoleMode(hCon, &mode);
+
+    if (echo)
+    {
+        mode |= ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT;
+    }
+    else
+    {
+        mode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
+    }
+
+    SetConsoleMode(hCon, mode);
+#else
+    //do nth
+#endif
+}
 
 // UNICODE SUPPORT FOR WINDOWS
 #ifdef _WIN32
@@ -146,9 +219,9 @@ string oldpasswd;
 string newpasswd;
 
 bool doExit = false;
-bool consoleFailed = false;
 
 bool handlerinstalled = false;
+bool handlerchanged = false;
 
 static char dynamicprompt[128];
 
@@ -162,10 +235,9 @@ static int pw_buf_pos;
 // communications with megacmdserver:
 MegaCmdShellCommunications *comms;
 
-//// local console
-//Console* console; //TODO: use MEGA console // repeat sources??? // include them as in the sdk.pri
-
 //MegaMutex mutexHistory;
+
+std::mutex mutexPrompt;
 
 void printWelcomeMsg();
 
@@ -224,7 +296,7 @@ void setprompt(prompttype p, string arg)
 
     if (p == COMMAND)
     {
-//        console->setecho(true); //TODO: use console
+        console_setecho(true);
     }
     else
     {
@@ -237,7 +309,7 @@ void setprompt(prompttype p, string arg)
         {
             OUTSTREAM << prompts[p] << flush;
         }
-//        console->setecho(false);//TODO: use console
+        console_setecho(false);
     }
 }
 
@@ -267,8 +339,17 @@ static void store_line(char* l)
     line = l;
 }
 
+void restoreprompt()
+{
+    rl_crlf();
+
+    rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+    handlerinstalled = true;
+}
+
 void changeprompt(const char *newprompt, bool redisplay)
 {
+    mutexPrompt.lock();
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
 
     if (redisplay)
@@ -278,6 +359,7 @@ void changeprompt(const char *newprompt, bool redisplay)
 //        rl_forced_update_display(); //this is not enough.  The problem is that the prompt is actually printed when calling rl_callback_handeler_install or after an enter
         rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
         handlerinstalled = true;
+        handlerchanged = true;
 
         //TODO: problems:
         // - concurrency issues?
@@ -286,6 +368,7 @@ void changeprompt(const char *newprompt, bool redisplay)
         //    required. But what if the external communication was faster or slower than me. Think and test
 
     }
+    mutexPrompt.unlock();
 }
 
 void escapeEspace(string &orig)
@@ -368,7 +451,7 @@ char* local_completion(const char* text, int state)
 
 char* remote_completion(const char* text, int state)
 {
-    char *saved_line = strdup(getCurrentThreadLine().c_str());
+    char *saved_line = strdup(getCurrentLine().c_str());
 
     static vector<string> validOptions;
     if (state == 0)
@@ -547,6 +630,242 @@ void wait_for_input(int readline_fd)
     }
 }
 
+
+vector<string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces = true)
+{
+    vector<string> words;
+
+    char* wptr;
+
+    // split line into words with quoting and escaping
+    for (;; )
+    {
+        // skip leading blank space
+        while (*ptr > 0 && *ptr <= ' ' && (ignoreTrailingSpaces || *(ptr+1)))
+        {
+            ptr++;
+        }
+
+        if (!*ptr)
+        {
+            break;
+        }
+
+        // quoted arg / regular arg
+        if (*ptr == '"')
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '"' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '"' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
+        else if (*ptr == '\'') // quoted arg / regular arg
+        {
+            ptr++;
+            wptr = ptr;
+            words.push_back(string());
+
+            for (;; )
+            {
+                if (( *ptr == '\'' ) || ( *ptr == '\\' ) || !*ptr)
+                {
+                    words[words.size() - 1].append(wptr, ptr - wptr);
+
+                    if (!*ptr || ( *ptr++ == '\'' ))
+                    {
+                        break;
+                    }
+
+                    wptr = ptr - 1;
+                }
+                else
+                {
+                    ptr++;
+                }
+            }
+        }
+        else
+        {
+            while (*ptr == ' ') ptr++;// only possible if ptr+1 is the end
+
+            wptr = ptr;
+
+            char *prev = ptr;
+            //while ((unsigned char)*ptr > ' ')
+            while ((*ptr != '\0') && !(*ptr ==' ' && *prev !='\\'))
+            {
+                if (*ptr == '"')
+                {
+                    while (*++ptr != '"' && *ptr != '\0')
+                    { }
+                }
+                prev=ptr;
+                ptr++;
+            }
+
+                words.push_back(string(wptr, ptr - wptr));
+        }
+    }
+
+    return words;
+}
+
+
+void process_line(char * line)
+{
+    switch (prompt)
+    {
+        case AREYOUSURE:
+            //this is currently never used
+            if (!strcasecmp(line,"yes") || !strcasecmp(line,"y"))
+            {
+                comms->setResponseConfirmation(true);
+                setprompt(COMMAND);
+            }
+            else if (!strcasecmp(line,"no") || !strcasecmp(line,"n"))
+            {
+                comms->setResponseConfirmation(false);
+                setprompt(COMMAND);
+            }
+            else
+            {
+                //Do nth, ask again
+                OUTSTREAM << "Please enter [y]es/[n]o: " << flush;
+            }
+            break;
+        case LOGINPASSWORD:
+        {
+            //            if (!strlen(line))
+            //            {
+            //                break;
+            //            }
+            //            if (!cmdexecuter->confirming)
+            //            {
+            //                cmdexecuter->loginWithPassword(line);
+            //            }
+            //            else
+            //            {
+            //                cmdexecuter->confirmWithPassword(line);
+            //                cmdexecuter->confirming = false;
+            //            }
+            //            setprompt(COMMAND);
+            //            break;
+            //TODO: implement
+        }
+
+        case OLDPASSWORD:
+        {
+            if (!strlen(line))
+            {
+                break;
+            }
+            oldpasswd = line;
+            OUTSTREAM << endl;
+            setprompt(NEWPASSWORD);
+            break;
+        }
+
+        case NEWPASSWORD:
+        {
+            if (!strlen(line))
+            {
+                break;
+            }
+            newpasswd = line;
+            OUTSTREAM << endl;
+            setprompt(PASSWORDCONFIRM);
+        }
+            break;
+
+        case PASSWORDCONFIRM:
+        {
+            if (!strlen(line))
+            {
+                break;
+            }
+            if (line != newpasswd)
+            {
+                OUTSTREAM << endl << "New passwords differ, please try again" << endl;
+            }
+            else
+            {
+                OUTSTREAM << endl;
+                string changepasscommand("passwd ");
+                changepasscommand+=oldpasswd;
+                changepasscommand+=" " ;
+                changepasscommand+=newpasswd;
+
+                comms->executeCommand(changepasscommand.c_str());
+            }
+
+            setprompt(COMMAND);
+            break;
+        }
+        case COMMAND:
+        {
+            vector<string> words = getlistOfWords(line);
+            if (words.size())
+            {
+                if (words[0] == "history")
+                {
+                    printHistory();
+                }
+                else if (words[0] == "passwd")
+                {
+
+                    //if (api->isLoggedIn()) //TODO: this sould be asked to the server or managed as a status
+                    //{
+                    if (words.size() == 1)
+                    {
+                        setprompt(OLDPASSWORD);
+                    }
+                    else
+                    {
+                        comms->executeCommand(line);
+                    }
+                    //}
+                    //else
+                    //{
+                    //    setCurrentOutCode(MCMD_NOTLOGGEDIN);
+                    //    LOG_err << "Not logged in.";
+                    //}
+
+                    return;
+                }
+                else
+                {
+                    // execute user command
+                    comms->executeCommand(line);
+                }
+            }
+            else
+            {
+                cerr << "failed to interprete input line: " << line << endl;
+            }
+            break;
+        }
+    }
+
+}
+
 // main loop
 void readloop()
 {
@@ -556,10 +875,8 @@ void readloop()
     rl_save_prompt();
 
     int readline_fd = -1;
-    if (!consoleFailed)
-    {
-        readline_fd = fileno(rl_instream);
-    }
+
+    readline_fd = fileno(rl_instream);
 
     static bool firstloop = true;
 
@@ -570,12 +887,11 @@ void readloop()
     {
         if (prompt == COMMAND)
         {
-            if (!handlerinstalled || !firstloop)
+            mutexPrompt.lock();
+            if ((!handlerinstalled || !firstloop) && !handlerchanged)
             {
-                if (!consoleFailed)
-                {
-                    rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
-                }
+
+                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
                 handlerinstalled = false;
 
                 // display prompt
@@ -588,6 +904,10 @@ void readloop()
                 rl_point = saved_point;
                 rl_redisplay();
             }
+            mutexPrompt.unlock();
+            handlerchanged = false; //TODO: this trick make the auto-cd work fine, but there's an extra enter added.
+            // maybe the crlf should only be inserted if not enter has been inserted (flag sth after rl_callback_read_char
+
         }
 
         firstloop = false;
@@ -596,8 +916,7 @@ void readloop()
         // command editing loop - exits when a line is submitted
         for (;; )
         {
-
-            if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
+            if (prompt == COMMAND || prompt == AREYOUSURE)
             {
                 wait_for_input(readline_fd);
 
@@ -611,7 +930,7 @@ void readloop()
             }
             else
             {
-                //console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);//TODO: use console
+                console_readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
             }
 
             if (line)
@@ -633,15 +952,8 @@ void readloop()
         {
             if (strlen(line))
             {
-                if (!strcmp(line,"history"))
-                {
-                    printHistory();
-                }
-                else
-                {
-                    // execute user command
-                    comms->executeCommand(line);
-                }
+                process_line(line);
+
                 if (!strcmp(line,"exit") || !strcmp(line,"quit"))
                 {
                     doExit = true;
@@ -797,6 +1109,41 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 }
 #endif
 
+
+
+bool readconfirmationloop(const char *question)
+{
+    bool firstime = true;
+    for (;; )
+    {
+        string response;
+
+        if (firstime)
+        {
+            response = readline(question);
+
+        }
+        else
+        {
+            response = readline("Please enter [y]es/[n]o:");
+
+        }
+
+        firstime = false;
+
+        if (response == "yes" || response == "y" || response == "YES" || response == "Y")
+        {
+            return true;
+        }
+        if (response == "no" || response == "n" || response == "NO" || response == "N")
+        {
+            return false;
+        }
+    }
+    //TODO: upon exiting, arrow keys are working badly untill "Enter" is pressed. Study this
+}
+
+
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
@@ -814,22 +1161,6 @@ int main(int argc, char* argv[])
     // intialize the comms object
     comms = new MegaCmdShellCommunications();
 
-    // set up the console
-#ifdef _WIN32
-    console = new CONSOLE_CLASS;
-#else
-    struct termios term;
-    if ( ( tcgetattr(STDIN_FILENO, &term) < 0 ) || runningInBackground() ) //try console
-    {
-        consoleFailed = true;
-//        console = NULL;//TODO: use console
-    }
-    else
-    {
-//        console = new CONSOLE_CLASS; //TODO: use console
-    }
-#endif
-//    cm = new COMUNICATIONMANAGER();
 
 #if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
@@ -842,9 +1173,7 @@ int main(int argc, char* argv[])
      }
 #else
     // prevent CTRL+C exit
-    if (!consoleFailed){
-        signal(SIGINT, sigint_handler);
-    }
+    signal(SIGINT, sigint_handler);
 #endif
 
 //    atexit(finalize);//TODO: reset?
@@ -857,7 +1186,6 @@ int main(int argc, char* argv[])
 
     rl_char_is_quoted_p = &quote_detector;
 
-
     if (!runningInBackground())
     {
         rl_initialize(); // initializes readline,
@@ -866,10 +1194,6 @@ int main(int argc, char* argv[])
     }
 
     printWelcomeMsg();
-    if (consoleFailed)
-    {
-        cerr << "Couldn't initialize interactive CONSOLE. Running as non-interactive ONLY" << endl;
-    }
 
     readloop();
 //    finalize(); //TODO: reset?

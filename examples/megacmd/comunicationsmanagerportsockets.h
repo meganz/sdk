@@ -35,6 +35,10 @@ class CmdPetitionPortSockets: public CmdPetition
 {
 public:
     int outSocket;
+    int acceptedOutSocket;
+    CmdPetitionPortSockets(){
+        acceptedOutSocket = -1;
+    }
 };
 
 OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPortSockets &p);
@@ -58,8 +62,6 @@ private:
     // to get next socket id
     int count;
     mega::MegaMutex *mtx;
-
-    int get_next_outSocket_id();
 
     /**
      * @brief create_new_socket
@@ -85,6 +87,8 @@ public:
 
     virtual void stopWaiting();
 
+    int get_next_comm_id();
+
     void registerStateListener(CmdPetition *inf);
 
     /**
@@ -100,6 +104,8 @@ public:
      * @return pointer to new CmdPetitionPosix. Petition returned must be properly deleted (this can be calling returnAndClosePetition)
      */
     CmdPetition *getPetition();
+
+    virtual bool getConfirmation(CmdPetition *inf, std::string message);
 
     /**
      * @brief get_petition_details

@@ -2276,6 +2276,8 @@ void * doProcessLine(void *pointer)
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
+    setCurrentPetition(inf);
+
     if (inf->getLine() && *(inf->getLine())=='X')
     {
         setCurrentThreadIsCmdShell(true);
@@ -2305,6 +2307,22 @@ void * doProcessLine(void *pointer)
     mutexEndedPetitionThreads.unlock();
 
     return NULL;
+}
+
+
+bool askforConfirmation(string message)
+{
+    CmdPetition *inf = getCurrentPetition();
+    if (inf)
+    {
+        return cm->getConfirmation(inf,message);
+    }
+    else
+    {
+        LOG_err << "Unable to get current petition to ask for confirmation";
+    }
+
+    return false;
 }
 
 

@@ -62,7 +62,7 @@ void closeSocket(int socket){
 #endif
 
 
-int ComunicationsManagerPortSockets::get_next_outSocket_id()
+int ComunicationsManagerPortSockets::get_next_comm_id()
 {
     mtx->lock();
     ++count;
@@ -81,7 +81,7 @@ int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 
     int portno=MEGACMDINITIALPORTNUMBER;
 
-    *sockId = get_next_outSocket_id();
+    *sockId = get_next_comm_id();
     portno += *sockId;
 
     struct sockaddr_in addr;
@@ -472,6 +472,40 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     inf->line = strdup(buffer);
 #endif
     return inf;
+}
+
+bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string message)
+{
+    //TODO: test this implementation
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof( cliAddr );
+    int connectedsocket = ((CmdPetitionPortSockets *)inf)->acceptedOutSocket;
+    if (connectedsocket == -1)
+        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+     ((CmdPetitionPortSockets *)inf)->acceptedOutSocket = connectedsocket;
+    if (connectedsocket == -1)
+    {
+        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+        delete inf;
+        return false;
+    }
+
+
+    int outCode = MCMD_REQCONFIRM;
+    int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing output Code to socket: " << errno;
+    }
+    n = send(connectedsocket, message.data(), max(1,(int)message.size()), MSG_NOSIGNAL); // for some reason without the max recv never quits in the client for empty responses
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing to socket: " << errno;
+    }
+
+    bool response;
+    n = recv(connectedsocket,&response, sizeof(response), MSG_NOSIGNAL);
+    return false;
 }
 
 string ComunicationsManagerPortSockets::get_petition_details(CmdPetition *inf)

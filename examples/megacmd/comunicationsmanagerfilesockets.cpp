@@ -21,9 +21,13 @@
 
 #include "comunicationsmanagerfilesockets.h"
 
+#ifdef __MACH__
+#define MSG_NOSIGNAL 0
+#endif
+
 using namespace mega;
 
-int ComunicationsManagerFileSockets::get_next_outSocket_id()
+int ComunicationsManagerFileSockets::get_next_comm_id()
 {
     mtx->lock();
     ++count;
@@ -41,7 +45,7 @@ int ComunicationsManagerFileSockets::create_new_socket(int *sockId)
     }
 
     char socket_path[60];
-    *sockId = get_next_outSocket_id();
+    *sockId = get_next_comm_id();
     bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
     sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), *sockId);
 
@@ -229,17 +233,20 @@ void ComunicationsManagerFileSockets::returnAndClosePetition(CmdPetition *inf, O
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPosixSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
-    int connectedsocket = accept(((CmdPetitionPosixSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    int connectedsocket = ((CmdPetitionPosixSockets *)inf)->acceptedOutSocket;
+    if (connectedsocket == -1)
+    {
+        connectedsocket = accept(((CmdPetitionPosixSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    }
     if (connectedsocket == -1)
     {
         LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPosixSockets *)inf)->outSocket << " error: " << errno;
         delete inf;
         return;
     }
+
     string sout = s->str();
-#ifdef __MACH__
-#define MSG_NOSIGNAL 0
-#endif
+
     int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
     if (n < 0)
     {
@@ -336,7 +343,7 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     }
 
     bzero(buffer, 1024);
-    int n = read(newsockfd, buffer, 1023);
+    int n = read(newsockfd, buffer, 1023); //TODO: petitions for size > 1023?
     if (n < 0)
     {
         LOG_fatal << "ERROR reading from socket";
@@ -366,6 +373,41 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     inf->line = strdup(buffer);
 
     return inf;
+}
+
+
+
+bool ComunicationsManagerFileSockets::getConfirmation(CmdPetition *inf, string message)
+{
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof( cliAddr );
+    int connectedsocket = ((CmdPetitionPosixSockets *)inf)->acceptedOutSocket;
+    if (connectedsocket == -1)
+        connectedsocket = accept(((CmdPetitionPosixSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+     ((CmdPetitionPosixSockets *)inf)->acceptedOutSocket = connectedsocket;
+    if (connectedsocket == -1)
+    {
+        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPosixSockets *)inf)->outSocket << " error: " << errno;
+        delete inf;
+        return false;
+    }
+
+    int outCode = MCMD_REQCONFIRM;
+    int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing output Code to socket: " << errno;
+    }
+    n = send(connectedsocket, message.data(), max(1,(int)message.size()), MSG_NOSIGNAL); // for some reason without the max recv never quits in the client for empty responses
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing to socket: " << errno;
+    }
+
+    bool response;
+    n = recv(connectedsocket,&response, sizeof(response), MSG_NOSIGNAL);
+
+    return response;
 }
 
 string ComunicationsManagerFileSockets::get_petition_details(CmdPetition *inf)

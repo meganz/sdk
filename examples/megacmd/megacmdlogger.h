@@ -23,6 +23,7 @@
 #define MEGACMDLOGGER_H
 
 #include "megacmd.h"
+#include "comunicationsmanager.h"
 
 #define OUTSTREAM getCurrentOut()
 
@@ -33,6 +34,10 @@ int getCurrentOutCode();
 void setCurrentOutCode(int);
 int getCurrentThreadLogLevel();
 void setCurrentThreadLogLevel(int);
+
+CmdPetition * getCurrentPetition();
+void setCurrentPetition(CmdPetition *petition);
+
 
 void setCurrentThreadIsCmdShell(bool isit);
 bool getCurrentThreadIsCmdShell();

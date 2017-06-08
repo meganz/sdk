@@ -4,6 +4,8 @@
 #include <string>
 #include <iostream>
 
+#include <mutex>
+
 #include <sys/types.h>
 #ifdef _WIN32
 #include <WinSock2.h>
@@ -43,7 +45,9 @@ public:
 
     int executeCommand(std::string command, std::ostream &output = std::cout); //TODO: COUT?? (wcout for windows)
 
-    int registerForStateChanges();
+    static int registerForStateChanges();
+
+    void setResponseConfirmation(bool confirmation);
 
     static bool serverinitiatedfromshell;
 
@@ -52,6 +56,7 @@ private:
     static void closeSocket(int socket);
     static int listenToStateChanges(int receiveSocket);
 
+    static bool confirmResponse;
 
 #ifdef _WIN32
 static int createSocket(int number = 0, bool net = true);
