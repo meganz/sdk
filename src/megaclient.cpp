@@ -813,6 +813,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
     
     fetchingnodes = false;
+    fetchnodestag = 0;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -1410,8 +1411,9 @@ void MegaClient::exec()
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
-                                reqtag = 0;
+                                reqtag = fetchnodestag; // associate with ongoing request, if any
                                 fetchingnodes = false;
+                                fetchnodestag = 0;
                                 fetchnodes(true);
                                 reqtag = creqtag;
                             }
@@ -2602,7 +2604,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
-                              << " Partial: " << p;
+                              << " Partial: " << p << " Size: " << nexttransfer->size
+                              << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
                 else
                 {
@@ -2926,6 +2929,7 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
+    fetchnodestag = 0;
     overquotauntil = 0;
     scpaused = false;
 
@@ -3049,6 +3053,7 @@ bool MegaClient::procsc()
 
                             fetchingnodes = false;
                             restag = fetchnodestag;
+                            fetchnodestag = 0;
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -3318,7 +3323,14 @@ bool MegaClient::procsc()
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
+                                break;
 #endif
+                            case MAKENAMEID3('u', 'a', 'c'):
+                                if (sc_uac())
+                                {
+                                    app->account_updated();
+                                }
+                                break;
                         }
                     }
                 }
@@ -3570,20 +3582,21 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(Node* n, fatype t, int cancel)
+error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
 
-    if (!(p = n->hasfileattribute(t)))
+    // find position of file attribute or 0 if not present
+    if (!(p = Node::hasfileattribute(fileattrstring, t)))
     {
         return API_ENOENT;
     }
 
     pp = p - 1;
 
-    while (pp && n->fileattrstring[pp - 1] >= '0' && n->fileattrstring[pp - 1] <= '9')
+    while (pp && fileattrstring->at(pp - 1) >= '0' && fileattrstring->at(pp - 1) <= '9')
     {
         pp--;
     }
@@ -3593,12 +3606,12 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
         return API_ENOENT;
     }
 
-    if (Base64::atob(strchr(n->fileattrstring.c_str() + p, '*') + 1, (byte*)&fah, sizeof(fah)) != sizeof(fah))
+    if (Base64::atob(strchr(fileattrstring->c_str() + p, '*') + 1, (byte*)&fah, sizeof(fah)) != sizeof(fah))
     {
         return API_ENOENT;
     }
 
-    int c = atoi(n->fileattrstring.c_str() + pp);
+    int c = atoi(fileattrstring->c_str() + pp);
 
     if (cancel)
     {
@@ -3648,7 +3661,7 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
 
             if (!*fafp)
             {
-                *fafp = new FileAttributeFetch(n->nodehandle, t, reqtag);
+                *fafp = new FileAttributeFetch(h, *nodekey, t, reqtag);
             }
             else
             {
@@ -3719,7 +3732,7 @@ bool MegaClient::slotavail() const
 bool MegaClient::moretransfers(direction_t d)
 {
     m_off_t r = 0;
-    int total = 0;
+    unsigned int total = 0;
 
     // don't dispatch if all tslots busy
     if (!slotavail())
@@ -4920,6 +4933,24 @@ void MegaClient::sc_chatupdate()
 }
 
 #endif
+
+bool MegaClient::sc_uac()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case EOO:
+                return true;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return false;
+                }
+        }
+    }
+}
 
 // scan notified nodes for
 // - name differences with an existing LocalNode
@@ -7843,7 +7874,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
         ni = 0;
     }
 
-    crkeys.reserve(shares->size() * nodes->size() * (32 * 4 / 3 + 10));
+    // estimate required size for requested keys
+    // for each node: ",<index>,<index>,"<nodekey>
+    crkeys.reserve(nodes->size() * ((5 + 4 * 2) + (FILENODEKEYLENGTH * 4 / 3 + 4)) + 1);
+    // we reserve for indexes up to 4 digits per index
 
     for (;;)
     {
@@ -7906,7 +7940,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     n->applykey();
                     if (sn->sharekey && n->nodekey.size() ==
-                            ((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                            (unsigned)((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
 
@@ -8336,7 +8370,7 @@ void MegaClient::closetc(bool remove)
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 86400))
+            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 172500))
             {
                 LOG_warn << "Purging orphan transfer";
                 transfer->finished = true;
@@ -8707,7 +8741,7 @@ void MegaClient::initializekeys()
         string pubkstr;
         if (pubk.isvalid())
         {
-            pubk.serializekeyforjs(&pubkstr, AsymmCipher::PUBKEY);
+            pubk.serializekeyforjs(pubkstr);
         }
         if (!pubkstr.size() || !sigPubk.size())
         {
@@ -8735,16 +8769,26 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            LOG_warn << "Verification of signature of public key for RSA failed";
+            // Verification could fail because a legacy bug in Webclient. Retry...
+            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99414, "Verification of signature of public key for RSA failed");
-            reqtag = creqtag;
+            pubk.serializekeyforjs(pubkstr, true);
+            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
+                                        pubkstr.size(),
+                                        &sigPubk,
+                                        (unsigned char*) puEd255.data()))
+            {
+                LOG_warn << "Verification of signature of public key for RSA failed";
 
-            clearKeys();
-            resetKeyring();
-            return;
+                int creqtag = reqtag;
+                reqtag = 0;
+                sendevent(99414, "Verification of signature of public key for RSA failed");
+                reqtag = creqtag;
+
+                clearKeys();
+                resetKeyring();
+                return;
+            }
         }
 
         // if we reached this point, everything is OK
@@ -8790,7 +8834,7 @@ void MegaClient::initializekeys()
 
             // prepare signatures
             string pubkStr;
-            pubk.serializekeyforjs(&pubkStr, AsymmCipher::PUBKEY);
+            pubk.serializekeyforjs(pubkStr);
             signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
@@ -8926,6 +8970,8 @@ void MegaClient::purgenodesusersabortsc()
         }
         else
         {
+            u->dbid = 0;
+            u->notified = false;
             it++;
         }
     }
@@ -10604,10 +10650,19 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
-                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 86400))
+                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
                     t->cachedtempurl.clear();
+
+                    if (d == PUT)
+                    {
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        delete [] t->ultoken;
+                        t->ultoken = NULL;
+                        t->pos = 0;
+                    }
                 }
 
                 FileAccess* fa = fsaccess->newfileaccess();

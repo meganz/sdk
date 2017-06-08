@@ -101,7 +101,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRegisterPushNotification,
     MEGARequestTypeGetUserEmail,
     MEGARequestTypeAppVersion,
-    MEGARequestTypeGetLocalSSLCert,
+    MEGARequestTypeGetLocalSSLCertificate,
+    MEGARequestTypeSendSignupLink,
     MEGARequestTypeQueryBandwidthQuota
 };
 

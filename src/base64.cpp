@@ -80,6 +80,15 @@ unsigned char Base64::from64(byte c)
     return 255;
 }
 
+
+int Base64::atob(const string &in, string &out)
+{
+    out.resize(in.size() * 3 / 4 + 3);
+    out.resize(Base64::atob(in.data(), (byte *) out.data(), out.size()));
+
+    return out.size();
+}
+
 int Base64::atob(const char* a, byte* b, int blen)
 {
     byte c[4];
@@ -185,6 +194,14 @@ int64_t Base64::atoi(string *val)
     }
 
     return res;
+}
+
+int Base64::btoa(const string &in, string &out)
+{
+    out.resize(in.size() * 4 / 3 + 4);
+    out.resize(Base64::btoa((const byte*) in.data(), in.size(), (char *) out.data()));
+
+    return out.size();
 }
 
 int Base64::btoa(const byte* b, int blen, char* a)

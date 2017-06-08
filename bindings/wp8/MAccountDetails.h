@@ -71,6 +71,8 @@ namespace mega
 		uint64 getNumFiles(uint64 handle);
 		uint64 getNumFolders(uint64 handle);
 
+        MAccountDetails^ copy();
+
         int getNumBalances();
         MAccountBalance^ getBalance(int i);
 
@@ -85,6 +87,8 @@ namespace mega
 
         int getTemporalBandwidthInterval();
         uint64 getTemporalBandwidth();
+
+        bool isTemporalBandwidthValid();
 
 	private:
 		MAccountDetails(MegaAccountDetails *accountDetails, bool cMemoryOwn);

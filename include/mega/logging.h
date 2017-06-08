@@ -98,20 +98,12 @@ enum LogLevel {
     logMax
 };
 
-// settings for each log level
-struct OutputSettings {
-    bool enableTime;    // display time component for each log line
-    bool enableLevel;   // display log level component for each log line
-    bool enableSource;  // display file name and line number component for each log line
-};
-
 // Output Log Interface
 class MEGA_API Logger {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
-typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
 typedef vector<std::ostream *> OutputStreams;
 
 class MEGA_API OutputMap : public std::map<enum LogLevel, OutputStreams>
@@ -144,11 +136,10 @@ public:
     static OutputMap outputs;
     static Logger *logger;
     static char base64Handle[14];
-    static OutputSettingsMap outputSettings;
 
     static enum LogLevel logCurrentLevel;
 
-    SimpleLogger(enum LogLevel ll, char const* filename, int line, bool lBreak = true);
+    SimpleLogger(enum LogLevel ll, char const* filename, int line);
     ~SimpleLogger();
 
     static const char *toStr(enum LogLevel ll)
@@ -224,15 +215,6 @@ public:
 
     // Synchronizes all registered stream buffers with their controlled output sequence
     static void flush();
-
-    // set output settings for log level
-    static void setOutputSettings(enum LogLevel ll, bool enableTime, bool enableLevel, bool enableSource)
-    {
-        outputSettings[ll].enableTime = enableTime;
-        outputSettings[ll].enableLevel = enableLevel;
-        outputSettings[ll].enableSource = enableSource;
-    }
-
 };
 
 // output VERBOSE log with line break
