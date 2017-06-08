@@ -7874,7 +7874,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
         ni = 0;
     }
 
-    crkeys.reserve(shares->size() * nodes->size() * (32 * 4 / 3 + 10));
+    // estimate required size for requested keys
+    // for each node: ",<index>,<index>,"<nodekey>
+    crkeys.reserve(nodes->size() * ((5 + 4 * 2) + (FILENODEKEYLENGTH * 4 / 3 + 4)) + 1);
+    // we reserve for indexes up to 4 digits per index
 
     for (;;)
     {
@@ -7937,7 +7940,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     n->applykey();
                     if (sn->sharekey && n->nodekey.size() ==
-                            ((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                            (unsigned)((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
 
