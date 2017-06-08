@@ -35,9 +35,9 @@ SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line)
 {
     this->level = ll;
 
-    ostr << "[" << getTime() << "] ";
-    ostr << "[" << toStr(ll) << "] ";
-    ostr << filename << ":" << line << " ";
+    //ostr << "[" << getTime() << "] ";
+    //ostr << "[" << toStr(ll) << "] ";
+    //ostr << filename << ":" << line << " ";
 
     if (logger)
     {

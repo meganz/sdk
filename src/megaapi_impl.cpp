@@ -15110,29 +15110,33 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 ExternalLogger::ExternalLogger()
 {
     mutex.init(true);
-    this->logToConsole = false;
-	SimpleLogger::setOutputClass(this);
+    logToConsole = false;
+    SimpleLogger::setOutputClass(this);
 }
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
+    mutex.lock();
     if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
+    mutex.unlock();
 }
 
 void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 {
+    mutex.lock();
     if (logger)
     {
         megaLoggers.erase(logger);
     }
+    mutex.unlock();
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
 {
-	SimpleLogger::setLogLevel((LogLevel)logLevel);
+    SimpleLogger::setLogLevel((LogLevel)logLevel);
 }
 
 void ExternalLogger::setLogToConsole(bool enable)
@@ -15142,52 +15146,54 @@ void ExternalLogger::setLogToConsole(bool enable)
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
 {
-    if(SimpleLogger::logCurrentLevel < logLevel)
+    if (SimpleLogger::logCurrentLevel < logLevel)
+    {
         return;
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	if(!filename)
-	{
-		filename = "";
-	}
+    if (!filename)
+    {
+        filename = "";
+    }
 
     mutex.lock();
-	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+    SimpleLogger((LogLevel)logLevel, filename, line) << message;
     mutex.unlock();
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
-	if(!time)
-	{
-		time = "";
-	}
+    if (!time)
+    {
+        time = "";
+    }
 
-	if(!source)
-	{
-		source = "";
-	}
+    if (!source)
+    {
+        source = "";
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	mutex.lock();
+    mutex.lock();
     for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
     {
         (*it)->log(time, loglevel, source, message);
-	}
+    }
 
     if (logToConsole)
-	{
-		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
-	}
-	mutex.unlock();
+    {
+        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+    }
+    mutex.unlock();
 }
 
 

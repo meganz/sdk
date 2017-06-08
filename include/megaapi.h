@@ -5482,9 +5482,6 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
-         * This function allows to set whether the log messages should be printed in the
-         * console in the absence of a dedicated logger set by MegaApi::setLoggerObject.
-         *
          * By default, log to console is false.
          *
          * @param enable True to show messages in console, false to skip them.
