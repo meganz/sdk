@@ -5559,9 +5559,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
             api->querySignupLink(link.c_str(), megaCmdListener);
             megaCmdListener->wait();
-            if (checkNoErrors(megaCmdListener->getError(), "check email corresponds to link"))
+            if (checkNoErrors(megaCmdListener->getError(), "check email corresponds to link")) //TODO: delete the true ..
             {
-                if (email == megaCmdListener->getRequest()->getEmail())
+                if (megaCmdListener->getRequest()->getEmail() && email == megaCmdListener->getRequest()->getEmail())
                 {
                     string passwd;
                     if (words.size() > 3)
@@ -5574,7 +5574,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         this->login = email;
                         this->link = link;
                         confirming = true;
-                        if (interactiveThread())
+                        if (interactiveThread() && !getCurrentThreadIsCmdShell())
                         {
                             setprompt(LOGINPASSWORD);
                         }

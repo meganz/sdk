@@ -244,6 +244,11 @@ static prompttype prompt = COMMAND;
 static char pw_buf[256];
 static int pw_buf_pos;
 
+string loginname;
+string linktoconfirm;
+
+bool confirminglink = false;
+
 // communications with megacmdserver:
 MegaCmdShellCommunications *comms;
 
@@ -754,22 +759,35 @@ void process_line(char * line)
             break;
         case LOGINPASSWORD:
         {
-            //            if (!strlen(line))
-            //            {
-            //                break;
-            //            }
-            //            if (!cmdexecuter->confirming)
-            //            {
-            //                cmdexecuter->loginWithPassword(line);
-            //            }
-            //            else
-            //            {
-            //                cmdexecuter->confirmWithPassword(line);
-            //                cmdexecuter->confirming = false;
-            //            }
-            //            setprompt(COMMAND);
-            //            break;
-            //TODO: implement
+            if (!strlen(line))
+            {
+                break;
+            }
+            if (!confirminglink) //TODO: implement confirm
+            {
+                string logincommand("login -v ");
+                logincommand+=loginname;
+                logincommand+=" " ;
+                logincommand+=line;
+
+                comms->executeCommand(logincommand.c_str());
+            }
+            else
+            {
+                string confirmcommand("confirm ");
+                confirmcommand+=linktoconfirm;
+                confirmcommand+=" " ;
+                confirmcommand+=loginname;
+                confirmcommand+=" " ;
+                confirmcommand+=line;
+
+                comms->executeCommand(confirmcommand.c_str());
+
+                confirminglink = false;
+            }
+
+            setprompt(COMMAND);
+            break;
         }
 
         case OLDPASSWORD:
@@ -850,6 +868,40 @@ void process_line(char * line)
                     //}
 
                     return;
+                }
+                else if (words[0] == "login")
+                {
+                    //if (!api->isLoggedIn()) //TODO: this sould be asked to the server or managed as a status
+                    //{
+                        if (words.size() == 2)
+                        {
+                            loginname = words[1];
+                            setprompt(LOGINPASSWORD);
+                        }
+                        else
+                        {
+                            comms->executeCommand(line);
+                        }
+                    //}
+                    //else
+                    //{
+                    //    setCurrentOutCode(MCMD_INVALIDSTATE);
+                    //    LOG_err << "Already logged in. Please log out first.";
+                    //}
+                }
+                if (words[0] == "confirm")
+                {
+                    if (words.size() == 3)
+                    {
+                        linktoconfirm = words[1];
+                        loginname = words[2];
+                        confirminglink = true;
+                        setprompt(LOGINPASSWORD);
+                    }
+                    else
+                    {
+                        comms->executeCommand(line);
+                    }
                 }
                 else
                 {
