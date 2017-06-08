@@ -1342,9 +1342,14 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
-void MegaApi::setLoggerObject(MegaLogger *megaLogger)
+void MegaApi::addLoggerObject(MegaLogger *megaLogger)
 {
-    MegaApiImpl::setLoggerClass(megaLogger);
+    MegaApiImpl::addLoggerClass(megaLogger);
+}
+
+void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
+{
+    MegaApiImpl::removeLoggerClass(megaLogger);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)

@@ -3568,7 +3568,7 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-ExternalLogger *MegaApiImpl::externalLogger = NULL;
+ExternalLogger MegaApiImpl::externalLogger;
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
@@ -3806,39 +3806,27 @@ char *MegaApiImpl::getMyFingerprint()
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setLogLevel(logLevel);
+    externalLogger.setLogLevel(logLevel);
 }
 
-void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setMegaLogger(megaLogger);
+    externalLogger.addMegaLogger(megaLogger);
+}
+
+void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger)
+{
+    externalLogger.removeMegaLogger(megaLogger);
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setLogToConsole(enable);
+    externalLogger.setLogToConsole(enable);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    if(!externalLogger)
-    {
-        return;
-    }
-
-    externalLogger->postLog(logLevel, message, filename, line);
+    externalLogger.postLog(logLevel, message, filename, line);
 }
 
 char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -15121,28 +15109,34 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 
 ExternalLogger::ExternalLogger()
 {
-	mutex.init(true);
-	this->megaLogger = NULL;
-    this->logToConsole = true;
-	SimpleLogger::setOutputClass(this);
-
-    //Initialize outputSettings map
-    SimpleLogger::outputSettings[(LogLevel)logFatal];
-    SimpleLogger::outputSettings[(LogLevel)logError];
-    SimpleLogger::outputSettings[(LogLevel)logWarning];
-    SimpleLogger::outputSettings[(LogLevel)logInfo];
-    SimpleLogger::outputSettings[(LogLevel)logDebug];
-    SimpleLogger::outputSettings[(LogLevel)logMax];
+    mutex.init(true);
+    logToConsole = false;
+    SimpleLogger::setOutputClass(this);
 }
 
-void ExternalLogger::setMegaLogger(MegaLogger *logger)
+void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
-	this->megaLogger = logger;
+    mutex.lock();
+    if (logger && megaLoggers.find(logger) == megaLoggers.end())
+    {
+        megaLoggers.insert(logger);
+    }
+    mutex.unlock();
+}
+
+void ExternalLogger::removeMegaLogger(MegaLogger *logger)
+{
+    mutex.lock();
+    if (logger)
+    {
+        megaLoggers.erase(logger);
+    }
+    mutex.unlock();
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
 {
-	SimpleLogger::setLogLevel((LogLevel)logLevel);
+    SimpleLogger::setLogLevel((LogLevel)logLevel);
 }
 
 void ExternalLogger::setLogToConsole(bool enable)
@@ -15152,51 +15146,54 @@ void ExternalLogger::setLogToConsole(bool enable)
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
 {
-    if(SimpleLogger::logCurrentLevel < logLevel)
+    if (SimpleLogger::logCurrentLevel < logLevel)
+    {
         return;
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	if(!filename)
-	{
-		filename = "";
-	}
+    if (!filename)
+    {
+        filename = "";
+    }
 
     mutex.lock();
-	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+    SimpleLogger((LogLevel)logLevel, filename, line) << message;
     mutex.unlock();
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
-	if(!time)
-	{
-		time = "";
-	}
+    if (!time)
+    {
+        time = "";
+    }
 
-	if(!source)
-	{
-		source = "";
-	}
+    if (!source)
+    {
+        source = "";
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	mutex.lock();
-	if(megaLogger)
-	{
-        megaLogger->log(time, loglevel, source, message);
-	}
-    else if (logToConsole)
-	{
-		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
-	}
-	mutex.unlock();
+    mutex.lock();
+    for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
+    {
+        (*it)->log(time, loglevel, source, message);
+    }
+
+    if (logToConsole)
+    {
+        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+    }
+    mutex.unlock();
 }
 
 
