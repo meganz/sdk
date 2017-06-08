@@ -409,7 +409,7 @@ unsigned HashSignature::get(AsymmCipher* privk, byte* sigbuf, unsigned sigbuflen
     return privk->rawdecrypt((const byte*)h.data(), h.size(), sigbuf, sigbuflen);
 }
 
-bool HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
+bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned len)
 {
     string h, s;
     unsigned size;

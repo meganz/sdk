@@ -14955,7 +14955,7 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
     if(l != sizeof(signature))
         return false;
 
-    return hashSignature->check(asymmCypher, (const byte *)signature, sizeof(signature));
+    return hashSignature->checksignature(asymmCypher, (const byte *)signature, sizeof(signature));
 }
 
 int MegaAccountDetailsPrivate::getProLevel()
