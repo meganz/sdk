@@ -44,16 +44,6 @@ void MegaCmdShellCommunications::closeSocket(int socket){
 #endif
 }
 
-void sleepSeconds(int seconds)
-{
-#ifdef _WIN32
-    Sleep(1000*seconds);
-#else
-    sleep(seconds);
-#endif
-}
-
-
 string createAndRetrieveConfigFolder()
 {
     string configFolder;

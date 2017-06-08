@@ -83,6 +83,15 @@ string getCurrentLine()
     free(saved_line);
     return toret;
 }
+
+void sleepSeconds(int seconds)
+{
+#ifdef _WIN32
+    Sleep(1000*seconds);
+#else
+    sleep(seconds);
+#endif
+}
 // end utily functions
 
 
@@ -221,7 +230,10 @@ string newpasswd;
 bool doExit = false;
 
 bool handlerinstalled = false;
-bool handlerchanged = false;
+
+bool requirepromptinstall = true;
+
+bool procesingline = false;
 
 static char dynamicprompt[128];
 
@@ -234,8 +246,6 @@ static int pw_buf_pos;
 
 // communications with megacmdserver:
 MegaCmdShellCommunications *comms;
-
-//MegaMutex mutexHistory;
 
 std::mutex mutexPrompt;
 
@@ -316,6 +326,7 @@ void setprompt(prompttype p, string arg)
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
 {
+    procesingline = true;
     if (!l)
     {
 #ifndef _WIN32 // to prevent exit with Supr key
@@ -331,20 +342,10 @@ static void store_line(char* l)
 
     if (*l && ( prompt == COMMAND ))
     {
-//        mutexHistory.lock(); //TODO: use mutex!
         add_history(l);
-//        mutexHistory.unlock();
     }
 
     line = l;
-}
-
-void restoreprompt()
-{
-    rl_crlf();
-
-    rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
-    handlerinstalled = true;
 }
 
 void changeprompt(const char *newprompt, bool redisplay)
@@ -354,19 +355,32 @@ void changeprompt(const char *newprompt, bool redisplay)
 
     if (redisplay)
     {
-        rl_crlf();
-//        rl_redisplay();
-//        rl_forced_update_display(); //this is not enough.  The problem is that the prompt is actually printed when calling rl_callback_handeler_install or after an enter
+        // save line
+        int saved_point = rl_point;
+        char *saved_line = rl_copy_text(0, rl_end);
+
+        rl_clear_message();
+
+        // enter a new line if not processing sth (otherwise, the newline should already be there)
+        if (!procesingline)
+        {
+            rl_crlf();
+        }
+
         rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+
+        // restore line
+        if (saved_line)
+        {
+            rl_replace_line(saved_line, 0);
+            free(saved_line);
+        }
+        rl_point = saved_point;
+        rl_redisplay();
+
         handlerinstalled = true;
-        handlerchanged = true;
 
-        //TODO: problems:
-        // - concurrency issues?
-        // - current command being written is lost here //play with save_line. Again, deal with concurrency
-        // - whenever I fix the hang when I was the one that triggered the state change. If I was in a new line and handler_install was already called none of this should be
-        //    required. But what if the external communication was faster or slower than me. Think and test
-
+        requirepromptinstall = false;
     }
     mutexPrompt.unlock();
 }
@@ -523,24 +537,11 @@ void printHistory()
         rest = rest / 10;
     }
 
-//    mutexHistory.lock(); //TODO: use mutex
     for (int i = 0; i < length; i++)
     {
         history_set_pos(i);
         OUTSTREAM << setw(offset) << i << "  " << current_history()->line << endl;
     }
-//    mutexHistory.unlock();
-}
-
-string getsupportedregexps()
-{
-#ifdef USE_PCRE
-        return "Perl Compatible Regular Expressions";
-#elif __cplusplus >= 201103L
-        return "c++11 Regular Expressions";
-#else
-        return "it accepts wildcards: ? and *. e.g.: ls f*00?.txt";
-#endif
 }
 
 #ifdef _WIN32
@@ -748,7 +749,7 @@ void process_line(char * line)
             else
             {
                 //Do nth, ask again
-                OUTSTREAM << "Please enter [y]es/[n]o: " << flush;
+                OUTSTREAM << "Please enter: [y]es/[n]o: " << flush;
             }
             break;
         case LOGINPASSWORD:
@@ -885,12 +886,12 @@ void readloop()
 
     for (;; )
     {
+//        procesingline = false;
         if (prompt == COMMAND)
         {
             mutexPrompt.lock();
-            if ((!handlerinstalled || !firstloop) && !handlerchanged)
+            if (requirepromptinstall)
             {
-
                 rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
                 handlerinstalled = false;
 
@@ -905,9 +906,6 @@ void readloop()
                 rl_redisplay();
             }
             mutexPrompt.unlock();
-            handlerchanged = false; //TODO: this trick make the auto-cd work fine, but there's an extra enter added.
-            // maybe the crlf should only be inserted if not enter has been inserted (flag sth after rl_callback_read_char
-
         }
 
         firstloop = false;
@@ -918,11 +916,13 @@ void readloop()
         {
             if (prompt == COMMAND || prompt == AREYOUSURE)
             {
+                procesingline = false;
                 wait_for_input(readline_fd);
 
                 //api->retryPendingConnections(); //TODO: this should go to the server!
 
-                rl_callback_read_char();
+                rl_callback_read_char(); //this calls store_line if last char was enter
+
                 if (doExit)
                 {
                     return;
@@ -952,7 +952,14 @@ void readloop()
         {
             if (strlen(line))
             {
+                mutexPrompt.lock();
                 process_line(line);
+                requirepromptinstall = true;
+                mutexPrompt.unlock();
+
+                // sleep, so that in case there was a changeprompt waiting, gets executed before relooping
+                // this is not 100% guaranteed to happen
+                sleepSeconds(0);
 
                 if (!strcmp(line,"exit") || !strcmp(line,"quit"))
                 {
@@ -1109,8 +1116,6 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 }
 #endif
 
-
-
 bool readconfirmationloop(const char *question)
 {
     bool firstime = true;
@@ -1156,11 +1161,8 @@ int main(int argc, char* argv[])
     initializeMacOSStuff(argc,argv);
 #endif
 
-//    mutexHistory.init(false);
-
     // intialize the comms object
     comms = new MegaCmdShellCommunications();
-
 
 #if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )

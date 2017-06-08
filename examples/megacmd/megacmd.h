@@ -66,8 +66,6 @@ enum
 {
     MCMD_OK = 0,              ///< Everything OK
 
-    MCMD_REQCONFIRM = -2,     ///< Confirmation required
-
     MCMD_EARGS = -51,         ///< Wrong arguments
     MCMD_INVALIDEMAIL = -52,  ///< Invalid email
     MCMD_NOTFOUND = -53,      ///< Resource not found
@@ -77,6 +75,9 @@ enum
     MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
     MCMD_NOFETCH = -58,       ///< Nodes not fetched
     MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+
 };
 
 
