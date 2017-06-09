@@ -83,7 +83,7 @@ void DelegateMLogger::log(const char *time, int loglevel, const char *source, co
 		string filename = source;
 		if (filename.size())
 		{
-			int index = filename.find_last_of('\\');
+            unsigned int index = filename.find_last_of('\\');
 			if (index != string::npos && filename.size() > (index + 1))
 			{
 				filename = filename.substr(index + 1);
