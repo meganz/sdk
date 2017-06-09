@@ -30,7 +30,6 @@ using namespace std;
 DelegateMLogger::DelegateMLogger(MLoggerInterface^ logger)
 {
 	this->logger = logger;
-	MegaApi::setLoggerObject(this);
 }
 
 void DelegateMLogger::log(const char *time, int loglevel, const char *source, const char *message)

@@ -26,8 +26,6 @@ using namespace Platform;
 
 #define REQUIRED_ENTROPY 64
 
-DelegateMLogger* MegaSDK::externalLogger = new DelegateMLogger(nullptr);
-
 MegaSDK::~MegaSDK()
 {
 	delete megaApi;
@@ -1110,11 +1108,14 @@ void MegaSDK::setLogLevel(MLogLevel logLevel)
     MegaApi::setLogLevel((int)logLevel);
 }
 
-void MegaSDK::setLoggerObject(MLoggerInterface^ megaLogger)
+void MegaSDK::addLoggerObject(MLoggerInterface^ megaLogger)
 {
-    DelegateMLogger *newLogger = new DelegateMLogger(megaLogger);
-    delete externalLogger;
-    externalLogger = newLogger;
+    MegaApi::addLoggerObject(new DelegateMLogger(megaLogger));
+}
+
+void MegaSDK::removeLoggerObject(MLoggerInterface^ megaLogger)
+{
+    MegaApi::removeLoggerObject(new DelegateMLogger(megaLogger));
 }
 
 void MegaSDK::log(MLogLevel logLevel, String^ message, String^ filename, int line)

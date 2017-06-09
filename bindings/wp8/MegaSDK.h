@@ -212,7 +212,8 @@ namespace mega
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
-        static void setLoggerObject(MLoggerInterface^ megaLogger);
+        static void addLoggerObject(MLoggerInterface^ megaLogger);
+        static void removeLoggerObject(MLoggerInterface^ megaLogger);
         static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
         static void log(MLogLevel logLevel, String^ message, String^ filename);
         static void log(MLogLevel logLevel, String^ message);
@@ -547,7 +548,6 @@ namespace mega
 
         MegaApi *megaApi;
         DelegateMGfxProcessor *externalGfxProcessor;
-        static DelegateMLogger* externalLogger;
         MegaApi *getCPtr();
     };
 }
