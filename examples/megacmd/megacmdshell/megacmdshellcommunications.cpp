@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include <thread> //TODO: delete if using MegaThread
+#include <thread>
 
 #include <fcntl.h>
 
@@ -25,7 +25,10 @@ using namespace std;
 
 
 bool MegaCmdShellCommunications::serverinitiatedfromshell;
+bool MegaCmdShellCommunications::registerAgainRequired;
 bool MegaCmdShellCommunications::confirmResponse;
+bool MegaCmdShellCommunications::stopListener;
+std::thread *MegaCmdShellCommunications::listenerThread;
 
 bool MegaCmdShellCommunications::socketValid(int socket)
 {
@@ -96,7 +99,6 @@ string createAndRetrieveConfigFolder()
 
 }
 
-//TODO: clients concurrency? (I believe it to be ok, should be think through twice)
 #ifdef _WIN32
 int MegaCmdShellCommunications::createSocket(int number, bool net)
 #else
@@ -171,7 +173,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
             {
                 //launch server
                 #ifdef _WIN32
-                        //TODO: implement this
+                        //TODO: implement this for windows
                 #else
 //                if (fork()) //fork() -> child is megacmdshell (debug megacmd server)
                 if (!fork()) //!fork -> child is server. (debug megacmdshell)
@@ -237,11 +239,8 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                 }
                 else
                 {
-                    //TODO: execute this in another thread
-                    // or after the current command is executed
-                    // registerForStateChanges(); // register again for state changes
-
                     serverinitiatedfromshell = true;
+                    registerAgainRequired = true;
                 }
             }
         }
@@ -275,11 +274,15 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
 #endif
 
     serverinitiatedfromshell = false;
+    registerAgainRequired = false;
+
+    stopListener = false;
+    listenerThread = NULL;
 }
 
 int MegaCmdShellCommunications::executeCommand(string command, std::ostream &output)
 {
-    int thesock = createSocket(); //TODO: could this go into the class and created only in constructor?
+    int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
     {
         return INVALID_SOCKET;
@@ -401,8 +404,8 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
 {
     int newsockfd = createSocket(receiveSocket);
 
-    bool notified_server_might_be_down = false;
-    while (true)
+    int timeout_notified_server_might_be_down = 0;
+    while (!stopListener)
     {
         if (newsockfd == INVALID_SOCKET)
             return INVALID_SOCKET;
@@ -445,13 +448,13 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
 
         if (!n)
         {
-            if (!notified_server_might_be_down)
+            if (!timeout_notified_server_might_be_down)
             {
-                cerr << "Server probably down, you should problably restart MEGAcmd SHELL" << endl;
-                //TODO: if re-registering ever works, change the former message
-                notified_server_might_be_down = true;
-                sleepSeconds(1);
+                timeout_notified_server_might_be_down = 30;
+                cerr << endl << "Server is probably down. Executing anything will try to respawn it.";
             }
+            timeout_notified_server_might_be_down--;
+            sleepSeconds(1);
             continue;
         }
 
@@ -468,16 +471,12 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
 
     }
 
-    // TODO: deal with newsockfd cleanup upon exit (implement a way to quit the loop
-
-
-//    closeSocket(newsockfd);
-
+    closeSocket(newsockfd);
 }
 
 int MegaCmdShellCommunications::registerForStateChanges()
 {
-    int thesock = createSocket(); //TODO: could this go into the class and created only in constructor?
+    int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
     {
         return INVALID_SOCKET;
@@ -500,10 +499,16 @@ int MegaCmdShellCommunications::registerForStateChanges()
         return -1;;
     }
 
+    if (listenerThread != NULL)
+    {
+        stopListener = true;
+        listenerThread->join();
+    }
 
-    //TODO: consider using MegaThread (will require to copy the sources here)
-    std::thread *athread = new std::thread(listenToStateChanges,receiveSocket);
-    //TODO: athread join in destructor???
+    stopListener = false;
+
+    listenerThread = new std::thread(listenToStateChanges,receiveSocket);
+
 
     closeSocket(thesock);
     return 0;
@@ -519,4 +524,11 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
 #if _WIN32
     WSACleanup();
 #endif
+
+    if (listenerThread != NULL)
+    {
+        stopListener = true;
+        listenerThread->join();
+    }
+
 }

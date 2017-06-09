@@ -1009,6 +1009,13 @@ void readloop()
                 requirepromptinstall = true;
                 mutexPrompt.unlock();
 
+                if (comms->registerAgainRequired)
+                {
+                    // register again for state changes
+                     comms->registerForStateChanges();
+                     comms->registerAgainRequired = false;
+                }
+
                 // sleep, so that in case there was a changeprompt waiting, gets executed before relooping
                 // this is not 100% guaranteed to happen
                 sleepSeconds(0);
@@ -1233,7 +1240,6 @@ int main(int argc, char* argv[])
 
 //    atexit(finalize);//TODO: reset?
 
-    //TODO: local completion is failing
     rl_attempted_completion_function = getCompletionMatches;
     rl_completer_quote_characters = "\"'";
     rl_filename_quote_characters  = " ";

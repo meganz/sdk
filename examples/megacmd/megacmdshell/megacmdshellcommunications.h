@@ -4,6 +4,8 @@
 #include <string>
 #include <iostream>
 
+#include <thread>
+
 #include <mutex>
 
 #include <sys/types.h>
@@ -50,6 +52,7 @@ public:
     void setResponseConfirmation(bool confirmation);
 
     static bool serverinitiatedfromshell;
+    static bool registerAgainRequired;
 
 private:
     static bool socketValid(int socket);
@@ -57,6 +60,9 @@ private:
     static int listenToStateChanges(int receiveSocket);
 
     static bool confirmResponse;
+
+    static bool stopListener;
+    static std::thread *listenerThread;
 
 #ifdef _WIN32
 static int createSocket(int number = 0, bool net = true);
