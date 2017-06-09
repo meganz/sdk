@@ -763,7 +763,7 @@ void process_line(char * line)
             {
                 break;
             }
-            if (!confirminglink) //TODO: implement confirm
+            if (!confirminglink)
             {
                 string logincommand("login -v ");
                 logincommand+=loginname;
@@ -1190,14 +1190,15 @@ bool readconfirmationloop(const char *question)
 
         if (response == "yes" || response == "y" || response == "YES" || response == "Y")
         {
+            rl_callback_handler_remove();
             return true;
         }
         if (response == "no" || response == "n" || response == "NO" || response == "N")
         {
+            rl_callback_handler_remove();
             return false;
         }
     }
-    //TODO: upon exiting, arrow keys are working badly untill "Enter" is pressed. Study this
 }
 
 
