@@ -32,6 +32,11 @@ DelegateMLogger::DelegateMLogger(MLoggerInterface^ logger)
     this->logger = logger;
 }
 
+MLoggerInterface^ DelegateMLogger::getUserLogger()
+{
+    return this->logger;
+}
+
 void DelegateMLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
     if (logger != nullptr)
