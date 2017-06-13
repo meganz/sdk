@@ -400,6 +400,7 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
 int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, string &s)
 {
     //TODO: implement
+    return 0;
 }
 
 /**
@@ -490,9 +491,8 @@ bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string m
         return false;
     }
 
-
     int outCode = MCMD_REQCONFIRM;
-    int n = send(connectedsocket, (void*)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
+    int n = send(connectedsocket, (const char *)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
     if (n < 0)
     {
         LOG_err << "ERROR writing output Code to socket: " << errno;
@@ -504,7 +504,7 @@ bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string m
     }
 
     bool response;
-    n = recv(connectedsocket,&response, sizeof(response), MSG_NOSIGNAL);
+    n = recv(connectedsocket,(char *)&response, sizeof(response), MSG_NOSIGNAL);
     return false;
 }
 

@@ -38,19 +38,17 @@
 
 #include <mutex>
 
-
 //TODO: check includes ok in windows:
 #include <sys/types.h>
-#include <unistd.h>
-#include <termios.h>
-
 
 #ifndef _WIN32
 #include <signal.h>
+#else
+#include <unistd.h>
+#include <termios.h>
 #endif
 
 using namespace std;
-
 
 // utility functions
 char * dupstr(char* s)
