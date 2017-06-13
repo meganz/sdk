@@ -3485,9 +3485,5 @@ MegaLogger *MegaSDK::createDelegateMLogger(MLoggerInterface^ logger)
 void MegaSDK::freeLogger(DelegateMLogger *logger)
 {
     if (logger == nullptr) return;
-
-    EnterCriticalSection(&loggerMutex);
-    activeLoggers.erase(logger);
-    LeaveCriticalSection(&loggerMutex);
     delete logger;
 }
