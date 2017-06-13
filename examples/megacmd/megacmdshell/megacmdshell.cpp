@@ -28,6 +28,7 @@
 
 #include <readline/readline.h>
 #include <readline/history.h>
+
 #include <iomanip>
 #include <string>
 #include <set>
@@ -36,16 +37,19 @@
 #include <sstream>
 #include <algorithm>
 
-#include <mutex>
 
 //TODO: check includes ok in windows:
-#include <sys/types.h>
 
 #ifndef _WIN32
 #include <signal.h>
-#else
-#include <unistd.h>
-#include <termios.h>
+#include <sys/types.h>
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+  #define snprintf _snprintf
+  #define vsnprintf _vsnprintf
+  #define strcasecmp _stricmp
+  #define strncasecmp _strnicmp
 #endif
 
 using namespace std;
@@ -90,6 +94,16 @@ void sleepSeconds(int seconds)
     sleep(seconds);
 #endif
 }
+
+void sleepMicroSeconds(long microseconds)
+{
+#ifdef _WIN32
+    Sleep(microseconds);
+#else
+    usleep(microseconds*1000);
+#endif
+}
+
 // end utily functions
 
 
@@ -216,7 +230,23 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
     return ( ostr );
 }
 
+// convert Windows Unicode to UTF-8
+void utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8string)
+{
+    if(!utf16size)
+    {
+        utf8string->clear();
+        return;
+    }
 
+    utf8string->resize((utf16size + 1) * 4);
+
+    utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
+        utf16size,
+        (char*)utf8string->data(),
+        utf8string->size() + 1,
+        NULL, NULL));
+}
 #endif
 
 //TODO: add 'unicode' command in megacmdshell
@@ -283,7 +313,7 @@ void sigint_handler(int signum)
 #ifdef _WIN32
 BOOL CtrlHandler( DWORD fdwCtrlType )
 {
-  LOG_verbose << "Reached CtrlHandler: " << fdwCtrlType;
+  cerr << "Reached CtrlHandler: " << fdwCtrlType << endl;
 
   switch( fdwCtrlType )
   {
@@ -551,6 +581,7 @@ void printHistory()
 #include <fcntl.h>
 #include <io.h>
 
+
 /**
  * @brief getcharacterreadlineUTF16support
  * while this works, somehow arrows and other readline stuff is disabled using this one.
@@ -583,7 +614,7 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         // convert the UTF16 widechar to UTF8 string
         string receivedutf8;
-        MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
+        utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
 
         if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
         {
@@ -932,7 +963,9 @@ void readloop()
     static bool firstloop = true;
 
     comms->registerForStateChanges();
-    usleep(1000); //give it a while to communicate the state
+
+    //give it a while to communicate the state
+    sleepMicroSeconds(1);
 
     for (;; )
     {
@@ -1225,11 +1258,11 @@ int main(int argc, char* argv[])
 #if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
      {
-        LOG_debug << "Control handler set";
+        //cerr << "Control handler set" << endl; //TODO: delete
      }
      else
      {
-        LOG_warn << "Control handler set";
+        cerr << "Control handler set failed" << endl;
      }
 #else
     // prevent CTRL+C exit

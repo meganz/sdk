@@ -1,7 +1,8 @@
 #ifndef MEGACMDSHELL_H
 #define MEGACMDSHELL_H
-#include <iostream>
 
+#include <iostream>
+#include <string>
 
 #ifdef _WIN32
 
@@ -10,7 +11,6 @@
 #define OUTSTRING std::wstring
 #define COUT std::wcout
 
-#include <string>
 std::wostream & operator<< ( std::wostream & ostr, std::string const & str );
 std::wostream & operator<< ( std::wostream & ostr, const char * str );
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str);
@@ -22,10 +22,8 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
 #define COUT std::cout
 #endif
 
-
 #define OUTSTREAM COUT
 
-#include <string>
 enum prompttype
 {
     COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, AREYOUSURE
@@ -56,6 +54,9 @@ enum
 
 void sleepSeconds(int seconds);
 
+void sleepMicroSeconds(long microseconds);
+
+
 void restoreprompt();
 
 void changeprompt(const char *newprompt, bool redisplay = false);
@@ -71,6 +72,10 @@ prompttype getprompt();
 void printHistory();
 
 bool readconfirmationloop(const char *question);
+
+#ifdef _WIN32
+void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
+#endif
 
 
 #endif // MEGACMDSHELL_H

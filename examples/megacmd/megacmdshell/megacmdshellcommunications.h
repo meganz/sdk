@@ -3,23 +3,19 @@
 
 #include <string>
 #include <iostream>
-
 #include <thread>
-
 #include <mutex>
 
-#include <sys/types.h>
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <Shlwapi.h> //PathAppend
 #else
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
 #endif
-#define MEGACMDINITIALPORTNUMBER 12300
-
 
 #ifdef _WIN32
 #include <windows.h>
@@ -38,6 +34,7 @@
 #define MSG_NOSIGNAL 0
 #endif
 
+#define MEGACMDINITIALPORTNUMBER 12300
 
 class MegaCmdShellCommunications
 {

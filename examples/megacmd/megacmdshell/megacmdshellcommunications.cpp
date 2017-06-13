@@ -2,17 +2,15 @@
 #include "megacmdshellcommunications.h"
 
 #include <iostream>
-
 #include <thread>
-
-#include <fcntl.h>
-
 #include <sstream>
 
 #ifdef _WIN32
 #include <shlobj.h> //SHGetFolderPath
 #include <Shlwapi.h> //PathAppend
 #else
+#include <fcntl.h>
+
 #include <pwd.h>  //getpwuid_r
 #include <signal.h>
 #endif
@@ -47,6 +45,7 @@ void MegaCmdShellCommunications::closeSocket(int socket){
 #endif
 }
 
+
 string createAndRetrieveConfigFolder()
 {
     string configFolder;
@@ -56,7 +55,7 @@ string createAndRetrieveConfigFolder()
    TCHAR szPath[MAX_PATH];
     if (!SUCCEEDED(GetModuleFileName(NULL, szPath , MAX_PATH)))
     {
-        LOG_fatal << "Couldnt get EXECUTABLE folder";
+        cerr << "Couldnt get EXECUTABLE folder" << endl;
     }
     else
     {
@@ -64,7 +63,7 @@ string createAndRetrieveConfigFolder()
         {
             if (PathAppend(szPath,TEXT(".megaCmd")))
             {
-                MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+                utf16ToUtf8(szPath, lstrlen(szPath), &configFolder); // TODO: resqueue utf16ToUtf8 function
             }
         }
     }
