@@ -212,7 +212,8 @@ namespace mega
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
-        static void setLoggerObject(MLoggerInterface^ megaLogger);
+        void addLoggerObject(MLoggerInterface^ logger);
+        void removeLoggerObject(MLoggerInterface^ logger);
         static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
         static void log(MLogLevel logLevel, String^ message, String^ filename);
         static void log(MLogLevel logLevel, String^ message);
@@ -545,9 +546,14 @@ namespace mega
         void freeRequestListener(DelegateMRequestListener *listener);
         void freeTransferListener(DelegateMTransferListener *listener);
 
+        std::set<DelegateMLogger *> activeLoggers;
+        CRITICAL_SECTION loggerMutex;
+
+        MegaLogger *createDelegateMLogger(MLoggerInterface^ logger);
+        void freeLogger(DelegateMLogger *logger);
+
         MegaApi *megaApi;
         DelegateMGfxProcessor *externalGfxProcessor;
-        static DelegateMLogger* externalLogger;
         MegaApi *getCPtr();
     };
 }
