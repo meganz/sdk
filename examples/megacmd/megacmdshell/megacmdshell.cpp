@@ -249,8 +249,6 @@ void utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8string)
 }
 #endif
 
-//TODO: add 'unicode' command in megacmdshell
-
 // password change-related state information
 string oldpasswd;
 string newpasswd;
@@ -897,6 +895,14 @@ void process_line(char * line)
                 {
                     printHistory();
                 }
+#ifdef _WIN32
+                else if (words[0] == "unicode" && words.size() == 1)
+                {
+                    rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
+                    OUTSTREAM << "Unicode shell input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
+                    return;
+                }
+#endif
                 else if (words[0] == "passwd")
                 {
 

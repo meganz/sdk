@@ -2165,9 +2165,18 @@ void executecommand(char* ptr)
 #ifdef _WIN32
     if (words[0] == "unicode")
     {
-        rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
-        OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
-        return;
+        if (interactiveThread() && !getCurrentThreadIsCmdShell())
+        {
+            rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
+            OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
+            return;
+        }
+        else
+        {
+            setCurrentOutCode(MCMD_EARGS);
+            LOG_err << "Incorrect usage. Usage: " << getUsageStr("unicode");
+            return;
+        }
     }
 #endif
     cmdexecuter->executecommand(words, &clflags, &cloptions);
