@@ -399,7 +399,62 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
 
 int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, string &s)
 {
-    //TODO: implement
+    LOG_verbose << "Inform State Listener: Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s << ">>";
+
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof( cliAddr );
+
+    static map<int,int> connectedsockets;
+
+    int connectedsocket = -1;
+    if (connectedsockets.find(((CmdPetitionPortSockets *)inf)->outSocket) == connectedsockets.end())
+    {
+        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //this will be done only once??
+        connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket] = connectedsocket;
+    }
+    else
+    {
+        connectedsocket = connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket];
+    }
+
+    if (connectedsocket == -1)
+    {
+        if (errno == 32) //socket closed
+        {
+            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
+            connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
+            return -1;
+        }
+        else
+        {
+            LOG_err << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+        }
+        return 0;
+    }
+
+#ifdef __MACH__
+#define MSG_NOSIGNAL 0
+#endif
+
+    int n = send(connectedsocket, s.data(), s.size(), MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        if (errno == 32) //socket closed
+        {
+            LOG_debug << "Unregistering no longer listening client. Original petition " << *inf;
+            connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
+            return -1;
+        }
+        else
+        {
+            LOG_err << "ERROR writing to socket: " << errno;
+        }
+    }
+
+    //TODO: this two should be cleaned somewhere
+//    close(connectedsocket);
+//    close(((CmdPetitionPortSockets *)inf)->outSocket);
+//    delete inf; //TODO: when should inf be deleted? (upon destruction I believe)
     return 0;
 }
 

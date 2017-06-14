@@ -63,7 +63,7 @@ string createAndRetrieveConfigFolder()
         {
             if (PathAppend(szPath,TEXT(".megaCmd")))
             {
-                utf16ToUtf8(szPath, lstrlen(szPath), &configFolder); // TODO: resqueue utf16ToUtf8 function
+                utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
             }
         }
     }

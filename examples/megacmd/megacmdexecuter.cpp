@@ -5158,7 +5158,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             string email = words[1];
             if (( email.find("@") == string::npos )
                 || ( email.find(".") == string::npos )
-                || ( email.find("@") > email.find(".")))
+                || ( email.find("@") > email.find("."))) //TODO: improve email checking
             {
                 setCurrentOutCode(MCMD_INVALIDEMAIL);
                 LOG_err << "No valid email provided";

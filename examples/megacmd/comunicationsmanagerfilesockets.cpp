@@ -299,6 +299,7 @@ int ComunicationsManagerFileSockets::informStateListener(CmdPetition *inf, strin
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0
 #endif
+
     int n = send(connectedsocket, s.data(), s.size(), MSG_NOSIGNAL);
     if (n < 0)
     {

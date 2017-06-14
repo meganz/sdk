@@ -2493,6 +2493,7 @@ void megacmd()
                         if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
                                 !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
                         {
+
                             cm->registerStateListener(inf);
 
                             // communicate status info
