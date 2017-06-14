@@ -3991,7 +3991,6 @@ class MegaGlobalListener
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4305,7 +4304,6 @@ class MegaListener
 #endif
 
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4313,6 +4311,12 @@ class MegaListener
          *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
          *  This event can be used to keep synchronization between the SDK cache and the
          *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
