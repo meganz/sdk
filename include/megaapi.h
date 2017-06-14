@@ -5147,6 +5147,9 @@ class MegaApi
          */
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
 
+
+        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Get information about a confirmation link or a new signup link
          *
