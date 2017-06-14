@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/configurationmanager.h
- * @brief MegaCMD: configuration manager
+ * @brief MEGAcmd: configuration manager
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *

@@ -1363,19 +1363,33 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a MegaLogger implementation to receive SDK logs.
-     * <p>
+     * Add a MegaLogger implementation to receive SDK logs
+     *
      * Logs received by this objects depends on the active log level.
-     * By default, it is MegaApiJava.LOG_LEVEL_INFO. You can change it
-     * using MegaApiJava.setLogLevel().
-     * 
-     * @param megaLogger
-     *            MegaLogger implementation.
+     * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
+     * using MegaApi::setLogLevel.
+     *
+     * You can remove the existing logger by using MegaApi::removeLoggerObject.
+     *
+     * @param megaLogger MegaLogger implementation
      */
-    public static void setLoggerObject(MegaLoggerInterface megaLogger) {
+    public static void addLoggerObject(MegaLoggerInterface megaLogger){
+        //TODO Array similar to addListener
         DelegateMegaLogger newLogger = new DelegateMegaLogger(megaLogger);
-        MegaApi.setLoggerObject(newLogger);
+        MegaApi.addLoggerObject(newLogger);
         logger = newLogger;
+    }
+
+    /**
+     * Remove a MegaLogger implementation to stop receiving SDK logs
+     *
+     * If the logger was registered in the past, it will stop receiving log
+     * messages after the call to this function.
+     *
+     * @param megaLogger Previously registered MegaLogger implementation
+     */
+    public static void removeLoggerObject(MegaLoggerInterface megaLogger){
+        //TODO Array similar to removeListener
     }
 
     /**
@@ -5143,6 +5157,16 @@ public class MegaApiJava {
      */
     public void changeApiUrl(String apiURL) {
         megaApi.changeApiUrl(apiURL);
+    }
+
+    /**
+     * Set the language code used by the app
+     * @param languageCode code used by the app
+     *
+     * @return True if the language code is known for the SDK, otherwise false
+     */
+    public boolean setLanguage(String languageCode){
+        return megaApi.setLanguage(languageCode);
     }
     
     /**

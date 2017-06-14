@@ -34,7 +34,7 @@ BuildRequires: c-ares-devel,
 %endif
 
 %description
-MegaCMD provides non UI access to MEGA services. 
+MEGAcmd provides non UI access to MEGA services. 
 It intends to offer all the functionality 
 with your MEGA account via shell interaction. 
 It features 2 modes of interaction:

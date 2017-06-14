@@ -145,7 +145,8 @@ class ExternalLogger : public Logger
 {
 public:
     ExternalLogger();
-    void setMegaLogger(MegaLogger *logger);
+    void addMegaLogger(MegaLogger* logger);
+    void removeMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
@@ -153,7 +154,7 @@ public:
 
 private:
     MegaMutex mutex;
-    MegaLogger *megaLogger;
+    set <MegaLogger *> megaLoggers;
     bool logToConsole;
 };
 
@@ -1386,7 +1387,8 @@ class MegaApiImpl : public MegaApp
         char* getMyFingerprint();
 #endif
         static void setLogLevel(int logLevel);
-        static void setLoggerClass(MegaLogger *megaLogger);
+        static void addLoggerClass(MegaLogger *megaLogger);
+        static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
@@ -1721,7 +1723,7 @@ protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
-        static ExternalLogger *externalLogger;
+        static ExternalLogger externalLogger;
 
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 

@@ -1165,7 +1165,7 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
-# MegaCMD
+# MEGAcmd
 AC_MSG_CHECKING([if building megacmd application])
 AC_ARG_ENABLE(megacmd,
     AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
