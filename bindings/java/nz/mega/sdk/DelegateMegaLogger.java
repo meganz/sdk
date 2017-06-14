@@ -33,6 +33,10 @@ class DelegateMegaLogger extends MegaLogger {
         this.listener = listener;
     }
 
+    MegaLoggerInterface getLogger() {
+        return listener;
+    }
+
     /**
      * This function will be called with all logs with level <= your selected level of logging.
      * By default logging level is MegaApi.LOG_LEVEL_INFO.
