@@ -4740,6 +4740,14 @@ void DemoApp::account_updated()
     }
 }
 
+void DemoApp::notify_confirmation(const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed with email " + string(email) + ". Proceed to login with credentials.";
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
 {
     // FIXME: implement

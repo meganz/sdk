@@ -3326,10 +3326,7 @@ bool MegaClient::procsc()
                                 break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
-                                if (sc_uac())
-                                {
-                                    app->account_updated();
-                                }
+                                sc_uac();
                                 break;
                         }
                     }
@@ -4934,19 +4931,31 @@ void MegaClient::sc_chatupdate()
 
 #endif
 
-bool MegaClient::sc_uac()
+void MegaClient::sc_uac()
 {
+    string email;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
             case EOO:
-                return true;
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uac` action packet";
+                }
+                app->account_updated();     // for backwards compatibility
+                app->notify_confirmation(email.c_str());
+                return;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return false;
+                    LOG_warn << "Failed to parse `uac` action packet";
+                    return;
                 }
         }
     }

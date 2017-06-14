@@ -1986,6 +1986,9 @@ protected:
         // notify about db commit
         virtual void notify_dbcommit();
 
+        // notify about account confirmation
+        virtual void notify_confirmation(const char*);
+
         void sendPendingRequests();
         void sendPendingTransfers();
         char *stringToArray(string &buffer);

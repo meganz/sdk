@@ -120,7 +120,6 @@ public:
 
 class MEGA_API SimpleLogger {
     enum LogLevel level;
-    bool lineBreak;
     std::ostringstream ostr;
     std::string t;
     std::string fname;

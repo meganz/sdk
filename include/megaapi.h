@@ -2461,7 +2461,8 @@ class MegaEvent
 public:
 
     enum {
-        EVENT_COMMIT_DB = 0
+        EVENT_COMMIT_DB = 0,
+        EVENT_ACCOUNT_CONFIRMATION = 1
     };
 
     virtual ~MegaEvent();
@@ -4002,6 +4003,12 @@ class MegaGlobalListener
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
