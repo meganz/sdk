@@ -74,6 +74,7 @@ void printHistory();
 bool readconfirmationloop(const char *question);
 
 #ifdef _WIN32
+void stringtolocalw(const char* path, std::wstring* local);
 void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
 #endif
 

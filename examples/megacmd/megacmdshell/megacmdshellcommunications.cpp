@@ -279,7 +279,7 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
     listenerThread = NULL;
 }
 
-int MegaCmdShellCommunications::executeCommand(string command, std::ostream &output)
+int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &output)
 {
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
@@ -288,7 +288,23 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
     }
 
     command="X"+command;
+
+#ifdef _WIN32
+    // 1 - get local wide chars string (utf8 -> utf16)
+    wstring wcommand;
+    stringtolocalw(command.c_str(),&wcommand);
+
+    // 2 - serialize to multibytes for sending (this will inverted in server, we don't mind about the encoding since it's all local)
+    size_t buffer_size;
+    wcstombs_s(&buffer_size, NULL, 0, wcommand.c_str(), _TRUNCATE);
+    char *buf = new char[buffer_size];
+    wcstombs_s(&buffer_size, buf, buffer_size, wcommand.c_str(), _TRUNCATE);
+
+    int n = send(thesock, buf, buffer_size, MSG_NOSIGNAL);
+    delete [] buf;
+#else
     int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
+#endif
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
@@ -336,7 +352,7 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
                 wchar_t *wbuffer = new wchar_t[wbuffer_size];
                 mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, confirmQuestion, _TRUNCATE);
 
-                wcout << wbuffer; //TODO: use output
+                output << wbuffer;
                 delete [] wbuffer;
     #else
                 confirmQuestion[n]='\0';
@@ -379,11 +395,11 @@ int MegaCmdShellCommunications::executeCommand(string command, std::ostream &out
             wchar_t *wbuffer = new wchar_t[wbuffer_size];
             mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
 
-            wcout << wbuffer; //TODO: use output
+            output << wbuffer;
             delete [] wbuffer;
 #else
             buffer[n]='\0';
-            output << buffer; //TODO: receive outout streams ??
+            output << buffer;
 #endif
         }
     } while(n == BUFFERSIZE && n !=SOCKET_ERROR);

@@ -1,6 +1,8 @@
 #ifndef MEGACMDSHELLCOMMUNICATIONS_H
 #define MEGACMDSHELLCOMMUNICATIONS_H
 
+#include "megacmdshell.h"
+
 #include <string>
 #include <iostream>
 #include <thread>
@@ -42,7 +44,7 @@ public:
     MegaCmdShellCommunications();
     ~MegaCmdShellCommunications();
 
-    int executeCommand(std::string command, std::ostream &output = std::cout); //TODO: COUT?? (wcout for windows)
+    int executeCommand(std::string command, OUTSTREAMTYPE &output = COUT);
 
     static int registerForStateChanges();
 

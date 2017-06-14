@@ -63,6 +63,17 @@ void stringtolocalw(const char* path, std::wstring* local)
     }
 }
 
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+
 //override << operators for wostream for string and const char *
 
 std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
@@ -85,10 +96,9 @@ std::wostream & operator<< ( std::wostream & ostr, const char * str )
 //override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
 {
-    //TODO: localtostring
-    //std::wstring toout;
-    //stringtolocalw(str,&toout);
-    //ostr << toout;
+    std::string s;
+    localwtostring(&str,&s);
+    ostr << s;
     return ( ostr );
 }
 
@@ -2708,10 +2718,11 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 
     OUTSTREAM << endl;
     int nelements_per_col = (cols-1)/(max_length+1);
-    for (int i=1; i < num_matches; i++)
+    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
     {
         OUTSTREAM << setw(max_length+1) << left << c[i];
-        if ( (i%nelements_per_col == 0) && (i != num_matches-1))
+
+        if ( (i%nelements_per_col == 0) && (i != num_matches))
         {
             OUTSTREAM << endl;
         }

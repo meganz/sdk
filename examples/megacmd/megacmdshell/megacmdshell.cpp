@@ -496,6 +496,20 @@ char* local_completion(const char* text, int state)
     return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
+
+
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+
+
 char* remote_completion(const char* text, int state)
 {
     char *saved_line = strdup(getCurrentLine().c_str());
@@ -507,12 +521,19 @@ char* remote_completion(const char* text, int state)
         string completioncommand("completionshell ");
         completioncommand+=saved_line;
 
-        string s;
-        ostringstream oss(s);
+        OUTSTRING s;
+        OUTSTRINGSTREAM oss(s);
 
         comms->executeCommand(completioncommand,oss);
 
-        string outputcommand = oss.str();
+        string outputcommand;
+
+#ifdef _WIN32
+        localwtostring(&oss.str(),&outputcommand);
+#else
+         outputcommand = oss.str();
+#endif
+
         if (outputcommand == "MEGACMD_USE_LOCAL_COMPLETION")
         {
             return local_completion(text,state); //fallback to local path completion
@@ -659,7 +680,7 @@ void wait_for_input(int readline_fd)
 #ifdef _WIN32
             if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
 #endif
-                cerr << "Error at select: " << errno << endl;
+                cerr << "Error at select at wait_for_input errno: " << errno << endl;
             return;
         }
     }
@@ -1194,10 +1215,10 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 
     OUTSTREAM << endl;
     int nelements_per_col = (cols-1)/(max_length+1);
-    for (int i=1; i < num_matches; i++)
+    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
     {
         OUTSTREAM << setw(max_length+1) << left << c[i];
-        if ( (i%nelements_per_col == 0) && (i != num_matches-1))
+        if ( (i%nelements_per_col == 0) && (i != num_matches))
         {
             OUTSTREAM << endl;
         }
