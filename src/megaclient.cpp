@@ -3263,7 +3263,10 @@ bool MegaClient::procsc()
                                 // share addition/update/revocation
                                 if (sc_shares())
                                 {
+                                    int creqtag = reqtag;
+                                    reqtag = 0;
                                     mergenewshares(1);
+                                    reqtag = creqtag;
                                 }
                                 break;
 
