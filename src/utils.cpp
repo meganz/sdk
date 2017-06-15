@@ -313,8 +313,8 @@ bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
             {
                 attachedNodes.erase(h);
                 changed.attachments = true;
-                return true;
             }
+            return true;
         }
     }
     else
