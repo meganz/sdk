@@ -753,6 +753,10 @@ void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
     std::string utf8password;
     if (password != nullptr)
         MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener)
