@@ -37,9 +37,6 @@
 #include <sstream>
 #include <algorithm>
 
-
-//TODO: check includes ok in windows:
-
 #ifndef _WIN32
 #include <signal.h>
 #include <sys/types.h>
@@ -379,6 +376,41 @@ static void store_line(char* l)
     line = l;
 }
 
+#ifdef _WIN32
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+#endif
+
+void install_rl_handler(const char *theprompt)
+{
+#ifdef _WIN32
+    wstring wswhat;
+    stringtolocalw(theprompt,&wswhat);
+
+    const wchar_t *what = wswhat.c_str();
+
+    size_t buffer_size;
+    wcstombs_s(&buffer_size, NULL, 0, what, _TRUNCATE);
+
+    // do the actual conversion
+    char *buffer = new char[buffer_size];
+    wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+    rl_callback_handler_install(buffer, store_line);
+
+    delete []buffer;
+#else
+    rl_callback_handler_install(theprompt, store_line);
+#endif
+}
+
 void changeprompt(const char *newprompt, bool redisplay)
 {
     mutexPrompt.lock();
@@ -398,7 +430,7 @@ void changeprompt(const char *newprompt, bool redisplay)
             rl_crlf();
         }
 
-        rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+        install_rl_handler(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
 
         // restore line
         if (saved_line)
@@ -493,20 +525,6 @@ char* local_completion(const char* text, int state)
 {
     return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
-
-
-
-//widechar to utf8 string
-void localwtostring(const std::wstring* wide, std::string *multibyte)
-{
-    if( !wide->empty() )
-    {
-        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
-        multibyte->resize(size_needed);
-        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
-    }
-}
-
 
 char* remote_completion(const char* text, int state)
 {
@@ -1005,17 +1023,14 @@ void readloop()
     sleepMicroSeconds(1);
 #endif
 
-
-
     for (;; )
     {
-//        procesingline = false;
         if (prompt == COMMAND)
         {
             mutexPrompt.lock();
             if (requirepromptinstall)
             {
-                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+                install_rl_handler(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
                 handlerinstalled = false;
 
                 // display prompt

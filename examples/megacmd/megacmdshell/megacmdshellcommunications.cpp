@@ -487,24 +487,8 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
             n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
             if (n)
             {
-#ifdef _WIN32
-                buffer[n]='\0';
-
-                // determine the required buffer size
-                size_t wbuffer_size;
-                mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
-
-                // do the actual conversion
-                wchar_t *wbuffer = new wchar_t[wbuffer_size];
-                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
-
-                //            wcout << wbuffer; //TODO: review windows version
-                newstate += buffer;
-                delete [] wbuffer;
-#else
                 buffer[n]='\0';
                 newstate += buffer;
-#endif
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
