@@ -354,7 +354,11 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
-    int connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    int connectedsocket = ((CmdPetitionPortSockets *)inf)->acceptedOutSocket;
+    if (connectedsocket == SOCKET_ERROR)
+    {
+        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    }
     if (connectedsocket == SOCKET_ERROR)
     {
         LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << ERRNO;
@@ -532,7 +536,6 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
 bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string message)
 {
-    //TODO: test this implementation
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
     int connectedsocket = ((CmdPetitionPortSockets *)inf)->acceptedOutSocket;
@@ -560,7 +563,7 @@ bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string m
 
     bool response;
     n = recv(connectedsocket,(char *)&response, sizeof(response), MSG_NOSIGNAL);
-    return false;
+    return response;
 }
 
 string ComunicationsManagerPortSockets::get_petition_details(CmdPetition *inf)

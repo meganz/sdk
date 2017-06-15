@@ -664,7 +664,6 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
 void wait_for_input(int readline_fd)
 {
-    //TODO: test in windows
     fd_set fds;
 
     FD_ZERO(&fds);

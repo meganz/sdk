@@ -397,16 +397,16 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
     #ifdef _WIN32
                 confirmQuestion[n]='\0';
 
-                // determine the required confirmQuestion size
-                size_t wbuffer_size;
-                mbstowcs_s(&wbuffer_size, NULL, 0, confirmQuestion, _TRUNCATE);
+//                // determine the required confirmQuestion size
+//                size_t wbuffer_size;
+//                mbstowcs_s(&wbuffer_size, NULL, 0, confirmQuestion, _TRUNCATE);
 
-                // do the actual conversion
-                wchar_t *wbuffer = new wchar_t[wbuffer_size];
-                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, confirmQuestion, _TRUNCATE);
+//                // do the actual conversion
+//                wchar_t *wbuffer = new wchar_t[wbuffer_size];
+//                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, confirmQuestion, _TRUNCATE);
 
-                output << wbuffer;
-                delete [] wbuffer;
+//                output << wbuffer;
+//                delete [] wbuffer;
     #else
                 confirmQuestion[n]='\0';
 
