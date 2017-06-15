@@ -755,6 +755,45 @@ void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
         MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
 }
 
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL);
+}
+
 void MegaSDK::querySignupLink(String^ link)
 {
 	std::string utf8link;
