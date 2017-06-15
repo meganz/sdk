@@ -84,7 +84,7 @@ bool TextChat::serialize(string *d)
     d->append((char*)&ou, sizeof ou);
     d->append((char*)&ts, sizeof(ts));
 
-    char hasAttachments = attachedNodes.size();
+    char hasAttachments = attachedNodes.size() != 0;
     d->append((char*)&hasAttachments, 1);
     d->append("\0\0\0\0\0\0\0\0", 9); // additional bytes for backwards compatibility
 
@@ -140,7 +140,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     shard = MemAccess::get<int>(ptr);
     ptr += sizeof shard;
 
-    ll = MemAccess::get<short>(ptr);
+    ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof ll;
     if (ll)
     {
@@ -163,7 +163,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
     }
 
-    if (ptr + sizeof(bool) + sizeof(short) > end)
+    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
     {
         delete userpriv;
         return NULL;
@@ -172,7 +172,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     group = MemAccess::get<bool>(ptr);
     ptr += sizeof group;
 
-    ll = MemAccess::get<short>(ptr);
+    ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof ll;
     if (ll)
     {
@@ -217,7 +217,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             return NULL;
         }
 
-        numNodes = MemAccess::get<short>(ptr);
+        numNodes = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof numNodes;
 
         for (int i = 0; i < numNodes; i++)
@@ -233,7 +233,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             h = MemAccess::get<handle>(ptr);
             ptr += sizeof h;
 
-            numUsers = MemAccess::get<short>(ptr);
+            numUsers = MemAccess::get<unsigned short>(ptr);
             ptr += sizeof numUsers;
 
             handle uh = UNDEF;
