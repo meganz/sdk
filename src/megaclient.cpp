@@ -7959,10 +7959,9 @@ void MegaClient::procmcna(JSON *j)
                 }
             }
             j->leaveobject();
-        }
+        }        
+        j->leavearray();
     }
-
-    j->leavearray();
 }
 #endif
 
