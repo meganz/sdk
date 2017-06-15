@@ -82,7 +82,10 @@ bool TextChat::serialize(string *d)
     d->append((char*)&ou, sizeof ou);
     d->append((char*)&ts, sizeof(ts));
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
+    char isArchive = archive ? 1 : 0;
+    d->append((char*)&isArchive, 1);
+
+    d->append("\0\0\0\0\0\0\0\0", 9); // additional bytes for backwards compatibility
 
     return true;
 }
@@ -97,6 +100,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     string title;   // byte array
     handle ou;
     m_time_t ts;
+    char archive;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -161,7 +165,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     }
     ptr += ll;
 
-    if (ptr + sizeof(handle) + sizeof(m_time_t) + 10 > end)
+    if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
     {
         delete userpriv;
         return NULL;
@@ -173,7 +177,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ts = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    for (int i = 10; i--;)
+    archive = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 9; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -205,6 +212,14 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
+    if (archive == 0)
+    {
+        chat->archive = false;
+    }
+    else
+    {
+        chat->archive = true;
+    }
 
     return chat;
 }

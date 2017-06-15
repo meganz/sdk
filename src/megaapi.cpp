@@ -3622,6 +3622,11 @@ const char* MegaApi::getFileAttribute(MegaHandle handle)
     return pImpl->getFileAttribute(handle);
 }
 
+void MegaApi::archiveChat(mega::MegaHandle chatid, int archive, mega::MegaRequestListener *listener)
+{
+    pImpl->archiveChat(chatid, archive, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)

@@ -4812,6 +4812,7 @@ void MegaClient::sc_chatupdate()
     handle ou = UNDEF;
     string title;
     m_time_t ts = -1;
+    bool archive = false;
 
     bool done = false;
     while (!done)
@@ -4850,6 +4851,10 @@ void MegaClient::sc_chatupdate()
                 ts = jsonsc.getint();
                 break;
 
+            case 'a':
+                archive = jsonsc.getint();
+            break;
+
             case EOO:
                 done = true;
 
@@ -4879,6 +4884,7 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->ou = ou;
                     chat->title = title;
+                    chat->archive = archive;
                     if (ts != -1)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
@@ -11075,6 +11081,11 @@ void MegaClient::getChatPresenceUrl()
 void MegaClient::registerPushNotification(int deviceType, const char *token)
 {
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
+}
+
+void MegaClient::archiveChat(handle chatid, bool archived)
+{
+    reqs.add(new CommandArchiveChat(this, chatid, archived));
 }
 
 #endif

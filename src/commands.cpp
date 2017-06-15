@@ -5084,6 +5084,52 @@ void CommandRegisterPushNotification::procresult()
         client->app->registerpushnotification_result(API_EINTERNAL);
     }
 }
+
+CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
+{
+    this->client = client;
+    this->mChatid = chatid;
+    this->mArchive = archive;
+
+    cmd("mcac");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("a", archive);
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandArchiveChat::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(mChatid) == client->chats.end())
+            {
+                // the invitation succeed for a non-existing chatroom
+                client->app->archivechat_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[mChatid];
+            chat->archive = mArchive;
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->archivechat_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 

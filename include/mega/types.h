@@ -433,6 +433,7 @@ struct TextChat : public Cachable
     string title;   // byte array
     handle ou;
     m_time_t ts;     // creation time
+    bool archive;
 
     int tag;    // source tag, to identify own changes
 

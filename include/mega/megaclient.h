@@ -499,6 +499,8 @@ public:
 
     // register a token device to route push notifications
     void registerPushNotification(int deviceType, const char *token = NULL);
+
+    void archiveChat(handle chatid, bool archived);
 #endif
 
     // toggle global debug flag

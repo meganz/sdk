@@ -1683,6 +1683,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
+        void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1945,6 +1946,7 @@ protected:
         virtual void chatsettitle_result(error);
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
+        virtual void archivechat_result(error);
 
         virtual void chats_updated(textchat_map *, int);
 #endif

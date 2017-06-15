@@ -2700,6 +2700,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
         case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
+        case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
     }
     return "UNKNOWN";
 }
@@ -6752,6 +6753,16 @@ MegaTextChatList *MegaApiImpl::getChatList()
 
     return list;
 }
+
+void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(archive);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -8756,6 +8767,21 @@ void MegaApiImpl::registerpushnotification_result(error e)
     if(it == requestMap.end()       ||
             !(request = it->second) ||
             request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::archivechat_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)
     {
         return;
     }
@@ -14630,6 +14656,19 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->registerPushNotification(deviceType, token);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_ARCHIVE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool archive = request->getFlag();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->archiveChat(chatid, archive);
             break;
         }
 #endif
