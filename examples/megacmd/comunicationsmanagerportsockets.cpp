@@ -336,7 +336,7 @@ int ComunicationsManagerPortSockets::waitForPetition()
 
 void ComunicationsManagerPortSockets::stopWaiting()
 {
-    //TODO: implement
+    shutdown(sockfd,SD_BOTH);
 }
 
 void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
@@ -499,7 +499,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR reading from socket";
+        LOG_fatal << "ERROR reading from socket errno: " << errno;
         inf->line = strdup("ERROR");
         return inf;
     }

@@ -123,15 +123,76 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 
         if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
         {
-            cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
             if (!number)
             {
-#ifdef __linux__
-                cerr << "Please ensure mega-cmd is running" << endl;
+                //launch server
+                OUTSTREAM << "Server not running. Initiating in the background." << endl;
+
+                STARTUPINFO si;
+                PROCESS_INFORMATION pi;
+                ZeroMemory( &si, sizeof(si) );
+                ZeroMemory( &pi, sizeof(pi) );
+
+                //TODO: This created the file but no log was flushed
+//                string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
+//                OUTSTREAM << " The output will logged to " << pathtolog << endl;
+//                //TODO: use pathtolog
+//                HANDLE h = CreateFile(TEXT("megacmdserver.log"), GENERIC_READ| GENERIC_WRITE,FILE_SHARE_READ,
+//                                      NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+//                if(h != INVALID_HANDLE_VALUE)
+//                {
+//                    SetFilePointer (h, 0L, NULL, FILE_END); //TODO: review this
+//                    si.dwFlags |= STARTF_USESTDHANDLES;
+//                    si.hStdOutput = h;
+//                    si.hStdError = h;
+//                }
+//                else
+//                {
+//                    cerr << " Could not create log file: " << endl;
+//                }
+
+
+#ifndef NDEBUG //TODO: check in release version
+                LPCWSTR t = TEXT("C:\\Users\\MEGA\\AppData\\Local\\MEGAcmd\\MEGAcmd.exe");//TODO: get appData/Local folder programatically
 #else
-                cerr << "Please ensure MegaCMD is running" << endl;
+                LPCWSTR t = TEXT("..\\MEGAcmdServer\\release\\MEGAcmd.exe");
 #endif
 
+                LPWSTR t2 = (LPWSTR) t;
+                si.cb = sizeof(si);
+                if (!CreateProcess( t,t2,NULL,NULL,TRUE,
+                                    CREATE_NEW_CONSOLE,
+                                    NULL,NULL,
+                                    &si,&pi) )
+                {
+                    COUT << "Unable to execute: " << t; //TODO: improve error printing //ERRNO=2 (not found) might happen
+                }
+
+                //try again:
+                int attempts = 0; //TODO: if >0, connect will cause a SOCKET_ERROR in first recv in the server (not happening in the next petition)
+                int waitimet = 1500;
+                while ( attempts && ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
+                {
+                    Sleep(waitimet/1000);
+                    waitimet=waitimet*2;
+                    attempts--;
+                }
+                if (attempts < 0) //TODO: check this whenever attempts is > 0
+                {
+                    cerr << "Unable to connect to " << (number?("response socket N "+number):"server") << ": error=" << ERRNO << endl;
+#ifdef __linux__
+                    cerr << "Please ensure mega-cmd is running" << endl;
+#else
+                    cerr << "Please ensure MegaCMD is running" << endl;
+#endif
+                    return INVALID_SOCKET;
+                }
+                else
+                {
+                    serverinitiatedfromshell = true;
+                    registerAgainRequired = true;
+                }
             }
             return INVALID_SOCKET;
         }
@@ -171,16 +232,13 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
             if (!number)
             {
                 //launch server
-                #ifdef _WIN32
-                        //TODO: implement this for windows
-                #else
 //                if (fork()) //fork() -> child is megacmdshell (debug megacmd server)
                 if (!fork()) //!fork -> child is server. (debug megacmdshell)
                 {
                     signal(SIGINT, SIG_IGN); //ignore Ctrl+C in the server
 
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
-                    sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
+                    sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() ); // TODO: review this line
                     OUTSTREAM << "Server not running. Initiating in the background." << endl;
                     OUTSTREAM << " The output will logged to " << pathtolog << endl;
 
@@ -211,18 +269,13 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                     exit(0);
                 }
 
-                #endif
 
                 //try again:
                 int attempts = 12;
                 int waitimet = 1500;
                 while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
                 {
-#if _WIN32
-                    Sleep(waittime/1000);
-#else
                     usleep(waitimet);
-#endif
                     waitimet=waitimet*2;
                 }
                 if (attempts<0)

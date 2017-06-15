@@ -209,11 +209,10 @@ int ComunicationsManagerFileSockets::waitForPetition()
 void ComunicationsManagerFileSockets::stopWaiting()
 {
 #ifdef _WIN32
-    //TODO: implement for windows
+    shutdown(sockfd,SD_BOTH);
 #else
     shutdown(sockfd,SHUT_RDWR);
 #endif
-
 }
 
 

@@ -994,6 +994,20 @@ void readloop()
     //give it a while to communicate the state
     sleepMicroSeconds(1);
 
+#ifdef _WIN32
+    // due to a failure in reconnecting to the socket, if the server was initiated in while registeringForStateChanges
+    // in windows we would not be yet connected. we need to manually try to register again.
+    if (comms->registerAgainRequired)
+    {
+        comms->registerForStateChanges();
+        comms->registerAgainRequired = false;
+    }
+    //give it a while to communicate the state
+    sleepMicroSeconds(1);
+#endif
+
+
+
     for (;; )
     {
 //        procesingline = false;
