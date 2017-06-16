@@ -13626,7 +13626,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else    // pwcipher provided
             {
-                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) == sizeof pwkey)
+                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
                 {
                     e = API_EARGS;
                 }
