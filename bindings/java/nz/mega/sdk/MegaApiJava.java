@@ -1392,7 +1392,7 @@ public class MegaApiJava {
             Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
             while (it.hasNext()) {
                 DelegateMegaLogger delegate = it.next();
-                if (delegate.getUserListener() == listener) {
+                if (delegate.getUserListener() == megaLogger) {
                     listenersToRemove.add(delegate);
                     it.remove();
                 }
