@@ -25,6 +25,8 @@ class DelegateMEGALoggerListener : public mega::MegaLogger {
     
 public:
     DelegateMEGALoggerListener(id<MEGALoggerDelegate> listener);
+    id<MEGALoggerDelegate>getUserListener();
+    
     void log(const char *time, int logLevel, const char *source, const char *message);
     
 private:

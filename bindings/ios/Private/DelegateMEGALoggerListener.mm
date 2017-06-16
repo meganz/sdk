@@ -25,45 +25,14 @@ using namespace mega;
 
 DelegateMEGALoggerListener::DelegateMEGALoggerListener(id<MEGALoggerDelegate>listener) {
     this->listener = listener;
-    MegaApi::setLoggerObject(this);
+}
+
+id<MEGALoggerDelegate>DelegateMEGALoggerListener::getUserListener() {
+    return listener;
 }
 
 void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message) {
-    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {
-        
+    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {        
         [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(NSInteger)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
-    }
-    else {
-        NSString *output = [[NSString alloc] init];
-        
-        switch (logLevel) {
-            case MEGALogLevelDebug:
-                output = [output stringByAppendingString:@" (debug) "];
-                break;
-            case MEGALogLevelError:
-                output = [output stringByAppendingString:@" (error) "];
-                break;
-            case MEGALogLevelFatal:
-                output = [output stringByAppendingString:@" (fatal) "];
-                break;
-            case MEGALogLevelInfo:
-                output = [output stringByAppendingString:@" (info) "];
-                break;
-            case MEGALogLevelMax:
-                output = [output stringByAppendingString:@" (verb) "];
-                break;
-            case MEGALogLevelWarning:
-                output = [output stringByAppendingString:@" (warn) "];
-                break;
-                
-            default:
-                break;
-        }
-        
-        output = [output stringByAppendingString:[NSString stringWithUTF8String:message]];
-        output = [output stringByAppendingString:@" ("];
-        output = [output stringByAppendingString:[[NSString stringWithUTF8String:source] lastPathComponent]];
-        output = [output stringByAppendingString:@")"];
-        NSLog(@"%@", output);
     }
 }
