@@ -283,8 +283,16 @@ int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline
         break;
 
     default: // handle the other possible conditions
-        LOG_fatal << "Error at WaitForMultipleObjects: " << GetLastError();
-        Sleep(300);
+        if (GetLastError() == ERROR_INVALID_HANDLE)
+        {
+            LOG_fatal << "Error at WaitForMultipleObjects: Port might be in use. Close any other instances";
+        }
+        else
+        {
+            LOG_fatal << "Error at WaitForMultipleObjects: " << GetLastError();
+        }
+
+        Sleep(2900);
         break;
     }
 
