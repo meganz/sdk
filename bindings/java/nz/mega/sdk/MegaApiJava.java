@@ -49,7 +49,6 @@ import java.util.Set;
 public class MegaApiJava {
     MegaApi megaApi;
     MegaGfxProcessor gfxProcessor;
-    static DelegateMegaLogger logger;
 
     void runCallback(Runnable runnable) {
         runnable.run();
@@ -1393,7 +1392,7 @@ public class MegaApiJava {
             Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
             while (it.hasNext()) {
                 DelegateMegaLogger delegate = it.next();
-                if (delegate.getLogger() == listener) {
+                if (delegate.getUserListener() == listener) {
                     listenersToRemove.add(delegate);
                     it.remove();
                 }

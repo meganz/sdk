@@ -33,7 +33,7 @@ class DelegateMegaLogger extends MegaLogger {
         this.listener = listener;
     }
 
-    MegaLoggerInterface getLogger() {
+    MegaLoggerInterface getUserListener() {
         return listener;
     }
 
