@@ -4953,7 +4953,6 @@ void MegaClient::sc_uac()
                 {
                     LOG_warn << "Missing email address in `uac` action packet";
                 }
-                app->account_updated();     // for backwards compatibility
                 app->notify_confirmation(email.c_str());
                 return;
 
