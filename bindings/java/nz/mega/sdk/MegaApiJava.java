@@ -49,7 +49,6 @@ import java.util.Set;
 public class MegaApiJava {
     MegaApi megaApi;
     MegaGfxProcessor gfxProcessor;
-    static DelegateMegaLogger logger;
 
     void runCallback(Runnable runnable) {
         runnable.run();
@@ -59,6 +58,7 @@ public class MegaApiJava {
     static Set<DelegateMegaTransferListener> activeTransferListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
     static Set<DelegateMegaGlobalListener> activeGlobalListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaGlobalListener>());
     static Set<DelegateMegaListener> activeMegaListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaListener>());
+    static Set<DelegateMegaLogger> activeMegaLoggers = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaLogger>());
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
 
     // Order options for getChildren
@@ -1374,10 +1374,7 @@ public class MegaApiJava {
      * @param megaLogger MegaLogger implementation
      */
     public static void addLoggerObject(MegaLoggerInterface megaLogger){
-        //TODO Array similar to addListener
-        DelegateMegaLogger newLogger = new DelegateMegaLogger(megaLogger);
-        MegaApi.addLoggerObject(newLogger);
-        logger = newLogger;
+        MegaApi.addLoggerObject(createDelegateMegaLogger(megaLogger));
     }
 
     /**
@@ -1389,7 +1386,22 @@ public class MegaApiJava {
      * @param megaLogger Previously registered MegaLogger implementation
      */
     public static void removeLoggerObject(MegaLoggerInterface megaLogger){
-        //TODO Array similar to removeListener
+        ArrayList<DelegateMegaLogger> listenersToRemove = new ArrayList<DelegateMegaLogger>();
+
+        synchronized (activeMegaLoggers) {
+            Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
+            while (it.hasNext()) {
+                DelegateMegaLogger delegate = it.next();
+                if (delegate.getUserListener() == megaLogger) {
+                    listenersToRemove.add(delegate);
+                    it.remove();
+                }
+            }
+        }
+
+        for (int i=0;i<listenersToRemove.size();i++){
+            MegaApi.removeLoggerObject(listenersToRemove.get(i));
+        }
     }
 
     /**
@@ -5369,6 +5381,12 @@ public class MegaApiJava {
         DelegateMegaListener delegateListener = new DelegateMegaListener(this, listener);
         activeMegaListeners.add(delegateListener);
         return delegateListener;
+    }
+
+    private static MegaLogger createDelegateMegaLogger(MegaLoggerInterface listener){
+        DelegateMegaLogger delegateLogger = new DelegateMegaLogger(listener);
+        activeMegaLoggers.add(delegateLogger);
+        return delegateLogger;
     }
 
     void privateFreeRequestListener(DelegateMegaRequestListener listener) {
