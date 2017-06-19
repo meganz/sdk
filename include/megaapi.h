@@ -3932,7 +3932,7 @@ class MegaGlobalListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -4200,7 +4200,7 @@ class MegaListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
-         * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -5194,6 +5194,11 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
          * @param link Confirmation link
          * @param password Password of the account
          * @param listener MegaRequestListener to track this request
@@ -5212,6 +5217,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
+         *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
          * @param link Confirmation link
          * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
