@@ -93,7 +93,7 @@ std::wostream & operator<< ( std::wostream & ostr, const char * str )
     return ( ostr );
 }
 
-//override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
+//override for the log. This is required for compiling, otherwise SimpleLog won't compile.
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
 {
     std::string s;
@@ -2538,7 +2538,14 @@ void megacmd()
         if (line)
         {
             // execute user command
+#ifdef _WIN32
+            int oldmode = _setmode(fileno(stdout), _O_U16TEXT); //this prevents from e.g chinese chars to stop the output
             doExit = doExit || process_line(line);
+            _setmode(fileno(stdout), oldmode);
+#else
+            doExit = doExit || process_line(line);
+#endif
+
             free(line);
             line = NULL;
         }

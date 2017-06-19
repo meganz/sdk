@@ -387,6 +387,69 @@ void localwtostring(const std::wstring* wide, std::string *multibyte)
         WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
     }
 }
+
+bool validoptionforreadline(const string& string)
+{// TODO: this has not been tested in 100% cases (perhaps it is too diligent or too strict)
+    int c,i,ix,n,j;
+    for (i=0, ix=string.length(); i < ix; i++)
+    {
+        c = (unsigned char) string[i];
+
+        //if (c>0xC0) return false;
+        //if (c==0x09 || c==0x0a || c==0x0d || (0x20 <= c && c <= 0x7e) ) n = 0; // is_printable_ascii
+        if (0x00 <= c && c <= 0x7f) n=0; // 0bbbbbbb
+        else if ((c & 0xE0) == 0xC0) n=1; // 110bbbbb
+        else if ( c==0xed && i<(ix-1) && ((unsigned char)string[i+1] & 0xa0)==0xa0) return false; //U+d800 to U+dfff
+        else if ((c & 0xF0) == 0xE0) {return false; n=2;} // 1110bbbb
+        else if ((c & 0xF8) == 0xF0) {return false; n=3;} // 11110bbb
+        //else if (($c & 0xFC) == 0xF8) n=4; // 111110bb //byte 5, unnecessary in 4 byte UTF-8
+        //else if (($c & 0xFE) == 0xFC) n=5; // 1111110b //byte 6, unnecessary in 4 byte UTF-8
+        else return false;
+        for (j=0; j<n && i<ix; j++) { // n bytes matching 10bbbbbb follow ?
+            if ((++i == ix) || (( (unsigned char)string[i] & 0xC0) != 0x80))
+                return false;
+        }
+
+
+
+    }
+    return true;
+}
+
+
+bool validwcharforeadline(const wchar_t thewchar)
+{
+    wstring input;
+    input+=thewchar;
+    string output;
+    localwtostring(&input,&output);
+    return validoptionforreadline(output);
+
+}
+
+wstring escapereadlinebreakers(const wchar_t *what)
+{
+    wstring output;
+    for( u_int i = 0; i < wcslen( what ) ; i++ )
+    {
+        if(validwcharforeadline(what[ i ] ))
+        {
+            output.reserve( output.size() + 1 );
+            output += what[ i ];
+        } else {
+            wchar_t code[ 7 ];
+            swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
+            //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
+            // NOTICE: I was able to execute a command with a literl \x242ee (which correspond to \uD850\uDEEE in UTF16).
+            // So it'll be more interesting to output here the complete unicode char and in unescapeutf16escapedseqs revert it.
+            //     or keep here the UTF16 escaped secs and revert them correctly in the unescapeutf16escapedseqs
+            output.reserve( output.size() + 7 ); // "\u"(2) + 5(uint max digits capacity)
+            output += code;
+        }
+    }
+    return output;
+}
+
 #endif
 
 void install_rl_handler(const char *theprompt)
@@ -394,18 +457,29 @@ void install_rl_handler(const char *theprompt)
 #ifdef _WIN32
     wstring wswhat;
     stringtolocalw(theprompt,&wswhat);
-
     const wchar_t *what = wswhat.c_str();
 
+
+    // escape characters that break readline input (e.g. Chinese ones. e.g \x242ee)
+    wstring output = escapereadlinebreakers(what);
+
+    // give readline something it understands
+    what = output.c_str();
     size_t buffer_size;
     wcstombs_s(&buffer_size, NULL, 0, what, _TRUNCATE);
 
-    // do the actual conversion
-    char *buffer = new char[buffer_size];
-    wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
-    rl_callback_handler_install(buffer, store_line);
+    if (buffer_size) //coversion is ok
+    {
+        // do the actual conversion
+        char *buffer = new char[buffer_size];
+        wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        rl_callback_handler_install(buffer, store_line);
+    }
+    else
+    {
+        rl_callback_handler_install("INVALID_PROMPT: ", store_line);
+    }
 
-    delete []buffer;
 #else
     rl_callback_handler_install(theprompt, store_line);
 #endif
@@ -526,6 +600,29 @@ char* local_completion(const char* text, int state)
     return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
+void pushvalidoption(  static vector<string>  *validOptions, const char *beginopt)
+{
+#ifdef _WIN32
+    if (validoptionforreadline(beginopt))
+    {
+        validOptions->push_back(beginopt);
+    }
+    else
+    {
+        wstring input;
+        stringtolocalw(beginopt,&input);
+        wstring output = escapereadlinebreakers(input.c_str());
+
+        string soutput;
+        localwtostring(&output,&soutput);
+        validOptions->push_back(soutput.c_str());
+    }
+#else
+    validOptions->push_back(beginopt);
+#endif
+}
+
+
 char* remote_completion(const char* text, int state)
 {
     char *saved_line = strdup(getCurrentLine().c_str());
@@ -565,7 +662,7 @@ char* remote_completion(const char* text, int state)
                 *ptr = '\0';
                 if (strcmp(beginopt," ")) //the server will give a " " for empty_completion (no matches)
                 {
-                    validOptions.push_back(beginopt);
+                    pushvalidoption(&validOptions,beginopt);
                 }
 
                 beginopt=ptr+1;
@@ -574,7 +671,7 @@ char* remote_completion(const char* text, int state)
         }
         if (*beginopt && strcmp(beginopt," "))
         {
-            validOptions.push_back(beginopt);
+            pushvalidoption(&validOptions,beginopt);
         }
     }
 

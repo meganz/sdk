@@ -45,6 +45,8 @@ public:
     ~MegaCmdShellCommunications();
 
     int executeCommand(std::string command, OUTSTREAMTYPE &output = COUT);
+    int executeCommandCompletion(std::string command, std::ostringstream &output);
+
 
     static int registerForStateChanges();
 

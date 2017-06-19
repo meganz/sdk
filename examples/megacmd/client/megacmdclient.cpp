@@ -499,7 +499,7 @@ int main(int argc, char* argv[])
 
             // do the actual conversion
             wchar_t *wbuffer = new wchar_t[wbuffer_size];
-            mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
+            mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE); //TODO: this and the inverse should not be used. use localwtostring / stringtolocalw instead (see cmd shell)
 
             wcout << wbuffer;
             delete [] wbuffer;

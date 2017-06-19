@@ -8,6 +8,10 @@
 #ifdef _WIN32
 #include <shlobj.h> //SHGetFolderPath
 #include <Shlwapi.h> //PathAppend
+
+#include <fcntl.h>
+#include <io.h>
+
 #else
 #include <fcntl.h>
 
@@ -332,7 +336,8 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
     listenerThread = NULL;
 }
 
-int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &output)
+
+int MegaCmdShellCommunications::executeCommandCompletion(string command, ostringstream &output)
 {
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
@@ -347,14 +352,166 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
     wstring wcommand;
     stringtolocalw(command.c_str(),&wcommand);
 
-    // 2 - serialize to multibytes for sending (this will inverted in server, we don't mind about the encoding since it's all local)
-    size_t buffer_size;
-    wcstombs_s(&buffer_size, NULL, 0, wcommand.c_str(), _TRUNCATE);
-    char *buf = new char[buffer_size];
-    wcstombs_s(&buffer_size, buf, buffer_size, wcommand.c_str(), _TRUNCATE);
+    int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
+#else
+    int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
+#endif
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
+        return -1;
+    }
 
-    int n = send(thesock, buf, buffer_size, MSG_NOSIGNAL);
-    delete [] buf;
+    int receiveSocket = SOCKET_ERROR ;
+
+    n = recv(thesock, (char *)&receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR reading output socket" << endl;
+        return -1;
+    }
+
+    int newsockfd =createSocket(receiveSocket);
+    if (newsockfd == INVALID_SOCKET)
+        return INVALID_SOCKET;
+
+    int outcode = -1;
+
+    n = recv(newsockfd, (char *)&outcode, sizeof(outcode), MSG_NOSIGNAL);
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR reading output code: " << ERRNO << endl;
+        return -1;
+    }
+
+    int BUFFERSIZE = 1024;
+    char buffer[1025];
+    do{
+        n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
+        if (n)
+        {
+            buffer[n]='\0';
+            output << buffer;
+        }
+    } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
+
+    if (n == SOCKET_ERROR)
+    {
+        cerr << "ERROR reading output: " << ERRNO << endl;
+        return -1;;
+    }
+
+    closeSocket(newsockfd);
+    closeSocket(thesock);
+    return outcode;
+}
+
+#ifdef _WIN32
+std::string to_utf8(uint32_t cp)
+{
+//    // c++11
+//    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
+//    return conv.to_bytes( (char32_t)cp );
+
+    std::string result;
+
+    int count;
+    if (cp < 0x0080)
+        count = 1;
+    else if (cp < 0x0800)
+        count = 2;
+    else if (cp < 0x10000)
+        count = 3;
+    else if (cp <= 0x10FFFF)
+        count = 4;
+    else
+        return result; // or throw an exception
+
+    result.resize(count);
+
+    for (int i = count-1; i > 0; --i)
+    {
+        result[i] = (char) (0x80 | (cp & 0x3F));
+        cp >>= 6;
+    }
+
+    for (int i = 0; i < count; ++i)
+        cp |= (1 << (7-i));
+
+    result[0] = (char) cp;
+
+    return result;
+}
+
+string unescapeutf16escapedseqs(const char *what)
+{
+    //    string toret;
+    //    size_t len = strlen(what);
+    //    for (int i=0;i<len;)
+    //    {
+    //        if (i<(len-5) && what[i]=='\\' && what[i+1]=='u')
+    //        {
+    //            toret+="?"; //TODO: translate \uXXXX to utf8 char *
+    //            // TODO: ideally, if first \uXXXX between [D800,DBFF] and there is a second between [DC00,DFFF] -> that's only one gliph
+    //            i+=6;
+    //        }
+    //        else
+    //        {
+    //            toret+=what[i];
+    //            i++;
+    //        }
+    //    }
+    //    return toret;
+
+    std::string str = what;
+    std::string::size_type startIdx = 0;
+    do
+    {
+        startIdx = str.find("\\u", startIdx);
+        if (startIdx == std::string::npos) break;
+
+        std::string::size_type endIdx = str.find_first_not_of("0123456789abcdefABCDEF", startIdx+2);
+        if (endIdx == std::string::npos) break;
+
+        std::string tmpStr = str.substr(startIdx+2, endIdx-(startIdx+2));
+        std::istringstream iss(tmpStr);
+
+        uint32_t cp;
+        if (iss >> std::hex >> cp)
+        {
+            std::string utf8 = to_utf8(cp);
+            str.replace(startIdx, 2+tmpStr.length(), utf8);
+            startIdx += utf8.length();
+        }
+        else
+            startIdx += 2;
+    }
+    while (true);
+
+    return str;
+}
+
+#endif
+
+int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &output)
+{
+    int thesock = createSocket();
+    if (thesock == INVALID_SOCKET)
+    {
+        return INVALID_SOCKET;
+    }
+
+    command="X"+command;
+
+#ifdef _WIN32
+//    //unescape \uXXXX sequences
+//    command=unescapeutf16escapedseqs(command.c_str());
+
+    //get local wide chars string (utf8 -> utf16)
+    wstring wcommand;
+    stringtolocalw(command.c_str(),&wcommand);
+    int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
+
 #else
     int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
 #endif
@@ -394,23 +551,7 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
             n = recv(newsockfd, confirmQuestion, BUFFERSIZE, MSG_NOSIGNAL);
             if (n)
             {
-    #ifdef _WIN32
-                confirmQuestion[n]='\0';
-
-//                // determine the required confirmQuestion size
-//                size_t wbuffer_size;
-//                mbstowcs_s(&wbuffer_size, NULL, 0, confirmQuestion, _TRUNCATE);
-
-//                // do the actual conversion
-//                wchar_t *wbuffer = new wchar_t[wbuffer_size];
-//                mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, confirmQuestion, _TRUNCATE);
-
-//                output << wbuffer;
-//                delete [] wbuffer;
-    #else
-                confirmQuestion[n]='\0';
-
-    #endif
+                confirmQuestion[n]='\0'; //TODO: review this and test long confirmQuestions
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
@@ -440,16 +581,11 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
 #ifdef _WIN32
             buffer[n]='\0';
 
-            // determine the required buffer size
-            size_t wbuffer_size;
-            mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
-
-            // do the actual conversion
-            wchar_t *wbuffer = new wchar_t[wbuffer_size];
-            mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
-
+            wstring wbuffer;
+            stringtolocalw((const char*)&buffer,&wbuffer);
+            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
             output << wbuffer;
-            delete [] wbuffer;
+            _setmode(fileno(stdout), oldmode);
 #else
             buffer[n]='\0';
             output << buffer;
@@ -534,8 +670,12 @@ int MegaCmdShellCommunications::registerForStateChanges()
         return INVALID_SOCKET;
     }
 
-    string command="registerstatelistener";
-    int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
+    //string command="registerstatelistener";
+
+    wstring wcommand=L"registerstatelistener";
+
+    int n = send(thesock,(char*)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
+
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR writing output Code to socket: " << ERRNO << endl;

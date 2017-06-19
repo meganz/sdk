@@ -199,6 +199,13 @@ int ComunicationsManagerPortSockets::initialize()
 
     socklen_t saddrlength = sizeof( addr );
 
+#ifdef _WIN32
+    DWORD reuse = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) != 0) {
+         printf("SO_REUSEADDR setsockopt failed with: %d\n", WSAGetLastError());
+    }
+#endif
+
     if (::bind(sockfd, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
     {
         if (ERRNO == EADDRINUSE)
@@ -387,15 +394,9 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
     }
 
 #ifdef _WIN32
-   // determine the required buffer size
-   size_t buffer_size;
-   wcstombs_s(&buffer_size, NULL, 0, sout.c_str(), _TRUNCATE);
-
-   // do the actual conversion
-   char *buffer = (char*) malloc(buffer_size);
-   wcstombs_s(&buffer_size, buffer, buffer_size, sout.c_str(), _TRUNCATE);
-
-   n = send(connectedsocket, buffer, buffer_size, MSG_NOSIGNAL);
+   string sutf8;
+   localwtostring(&sout,&sutf8);
+   n = send(connectedsocket, sutf8.data(), sutf8.size(), MSG_NOSIGNAL);
 #else
    n = send(connectedsocket, sout.data(), max(1,(int)sout.size()), MSG_NOSIGNAL); //TODO: test this max and do it for windows
 #endif
@@ -496,17 +497,17 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     memset(buffer, 0, 1024);
 
-    int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
 #ifdef _WIN32
-    // convert the UTF16 string to widechar
-    size_t wbuffer_size;
-    mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
-    wchar_t *wbuffer = new wchar_t[wbuffer_size];
-    mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE);
-
-    // convert the UTF16 widechar to UTF8 string
+    wchar_t wbuffer[1024]= {};
+    int n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
+    //TODO: control n is ok
+    wbuffer[n]='\0';
+    COUT << " received: " <<" n=" << n << " errno = " << ERRNO << " " <<  wbuffer << endl; //TODO: delete
     string receivedutf8;
-    MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
+    localwtostring(&wstring(wbuffer),&receivedutf8);
+
+#else
+    int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
 #endif
 
     if (n == SOCKET_ERROR)
