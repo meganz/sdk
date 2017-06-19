@@ -351,7 +351,11 @@ int ComunicationsManagerPortSockets::waitForPetition()
 
 void ComunicationsManagerPortSockets::stopWaiting()
 {
+#ifdef _WIN32
     shutdown(sockfd,SD_BOTH);
+#else
+    shutdown(sockfd,SHUT_RDWR);
+#endif
 }
 
 void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)

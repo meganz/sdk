@@ -131,7 +131,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
             {
                 //launch server
                 OUTSTREAM << "Server not running. Initiating in the background." << endl;
-
+#ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -197,6 +197,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                     serverinitiatedfromshell = true;
                     registerAgainRequired = true;
                 }
+#else
+                //TODO: implement linux part (see !net option)
+#endif
             }
             return INVALID_SOCKET;
         }
@@ -670,11 +673,14 @@ int MegaCmdShellCommunications::registerForStateChanges()
         return INVALID_SOCKET;
     }
 
-    //string command="registerstatelistener";
-
+#ifdef _WIN32
     wstring wcommand=L"registerstatelistener";
 
     int n = send(thesock,(char*)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
+#else
+    string command="registerstatelistener";
+    int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
+#endif
 
     if (n == SOCKET_ERROR)
     {

@@ -600,7 +600,7 @@ char* local_completion(const char* text, int state)
     return((char*)NULL );  //matches will be NULL: readline will use local completion
 }
 
-void pushvalidoption(  static vector<string>  *validOptions, const char *beginopt)
+void pushvalidoption(vector<string>  *validOptions, const char *beginopt)
 {
 #ifdef _WIN32
     if (validoptionforreadline(beginopt))
