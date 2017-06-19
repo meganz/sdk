@@ -377,6 +377,22 @@ class MegaUserPrivate : public MegaUser
         int tag;
 };
 
+class MegaHandleListPrivate : public MegaHandleList
+{
+public:
+    MegaHandleListPrivate();
+    MegaHandleListPrivate(const MegaHandleListPrivate *hList);
+    virtual ~MegaHandleListPrivate();
+
+    virtual MegaHandleList *copy() const;
+    virtual MegaHandle get(unsigned int i) const;
+    virtual unsigned int size() const;
+    virtual void addMegaHandle(MegaHandle megaHandle);
+
+private:
+    std::vector<MegaHandle> mList;
+};
+
 class MegaSharePrivate : public MegaShare
 {
 	public:
@@ -979,6 +995,8 @@ public:
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
 
+    virtual bool hasChanged(int changeType) const;
+    virtual int getChanges() const;
     virtual int isOwnChange() const;
 
 private:
@@ -990,6 +1008,7 @@ private:
     bool group;
     handle ou;
     string title;
+    int changed;
     int tag;
     int64_t ts;
 };
@@ -1683,6 +1702,9 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
+        MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
+        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
+        const char* getFileAttribute(MegaHandle h);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1694,7 +1716,6 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
-        virtual const char* getFileAttribute(MegaHandle handle);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
