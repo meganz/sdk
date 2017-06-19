@@ -1073,8 +1073,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
-    LocalTreeProcUpdateTransfers tput;
-    sync->client->proclocaltree(this, &tput);
+    if (newlocalpath)
+    {
+        LocalTreeProcUpdateTransfers tput;
+        sync->client->proclocaltree(this, &tput);
+    }
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1411,7 +1414,7 @@ void LocalNode::prepare()
     getlocalpath(&transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa->localname.size())
+    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->localname.size())
     {
         transfer->slot->fa->updatelocalname(&transfer->localfilename);
     }
