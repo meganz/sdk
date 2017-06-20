@@ -99,6 +99,12 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
     HTTPServerAllowLastLocalLink     = 2
 };
 
+typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
+    PushNotificationTokenTypeAndroid = 1,
+    PushNotificationTokenTypeiOSVoIP = 2,
+    PushNotificationTokenTypeiOSStandard = 3
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *

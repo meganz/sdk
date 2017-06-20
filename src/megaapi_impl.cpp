@@ -14635,7 +14635,10 @@ void MegaApiImpl::sendPendingRequests()
             int deviceType = request->getNumber();
             const char *token = request->getText();
 
-            if ((deviceType != 1 && deviceType != 2) || token == NULL)
+            if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD)
+                    || token == NULL)
             {
                 e = API_EARGS;
                 break;
