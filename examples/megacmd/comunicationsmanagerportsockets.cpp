@@ -504,7 +504,12 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 #ifdef _WIN32
     wchar_t wbuffer[1024]= {};
     int n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
-    //TODO: control n is ok
+    while (n == SOCKET_ERROR && ERRNO == WSAEWOULDBLOCK)
+    {
+        LOG_verbose << "Unexpected WSAEWOULDBLOCK in socket. Retrying ...";
+        Sleep(10);
+        n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
+    }
     string receivedutf8;
     if (n != SOCKET_ERROR)
     {
@@ -522,7 +527,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR reading from socket errno: " << errno;
+        LOG_fatal << "ERROR reading from socket " << newsockfd << " errno: " << ERRNO;
         inf->line = strdup("ERROR");
         return inf;
     }

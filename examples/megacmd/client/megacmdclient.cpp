@@ -30,6 +30,7 @@
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <Shlwapi.h> //PathAppend
+#include <Shellapi.h> //CommandLineToArgvW
 
 #include <fcntl.h>
 #include <io.h>
@@ -154,7 +155,56 @@ void localwtostring(const std::wstring* wide, std::string *multibyte)
 }
 
 
+wstring getWAbsPath(wstring localpath)
+{
+    if (!localpath.size())
+    {
+        return localpath;
+    }
+
+    wstring utf8absolutepath;
+
+    wstring absolutelocalpath;
+    localpath.append(L"", 1);
+
+   if (!PathIsRelativeW((LPCWSTR)localpath.data()))
+   {
+       if (localpath.find(L"\\\\?\\") != 0)
+       {
+           localpath.insert(0, L"\\\\?\\");
+       }
+       return localpath;
+   }
+
+   int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
+   if (len <= 0)
+   {
+      return localpath;
+   }
+
+   absolutelocalpath.resize(len * sizeof(wchar_t));
+   int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutelocalpath.data(), NULL);
+   if (newlen <= 0 || newlen >= len)
+   {
+       cerr << " failed to get CWD" << endl;
+       return localpath;
+   }
+   absolutelocalpath.resize(newlen* sizeof(wchar_t));
+
+   if (absolutelocalpath.find(L"\\\\?\\") != 0)
+   {
+       absolutelocalpath.insert(0, L"\\\\?\\");
+   }
+
+   return absolutelocalpath;
+
+}
+
+
 #endif
+
+
+
 string getAbsPath(string relativePath)
 {
     if (!relativePath.size())
@@ -370,6 +420,151 @@ string parseArgs(int argc, char* argv[])
     return toret;
 }
 
+
+#ifdef _WIN32
+
+wstring parsewArgs(int argc, wchar_t* argv[])
+{
+    vector<wstring> absolutedargs;
+    int totalRealArgs = 0;
+    if (argc>1)
+    {
+        absolutedargs.push_back(argv[1]);
+
+        if (!wcscmp(argv[1],L"sync"))
+        {
+            for (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] !='-' )
+                {
+                    totalRealArgs++;
+                }
+            }
+            bool firstrealArg = true;
+            for (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] !='-' )
+                {
+                    if (totalRealArgs >=2 && firstrealArg)
+                    {
+                        absolutedargs.push_back(getWAbsPath(argv[i]));
+                        firstrealArg=false;
+                    }
+                    else
+                    {
+                        absolutedargs.push_back(argv[i]);
+                    }
+                }
+                else
+                {
+                    absolutedargs.push_back(argv[i]);
+                }
+            }
+        }
+        else if (!wcscmp(argv[1],L"lcd")) //localpath args
+        {
+            for (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] !='-' )
+                {
+                    absolutedargs.push_back(getWAbsPath(argv[i]));
+                }
+                else
+                {
+                    absolutedargs.push_back(argv[i]);
+                }
+            }
+        }
+        else if (!wcscmp(argv[1],L"get") || !wcscmp(argv[1],L"preview") || !wcscmp(argv[1],L"thumbnail"))
+        {
+            for (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] != '-' )
+                {
+                    totalRealArgs++;
+                    if (totalRealArgs>1)
+                    {
+                        absolutedargs.push_back(getWAbsPath(argv[i]));
+                    }
+                    else
+                    {
+                        absolutedargs.push_back(argv[i]);
+                    }
+                }
+                else
+                {
+                    absolutedargs.push_back(argv[i]);
+                }
+            }
+            if (totalRealArgs == 1)
+            {
+                absolutedargs.push_back(getWAbsPath(L"."));
+
+            }
+        }
+        else if (!wcscmp(argv[1],L"put"))
+        {
+            int lastRealArg = 0;
+            for (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] !='-' )
+                {
+                    lastRealArg = i;
+                }
+            }
+            bool firstRealArg = true;
+            for  (int i = 2; i < argc; i++)
+            {
+                if (wcslen(argv[i]) && argv[i][0] !='-')
+                {
+                    if (firstRealArg || i <lastRealArg)
+                    {
+                        absolutedargs.push_back(getWAbsPath(argv[i]));
+                        firstRealArg = false;
+                    }
+                    else
+                    {
+                        absolutedargs.push_back(argv[i]);
+                    }
+                }
+                else
+                {
+                    absolutedargs.push_back(argv[i]);
+                }
+            }
+        }
+        else
+        {
+            for (int i = 2; i < argc; i++)
+            {
+                absolutedargs.push_back(argv[i]);
+            }
+        }
+    }
+
+    wstring toret=L"";
+    for (u_int i=0; i < absolutedargs.size(); i++)
+    {
+        if (absolutedargs.at(i).find(L" ") != wstring::npos || !absolutedargs.at(i).size())
+        {
+            toret += L"\"";
+        }
+        toret+=absolutedargs.at(i);
+        if (absolutedargs.at(i).find(L" ") != wstring::npos || !absolutedargs.at(i).size())
+        {
+            toret += L"\"";
+        }
+
+        if (i != (absolutedargs.size()-1))
+        {
+            toret += L" ";
+        }
+    }
+
+    return toret;
+}
+#endif
+
 #ifdef _WIN32
 int createSocket(int number = 0, bool net = true)
 #else
@@ -471,7 +666,14 @@ int main(int argc, char* argv[])
         cerr << "Too few arguments" << endl;
         return -1;
     }
+
+#ifdef _WIN32
+    int wargc;
+    LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(),&wargc);
+    wstring wcommand = parsewArgs(wargc,szArglist);
+#else
     string parsedArgs = parseArgs(argc,argv);
+#endif
 
 #if _WIN32
     WORD wVersionRequested;
@@ -493,11 +695,6 @@ int main(int argc, char* argv[])
         return INVALID_SOCKET;
     }
 #ifdef _WIN32
-
-    // get local wide chars string (utf8 -> utf16)
-    wstring wcommand;
-    stringtolocalw(parsedArgs.c_str(),&wcommand);
-
     int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
 #else
     int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
