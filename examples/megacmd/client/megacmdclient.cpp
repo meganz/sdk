@@ -30,6 +30,9 @@
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <Shlwapi.h> //PathAppend
+
+#include <fcntl.h>
+#include <io.h>
 #else
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -116,6 +119,41 @@ void local2path(string* local, string* path)
                                      NULL, NULL));
     //normalize(path);
 }
+//TODO: delete the 2 former??
+
+// convert UTF-8 to Windows Unicode wstring
+void stringtolocalw(const char* path, std::wstring* local)
+{
+    // make space for the worst case
+    local->resize((strlen(path) + 1) * sizeof(wchar_t));
+
+    int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
+    local->resize(wchars_num);
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);
+
+    if (len)
+    {
+        local->resize(len-1);
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+
+
 #endif
 string getAbsPath(string relativePath)
 {
@@ -454,12 +492,20 @@ int main(int argc, char* argv[])
     {
         return INVALID_SOCKET;
     }
+#ifdef _WIN32
 
+    // get local wide chars string (utf8 -> utf16)
+    wstring wcommand;
+    stringtolocalw(parsedArgs.c_str(),&wcommand);
+
+    int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
+#else
     int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
+#endif
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
-        return -1;;
+        return -1;
     }
 
     int receiveSocket = SOCKET_ERROR ;
@@ -468,10 +514,10 @@ int main(int argc, char* argv[])
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output socket" << endl;
-        return -1;;
+        return -1;
     }
 
-    int newsockfd =createSocket(receiveSocket);
+    int newsockfd = createSocket(receiveSocket);
     if (newsockfd == INVALID_SOCKET)
         return INVALID_SOCKET;
 
@@ -493,16 +539,11 @@ int main(int argc, char* argv[])
 #ifdef _WIN32
             buffer[n]='\0';
 
-            // determine the required buffer size
-            size_t wbuffer_size;
-            mbstowcs_s(&wbuffer_size, NULL, 0, buffer, _TRUNCATE);
-
-            // do the actual conversion
-            wchar_t *wbuffer = new wchar_t[wbuffer_size];
-            mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, buffer, _TRUNCATE); //TODO: this and the inverse should not be used. use localwtostring / stringtolocalw instead (see cmd shell)
-
+            wstring wbuffer;
+            stringtolocalw((const char*)&buffer,&wbuffer);
+            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
             wcout << wbuffer;
-            delete [] wbuffer;
+            _setmode(fileno(stdout), oldmode);
 #else
             buffer[n]='\0';
             cout << buffer;

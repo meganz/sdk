@@ -505,10 +505,16 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     wchar_t wbuffer[1024]= {};
     int n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
     //TODO: control n is ok
-    wbuffer[n]='\0';
-    COUT << " received: " <<" n=" << n << " errno = " << ERRNO << " " <<  wbuffer << endl; //TODO: delete
     string receivedutf8;
-    localwtostring(&wstring(wbuffer),&receivedutf8);
+    if (n != SOCKET_ERROR)
+    {
+        wbuffer[n]='\0';
+        localwtostring(&wstring(wbuffer),&receivedutf8);
+    }
+    else
+    {
+        LOG_warn << "Received empty command from client";
+    }
 
 #else
     int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
