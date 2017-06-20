@@ -45,12 +45,12 @@ void QTMegaGlobalListener::onReloadNeeded(MegaApi *api)
 
 void QTMegaGlobalListener::onEvent(MegaApi *api, MegaEvent *e)
 {
-    switch(e->getType())
+    switch (e->getType())
     {
         case MegaEvent::EVENT_ACCOUNT_CONFIRMATION:
         {
             QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnEvent);
-            event->setEvent(e ? e->copy() : NULL);
+            event->setEvent(e->copy());
             QCoreApplication::postEvent(this, event, INT_MIN);
             break;
         }
