@@ -4419,6 +4419,12 @@ class MegaApi
             TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
         };
 
+        enum {
+            PUSH_NOTIFICATION_ANDROID = 1,
+            PUSH_NOTIFICATION_IOS_VOIP = 2,
+            PUSH_NOTIFICATION_IOS_STD = 3
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -9640,12 +9646,18 @@ class MegaApi
          * This function attach a token to the current session, which is intended to get push notifications
          * on mobile platforms like Android and iOS.
          *
+         * The push notification mechanism is platform-dependent. Hence, the app should indicate the
+         * type of push notification to be registered. Currently, the different types are:
+         *  - MegaApi::PUSH_NOTIFICATION_ANDROID    = 1
+         *  - MegaApi::PUSH_NOTIFICATION_IOS_VOIP   = 2
+         *  - MegaApi::PUSH_NOTIFICATION_IOS_STD    = 3
+         *
          * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - Returns the token provided.
          * - MegaRequest::getNumber - Returns the device type provided.
          *
-         * @param deviceType Integer id for the provider. 1 for Android, 2 for iOS
+         * @param deviceType Type of notification to be registered.
          * @param token Character array representing the token to be registered.
          * @param listener MegaRequestListener to track this request
          */
