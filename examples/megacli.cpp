@@ -2020,7 +2020,7 @@ static void process_line(char* l)
                 cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
-                cout << "      reload" << endl;
+                cout << "      reload [nocache]" << endl;
                 cout << "      logout" << endl;
                 cout << "      locallogout" << endl;
                 cout << "      symlink" << endl;
@@ -3848,9 +3848,15 @@ static void process_line(char* l)
                     {
                         cout << "Reloading account..." << endl;
 
+                        bool nocache = false;
+                        if (words.size() == 2 && words[1] == "nocache")
+                        {
+                            nocache = true;
+                        }
+
                         cwd = UNDEF;
                         client->cachedscsn = UNDEF;
-                        client->fetchnodes();
+                        client->fetchnodes(nocache);
 
                         return;
                     }

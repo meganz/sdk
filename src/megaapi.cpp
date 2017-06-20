@@ -3617,9 +3617,19 @@ MegaTextChatList* MegaApi::getChatList()
     return pImpl->getChatList();
 }
 
-const char* MegaApi::getFileAttribute(MegaHandle handle)
+MegaHandleList* MegaApi::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
 {
-    return pImpl->getFileAttribute(handle);
+    return pImpl->getAttachmentAccess(chatid, h);
+}
+
+bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh)
+{
+    return pImpl->hasAccessToAttachment(chatid, h, uh);
+}
+
+const char* MegaApi::getFileAttribute(MegaHandle h)
+{
+    return pImpl->getFileAttribute(h);
 }
 
 void MegaApi::archiveChat(mega::MegaHandle chatid, int archive, mega::MegaRequestListener *listener)
@@ -4269,6 +4279,16 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+bool MegaTextChat::hasChanged(int) const
+{
+    return false;
+}
+
+int MegaTextChat::getChanges() const
+{
+    return 0;
+}
+
 int MegaTextChat::isOwnChange() const
 {
     return 0;
@@ -4391,4 +4411,34 @@ int MegaEvent::getType() const
 const char *MegaEvent::getText() const
 {
     return NULL;
+}
+
+MegaHandleList *MegaHandleList::createInstance()
+{
+    return new MegaHandleListPrivate();
+}
+
+MegaHandleList::~MegaHandleList()
+{
+
+}
+
+MegaHandleList *MegaHandleList::copy() const
+{
+    return NULL;
+}
+
+MegaHandle MegaHandleList::get(unsigned int i) const
+{
+    return INVALID_HANDLE;
+}
+
+unsigned int MegaHandleList::size() const
+{
+    return 0;
+}
+
+void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
+{
+
 }
