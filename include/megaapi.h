@@ -2549,7 +2549,8 @@ class MegaEvent
 public:
 
     enum {
-        EVENT_COMMIT_DB = 0
+        EVENT_COMMIT_DB = 0,
+        EVENT_ACCOUNT_CONFIRMATION = 1
     };
 
     virtual ~MegaEvent();
@@ -4020,6 +4021,10 @@ class MegaGlobalListener
 
         /**
          * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         *
+         * The usage of this callback to handle the external account confirmation is deprecated.
+         * Instead, you should use MegaGlobalListener::onEvent.
+         *
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -4078,7 +4083,6 @@ class MegaGlobalListener
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4090,6 +4094,12 @@ class MegaGlobalListener
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -4283,6 +4293,10 @@ class MegaListener
 
         /**
          * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         *
+         * The usage of this callback to handle the external account confirmation is deprecated.
+         * Instead, you should use MegaListener::onEvent.
+         *
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -4386,7 +4400,6 @@ class MegaListener
 #endif
 
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4394,6 +4407,12 @@ class MegaListener
          *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
          *  This event can be used to keep synchronization between the SDK cache and the
          *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -5229,6 +5248,19 @@ class MegaApi
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Sends the confirmation email for a new account
+         *
+         * This function is useful to send the confirmation link again or to send it to a different
+         * email address, in case the user mistyped the email at the registration form.
+         *
+         * @param email Email for the account
+         * @param name Firstname of the user
+         * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
+         * @param listener MegaRequestListener to track this request
+         */
+        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -5258,6 +5290,11 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
          * @param link Confirmation link
          * @param password Password of the account
          * @param listener MegaRequestListener to track this request
@@ -5276,6 +5313,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
+         *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
          * @param link Confirmation link
          * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey

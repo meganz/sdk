@@ -4245,6 +4245,16 @@ void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char
     waiter->notify();
 }
 
+void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
+    request->setEmail(email);
+    request->setPrivateKey(base64pwkey);
+    request->setName(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_SIGNUP_LINK, listener);
@@ -9861,6 +9871,13 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_confirmation(const char *email)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
+    event->setText(email);
+    fireOnEvent(event);
+}
+
 // callback for non-EAGAIN request-level errors
 // retrying is futile
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
@@ -13645,6 +13662,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *password = request->getPassword();
+            const char *base64pwkey = request->getPrivateKey();
             const char *name = request->getName();
 
             if(client->loggedin() != EPHEMERALACCOUNT)
@@ -13653,17 +13671,32 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!email || !name || !password)
+            if (!email || !name || (!password && !base64pwkey))
             {
                 e = API_EARGS;
                 break;
             }
 
+
             byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(password, pwkey);
+            if (password)
+            {
+                e = client->pw_key(password, pwkey);
+            }
+            else    // pwcipher provided
+            {
+                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
+                {
+                    e = API_EARGS;
+                }
+            }
+
+            if (e)
+            {
+                break;
+            }
 
             client->sendsignuplink(email, name, pwkey);
-
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
