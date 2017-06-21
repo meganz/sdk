@@ -1843,10 +1843,19 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                         LOG_warn << i << ": " << slist->data;
                                         if (i == 0 && !memcmp("Issuer:", slist->data, 7))
                                         {
-                                            const char *issuer = strstr(slist->data, "CN = ");
+                                            const char *issuer = NULL;
+                                            if ((issuer = strstr(slist->data, "CN = ")))
+                                            {
+                                                issuer += 5;
+                                            }
+                                            else if ((issuer = strstr(slist->data, "CN=")))
+                                            {
+                                                issuer += 3;
+                                            }
+
                                             if (issuer)
                                             {
-                                                req->sslfakeissuer = issuer + 5;
+                                                req->sslfakeissuer = issuer;
                                             }
                                         }
                                         slist = slist->next;
