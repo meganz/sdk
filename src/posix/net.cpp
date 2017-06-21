@@ -1218,6 +1218,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (!MegaClient::disablepkp && req->protect)
         {
+        #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
             if (curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY,
                                  "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;"
                                  "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80=") ==  CURLE_OK)
@@ -1229,6 +1230,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                 }
             }
             else
+        #endif
             {
             #ifdef USE_OPENSSL
                 curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
