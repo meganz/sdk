@@ -5132,7 +5132,6 @@ void CommandRegisterPushNotification::procresult()
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
-    this->client = client;
     this->mChatid = chatid;
     this->mArchive = archive;
 
