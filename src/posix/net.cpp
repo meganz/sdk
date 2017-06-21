@@ -1819,6 +1819,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 if (errorCode != CURLE_OK)
                 {
                     LOG_debug << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+
+                #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
                     {
                         pkpErrors++;
@@ -1869,6 +1871,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             }
                         }
                     }
+                #endif
                 }
                 else if (req->protect)
                 {
@@ -2463,10 +2466,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             request->sslfakeissuer.resize(len > 0 ? len : 0);
             LOG_debug << "Fake certificate issuer: " << request->sslfakeissuer;
         }
-    }
-    else
-    {
-        httpio->pkpErrors = 0;
     }
 
     return ok;
