@@ -84,11 +84,11 @@ bool TextChat::serialize(string *d)
     d->append((char*)&ou, sizeof ou);
     d->append((char*)&ts, sizeof(ts));
 
-    char isArchive = archive ? 1 : 0;
-    d->append((char*)&isArchive, 1);
-
     char hasAttachments = attachedNodes.size() != 0;
     d->append((char*)&hasAttachments, 1);
+
+    char isArchive = archive ? 1 : 0;
+    d->append((char*)&isArchive, 1);
     d->append("\0\0\0\0\0\0\0\0", 8); // additional bytes for backwards compatibility
 
     if (hasAttachments)
@@ -201,10 +201,11 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ts = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    archive = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
     hasAttachments = MemAccess::get<char>(ptr);
     ptr += sizeof hasAttachments;
+
+    archive = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
 
     for (int i = 8; i--;)
     {
@@ -283,14 +284,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
-    if (archive == 0)
-    {
-        chat->archive = false;
-    }
-    else
-    {
-        chat->archive = true;
-    }
+    chat->archive = archive;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 

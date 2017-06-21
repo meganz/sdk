@@ -5154,7 +5154,7 @@ void CommandArchiveChat::procresult()
         {
             if (client->chats.find(mChatid) == client->chats.end())
             {
-                // the invitation succeed for a non-existing chatroom
+                // the archive succeed for a non-existing chatroom
                 client->app->archivechat_result(API_EINTERNAL);
                 return;
             }
