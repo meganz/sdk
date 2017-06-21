@@ -1,4 +1,5 @@
 #!/bin/bash
+#better run in an empty folder
 
 GET=mega-get
 RM=mega-rm
@@ -61,9 +62,10 @@ $CD /
 
 function initialize_contents() {
 
+if [[ $(mega-whoami) != *"$MEGA_EMAIL_AUX" ]]; then
 mega-logout || :
-
 mega-login $MEGA_EMAIL_AUX $MEGA_PWD_AUX || exit -1
+fi
 
 
 if [ "$(ls -A .)" ]; then
