@@ -253,6 +253,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
 %newobject mega::MegaNode::getBase64Handle;
+%newobject mega::MegaNode::getFileAttrString;
 %newobject mega::MegaApi::getBase64PwKey;
 %newobject mega::MegaApi::getStringHash;
 %newobject mega::MegaApi::handleToBase64;

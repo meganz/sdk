@@ -394,7 +394,7 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
-string *MegaNode::getFileAttrString()
+char *MegaNode::getFileAttrString()
 {
     return NULL;
 }
