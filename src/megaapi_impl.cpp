@@ -132,8 +132,12 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->parenthandle = node->getParentHandle();
     string * attrstring = node->getAttrString();
     this->attrstring.assign(attrstring->data(), attrstring->size());
-    string * fileattrstring = node->getFileAttrString();
-    this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
+    char* fileAttributeString = node->getFileAttrString();
+    if (fileAttributeString)
+    {
+        this->fileattrstring = std::string(fileAttributeString);
+        delete [] fileAttributeString;
+    }
     string *nodekey = node->getNodeKey();
     this->nodekey.assign(nodekey->data(),nodekey->size());
     this->changed = node->getChanges();
@@ -725,9 +729,16 @@ string *MegaNodePrivate::getAttrString()
     return &attrstring;
 }
 
-string *MegaNodePrivate::getFileAttrString()
+char *MegaNodePrivate::getFileAttrString()
 {
-    return &fileattrstring;
+    char* fileAttributes = NULL;
+
+    if (fileattrstring.size() > 0)
+    {
+        fileAttributes = MegaApi::strdup(fileattrstring.c_str());
+    }
+
+    return fileAttributes;
 }
 
 int MegaNodePrivate::getTag()
@@ -5128,12 +5139,14 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
             const char *nodekey = node->getBase64Key();
             request->setPrivateKey(nodekey);
             delete [] nodekey;
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
@@ -5147,9 +5160,11 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
     if (node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
