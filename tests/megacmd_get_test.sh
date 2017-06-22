@@ -7,7 +7,11 @@ CD=mega-cd
 LCD=mega-lcd
 EXPORT=mega-export
 
+if [ "x$VERBOSE" == "x" ]; then
 VERBOSE=0
+fi
+
+ABSPWD=`pwd`
 
 function clean_all() { 
 	$RM -r "*" > /dev/null
@@ -39,6 +43,7 @@ if diff megaDls localDls 2>/dev/null >/dev/null; then
 	echo "test $currentTest succesful!"
 else
 	echo "test $currentTest failed!"
+	cd $ABSPWD
 	exit 1
 fi
 

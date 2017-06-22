@@ -27,9 +27,8 @@ function clean_all() {
 
 function clear_local_and_remote() {
 	rm -r localUPs/* 2>/dev/null
-	$RM -rf /01/../* 2>/dev/null || :
+	$RM -rf "/*" 2>/dev/null || :
 	initialize_contents
-
 }
 
 currentTest=1
@@ -55,38 +54,41 @@ function compare_and_clear() {
 		exit 1
 	fi
 
-
 	clear_local_and_remote
 	currentTest=$((currentTest+1))
 	$CD /
 }
 
 function check_failed_and_clear() {
-				if [ "$?" != "0" ]; then
-					echo "test $currentTest succesful!"
-				else
-					echo "test $currentTest failed!"
-					exit 1
-				fi
+	if [ "$?" != "0" ]; then
+		echo "test $currentTest succesful!"
+	else
+		echo "test $currentTest failed!"
+		cd $ABSPWD
+		exit 1
+	fi
 
-				clear_local_and_remote
-				currentTest=$((currentTest+1))
-				$CD /
+	clear_local_and_remote
+	currentTest=$((currentTest+1))
+	$CD /
 }
 
 function initialize () {
+
 	if [[ $(mega-whoami) != *"$MEGA_EMAIL" ]]; then
-		mega-logout || :
-		mega-login $MEGA_EMAIL $MEGA_PWD || exit -1
+	mega-logout || :
+	mega-login $MEGA_EMAIL $MEGA_PWD || exit -1
 	fi
 
 	if [ "$(ls -A .)" ]; then
 		echo "initialization folder not empty!"
+		cd $ABSPWD
 		exit 1
 	fi
 
 	if [ $($FIND / | wc  -l) != 1 ]; then 
 		echo "REMOTE Not empty, please clear it before starting!"
+		cd $ABSPWD
 		exit 1
 	fi
 
@@ -137,8 +139,9 @@ function initialize () {
 }
 
 function initialize_contents() {
-	$MKDIR -p 01/{s01/ss01,s02/ss0{1,2}}
-	mkdir -p localUPs/01/{s01/ss01,s02/ss0{1,2}}
+	$PUT localtmp/* /
+	mkdir -p localUPs
+	cp -r localtmp/* localUPs/
 }
 
 if [ "$MEGA_EMAIL" == "" ] || [ "$MEGA_PWD" == "" ]; then
@@ -158,9 +161,9 @@ clear_local_and_remote
 #Test 01 #clean comparison
 compare_and_clear
 
-#Test 02 #no destiny empty file upload
-$PUT localtmp/file01.txt
-cp localtmp/file01.txt localUPs/
+#Test 02 #destiny empty file
+$RM file01.txt
+rm localUPs/file01.txt
 compare_and_clear
 
 #Test 03 #/ destiny empty file upload
@@ -169,92 +172,75 @@ cp localtmp/file01.txt localUPs/
 compare_and_clear
 
 #Test 04 #no destiny nont empty file upload
-$PUT localtmp/file01nonempty.txt
-cp localtmp/file01nonempty.txt localUPs/
+$RM file01nonempty.txt
+rm localUPs/file01nonempty.txt
 compare_and_clear
 
 #Test 05 #empty folder
-$PUT localtmp/le01/les01/less01
-cp -r localtmp/le01/les01/less01 localUPs/
+$RM -rf le01/les01/less01
+rm -r localUPs/le01/les01/less01
 compare_and_clear
 
 #Test 06 #1 file folder
-$PUT localtmp/lf01/lfs01/lfss01
-cp -r localtmp/lf01/lfs01/lfss01 localUPs/
+$RM -rf lf01/lfs01/lfss01
+rm -r localUPs/lf01/lfs01/lfss01
 compare_and_clear
 
 #Test 07 #entire empty folders structure
-$PUT localtmp/le01
-cp -r localtmp/le01 localUPs/
+$RM -rf le01
+rm -r localUPs/le01
 compare_and_clear
 
 #Test 08 #entire non empty folders structure
-$PUT localtmp/lf01
-cp -r localtmp/lf01 localUPs/
+$RM -rf lf01
+rm -r localUPs/lf01
 compare_and_clear
 
-#Test 09 #copy structure into subfolder
-$PUT localtmp/le01 /01/s01
-cp -r localtmp/le01 localUPs/01/s01
+#Test 09 #multiple
+$RM -rf lf01 le01/les01
+rm -r localUPs/{lf01,le01/les01}
 compare_and_clear
 
-#~ #Test 10 #copy exact structure
-mkdir aux
-cp -pr localUPs/01 aux
-$PUT aux/01/s01 /01/s01
-cp -r aux/01/s01 localUPs/01/s01
-rm -r aux
-compare_and_clear
-
-#Test 11 #merge increased structure
-mkdir aux
-cp -pr localUPs/01 aux
-touch aux/01/s01/another.txt
-$PUT aux/01/s01 /01/
-rsync -aLp aux/01/s01/ localUPs/01/s01/
-rm -r aux
-compare_and_clear
-
-#Test 12 #multiple upload
-$PUT localtmp/le01 localtmp/lf01 /01/s01
-cp -r localtmp/le01 localtmp/lf01 localUPs/01/s01
-compare_and_clear
-
-#Test 13 #local regexp
-$PUT localtmp/*txt /01/s01
-cp -r localtmp/*txt localUPs/01/s01
-compare_and_clear
-
-#Test 14 #../
-$CD 01
-$PUT localtmp/le01 ../01/s01
+#Test 10 #.
+$CD le01
+$RM -rf .
 $CD /
-cp -r localtmp/le01 localUPs/01/s01
+rm -r localUPs/le01
 compare_and_clear
 
-#Test 14 #spaced stuff
-$PUT localtmp/ls\ 01
-cp -r localtmp/ls\ 01 localUPs/ls\ 01
+#Test 11 #..
+$CD le01/les01
+$RM -rf ..
+$CD /
+rm -r localUPs/le01
 compare_and_clear
 
+#Test 12 #../XX
+$CD le01/les01
+$RM -rf ../les01
+$CD /
+rm -r localUPs/le01/les01
+compare_and_clear
+
+#Test 13 #spaced stuff
+$RM -rf ls\ 01
+rm -r localUPs/ls\ 01
+compare_and_clear
+
+#Test 14 #complex stuff
+#$RM -rf ls\ 01/../le01/les01 lf01/../ls*/ls\ s02 #This one fails since it is PCRE expresion TODO: if ever supported PCRE enabling/disabling, consider that
+$RM -rf ls\ 01/../le01/les01 lf01/../ls.*/ls\ s02
+rm -r localUPs/{ls\ 01/../le01/les01,lf01/../ls*/ls\ s02}
+compare_and_clear
 
 ###TODO: do stuff in shared folders...
 
 ########
 
-##Test XX #merge structure with file updated
-##This test fails, because it creates a remote copy of the updated file.
-##That's expected. If ever provided a way to create a real merge (e.g.: put -m ...)  to do BACKUPs, reuse this test.
-#mkdir aux
-#cp -pr localUPs/01 aux
-#touch aux/01/s01/another.txt
-#$PUT aux/01/s01 /01/
-#rsync -aLp aux/01/s01/ localUPs/01/s01/
-#echo "newcontents" > aux/01/s01/another.txt 
-#$PUT aux/01/s01 /01/
-#rsync -aLp aux/01/s01/ localUPs/01/s01/
-#rm -r aux
-#compare_and_clear
+#~ #Test XX #regexp #yet unsupported
+#~ $RM -rf "le01/les*"
+#~ rm -r localUPs/le01/les*
+#~ compare_and_clear
 
 
 # Clean all
