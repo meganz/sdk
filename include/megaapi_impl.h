@@ -1624,6 +1624,7 @@ class MegaApiImpl : public MegaApp
         char *getOperatingSystemVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
+        void queryDNS(char *hostname, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -2006,6 +2007,8 @@ protected:
 
         // notify about account confirmation
         virtual void notify_confirmation(const char*);
+
+        virtual void dns_result(error, string*);
 
         void sendPendingRequests();
         void sendPendingTransfers();

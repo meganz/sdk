@@ -993,6 +993,28 @@ void MegaClient::exec()
 
         looprequested = false;
 
+        if (pendingdns.size())
+        {
+            map<int, HttpReq*>::iterator it = pendingdns.begin();
+            while (it != pendingdns.end())
+            {
+                HttpReq *req = it->second;
+                switch (req->status)
+                {
+                case REQ_SUCCESS:
+                case REQ_FAILURE:
+                    // FIXME: It could be good to take care of retries
+                    restag = it->first;
+                    app->dns_result(req->status == REQ_SUCCESS ? API_OK : API_EFAILED, &req->ip);
+                    delete req;
+                    pendingdns.erase(it++);
+                    break;
+                default:
+                    it++;
+                }
+            }
+        }
+
         // file attribute puts (handled sequentially as a FIFO)
         if (activefa.size())
         {
@@ -2926,8 +2948,17 @@ void MegaClient::locallogout()
         delete *it;
     }
 
+    //FIXME: We could remove these request only in the destructor to keep them alive
+    //even after a login / logout, but that would require to change the logic in the
+    //intermediate layer too.
+    for (pendingdns_map::iterator it = pendingdns.begin(); it != pendingdns.end(); it++)
+    {
+        delete it->second;
+    }
+
     queuedfa.clear();
     activefa.clear();
+    pendingdns.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -3017,6 +3048,13 @@ void MegaClient::getlastversion(const char *appKey)
 void MegaClient::getlocalsslcertificate()
 {
     reqs.add(new CommandGetLocalSSLCertificate(this));
+}
+
+void MegaClient::dnsrequest(const char *hostname)
+{
+    HttpReq *req = new HttpReq();
+    pendingdns[reqtag] = req;
+    req->dnsrequest(this, hostname);
 }
 
 // process server-client request

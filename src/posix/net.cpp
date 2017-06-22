@@ -1040,10 +1040,10 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     }
 
     // check for fatal errors
-    if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
+    if ((httpio->proxyurl.size() && !httpio->proxyhost.size() && req->type != REQ_DNS) //malformed proxy string
             || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
     {
-        if(!httpio->proxyinflight)
+        if (!httpio->proxyinflight || req->type == REQ_DNS)
         {
             req->status = REQ_FAILURE;
             httpio->statechange = true;
@@ -1085,7 +1085,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
         // if there is no proxy or we already have the IP of the proxy, send the request.
         // otherwise, queue the request until we get the IP of the proxy
-        if (!httpio->proxyurl.size() || httpio->proxyip.size())
+        if (!httpio->proxyurl.size() || httpio->proxyip.size() || req->type == REQ_DNS)
         {
             send_request(httpctx);
         }
@@ -1142,6 +1142,22 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
+
+    if (req->type == REQ_DNS)
+    {
+        req->ip = httpctx->hostip;
+        req->status = REQ_SUCCESS;
+        req->httpiohandle = NULL;
+
+        httpctx->req = NULL;
+        if (!httpctx->ares_pending)
+        {
+            delete httpctx;
+        }
+        httpio->statechange = true;
+        return;
+    }
+
     int len = httpctx->len;
     const char* data = httpctx->data;
 
@@ -1499,7 +1515,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->ares_pending = 0;
-    httpctx->d = (req->type == REQ_JSON) ? API : ((data ? len : req->out->size()) ? PUT : GET);
+    httpctx->d = (req->type == REQ_JSON || req->type == REQ_DNS) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;    
 
     bool validrequest = true;
@@ -1592,7 +1608,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
-    if (proxyip.size())
+    // FIXME: Instead of sending the DNS request, we should probably return the hostname
+    // because the user might not be able to complete the DNS request by himself
+    if (proxyip.size() && req->type != REQ_DNS)
     {
         // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";

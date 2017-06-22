@@ -197,6 +197,7 @@ struct MEGA_API HttpReq
     string in;
     size_t inpurge;
     size_t outpos;
+    string ip;
 
     string outbuf;
 
@@ -221,6 +222,9 @@ struct MEGA_API HttpReq
 
     // post request to the network
     void post(MegaClient*, const char* = NULL, unsigned = 0);
+
+    // send a DNS request
+    void dnsrequest(MegaClient*, const char*);
 
     // store chunk of incoming data with optional purging
     void put(void*, unsigned, bool = false);

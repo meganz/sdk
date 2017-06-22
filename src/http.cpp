@@ -349,6 +349,26 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     httpio->post(this, data, len);
 }
 
+void HttpReq::dnsrequest(MegaClient *client, const char *hostname)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+
+    //FIXME: Instead of adding a protocol to make the URL parser happy
+    //we could just change the parser to allow to set the hostname
+    //only or to use a prefix like dns://
+    //Another option is to allow to set a protocol to not only get
+    //the IP but also ensure that it's possible to connect
+    posturl = string("http://") + hostname;
+    type = REQ_DNS;
+    httpio = client->httpio;
+    httpio->post(this);
+}
+
 void HttpReq::disconnect()
 {
     if (httpio)
@@ -395,6 +415,7 @@ void HttpReq::init()
     timeleft = -1;
     lastdata = NEVER;
     outpos = 0;
+    ip.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)

@@ -2711,6 +2711,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
         case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
+        case TYPE_QUERY_DNS: return "QUERY_DNS";
     }
     return "UNKNOWN";
 }
@@ -7434,6 +7435,14 @@ void MegaApiImpl::getLocalSSLCertificate(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::queryDNS(char *hostname, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_DNS, listener);
+    request->setName(hostname);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -9891,6 +9900,19 @@ void MegaApiImpl::notify_confirmation(const char *email)
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
     event->setText(email);
     fireOnEvent(event);
+}
+
+void MegaApiImpl::dns_result(error e, string *ip)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_DNS)) return;
+
+    if (!e)
+    {
+        request->setText(ip->c_str());
+    }
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 // callback for non-EAGAIN request-level errors
@@ -14569,6 +14591,18 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_LOCAL_SSL_CERT:
         {
             client->getlocalsslcertificate();
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_DNS:
+        {
+            const char *hostname = request->getName();
+            if (!hostname)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->dnsrequest(hostname);
             break;
         }
 #ifdef ENABLE_CHAT

@@ -411,6 +411,8 @@ public:
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
 
+    void dnsrequest(const char*);
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
@@ -741,6 +743,8 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    pendingdns_map pendingdns;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;

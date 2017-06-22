@@ -277,6 +277,9 @@ struct MEGA_API MegaApp
     // account confirmation via signup link
     virtual void notify_confirmation(const char* email) { }
 
+    // DNS request finished
+    virtual void dns_result(error, string*) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

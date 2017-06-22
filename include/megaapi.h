@@ -1969,6 +1969,7 @@ class MegaRequest
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
+            TYPE_QUERY_DNS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -8996,6 +8997,13 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief FIXME: Add documentation
+         * @param hostname
+         * @param listener
+         */
+        void queryDNS(char *hostname, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the User-Agent header used by the SDK
