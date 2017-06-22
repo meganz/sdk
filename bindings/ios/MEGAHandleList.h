@@ -21,13 +21,45 @@
 
 #import <Foundation/Foundation.h>
 
+/**
+ * @brief List of MegaHandle objects
+ *
+ */
 @interface MEGAHandleList : NSObject
 
+/**
+ * @brief The number of handles in the list
+ */
 @property (readonly, nonatomic) NSUInteger size;
 
+/**
+ * @brief Creates a copy of this MEGAHandleList object
+ *
+ * The resulting object is fully independent of the source MEGAHandleList,
+ * it contains a copy of all internal attributes, so it will be valid after
+ * the original object is deleted.
+ *
+ * You are the owner of the returned object
+ *
+ * @return Copy of the MEGAHandleList object
+ */
 - (instancetype)clone;
 
+/**
+ * @brief Add new handle to handleList
+ * @param handle to be added.
+ */
 - (void)addMegaHandle:(uint64_t)handle;
+
+/**
+ * @brief Returns the MegaHandle at the position index in the MEGAHandleList
+ *
+ *
+ * If the index is >= the size of the list, this function returns INVALID_HANDLE.
+ *
+ * @param index Position of the MegaHandle that we want to get for the list
+ * @return handle at the position iindex in the list
+ */
 - (uint64_t)megaHandleAtIndex:(NSUInteger)index;
 
 @end

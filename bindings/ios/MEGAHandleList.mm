@@ -83,7 +83,7 @@ using namespace mega;
 }
 
 - (uint64_t)megaHandleAtIndex:(NSUInteger)index {
-    return self.megaHandleList ? self.megaHandleList->get((unsigned int)index) : 1;
+    return self.megaHandleList ? self.megaHandleList->get((unsigned int)index) : INVALID_HANDLE;
 }
 
 @end
