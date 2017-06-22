@@ -219,7 +219,6 @@ initialize
 
 ABSMEGADLFOLDER=$PWD/megaDls
 
-
 #Test 01 #destiny empty file
 compare_find file01.txt
 
@@ -260,14 +259,23 @@ $CD /
 find_local .//
 compare_remote_local
 
-currentTest=11
-
 #Test 11 #complex stuff
 #$RM -rf ls\ 01/../le01/les01 lf01/../ls*/ls\ s02 #This one fails since it is PCRE expresion TODO: if ever supported PCRE enabling/disabling, consider that
 find_remote ls\ 01/../le01/les01 lf01/../ls\ *01/ls\ s02
 find_local .//le01/les01
 find_local_append .//ls\ 01/ls\ s02
 compare_remote_local
+
+
+#Test 12 #folder/
+find_remote le01/
+find_local le01
+compare_remote_local
+
+#Test 13 #file01.txt/
+$FIND file01.txt/ >/dev/null 2>/dev/null
+if [ $? == 0 ]; then echo "test $currentTest failed!"; cd $ABSPWD; exit 1; 
+else echo "test $currentTest succesful!"; fi
 
 ###TODO: do stuff in shared folders...
 

@@ -824,16 +824,42 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
 
     if (currentPart == "." || currentPart == "")
     {
-        //ignore this part
-        return getNodesMatching(parentNode, pathParts, nodesMatching);
+        if (pathParts.size() == 0 && currentPart == ".") //last leave
+        {
+            //TODO: consider here currentPart == ""
+            if (parentNode)
+            {
+                nodesMatching->push_back(parentNode->copy());
+                return;
+            }
+        }
+        else
+        {
+            //ignore this part
+            return getNodesMatching(parentNode, pathParts, nodesMatching);
+        }
     }
     if (currentPart == "..")
     {
         if (parentNode->getParentHandle())
         {
-            parentNode = api->getNodeByHandle(parentNode->getParentHandle());
-            return getNodesMatching(parentNode, pathParts, nodesMatching);
-            delete parentNode;
+            MegaNode *newparentNode = api->getNodeByHandle(parentNode->getParentHandle());
+            if (!pathParts.size()) //last leave
+            {
+                //TODO: consider here currentPart == ""
+                if (newparentNode)
+                {
+                    nodesMatching->push_back(newparentNode);
+                }
+                return;
+            }
+            else
+            {
+                getNodesMatching(newparentNode, pathParts, nodesMatching);
+                delete newparentNode;
+                return;
+            }
+
         }
         else
         {
@@ -2830,6 +2856,48 @@ void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE
     OUTSTREAM << endl;
 }
 
+void MegaCmdExecuter::doFind(MegaNode* nodeBase, string word, int printfileinfo, string pattern)
+{
+    struct patternNodeVector pnv;
+    pnv.pattern = pattern;
+    vector<MegaNode *> listOfMatches;
+    pnv.nodesMatching = &listOfMatches;
+
+    processTree(nodeBase, includeIfMatchesPattern, (void*)&pnv);
+    for (std::vector< MegaNode * >::iterator it = listOfMatches.begin(); it != listOfMatches.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow;
+
+            if ( word.size() > 1 && ( (word.find("/") == 0) || (word.find("..") != string::npos)) )
+            {
+                char * nodepath = api->getNodePath(n);
+                pathToShow = string(nodepath);
+                delete [] nodepath;
+            }
+            else
+            {
+                pathToShow = getDisplayPath("", n);
+            }
+            if (printfileinfo)
+            {
+                dumpNode(n, 3, 1, pathToShow.c_str());
+            }
+            else
+            {
+                OUTSTREAM << pathToShow << endl;
+            }
+            //notice: some nodes may be dumped twice
+
+            delete n;
+        }
+    }
+
+    listOfMatches.clear();
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n = NULL;
@@ -2937,68 +3005,62 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "find")
     {
+        string pattern = getOption(cloptions, "pattern", "*");
+        int printfileinfo = getFlag(clflags,"l");
+
         if (!api->isFilesystemAvailable())
         {
             setCurrentOutCode(MCMD_NOTLOGGEDIN);
             LOG_err << "Not logged in.";
             return;
         }
-        if (words.size() > 1)
-        {
-            n = nodebypath(words[1].c_str());
-            if (!n)
-            {
-                setCurrentOutCode(MCMD_NOTFOUND);
-                LOG_err << "Couldn't find " << words[1];
-                return;
-            }
-        }
-        else
+        if (words.size() <= 1)
         {
             n = api->getNodeByHandle(cwd);
+            doFind(n, "", printfileinfo, pattern);
+            delete n;
         }
-
-
-        string pattern = getOption(cloptions, "pattern", "*");
-
-        struct patternNodeVector pnv;
-        pnv.pattern = pattern;
-        vector<MegaNode *> listOfMatches;
-        pnv.nodesMatching = &listOfMatches;
-
-        processTree(n, includeIfMatchesPattern, (void*)&pnv);
-        for (std::vector< MegaNode * >::iterator it = listOfMatches.begin(); it != listOfMatches.end(); ++it)
+        for (int i = 1; i < (int)words.size(); i++)
         {
-            MegaNode * n = *it;
-            if (n)
+            if (isRegExp(words[i]))
             {
-                string pathToShow;
-
-                if ( words.size() > 1 && ( (words[1].find("/") == 0) || (words[1].find("..") != string::npos)) )
+                vector<MegaNode *> *nodesToFind = nodesbypath(words[i].c_str());
+                if (nodesToFind->size())
                 {
-                    char * nodepath = api->getNodePath(n);
-                    pathToShow = string(nodepath);
-                    delete [] nodepath;
+                    for (std::vector< MegaNode * >::iterator it = nodesToFind->begin(); it != nodesToFind->end(); ++it)
+                    {
+                        MegaNode * nodeToFind = *it;
+                        if (nodeToFind)
+                        {
+                            doFind(nodeToFind, words[i], printfileinfo, pattern);
+                            delete nodeToFind;
+                        }
+                    }
+                    nodesToFind->clear();
                 }
                 else
                 {
-                    pathToShow = getDisplayPath("", n);
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << words[i] << ": No such file or directory";
                 }
-                if (getFlag(clflags,"l"))
-                {
-                    dumpNode(n, 3, 1, pathToShow.c_str());
-                }
-                else
-                {
-                    OUTSTREAM << pathToShow << endl;
-                }
-                //notice: some nodes may be dumped twice
-
-                delete n;
+                delete nodesToFind;
             }
-        }
+            else
+            {
+                n = nodebypath(words[i].c_str());
+                if (!n)
+                {
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << "Couldn't find " << words[i];
+                }
+                else
+                {
+                    doFind(n, words[i], printfileinfo, pattern);
+                    delete n;
+                }
+            }
 
-        listOfMatches.clear();
+        }
     }
     else if (words[0] == "cd")
     {

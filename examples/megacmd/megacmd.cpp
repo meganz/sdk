@@ -151,13 +151,13 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotefolderpatterncommands [] = {"sync"};
 vector<string> localremotefolderpatterncommands(alocalremotefolderpatterncommands, alocalremotefolderpatterncommands + sizeof alocalremotefolderpatterncommands / sizeof alocalremotefolderpatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "find", "attr"};
+string aremotepatterncommands[] = {"export", "attr"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string aremotefolderspatterncommands[] = {"cd", "share"};
 vector<string> remotefolderspatterncommands(aremotefolderspatterncommands, aremotefolderspatterncommands + sizeof aremotefolderspatterncommands / sizeof aremotefolderspatterncommands[0]);
 
-string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
+string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du", "find"};
 vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amultipleremotepatterncommands + sizeof amultipleremotepatterncommands / sizeof amultipleremotepatterncommands[0]);
 
 string aremoteremotepatterncommands[] = {"mv", "cp"};
