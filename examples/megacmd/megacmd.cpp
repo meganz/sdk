@@ -2480,7 +2480,7 @@ void megacmd()
                     else if (cm->receivedPetition())
                     {
 
-                        semaphoreClients.wait();
+
                         LOG_verbose << "Client connected ";
 
                         CmdPetition *inf = cm->getPetition();
@@ -2503,6 +2503,10 @@ void megacmd()
                         }
                         else
                         { // normal petition
+
+
+                            semaphoreClients.wait();
+
                             //append new one
                             MegaThread * petitionThread = new MegaThread();
                             petitionThreads.push_back(petitionThread);
