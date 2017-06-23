@@ -2143,12 +2143,26 @@ void MegaCmdExecuter::discardDelete()
 void MegaCmdExecuter::doDeleteNode(MegaNode *nodeToDelete,MegaApi* api)
 {
     char *nodePath = api->getNodePath(nodeToDelete);
-    LOG_verbose << "Deleting: "<< nodePath;
+    if (nodePath)
+    {
+        LOG_verbose << "Deleting: "<< nodePath;
+    }
+    else
+    {
+        LOG_warn << "Deleting node whose path could not be found " << nodeToDelete->getName();
+    }
     MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
     api->remove(nodeToDelete, megaCmdListener);
     megaCmdListener->wait();
     string msj = "delete node ";
-    msj += nodePath;
+    if (nodePath)
+    {
+        msj += nodePath;
+    }
+    else
+    {
+        msj += nodeToDelete->getName();
+    }
     checkNoErrors(megaCmdListener->getError(), msj);
     delete megaCmdListener;
     delete []nodePath;
@@ -2331,7 +2345,11 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     {
         megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
     }
+    unescapeifRequired(path);
+
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
+
+
     if (newname.size())
     {
         api->startUpload(path.c_str(), node, newname.c_str(), megaCmdTransferListener);
