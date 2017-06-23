@@ -398,6 +398,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Converts a Base64-encoded user handle to a MegaHandle
+     *
+     * You can revert this operation using MegaApi::userHandleToBase64
+     *
+     * @param base64Handle Base64-encoded node handle
+     * @return Node handle
+     */
+    public static long base64ToUserHandle(String base64Handle){
+        return MegaApi.base64ToUserHandle(base64Handle);
+    }
+
+    /**
      * Converts a MegaHandle to a Base64-encoded string.
      * <p>
      * You can revert this operation using MegaApiJava.base64ToHandle().
