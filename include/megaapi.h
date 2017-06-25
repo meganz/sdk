@@ -1969,7 +1969,7 @@ class MegaRequest
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
-            TYPE_QUERY_DNS,
+            TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -8999,11 +8999,55 @@ class MegaApi
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief FIXME: Add documentation
-         * @param hostname
-         * @param listener
+         * @brief Send a DNS request to resolve a hostname
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_DNS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the IP of the hostname
+         *
+         * @param hostname Hostname to resolve
+         * @param listener MegaRequestListener to track this request
          */
         void queryDNS(char *hostname, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief queryGeLB Query the GeLB server for a given service
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_GELB
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Return the HTTP status code from the GeLB server
+         * - MegaRequest::getText - Returns the JSON response from the GeLB server
+         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
+         *
+         * @param service Service to check
+         * @param timeoutms Timeout for the request, including all possible retries
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryGeLB(char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Download a file using a HTTP GET request
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DOWNLOAD_FILE
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Return the HTTP status code from the server
+         * - MegaRequest::getTotalBytes - Returns the number of bytes of the file
+         *
+         * If the request finishes with the error code MegaError::API_OK, the destination path
+         * contains the downloaded file. If it's not possible to write in the destination path
+         * the error code will be MegaError::API_EWRITE
+         *
+         * @param url URL of the file
+         * @param dstpath Destination path for the downloaded file
+         * @param listener MegaRequestListener to track this request
+         */
+        void downloadFile(char *url, char *dstpath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the User-Agent header used by the SDK
@@ -9795,6 +9839,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send data related to MEGAchat to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Return the HTTP status code from the stats server
+         * - MegaRequest::getText - Returns the JSON response from the stats server
+         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
+         *
+         * @param data JSON data to send to the stats server
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account

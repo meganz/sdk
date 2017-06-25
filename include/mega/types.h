@@ -76,6 +76,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -111,9 +112,9 @@ typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, 
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
-// FIXME: We should probably add a new enum for HTTP methods (POST, GET)
-// and put the DNS type there instead of here.
-typedef enum { REQ_BINARY, REQ_JSON, REQ_DNS } contenttype_t;
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
+
+typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
 // new node source types
 typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
@@ -275,7 +276,7 @@ typedef deque<Transfer*> transfer_list;
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
-typedef map<int, HttpReq*> pendingdns_map;
+typedef map<int, GenericHttpReq*> pendinghttp_map;
 
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<string> > pendingfiles_map;

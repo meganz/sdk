@@ -343,13 +343,14 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
+    method = METHOD_POST;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
 }
 
-void HttpReq::dnsrequest(MegaClient *client, const char *hostname)
+void HttpReq::get(MegaClient *client)
 {
     if (httpio)
     {
@@ -358,13 +359,28 @@ void HttpReq::dnsrequest(MegaClient *client, const char *hostname)
         init();
     }
 
-    //FIXME: Instead of adding a protocol to make the URL parser happy
-    //we could just change the parser to allow to set the hostname
-    //only or to use a prefix like dns://
-    //Another option is to allow to set a protocol to not only get
-    //the IP but also ensure that it's possible to connect
-    posturl = string("http://") + hostname;
-    type = REQ_DNS;
+    httpio = client->httpio;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    inpurge = 0;
+    method = METHOD_GET;
+    contentlength = -1;
+    lastdata = Waiter::ds;
+
+    httpio->post(this);
+}
+
+void HttpReq::dns(MegaClient *client)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+
+    method = METHOD_NONE;
     httpio = client->httpio;
     httpio->post(this);
 }
@@ -387,6 +403,8 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
+    method = METHOD_NONE;
+    timeoutms = 0;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -415,7 +433,7 @@ void HttpReq::init()
     timeleft = -1;
     lastdata = NEVER;
     outpos = 0;
-    ip.clear();
+    in.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -717,6 +735,14 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 m_off_t SpeedController::getMeanSpeed()
 {
     return meanSpeed;
+}
+
+GenericHttpReq::GenericHttpReq(bool binary) : HttpReq(binary)
+{
+    tag = 0;
+    maxretries = 0;
+    numretry = 0;
+    isbtactive = false;
 }
 
 } // namespace

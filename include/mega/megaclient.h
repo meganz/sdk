@@ -411,7 +411,17 @@ public:
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
 
+    // send a DNS request to resolve a hostname
     void dnsrequest(const char*);
+
+    // send a GeLB request for a service with a timeout (in ms) and a number of retries
+    void gelbrequest(const char*, int, int);
+
+    // send chat stats
+    void sendchatstats(const char*);
+
+    // send a HTTP request
+    void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
     // maximum outbound throughput (per target server)
     int putmbpscap;
@@ -555,6 +565,12 @@ public:
 
     // root URL for API requests
     static string APIURL;
+
+    // root URL for GeLB requests
+    static string GELBURL;
+
+    // root URL for chat stats
+    static string CHATSTATSURL;
 
     // account auth for public folders
     string accountauth;
@@ -744,7 +760,8 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
-    pendingdns_map pendingdns;
+    // pending HTTP requests
+    pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
