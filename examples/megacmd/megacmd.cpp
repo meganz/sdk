@@ -2366,7 +2366,7 @@ int main(int argc, char* argv[])
     {
         MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
         apiFolders.push(apiFolder);
-        apiFolder->setLoggerObject(loggerCMD);
+        apiFolder->addLoggerObject(loggerCMD);
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
         semaphoreapiFolders.release();
     }
@@ -2378,7 +2378,7 @@ int main(int argc, char* argv[])
 
     mutexapiFolders.init(false);
 
-    api->setLoggerObject(loggerCMD);
+    api->addLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     cmdexecuter = new MegaCmdExecuter(api, loggerCMD);

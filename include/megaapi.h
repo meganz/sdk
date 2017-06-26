@@ -886,17 +886,17 @@ class MegaNode
         virtual std::string* getAttrString();
 
         /**
-         * @brief Returns a string that contains the file attributes related to the node
+         * @brief Returns the file attributes related to the node
          *
          * The return value is only valid for nodes attached in a chatroom. In all other cases this function
-         * will return an empty string.
+         * will return NULL.
          *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
+         * You take the ownership of the returned string.
+         * Use delete [] to free it.
          *
          * @return File attributes related to the node
          */
-        virtual std::string *getFileAttrString();
+        virtual char *getFileAttrString();
 
         /**
          * @brief Return the private auth token to access this node
@@ -1217,6 +1217,58 @@ class MegaUser
 };
 
 /**
+ * @brief List of MegaHandle objects
+ *
+ */
+class MegaHandleList
+{
+public:
+    /**
+     * @brief Creates a new instance of MegaHandleList
+     * @return A pointer the new object
+     */
+    static MegaHandleList *createInstance();
+
+    virtual ~MegaHandleList();
+
+    /**
+     * @brief Creates a copy of this MegaHandleList object
+     *
+     * The resulting object is fully independent of the source MegaHandleList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaHandleList object
+     */
+    virtual MegaHandleList *copy() const;
+
+    /**
+     * @brief Returns the MegaHandle at the position i in the MegaHandleList
+     *
+     *
+     * If the index is >= the size of the list, this function returns MEGACHAT_INVALID_HANDLE.
+     *
+     * @param i Position of the MegaHandle that we want to get for the list
+     * @return MegaHandle at the position i in the list
+     */
+    virtual MegaHandle get(unsigned int i) const;
+
+    /**
+     * @brief Returns the number of MegaHandles in the list
+     * @return Number of MegaHandles in the list
+     */
+    virtual unsigned int size() const;
+
+    /**
+     * @brief Add new MegaHandle to list
+     * @param megaHandle to be added
+     */
+    virtual void addMegaHandle(MegaHandle megaHandle);
+};
+
+/**
  * @brief Represents the outbound sharing of a folder with a user in MEGA
  *
  * It allows to get all data related to the sharing. You can start sharing a folder with
@@ -1391,6 +1443,11 @@ class MegaTextChat
 {
 public:
 
+    enum
+    {
+        CHANGE_TYPE_ATTACHMENT        = 0x01
+    };
+
     virtual ~MegaTextChat();
 
     /**
@@ -1471,6 +1528,37 @@ public:
      * @return The title of the chat as a byte array encoded in Base64URL, or NULL if not available.
      */
     virtual const char *getTitle() const;
+
+
+    /**
+     * @brief Returns true if this chat has an specific change
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * Check if the access to nodes have been granted/revoked
+     *
+     * @return true if this chat has an specific change
+     */
+    virtual bool hasChanged(int changeType) const;
+
+    /**
+     * @brief Returns a bit field with the changes of the chatroom
+     *
+     * This value is only useful for chats notified by MegaListener::onChatsUpdate or
+     * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
+     *
+     * @return The returned value is an OR combination of these flags:
+     *
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * Check if the access to nodes have been granted/revoked
+     */
+    virtual int getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.
@@ -2461,7 +2549,8 @@ class MegaEvent
 public:
 
     enum {
-        EVENT_COMMIT_DB = 0
+        EVENT_COMMIT_DB = 0,
+        EVENT_ACCOUNT_CONFIRMATION = 1
     };
 
     virtual ~MegaEvent();
@@ -3932,6 +4021,10 @@ class MegaGlobalListener
 
         /**
          * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         *
+         * The usage of this callback to handle the external account confirmation is deprecated.
+         * Instead, you should use MegaGlobalListener::onEvent.
+         *
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -3990,7 +4083,6 @@ class MegaGlobalListener
         virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
 #endif
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4002,6 +4094,12 @@ class MegaGlobalListener
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -4195,6 +4293,10 @@ class MegaListener
 
         /**
          * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+         *
+         * The usage of this callback to handle the external account confirmation is deprecated.
+         * Instead, you should use MegaListener::onEvent.
+         *
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
@@ -4298,7 +4400,6 @@ class MegaListener
 #endif
 
         /**
-         *
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
@@ -4306,6 +4407,12 @@ class MegaListener
          *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
          *  This event can be used to keep synchronization between the SDK cache and the
          *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+         * by the user by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -5147,6 +5254,19 @@ class MegaApi
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Sends the confirmation email for a new account
+         *
+         * This function is useful to send the confirmation link again or to send it to a different
+         * email address, in case the user mistyped the email at the registration form.
+         *
+         * @param email Email for the account
+         * @param name Firstname of the user
+         * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
+         * @param listener MegaRequestListener to track this request
+         */
+        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -5176,6 +5296,11 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
          * @param link Confirmation link
          * @param password Password of the account
          * @param listener MegaRequestListener to track this request
@@ -5194,6 +5319,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
+         *
+         * As a result of a successfull confirmation, the app will receive the callback
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
          * @param link Confirmation link
          * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
@@ -5469,8 +5599,8 @@ class MegaApi
         /**
          * @brief Set the active log level
          *
-         * This function sets the log level of the logging system. If you set a log listener using
-         * MegaApi::setLoggerObject, you will receive logs with the same or a lower level than
+         * This function sets the log level of the logging system. Any log listener registered by
+         * MegaApi::addLoggerObject will receive logs with the same or a lower level than
          * the one passed to this function.
          *
          * @param logLevel Active log level
@@ -5488,27 +5618,34 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
-         * This function allows to set whether the log messages should be printed in the
-         * console in the absence of a dedicated logger set by MegaApi::setLoggerObject.
-         *
-         * By default, log to console is enabled.
+         * By default, log to console is false.
          *
          * @param enable True to show messages in console, false to skip them.
          */
         static void setLogToConsole(bool enable);
 
         /**
-         * @brief Set a MegaLogger implementation to receive SDK logs
+         * @brief Add a MegaLogger implementation to receive SDK logs
          *
          * Logs received by this objects depends on the active log level.
          * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
          * using MegaApi::setLogLevel.
          *
-         * You can remove the existing logger by passing NULL to this function.
+         * You can remove the existing logger by using MegaApi::removeLoggerObject.
          *
          * @param megaLogger MegaLogger implementation
          */
-        static void setLoggerObject(MegaLogger *megaLogger);
+        static void addLoggerObject(MegaLogger *megaLogger);
+
+        /**
+         * @brief Remove a MegaLogger implementation to stop receiving SDK logs
+         *
+         * If the logger was registered in the past, it will stop receiving log
+         * messages after the call to this function.
+         *
+         * @param megaLogger Previously registered MegaLogger implementation
+         */
+        static void removeLoggerObject(MegaLogger *megaLogger);
 
         /**
          * @brief Send a log to the logging system
@@ -9673,13 +9810,35 @@ class MegaApi
         MegaTextChatList *getChatList();
 
         /**
+         * @brief Get the list of users with access to the specified node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param h MegaNode to check the access
+         *
+         * @return A list of user handles that have access to the node
+         */
+        MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
+
+        /**
+         * @brief Check if the logged-in user has access to the specified node
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param h MegaHandle that identifies the node to check the access
+         * @param uh MegaHandle that identifies the user to check the access
+         *
+         * @return True the user has access to the node in that chat. Otherwise, it returns false
+         */
+        bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
+
+        /**
          * @brief Get files attributes from a node
          * You take the ownership of the returned value
          * @param handle handle from node
          * @return char array with files attributes from the node.
          */
-        virtual const char* getFileAttribute(MegaHandle handle);
-
+        const char* getFileAttribute(MegaHandle h);
 #endif
 
 private:

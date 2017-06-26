@@ -178,6 +178,8 @@ namespace mega
         void resumeCreateAccount(String^ sid);
         void sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener);
         void sendSignupLink(String^ email, String^ name, String^ password);
+        void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
+        void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
         void querySignupLink(String^ link);
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
@@ -212,7 +214,8 @@ namespace mega
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
-        static void setLoggerObject(MLoggerInterface^ megaLogger);
+        void addLoggerObject(MLoggerInterface^ logger);
+        void removeLoggerObject(MLoggerInterface^ logger);
         static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
         static void log(MLogLevel logLevel, String^ message, String^ filename);
         static void log(MLogLevel logLevel, String^ message);
@@ -545,9 +548,14 @@ namespace mega
         void freeRequestListener(DelegateMRequestListener *listener);
         void freeTransferListener(DelegateMTransferListener *listener);
 
+        std::set<DelegateMLogger *> activeLoggers;
+        CRITICAL_SECTION loggerMutex;
+
+        MegaLogger *createDelegateMLogger(MLoggerInterface^ logger);
+        void freeLogger(DelegateMLogger *logger);
+
         MegaApi *megaApi;
         DelegateMGfxProcessor *externalGfxProcessor;
-        static DelegateMLogger* externalLogger;
         MegaApi *getCPtr();
     };
 }

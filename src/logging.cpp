@@ -25,27 +25,22 @@ namespace mega {
 
 // static member initialization
 OutputMap SimpleLogger::outputs;
-OutputSettingsMap SimpleLogger::outputSettings;
 Logger *SimpleLogger::logger = NULL;
 char SimpleLogger::base64Handle[14];
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 
-SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line, bool lBreak)
+SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line)
 {
-    struct OutputSettings settings = outputSettings[ll];
-    level = ll;
-    lineBreak = lBreak;
+    this->level = ll;
 
-    if (settings.enableTime)
-        ostr << "[" << getTime() << "] ";
-    if (settings.enableLevel)
-        ostr << "[" << toStr(ll) << "] ";
-    if (settings.enableSource)
-        ostr << filename << ":" << line << " ";
+    //ostr << "[" << getTime() << "] ";
+    //ostr << "[" << toStr(ll) << "] ";
+    //ostr << filename << ":" << line << " ";
 
-    if (logger) {
+    if (logger)
+    {
         t = getTime();
         std::ostringstream oss;
         oss << filename;
@@ -65,8 +60,7 @@ SimpleLogger::~SimpleLogger()
     if (logger)
         logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
 
-    if (lineBreak)
-        ostr << std::endl;
+    ostr << std::endl;
 
     vec = getOutput(level);
 
