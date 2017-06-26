@@ -2344,12 +2344,9 @@ bool MegaClient::abortbackoff(bool includexfers)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
-                if (it->second->failcount)
+                if (it->second->bt.arm())
                 {
-                    if (it->second->bt.arm())
-                    {
-                        r = true;
-                    }
+                    r = true;
                 }
 
                 if (it->second->slot && it->second->slot->retrying)
@@ -10794,8 +10791,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = overquotauntil - Waiter::ds;
-                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
-                t->bt.backoff(timeleft);
+                t->failed(API_EOVERQUOTA, timeleft);
             }
         }
         else
@@ -10897,8 +10893,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = overquotauntil - Waiter::ds;
-                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
-                t->bt.backoff(timeleft);
+                t->failed(API_EOVERQUOTA, timeleft);
             }
         }
     }

@@ -1474,7 +1474,7 @@ using namespace mega;
 }
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken {
-    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
 #endif

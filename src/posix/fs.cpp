@@ -921,7 +921,7 @@ void PosixFileSystemAccess::tmpnamelocal(string* localname) const
 
 void PosixFileSystemAccess::path2local(string* path, string* local) const
 {
-#ifdef USE_IOS
+#ifdef __MACH__
     path2localMac(path, local);
 #else
     *local = *path;
