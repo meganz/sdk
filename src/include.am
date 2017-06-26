@@ -83,6 +83,7 @@ src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
 else 
 if DARWIN
 # MacOS specific
+src_libmega_la_OBJCXXFLAGS = $(src_libmega_la_CXXFLAGS)
 src_libmega_la_SOURCES += src/osx/osxutils.mm
 src_libmega_la_LDFLAGS += -framework SystemConfiguration -framework Foundation
 endif
