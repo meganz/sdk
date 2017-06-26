@@ -23,7 +23,8 @@ public:
         OnUsersUpdate,
         OnNodesUpdate,
         OnAccountUpdate,
-        OnReloadNeeded
+        OnReloadNeeded,
+        OnEvent
 #if ENABLE_SYNC
         ,
         OnSyncStateChanged,
@@ -41,12 +42,14 @@ public:
     MegaError* getError();
     MegaNodeList* getNodes();
     MegaUserList* getUsers();
+    MegaEvent* getEvent();
 
     void setRequest(MegaRequest *request);
     void setTransfer(MegaTransfer *transfer);
     void setError(MegaError *error);
     void setNodes(MegaNodeList *nodes);
     void setUsers(MegaUserList *users);
+    void setEvent(MegaEvent *event);
 
 #ifdef ENABLE_SYNC
     MegaSync *getSync();
@@ -64,6 +67,7 @@ private:
     MegaError *error;
     MegaNodeList *nodes;
     MegaUserList *users;
+    MegaEvent *event;
 
 #ifdef ENABLE_SYNC
     MegaSync *sync;

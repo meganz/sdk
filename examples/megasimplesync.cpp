@@ -534,7 +534,6 @@ int main(int argc, char *argv[])
         if (!strcmp(getenv("MEGA_DEBUG"), "1") || !strcmp(getenv("MEGA_DEBUG"), "2"))
         {
             SimpleLogger::setLogLevel(logDebug);
-            SimpleLogger::setOutputSettings(logDebug, true, true, true);
         }
     }
 

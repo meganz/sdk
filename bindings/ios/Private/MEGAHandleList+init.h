@@ -1,8 +1,8 @@
 /**
- * @file DelegateMEGALoggerListener.h
- * @brief Listener to reveice and send logs to the app
+ * @file MEGAHandleList+init
+ * @brief Private functions of MEGAHandleList
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,18 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#import "megaapi.h"
-#import "MEGASdk.h"
 
-class DelegateMEGALoggerListener : public mega::MegaLogger {
-    
-public:
-    DelegateMEGALoggerListener(id<MEGALoggerDelegate> listener);
-    id<MEGALoggerDelegate>getUserListener();
-    
-    void log(const char *time, int logLevel, const char *source, const char *message);
-    
-private:
-    MEGASdk *megaSDK;
-    id<MEGALoggerDelegate> listener;
-};
+#import "MEGAHandleList.h"
+#import "megaapi.h"
+
+@interface MEGAHandleList (init)
+
+- (mega::MegaHandleList *)getCPtr;
+
+@end

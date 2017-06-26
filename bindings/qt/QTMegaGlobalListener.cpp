@@ -43,6 +43,22 @@ void QTMegaGlobalListener::onReloadNeeded(MegaApi *api)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaGlobalListener::onEvent(MegaApi *api, MegaEvent *e)
+{
+    switch (e->getType())
+    {
+        case MegaEvent::EVENT_ACCOUNT_CONFIRMATION:
+        {
+            QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnEvent);
+            event->setEvent(e->copy());
+            QCoreApplication::postEvent(this, event, INT_MIN);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void QTMegaGlobalListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
@@ -59,6 +75,9 @@ void QTMegaGlobalListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnReloadNeeded:
             if(listener) listener->onReloadNeeded(event->getMegaApi());
+            break;
+        case QTMegaEvent::OnEvent:
+            if(listener) listener->onEvent(event->getMegaApi(), event->getEvent());
             break;
         default:
             break;

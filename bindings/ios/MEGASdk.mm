@@ -51,19 +51,19 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGATransferListener *>activeTransferListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAGlobalListener *>activeGlobalListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAListener *>activeMegaListeners;
+@property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
+- (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
 @property MegaApi *megaApi;
 
 @end
 
 @implementation MEGASdk
-
-static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListener(nil);
 
 #pragma mark - Properties
 
@@ -297,6 +297,34 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 }
 
+- (void)addLoggerDelegate:(id<MEGALoggerDelegate>)delegate {
+    MegaApi::addLoggerObject([self createDelegateMegaLogger:delegate]);
+}
+
+- (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate {
+    std::vector<DelegateMEGALoggerListener *> listenersToRemove;
+    
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMEGALoggerListener *>::iterator it = _activeLoggerListeners.begin();
+    while (it != _activeLoggerListeners.end()) {
+        DelegateMEGALoggerListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == delegate) {
+            listenersToRemove.push_back(delegateListener);
+            _activeLoggerListeners.erase(it++);
+        }
+        else {
+            it++;
+        }
+    }
+    pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        MegaApi::removeLoggerObject(listenersToRemove[i]);        
+        delete listenersToRemove[i];
+    }
+}
+
 #pragma mark - Utils
 
 - (NSString *)base64pwkeyForPassword:(NSString *)password {
@@ -465,6 +493,14 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password {
     self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fastSendSignupLink(email ? [email UTF8String] : NULL, base64pwkey ? [base64pwkey UTF8String] : NULL, name ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
+    self.megaApi->fastSendSignupLink(email ? [email UTF8String] : NULL, base64pwkey ? [base64pwkey UTF8String] : NULL, name ? [name UTF8String] : NULL);
 }
 
 - (void)querySignupLink:(NSString *)link {
@@ -1435,7 +1471,6 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-
 }
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken {
@@ -1450,10 +1485,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     MegaApi::setLogLevel((int)logLevel);
 }
 
-+ (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
-    DelegateMEGALoggerListener *newLogger = new DelegateMEGALoggerListener(delegate);
-    delete externalLogger;
-    externalLogger = newLogger;
++ (void)setLogToConsole:(BOOL)enable {
+    MegaApi::setLogToConsole(enable);
 }
 
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename line:(NSInteger)line {
@@ -1506,6 +1539,16 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     DelegateMEGAListener *delegateListener = new DelegateMEGAListener(self, delegate);
     pthread_mutex_lock(&listenerMutex);
     _activeMegaListeners.insert(delegateListener);
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGALoggerListener *delegateListener = new DelegateMEGALoggerListener(delegate);
+    pthread_mutex_lock(&listenerMutex);
+    _activeLoggerListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }

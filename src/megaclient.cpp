@@ -186,10 +186,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
             {
                 if (n->sharekey)
                 {
-                    int creqtag = reqtag;
-                    reqtag = 0;
-                    sendevent(99428,"Replacing share key");
-                    reqtag = creqtag;
+                    if (!fetchingnodes)
+                    {
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99428,"Replacing share key");
+                        reqtag = creqtag;
+                    }
                     delete n->sharekey;
                 }
                 n->sharekey = new SymmCipher(s->key);
@@ -3257,7 +3260,10 @@ bool MegaClient::procsc()
                                 // share addition/update/revocation
                                 if (sc_shares())
                                 {
+                                    int creqtag = reqtag;
+                                    reqtag = 0;
                                     mergenewshares(1);
+                                    reqtag = creqtag;
                                 }
                                 break;
 
@@ -3321,12 +3327,14 @@ bool MegaClient::procsc()
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
                                 break;
+
+                            case MAKENAMEID4('m', 'c', 'n', 'a'):
+                                // granted / revoked access to a node
+                                sc_chatnode();
+                                break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
-                                if (sc_uac())
-                                {
-                                    app->account_updated();
-                                }
+                                sc_uac();
                                 break;
                         }
                     }
@@ -4929,21 +4937,106 @@ void MegaClient::sc_chatupdate()
     }
 }
 
-#endif
-
-bool MegaClient::sc_uac()
+void MegaClient::sc_chatnode()
 {
+    handle chatid = UNDEF;
+    handle h = UNDEF;
+    handle uh = UNDEF;
+    bool r = false;
+    bool g = false;
+
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
+            case 'g':
+                // access granted
+                g = jsonsc.getint();
+                break;
+
+            case 'r':
+                // access revoked
+                r = jsonsc.getint();
+                break;
+
+            case MAKENAMEID2('i','d'):
+                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case 'n':
+                h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+                break;
+
+            case 'u':
+                uh = jsonsc.gethandle(MegaClient::USERHANDLE);
+                break;
+
             case EOO:
-                return true;
+                if (chatid != UNDEF && h != UNDEF && uh != UNDEF && (r || g))
+                {
+                    if (chats.find(chatid) == chats.end())
+                    {
+                        chats[chatid] = new TextChat();
+                    }
+
+                    TextChat *chat = chats[chatid];
+                    if (r)  // access revoked
+                    {
+                        if(!chat->setNodeUserAccess(h, uh, true))
+                        {
+                            LOG_err << "Unknown user/node at revoke access to attachment";
+                        }
+                    }
+                    else    // access granted
+                    {
+                        chat->setNodeUserAccess(h, uh);
+                    }
+
+                    chat->setTag(0);    // external change
+                    notifychat(chat);
+                }
+                else
+                {
+                    LOG_err << "Failed to parse attached node information";
+                }
+                return;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return false;
+                    return;
+                }
+        }
+    }
+}
+
+#endif
+
+void MegaClient::sc_uac()
+{
+    string email;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
+            case EOO:
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uac` action packet";
+                }
+                app->account_updated();
+                app->notify_confirmation(email.c_str());
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `uac` action packet";
+                    return;
                 }
         }
     }
@@ -4963,7 +5056,11 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || cachedscsn != tscsn)
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+#ifdef ENABLE_CHAT
+            || chatnotify.size()
+#endif
+            || cachedscsn != tscsn)
     {
         updatesc();
 
@@ -5114,6 +5211,7 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
+            memset(&(chat->changed), 0, sizeof(chat->changed));
         }
 
         chatnotify.clear();
@@ -7379,106 +7477,109 @@ void MegaClient::notifynode(Node* n)
 {
     n->applykey();
 
-    if (n->tag && !n->changed.removed && n->attrstring)
+    if (!fetchingnodes)
     {
-        // report a "NO_KEY" event
+        if (n->tag && !n->changed.removed && n->attrstring)
+        {
+            // report a "NO_KEY" event
 
-        char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
-        Base64::btoa((byte *)n->nodekey.data(), n->nodekey.size(), buf);
+            char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
+            Base64::btoa((byte *)n->nodekey.data(), n->nodekey.size(), buf);
 
-        int changed = 0;
-        changed |= (int)n->changed.removed;
-        changed |= n->changed.attrs << 1;
-        changed |= n->changed.owner << 2;
-        changed |= n->changed.ctime << 3;
-        changed |= n->changed.fileattrstring << 4;
-        changed |= n->changed.inshare << 5;
-        changed |= n->changed.outshares << 6;
-        changed |= n->changed.parent << 7;
-        changed |= n->changed.publiclink << 8;
+            int changed = 0;
+            changed |= (int)n->changed.removed;
+            changed |= n->changed.attrs << 1;
+            changed |= n->changed.owner << 2;
+            changed |= n->changed.ctime << 3;
+            changed |= n->changed.fileattrstring << 4;
+            changed |= n->changed.inshare << 5;
+            changed |= n->changed.outshares << 6;
+            changed |= n->changed.parent << 7;
+            changed |= n->changed.publiclink << 8;
 
-        int attrlen = n->attrstring->size();
-        string base64attrstring;
-        base64attrstring.resize(attrlen * 4 / 3 + 4);
-        base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), n->attrstring->size(), (char *)base64attrstring.data()));
+            int attrlen = n->attrstring->size();
+            string base64attrstring;
+            base64attrstring.resize(attrlen * 4 / 3 + 4);
+            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), n->attrstring->size(), (char *)base64attrstring.data()));
 
-        char report[512];
-        Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-        sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+            char report[512];
+            Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
+            sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-        int creqtag = reqtag;
-        reqtag = 0;
-        reportevent("NK", report);
-        sendevent(99400, report);
-        reqtag = creqtag;
+            int creqtag = reqtag;
+            reqtag = 0;
+            reportevent("NK", report);
+            sendevent(99400, report);
+            reqtag = creqtag;
 
-        delete [] buf;
-    }
+            delete [] buf;
+        }
 
 #ifdef ENABLE_SYNC
-    // is this a synced node that was moved to a non-synced location? queue for
-    // deletion from LocalNodes.
-    if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
-    {
-        if (n->changed.removed || n->changed.parent)
+        // is this a synced node that was moved to a non-synced location? queue for
+        // deletion from LocalNodes.
+        if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
         {
-            if (n->type == FOLDERNODE)
+            if (n->changed.removed || n->changed.parent)
             {
-                app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
+                if (n->type == FOLDERNODE)
+                {
+                    app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
+                }
+                else
+                {
+                    app->syncupdate_remote_file_deletion(n->localnode->sync, n);
+                }
             }
-            else
-            {
-                app->syncupdate_remote_file_deletion(n->localnode->sync, n);
-            }
-        }
 
-        n->localnode->deleted = true;
-        n->localnode->node = NULL;
-        n->localnode = NULL;
-    }
-    else
-    {
-        // is this a synced node that is not a sync root, or a new node in a
-        // synced folder?
-        // FIXME: aggregate subtrees!
-        if (n->localnode && n->localnode->parent)
-        {
-            n->localnode->deleted = n->changed.removed;
+            n->localnode->deleted = true;
+            n->localnode->node = NULL;
+            n->localnode = NULL;
         }
-
-        if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
+        else
         {
-            if (n->localnode)
+            // is this a synced node that is not a sync root, or a new node in a
+            // synced folder?
+            // FIXME: aggregate subtrees!
+            if (n->localnode && n->localnode->parent)
             {
                 n->localnode->deleted = n->changed.removed;
             }
 
-            if (!n->changed.removed && n->changed.parent)
+            if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
             {
-                if (!n->localnode)
+                if (n->localnode)
                 {
-                    if (n->type == FOLDERNODE)
+                    n->localnode->deleted = n->changed.removed;
+                }
+
+                if (!n->changed.removed && n->changed.parent)
+                {
+                    if (!n->localnode)
                     {
-                        app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                        if (n->type == FOLDERNODE)
+                        {
+                            app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                        }
+                        else
+                        {
+                            app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                        }
                     }
                     else
                     {
-                        app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                        app->syncupdate_remote_move(n->localnode->sync, n,
+                            n->localnode->parent ? n->localnode->parent->node : NULL);
                     }
                 }
-                else
-                {
-                    app->syncupdate_remote_move(n->localnode->sync, n,
-                        n->localnode->parent ? n->localnode->parent->node : NULL);
-                }
+            }
+            else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
+            {
+                app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
             }
         }
-        else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
-        {
-            app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
-        }
-    }
 #endif
+    }
 
     if (!n->notified)
     {
@@ -7822,6 +7923,65 @@ void MegaClient::procmcf(JSON *j)
     j->leavearray();
     j->leaveobject();
 }
+
+void MegaClient::procmcna(JSON *j)
+{
+    if (j->enterarray())
+    {
+        while(j->enterobject())   // while there are more nodes to read...
+        {
+            handle chatid = UNDEF;
+            handle h = UNDEF;
+            handle uh = UNDEF;
+
+            bool readingNode = true;
+            while(readingNode) // read the attached node information
+            {
+                switch (j->getnameid())
+                {
+                case MAKENAMEID2('i','d'):
+                    chatid = j->gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case 'n':
+                    h = j->gethandle(MegaClient::NODEHANDLE);
+                    break;
+
+                case 'u':
+                    uh = j->gethandle(MegaClient::USERHANDLE);
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && h != UNDEF && uh != UNDEF)
+                    {
+                        if (chats.find(chatid) == chats.end())
+                        {
+                            chats[chatid] = new TextChat();
+                        }
+
+                        chats[chatid]->setNodeUserAccess(h, uh);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse attached node information";
+                    }
+                    readingNode = false;
+                    break;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        LOG_err << "Failed to parse attached node information";
+                        readingNode = false;
+                    }
+                    break;
+                }
+            }
+            j->leaveobject();
+        }        
+        j->leavearray();
+    }
+}
 #endif
 
 // add node to vector, return position, deduplicate
@@ -7871,7 +8031,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
         ni = 0;
     }
 
-    crkeys.reserve(shares->size() * nodes->size() * (32 * 4 / 3 + 10));
+    // estimate required size for requested keys
+    // for each node: ",<index>,<index>,"<nodekey>
+    crkeys.reserve(nodes->size() * ((5 + 4 * 2) + (FILENODEKEYLENGTH * 4 / 3 + 4)) + 1);
+    // we reserve for indexes up to 4 digits per index
 
     for (;;)
     {
@@ -7934,7 +8097,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     n->applykey();
                     if (sn->sharekey && n->nodekey.size() ==
-                            ((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                            (unsigned)((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
 
