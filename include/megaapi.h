@@ -4842,8 +4842,8 @@ class MegaApi
          *
          * You can revert this operation using MegaApi::userHandleToBase64
          *
-         * @param base64Handle Base64-encoded node handle
-         * @return Node handle
+         * @param base64Handle Base64-encoded user handle
+         * @return User handle
          */
         static MegaHandle base64ToUserHandle(const char* base64Handle);
 
