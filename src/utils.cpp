@@ -277,6 +277,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
+    chat->attachedNodes = attachedNodes;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
