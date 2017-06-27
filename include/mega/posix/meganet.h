@@ -24,7 +24,7 @@
 
 #include "mega.h"
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
 #include <openssl/ssl.h>
 #endif
 
@@ -76,6 +76,7 @@ protected:
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
     std::map<string, CurlDNSEntry> dnscache;
+    int pkpErrors;
 
     void send_pending_requests();
     void drop_pending_requests();
@@ -94,7 +95,7 @@ protected:
     static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
     static MUTEX_CLASS **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
 

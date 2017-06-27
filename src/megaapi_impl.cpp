@@ -61,7 +61,7 @@
 
 #endif
 
-#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
 #include <openssl/rand.h>
 #endif
 
@@ -132,8 +132,12 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->parenthandle = node->getParentHandle();
     string * attrstring = node->getAttrString();
     this->attrstring.assign(attrstring->data(), attrstring->size());
-    string * fileattrstring = node->getFileAttrString();
-    this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
+    char* fileAttributeString = node->getFileAttrString();
+    if (fileAttributeString)
+    {
+        this->fileattrstring = std::string(fileAttributeString);
+        delete [] fileAttributeString;
+    }
     string *nodekey = node->getNodeKey();
     this->nodekey.assign(nodekey->data(),nodekey->size());
     this->changed = node->getChanges();
@@ -725,9 +729,16 @@ string *MegaNodePrivate::getAttrString()
     return &attrstring;
 }
 
-string *MegaNodePrivate::getFileAttrString()
+char *MegaNodePrivate::getFileAttrString()
 {
-    return &fileattrstring;
+    char* fileAttributes = NULL;
+
+    if (fileattrstring.size() > 0)
+    {
+        fileAttributes = MegaApi::strdup(fileattrstring.c_str());
+    }
+
+    return fileAttributes;
 }
 
 int MegaNodePrivate::getTag()
@@ -3568,7 +3579,7 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-ExternalLogger *MegaApiImpl::externalLogger = NULL;
+ExternalLogger MegaApiImpl::externalLogger;
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
@@ -3806,39 +3817,27 @@ char *MegaApiImpl::getMyFingerprint()
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setLogLevel(logLevel);
+    externalLogger.setLogLevel(logLevel);
 }
 
-void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setMegaLogger(megaLogger);
+    externalLogger.addMegaLogger(megaLogger);
+}
+
+void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger)
+{
+    externalLogger.removeMegaLogger(megaLogger);
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
-    if(!externalLogger)
-    {
-        externalLogger = new ExternalLogger();
-    }
-    externalLogger->setLogToConsole(enable);
+    externalLogger.setLogToConsole(enable);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    if(!externalLogger)
-    {
-        return;
-    }
-
-    externalLogger->postLog(logLevel, message, filename, line);
+    externalLogger.postLog(logLevel, message, filename, line);
 }
 
 char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -3966,7 +3965,7 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
         PrnGen::rng.IncorporateEntropy((const byte*)data, size);
     }
 
-#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
     RAND_seed(data, size);
 #endif
 }
@@ -4252,6 +4251,16 @@ void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
     request->setEmail(email);
     request->setPassword(password);
+    request->setName(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
+    request->setEmail(email);
+    request->setPrivateKey(base64pwkey);
     request->setName(name);
     requestQueue.push(request);
     waiter->notify();
@@ -5130,12 +5139,14 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
             const char *nodekey = node->getBase64Key();
             request->setPrivateKey(nodekey);
             delete [] nodekey;
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
@@ -5149,9 +5160,11 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
     if (node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
@@ -6764,6 +6777,81 @@ MegaTextChatList *MegaApiImpl::getChatList()
 
     return list;
 }
+
+MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
+{
+    MegaHandleList *uhList = new MegaHandleListPrivate();
+
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE)
+    {
+        return uhList;
+    }
+
+    sdkMutex.lock();
+
+    textchat_map::iterator itc = client->chats.find(chatid);
+    if (itc != client->chats.end())
+    {
+        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
+        if (ita != itc->second->attachedNodes.end())
+        {
+            set<handle> userList = ita->second;
+            set<handle>::iterator ituh;
+            for (ituh = userList.begin(); ituh != userList.end(); ituh++)
+            {
+                uhList->addMegaHandle(*ituh);
+            }
+        }
+    }
+
+    sdkMutex.unlock();
+
+    return uhList;
+}
+
+bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh)
+{
+    bool ret = false;
+
+    if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || uh == INVALID_HANDLE)
+    {
+        return ret;
+    }
+
+    sdkMutex.lock();
+
+    textchat_map::iterator itc = client->chats.find(chatid);
+    if (itc != client->chats.end())
+    {
+        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
+        if (ita != itc->second->attachedNodes.end())
+        {
+            set<handle> userList = ita->second;
+            ret = (userList.find(uh) != userList.end());
+        }
+    }
+
+    sdkMutex.unlock();
+
+    return ret;
+}
+
+const char* MegaApiImpl::getFileAttribute(MegaHandle h)
+{
+    char* fileAttributes = NULL;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(h);
+    if (node)
+    {
+        fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
+    }
+
+    sdkMutex.unlock();
+
+     return fileAttributes;
+}
+
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -9798,6 +9886,13 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_confirmation(const char *email)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
+    event->setText(email);
+    fireOnEvent(event);
+}
+
 // callback for non-EAGAIN request-level errors
 // retrying is futile
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
@@ -11764,22 +11859,6 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
-const char* MegaApiImpl::getFileAttribute(MegaHandle handle)
-{
-    char* fileAttributes = NULL;
-
-    sdkMutex.lock();
-    Node *node = client->nodebyhandle(handle);
-    if (node)
-    {
-        fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
-    }
-
-    sdkMutex.unlock();
-
-     return fileAttributes;
-}
-
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 {
     if(!n) return NULL;
@@ -13598,6 +13677,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *password = request->getPassword();
+            const char *base64pwkey = request->getPrivateKey();
             const char *name = request->getName();
 
             if(client->loggedin() != EPHEMERALACCOUNT)
@@ -13606,17 +13686,32 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!email || !name || !password)
+            if (!email || !name || (!password && !base64pwkey))
             {
                 e = API_EARGS;
                 break;
             }
 
+
             byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(password, pwkey);
+            if (password)
+            {
+                e = client->pw_key(password, pwkey);
+            }
+            else    // pwcipher provided
+            {
+                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
+                {
+                    e = API_EARGS;
+                }
+            }
+
+            if (e)
+            {
+                break;
+            }
 
             client->sendsignuplink(email, name, pwkey);
-
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
@@ -15124,28 +15219,34 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 
 ExternalLogger::ExternalLogger()
 {
-	mutex.init(true);
-	this->megaLogger = NULL;
-    this->logToConsole = true;
-	SimpleLogger::setOutputClass(this);
-
-    //Initialize outputSettings map
-    SimpleLogger::outputSettings[(LogLevel)logFatal];
-    SimpleLogger::outputSettings[(LogLevel)logError];
-    SimpleLogger::outputSettings[(LogLevel)logWarning];
-    SimpleLogger::outputSettings[(LogLevel)logInfo];
-    SimpleLogger::outputSettings[(LogLevel)logDebug];
-    SimpleLogger::outputSettings[(LogLevel)logMax];
+    mutex.init(true);
+    logToConsole = false;
+    SimpleLogger::setOutputClass(this);
 }
 
-void ExternalLogger::setMegaLogger(MegaLogger *logger)
+void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
-	this->megaLogger = logger;
+    mutex.lock();
+    if (logger && megaLoggers.find(logger) == megaLoggers.end())
+    {
+        megaLoggers.insert(logger);
+    }
+    mutex.unlock();
+}
+
+void ExternalLogger::removeMegaLogger(MegaLogger *logger)
+{
+    mutex.lock();
+    if (logger)
+    {
+        megaLoggers.erase(logger);
+    }
+    mutex.unlock();
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
 {
-	SimpleLogger::setLogLevel((LogLevel)logLevel);
+    SimpleLogger::setLogLevel((LogLevel)logLevel);
 }
 
 void ExternalLogger::setLogToConsole(bool enable)
@@ -15155,51 +15256,54 @@ void ExternalLogger::setLogToConsole(bool enable)
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
 {
-    if(SimpleLogger::logCurrentLevel < logLevel)
+    if (SimpleLogger::logCurrentLevel < logLevel)
+    {
         return;
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	if(!filename)
-	{
-		filename = "";
-	}
+    if (!filename)
+    {
+        filename = "";
+    }
 
     mutex.lock();
-	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+    SimpleLogger((LogLevel)logLevel, filename, line) << message;
     mutex.unlock();
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
-	if(!time)
-	{
-		time = "";
-	}
+    if (!time)
+    {
+        time = "";
+    }
 
-	if(!source)
-	{
-		source = "";
-	}
+    if (!source)
+    {
+        source = "";
+    }
 
-	if(!message)
-	{
-		message = "";
-	}
+    if (!message)
+    {
+        message = "";
+    }
 
-	mutex.lock();
-	if(megaLogger)
-	{
-        megaLogger->log(time, loglevel, source, message);
-	}
-    else if (logToConsole)
-	{
-		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
-	}
-	mutex.unlock();
+    mutex.lock();
+    for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
+    {
+        (*it)->log(time, loglevel, source, message);
+    }
+
+    if (logToConsole)
+    {
+        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+    }
+    mutex.unlock();
 }
 
 
@@ -17819,6 +17923,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
     this->tag = chat->isOwnChange();
+    this->changed = chat->getChanges();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -17832,6 +17937,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->changed = 0;
+    if (chat->changed.attachments)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
+    }
 }
 
 MegaTextChat *MegaTextChatPrivate::copy() const
@@ -17896,6 +18006,16 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::hasChanged(int changeType) const
+{
+    return (changed & changeType);
+}
+
+int MegaTextChatPrivate::getChanges() const
+{
+    return changed;
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
@@ -18147,3 +18267,46 @@ void MegaEventPrivate::setText(const char *text)
     }
     this->text = MegaApi::strdup(text);
 }
+
+MegaHandleListPrivate::MegaHandleListPrivate()
+{
+
+}
+
+MegaHandleListPrivate::MegaHandleListPrivate(const MegaHandleListPrivate *hList)
+{
+    mList = hList->mList;
+}
+
+MegaHandleListPrivate::~MegaHandleListPrivate()
+{
+
+}
+
+MegaHandleList *MegaHandleListPrivate::copy() const
+{
+    return new MegaHandleListPrivate(this);
+}
+
+MegaHandle MegaHandleListPrivate::get(unsigned int i) const
+{
+    MegaHandle h = INVALID_HANDLE;
+
+    if (i < mList.size())
+    {
+        h = mList.at(i);
+    }
+
+    return h;
+}
+
+unsigned int MegaHandleListPrivate::size() const
+{
+    return mList.size();
+}
+
+void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
+{
+    mList.push_back(h);
+}
+

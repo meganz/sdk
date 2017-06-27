@@ -653,8 +653,9 @@ private:
     void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
+    void sc_chatnode();
 #endif
-    bool sc_uac();
+    void sc_uac();
 
     void init();
 
@@ -1050,6 +1051,7 @@ public:
     void procsuk(JSON*);
 
     void procmcf(JSON*);
+    void procmcna(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);

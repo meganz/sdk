@@ -3795,6 +3795,11 @@ void CommandFetchNodes::procresult()
                 // List of chatrooms
                 client->procmcf(&client->json);
                 break;
+
+            case MAKENAMEID4('m', 'c', 'n', 'a'):
+                // nodes shared in chatrooms
+                client->procmcna(&client->json);
+                break;
 #endif
             case EOO:
             {
@@ -4807,6 +4812,9 @@ void CommandChatURL::procresult()
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->h = h;
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcga");
 
@@ -4823,7 +4831,24 @@ void CommandChatGrantAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatgrantaccess_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the action succeed for a non-existing chatroom??
+                client->app->chatgrantaccess_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->setNodeUserAccess(h, uh);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatgrantaccess_result(e);
     }
     else
     {
@@ -4835,6 +4860,9 @@ void CommandChatGrantAccess::procresult()
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->h = h;
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcra");
 
@@ -4851,7 +4879,24 @@ void CommandChatRemoveAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatremoveaccess_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the action succeed for a non-existing chatroom??
+                client->app->chatremoveaccess_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->setNodeUserAccess(h, uh, true);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatremoveaccess_result(e);
     }
     else
     {

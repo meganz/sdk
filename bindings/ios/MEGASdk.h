@@ -30,6 +30,7 @@
 #import "MEGAPricing.h"
 #import "MEGAAccountDetails.h"
 #import "MEGAContactRequest.h"
+#import "MEGAEvent.h"
 #import "MEGATransferList.h"
 #import "MEGANodeList.h"
 #import "MEGAUserList.h"
@@ -338,6 +339,30 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param delegate Delegate that is unregistered.
  */
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
+
+
+/**
+ * @brief Add a MEGALoggerDelegate implementation to receive SDK logs
+ *
+ * Logs received by this objects depends on the active log level.
+ * By default, it is MEGALogLevelInfo. You can change it
+ * using [MEGASdk setLogLevel].
+ *
+ * You can remove the existing logger by using [MEGASdk removeLoggerObject:].
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Remove a MEGALoggerDelegate implementation to stop receiving SDK logs
+ *
+ * If the logger was registered in the past, it will stop receiving log
+ * messages after the call to this function.
+ *
+ * @param delegate Previously registered MegaLogger implementation
+ */
+- (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -824,6 +849,31 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param password Password for the account
  */
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ */
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 
 /**
  * @brief Get information about a confirmation link.
@@ -4031,16 +4081,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 + (void)setLogLevel:(MEGALogLevel)logLevel;
 
 /**
- * @brief Set a MEGALogger implementation to receive SDK logs.
+ * @brief Enable log to console
  *
- * Logs received by this objects depends on the active log level.
- * By default, it is MEGALogLevelInfo. You can change it
- * using [MEGASdk setLogLevel].
+ * By default, log to console is false.
  *
- * @param delegate Delegate implementation.
+ * @param enable True to show messages in console, false to skip them.
  */
-
-+ (void)setLogObject:(id<MEGALoggerDelegate>)delegate;
++ (void)setLogToConsole:(BOOL)enable;
 
 /**
  * @brief Send a log to the logging system

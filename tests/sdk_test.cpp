@@ -41,7 +41,7 @@ void SdkTest::SetUp()
     if (megaApi[0] == NULL)
     {
         logger = new MegaLoggerSDK("SDK.log");
-        MegaApi::setLoggerObject(logger);
+        MegaApi::addLoggerObject(logger);
 
         char path[1024];
         assert(getcwd(path, sizeof path));
@@ -96,7 +96,7 @@ void SdkTest::TearDown()
 
         releaseMegaApi(0);
 
-        MegaApi::setLoggerObject(NULL);
+        MegaApi::removeLoggerObject(logger);
         delete logger;
     }
 }

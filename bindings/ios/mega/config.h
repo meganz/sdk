@@ -153,6 +153,9 @@
 /* Use inotify API
 #define USE_INOTIFY 1*/
 
+/* Define to use OpenSSL */
+#define USE_OPENSSL 1
+
 /* Define to use SQLite */
 #define USE_SQLITE 1
 
