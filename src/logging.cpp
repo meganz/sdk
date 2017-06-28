@@ -60,8 +60,7 @@ SimpleLogger::~SimpleLogger()
     if (logger)
         logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
 
-    if (lineBreak)
-        ostr << std::endl;
+    ostr << std::endl;
 
     vec = getOutput(level);
 

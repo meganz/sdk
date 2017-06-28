@@ -26,6 +26,7 @@ public:
     virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     virtual void onAccountUpdate(MegaApi* api);
 	virtual void onReloadNeeded(MegaApi* api);
+    virtual void onEvent(MegaApi* api, MegaEvent *e);
 
 #ifdef ENABLE_SYNC
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);

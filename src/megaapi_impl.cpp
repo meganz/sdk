@@ -61,7 +61,7 @@
 
 #endif
 
-#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
 #include <openssl/rand.h>
 #endif
 
@@ -132,8 +132,12 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->parenthandle = node->getParentHandle();
     string * attrstring = node->getAttrString();
     this->attrstring.assign(attrstring->data(), attrstring->size());
-    string * fileattrstring = node->getFileAttrString();
-    this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
+    char* fileAttributeString = node->getFileAttrString();
+    if (fileAttributeString)
+    {
+        this->fileattrstring = std::string(fileAttributeString);
+        delete [] fileAttributeString;
+    }
     string *nodekey = node->getNodeKey();
     this->nodekey.assign(nodekey->data(),nodekey->size());
     this->changed = node->getChanges();
@@ -725,9 +729,16 @@ string *MegaNodePrivate::getAttrString()
     return &attrstring;
 }
 
-string *MegaNodePrivate::getFileAttrString()
+char *MegaNodePrivate::getFileAttrString()
 {
-    return &fileattrstring;
+    char* fileAttributes = NULL;
+
+    if (fileattrstring.size() > 0)
+    {
+        fileAttributes = MegaApi::strdup(fileattrstring.c_str());
+    }
+
+    return fileAttributes;
 }
 
 int MegaNodePrivate::getTag()
@@ -3955,7 +3966,7 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
         PrnGen::rng.IncorporateEntropy((const byte*)data, size);
     }
 
-#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
     RAND_seed(data, size);
 #endif
 }
@@ -4241,6 +4252,16 @@ void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
     request->setEmail(email);
     request->setPassword(password);
+    request->setName(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
+    request->setEmail(email);
+    request->setPrivateKey(base64pwkey);
     request->setName(name);
     requestQueue.push(request);
     waiter->notify();
@@ -5119,12 +5140,14 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
             const char *nodekey = node->getBase64Key();
             request->setPrivateKey(nodekey);
             delete [] nodekey;
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
@@ -5138,9 +5161,11 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
     if (node)
     {
         request->setNodeHandle(node->getHandle());
-        if (!node->getFileAttrString()->empty())
+        const char *fileAttributes = node->getFileAttrString();
+        if (fileAttributes)
         {
-            request->setText(node->getFileAttrString()->c_str());
+            request->setText(fileAttributes);
+            delete [] fileAttributes;
         }
     }
 	requestQueue.push(request);
@@ -9886,6 +9911,13 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_confirmation(const char *email)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
+    event->setText(email);
+    fireOnEvent(event);
+}
+
 // callback for non-EAGAIN request-level errors
 // retrying is futile
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
@@ -13670,6 +13702,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *password = request->getPassword();
+            const char *base64pwkey = request->getPrivateKey();
             const char *name = request->getName();
 
             if(client->loggedin() != EPHEMERALACCOUNT)
@@ -13678,17 +13711,32 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!email || !name || !password)
+            if (!email || !name || (!password && !base64pwkey))
             {
                 e = API_EARGS;
                 break;
             }
 
+
             byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(password, pwkey);
+            if (password)
+            {
+                e = client->pw_key(password, pwkey);
+            }
+            else    // pwcipher provided
+            {
+                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
+                {
+                    e = API_EARGS;
+                }
+            }
+
+            if (e)
+            {
+                break;
+            }
 
             client->sendsignuplink(email, name, pwkey);
-
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
@@ -14707,7 +14755,10 @@ void MegaApiImpl::sendPendingRequests()
             int deviceType = request->getNumber();
             const char *token = request->getText();
 
-            if ((deviceType != 1 && deviceType != 2) || token == NULL)
+            if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD)
+                    || token == NULL)
             {
                 e = API_EARGS;
                 break;
@@ -15040,7 +15091,7 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
     if(l != sizeof(signature))
         return false;
 
-    return hashSignature->check(asymmCypher, (const byte *)signature, sizeof(signature));
+    return hashSignature->checksignature(asymmCypher, (const byte *)signature, sizeof(signature));
 }
 
 int MegaAccountDetailsPrivate::getProLevel()

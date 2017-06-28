@@ -657,7 +657,7 @@ private:
     void sc_chatupdate();
     void sc_chatnode();
 #endif
-    bool sc_uac();
+    void sc_uac();
 
     void init();
 

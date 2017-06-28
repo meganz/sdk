@@ -275,6 +275,9 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
+    // account confirmation via signup link
+    virtual void notify_confirmation(const char* email) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

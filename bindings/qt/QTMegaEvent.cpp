@@ -10,6 +10,7 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
     error = NULL;
     nodes = NULL;
     users = NULL;
+    event  = NULL;
 
 #ifdef ENABLE_SYNC
     sync = NULL;
@@ -25,6 +26,7 @@ QTMegaEvent::~QTMegaEvent()
     delete error;
     delete nodes;
     delete users;
+    delete event;
 
 #ifdef ENABLE_SYNC
     delete sync;
@@ -85,6 +87,16 @@ void QTMegaEvent::setNodes(MegaNodeList *nodes)
 void QTMegaEvent::setUsers(MegaUserList *users)
 {
     this->users = users;
+}
+
+MegaEvent *QTMegaEvent::getEvent()
+{
+    return event;
+}
+
+void QTMegaEvent::setEvent(MegaEvent* event)
+{
+    this->event = event;
 }
 
 #ifdef ENABLE_SYNC

@@ -32,10 +32,6 @@
 #endif
 
 #ifndef _WIN32
-    #if (!defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
-    #include <openssl/ssl.h>
-    #include <openssl/rand.h>
-    #endif
 #include <curl/curl.h>
 #include <fcntl.h>
 #endif
@@ -267,7 +263,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
-        virtual std::string *getFileAttrString();
+        virtual char* getFileAttrString();
         virtual int getTag();
         virtual int64_t getExpirationTime();
         virtual MegaHandle getPublicHandle();
@@ -1365,6 +1361,7 @@ class MegaApiImpl : public MegaApp
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+        void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
@@ -2008,6 +2005,9 @@ protected:
 
         // notify about db commit
         virtual void notify_dbcommit();
+
+        // notify about account confirmation
+        virtual void notify_confirmation(const char*);
 
         void sendPendingRequests();
         void sendPendingTransfers();

@@ -2344,12 +2344,9 @@ bool MegaClient::abortbackoff(bool includexfers)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
-                if (it->second->failcount)
+                if (it->second->bt.arm())
                 {
-                    if (it->second->bt.arm())
-                    {
-                        r = true;
-                    }
+                    r = true;
                 }
 
                 if (it->second->slot && it->second->slot->retrying)
@@ -3337,10 +3334,7 @@ bool MegaClient::procsc()
                                 break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
-                                if (sc_uac())
-                                {
-                                    app->account_updated();
-                                }
+                                sc_uac();
                                 break;
                         }
                     }
@@ -5024,19 +5018,31 @@ void MegaClient::sc_chatnode()
 
 #endif
 
-bool MegaClient::sc_uac()
+void MegaClient::sc_uac()
 {
+    string email;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
             case EOO:
-                return true;
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uac` action packet";
+                }
+                app->account_updated();
+                app->notify_confirmation(email.c_str());
+                return;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return false;
+                    LOG_warn << "Failed to parse `uac` action packet";
+                    return;
                 }
         }
     }
@@ -10791,8 +10797,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = overquotauntil - Waiter::ds;
-                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
-                t->bt.backoff(timeleft);
+                t->failed(API_EOVERQUOTA, timeleft);
             }
         }
         else
@@ -10894,8 +10899,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = overquotauntil - Waiter::ds;
-                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
-                t->bt.backoff(timeleft);
+                t->failed(API_EOVERQUOTA, timeleft);
             }
         }
     }
