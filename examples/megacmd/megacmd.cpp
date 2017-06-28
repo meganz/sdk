@@ -40,6 +40,10 @@
 #include <iomanip>
 #include <string>
 
+#ifndef _WIN32
+#include "signal.h"
+#endif
+
 
 #ifdef _WIN32
 // convert UTF-8 to Windows Unicode wstring
@@ -2309,6 +2313,11 @@ void * doProcessLine(void *pointer)
 
     doExit = process_line(inf->getLine());
 
+    if (doExit)
+    {
+        LOG_verbose << " Exit registered upon process_line: " ;
+    }
+
     LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
     MegaThread * petitionThread = inf->getPetitionThread();
@@ -2425,6 +2434,7 @@ void megacmd()
         readline_fd = fileno(rl_instream);
     }
 
+    consoleFailed=true; //TODO: delete or delete everything related to console. Problem: when client breaks or accept breaks (cant remember, the next select has fd_readline set!!!! which is utterly wrong and i cannot explain why)
     for (;; )
     {
         if (prompt == COMMAND)
@@ -2459,7 +2469,12 @@ void megacmd()
                     }
                     else
                     {
-                        cm->waitForPetitionOrReadlineInput(readline_fd);
+                        if (cm->waitForPetitionOrReadlineInput(readline_fd))
+                        {
+                            LOG_warn << " wait failed. Retrying...";
+                            sleepSeconds(1);
+                            continue;
+                        }
                     }
                     api->retryPendingConnections();
                     if (doExit)
@@ -2489,8 +2504,13 @@ void megacmd()
 
                         delete_finished_threads();
 
+                        if (!inf || !strcmp(inf->getLine(),"ERROR"))
+                        {
+                            LOG_warn << "Petition couldn't be registered. Dismissing it.";
+                            delete inf;
+                        }
                         // if state register petition
-                        if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
+                        else if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
                                 !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
                         {
 
@@ -2500,6 +2520,7 @@ void megacmd()
                             string s = "prompt:";
                             s+=dynamicprompt;
                             cm->informStateListener(inf,s);
+
                         }
                         else
                         { // normal petition
@@ -2775,6 +2796,10 @@ int main(int argc, char* argv[])
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
 
     if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
+    {
+        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    }
+    if (( argc > 1 ) && !( strcmp(argv[1], "--debug-full")))
     {
         loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
         loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);

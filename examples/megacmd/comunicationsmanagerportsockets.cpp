@@ -20,6 +20,7 @@
  */
 
 #include "comunicationsmanagerportsockets.h"
+#include "megacmdutils.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -38,6 +39,13 @@
 
 using namespace mega;
 
+void closeSocket(int socket){
+#ifdef _WIN32
+    closesocket(socket);
+#else
+    close(socket);
+#endif
+}
 
 bool socketValid(int socket)
 {
@@ -45,14 +53,6 @@ bool socketValid(int socket)
     return socket != INVALID_SOCKET;
 #else
     return socket >= 0;
-#endif
-}
-
-void closeSocket(int socket){
-#ifdef _WIN32
-    closesocket(socket);
-#else
-    close(socket);
 #endif
 }
 
@@ -72,11 +72,35 @@ int ComunicationsManagerPortSockets::get_next_comm_id()
 
 int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 {
-    int thesock = socket(AF_INET, SOCK_STREAM, 0);
+    int thesock;
+    int attempts = 10;
+    bool socketsucceded = false;
+    while (--attempts && !socketsucceded)
+    {
+        thesock = socket(AF_INET, SOCK_STREAM, 0);
 
+        if (!socketValid(thesock))
+        {
+            if (errno == EMFILE)
+            {
+                LOG_verbose << " Trying to reduce number of used files by sending ACK to listeners to discard disconnected ones.";
+                string sack="ack";
+                informStateListeners(sack);
+            }
+            if (attempts !=10)
+            {
+                LOG_fatal << "ERROR opening socket ID=" << sockId << " errno: " << errno << ". Attempts: " << attempts;
+            }
+            sleepMicroSeconds(500);
+        }
+        else
+        {
+            socketsucceded = true;
+        }
+    }
     if (!socketValid(thesock))
     {
-        LOG_fatal << "ERROR opening socket: " << ERRNO ;
+        return -1;
     }
 
     int portno=MEGACMDINITIALPORTNUMBER;
@@ -93,18 +117,30 @@ int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 
     socklen_t saddrlength = sizeof( addr );
 
-    if (::bind(thesock, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
+    bool bindsucceeded = false;
+
+    attempts = 10;
+    while (--attempts && !bindsucceeded)
     {
-        if (ERRNO == EADDRINUSE)
+        if (::bind(thesock, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
         {
-            LOG_warn << "ERROR on binding socket: Already in use.";
+            if (errno == EADDRINUSE)
+            {
+                LOG_warn << "ERROR on binding socket: Already in use. Attempts: " << attempts;
+            }
+            else
+            {
+                LOG_fatal << "ERROR on binding socket port " << portno << " errno: " << errno << ". Attempts: " << attempts;
+            }
+            sleepMicroSeconds(500);
         }
         else
         {
-            LOG_fatal << "ERROR on binding socket: " << ERRNO;
+            bindsucceeded = true;
         }
     }
-    else
+
+    if (bindsucceeded)
     {
         if (thesock)
         {
@@ -318,6 +354,13 @@ int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline
     int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
     if (rc == SOCKET_ERROR)
     {
+        if (errno == EBADF)
+        {
+            LOG_fatal << "Error at select: " << errno << ". Reinitializing socket";
+            initialize();
+            return EBADF;
+        }
+
         if (ERRNO != EINTR)  //syscall
         {
             LOG_fatal << "Error at select: " << ERRNO;
@@ -364,6 +407,10 @@ void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
     ComunicationsManager::registerStateListener(inf);
 }
 
+//TODO: implement unregisterStateListener, not 100% necesary, since when a state listener is not accessible it is unregistered (to deal with sudden deaths).
+//TODO: also, unregistering might not be straight forward since we need to correlate the thread doing the unregistration with the one who registered.
+
+
 /**
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
@@ -377,10 +424,11 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, O
     if (connectedsocket == SOCKET_ERROR)
     {
         connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+        ((CmdPetitionPortSockets *)inf)->acceptedOutSocket = connectedsocket; //So that it gets closed in destructor
     }
     if (connectedsocket == SOCKET_ERROR)
     {
-        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << ERRNO;
+        LOG_fatal << "Return and close: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << ERRNO;
         delete inf;
         return;
     }
@@ -426,7 +474,33 @@ int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, strin
     int connectedsocket = -1;
     if (connectedsockets.find(((CmdPetitionPortSockets *)inf)->outSocket) == connectedsockets.end())
     {
-        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //this will be done only once??
+        //select with timeout and accept non-blocking, so that things don't get stuck
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(((CmdPetitionPortSockets *)inf)->outSocket, &set);
+
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 4000000;
+        int rv = select(((CmdPetitionPortSockets *)inf)->outSocket+1, &set, NULL, NULL, &timeout);
+        if(rv == -1)
+        {
+            LOG_err << "Informing state listener: Unable to select on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+            return -1;
+        }
+        else if(rv == 0)
+        {
+            LOG_warn << "Informing state listener: timeout in select on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket;
+        }
+        else
+        {
+            int oldfl = fcntl(sockfd, F_GETFL);
+            fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl | O_NONBLOCK);
+            connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+            fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl);
+        }
+        //TODO: test the former or ifdef with the following for WIN32:
+//        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //this will be done only once??
         connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket] = connectedsocket;
     }
     else
@@ -439,12 +513,13 @@ int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, strin
         if (errno == 32) //socket closed
         {
             LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
+            closeSocket(connectedsocket);
             connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
             return -1;
         }
         else
         {
-            LOG_err << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+            LOG_err << "Informing state listener: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
         }
         return 0;
     }
@@ -468,10 +543,6 @@ int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, strin
         }
     }
 
-    //TODO: this two should be cleaned somewhere
-//    close(connectedsocket);
-//    close(((CmdPetitionPortSockets *)inf)->outSocket);
-//    delete inf; //TODO: when should inf be deleted? (upon destruction I believe)
     return 0;
 }
 
@@ -489,12 +560,19 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (!socketValid(newsockfd))
     {
-        LOG_fatal << "ERROR on accept";
-#if _WIN32
-        Sleep(1000);
-#else
-        sleep(1);
-#endif
+        if (ERRNO == EMFILE)
+        {
+            LOG_fatal << "ERROR on accept at getPetition: TOO many open files.";
+            //send state listeners an ACK command to see if they are responsive and close them otherwise
+            string sack = "ack";
+            informStateListeners(sack);
+        }
+        else
+        {
+            LOG_fatal << "ERROR on accept at getPetition: " << errno;
+        }
+
+        sleepSeconds(1);
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -506,7 +584,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     int n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
     while (n == SOCKET_ERROR && ERRNO == WSAEWOULDBLOCK)
     {
-        LOG_verbose << "Unexpected WSAEWOULDBLOCK in socket. Retrying ...";
+        LOG_verbose << "Unexpected WSAEWOULDBLOCK in socket at getPetition: . Retrying ...";
         Sleep(10);
         n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
     }
@@ -518,7 +596,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     }
     else
     {
-        LOG_warn << "Received empty command from client";
+        LOG_warn << "Received empty command from client at getPetition: ";
     }
 
 #else
@@ -527,7 +605,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR reading from socket " << newsockfd << " errno: " << ERRNO;
+        LOG_fatal << "ERROR reading from socket at getPetition: " << newsockfd << " errno: " << ERRNO;
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -536,7 +614,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     inf->outSocket = create_new_socket(&socket_id);
     if (!socketValid(inf->outSocket) || !socket_id)
     {
-        LOG_fatal << "ERROR creating output socket";
+        LOG_fatal << "ERROR creating output socket at getPetition";
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -545,7 +623,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR writing to socket: ERRNO = " << ERRNO;
+        LOG_fatal << "ERROR writing to socket at getPetition: ERRNO = " << ERRNO;
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -568,7 +646,7 @@ bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string m
      ((CmdPetitionPortSockets *)inf)->acceptedOutSocket = connectedsocket;
     if (connectedsocket == -1)
     {
-        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+        LOG_fatal << "Getting Confirmation: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
         delete inf;
         return false;
     }

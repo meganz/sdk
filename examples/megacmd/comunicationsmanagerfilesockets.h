@@ -35,6 +35,15 @@ public:
     CmdPetitionPosixSockets(){
         acceptedOutSocket = -1;
     }
+
+    virtual ~CmdPetitionPosixSockets()
+    {
+        close(outSocket);
+        if (acceptedOutSocket != -1)
+        {
+            close(acceptedOutSocket);
+        }
+    }
 };
 
 OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPosixSockets &p);

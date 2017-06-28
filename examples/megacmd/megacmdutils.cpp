@@ -1123,3 +1123,23 @@ string percentageToText(float percentage)
 
     return os.str();
 }
+
+
+void sleepSeconds(int seconds)
+{
+#ifdef _WIN32
+    Sleep(1000*seconds);
+#else
+    sleep(seconds);
+#endif
+}
+
+void sleepMicroSeconds(long microseconds)
+{
+#ifdef _WIN32
+    Sleep(microseconds);
+#else
+    usleep(microseconds*1000);
+#endif
+}
+

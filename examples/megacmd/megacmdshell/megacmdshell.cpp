@@ -362,6 +362,7 @@ static void store_line(char* l)
         rl_set_prompt("(CTRL+D) Exiting ...\n");
         if (comms->serverinitiatedfromshell)
         {
+            cerr << " Forwarding exit command to the server, since this cmd shell (most likely) initiated it" << endl;
             comms->executeCommand("exit");
         }
 #endif
@@ -1104,6 +1105,7 @@ void readloop()
     static bool firstloop = true;
 
     comms->registerForStateChanges();
+    comms->registerAgainRequired = false;
 
     //give it a while to communicate the state
     sleepMicroSeconds(1);

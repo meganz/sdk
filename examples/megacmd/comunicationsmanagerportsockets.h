@@ -31,6 +31,9 @@
 #endif
 #define MEGACMDINITIALPORTNUMBER 12300
 
+
+void closeSocket(int socket);
+
 class CmdPetitionPortSockets: public CmdPetition
 {
 public:
@@ -38,6 +41,14 @@ public:
     int acceptedOutSocket;
     CmdPetitionPortSockets(){
         acceptedOutSocket = -1;
+    }
+    virtual ~CmdPetitionPortSockets()
+    {
+        closeSocket(outSocket);
+        if (acceptedOutSocket != -1)
+        {
+            closeSocket(acceptedOutSocket);
+        }
     }
 };
 

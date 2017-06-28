@@ -40,7 +40,7 @@ class CmdPetition
         {
             return line;
         }
-        ~CmdPetition()
+        virtual ~CmdPetition()
         {
             if ( line != NULL )
             {

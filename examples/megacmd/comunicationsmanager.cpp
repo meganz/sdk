@@ -53,6 +53,12 @@ bool ComunicationsManager::receivedPetition()
 void ComunicationsManager::registerStateListener(CmdPetition *inf)
 {
     stateListenersPetitions.push_back(inf);
+    if (stateListenersPetitions.size()>300 && stateListenersPetitions.size()%10 == 0) //TODO: define limit as constant ~300
+    {
+        LOG_debug << " Number of register listeners has grown too much: " << stateListenersPetitions.size() << ". Sending an ACK to discard disconnected ones.";
+        string sack="ack";
+        informStateListeners(sack);
+    }
     return;
 }
 

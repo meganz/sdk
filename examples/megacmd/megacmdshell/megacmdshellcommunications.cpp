@@ -102,6 +102,22 @@ string createAndRetrieveConfigFolder()
 
 }
 
+
+#ifndef _WIN32
+#include <sys/wait.h>
+bool is_pid_running(pid_t pid) {
+
+    while(waitpid(-1, 0, WNOHANG) > 0) {
+        // Wait for defunct....
+    }
+
+    if (0 == kill(pid, 0))
+        return 1; // Process exists
+
+    return 0;
+}
+#endif
+
 #ifdef _WIN32
 int MegaCmdShellCommunications::createSocket(int number, bool net)
 #else
@@ -239,8 +255,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
             if (!number)
             {
                 //launch server
-//                if (fork()) //fork() -> child is megacmdshell (debug megacmd server)
-                if (!fork()) //!fork -> child is server. (debug megacmdshell)
+                int forkret = fork();
+//                if (forkret) //-> child is megacmdshell (debug megacmd server)
+                if (!forkret) //-> child is server. (debug megacmdshell)
                 {
                     signal(SIGINT, SIG_IGN); //ignore Ctrl+C in the server
 
@@ -280,6 +297,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                 //try again:
                 int attempts = 12;
                 int waitimet = 1500;
+                usleep(waitimet*100); //TODO: check again deleting this
                 while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
                 {
                     usleep(waitimet);
@@ -298,7 +316,10 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                 }
                 else
                 {
-                    serverinitiatedfromshell = true;
+                    if (forkret && is_pid_running(forkret)) // server pid is alive (most likely because I initiated the server)
+                    {
+                        serverinitiatedfromshell = true;
+                    }
                     registerAgainRequired = true;
                 }
             }

@@ -133,4 +133,8 @@ std::string secondsToText(time_t seconds, bool humanreadable = true);
 
 std::string percentageToText(float percentage);
 
+
+void sleepSeconds(int seconds);
+void sleepMicroSeconds(long microseconds);
+
 #endif // MEGACMDUTILS_H
