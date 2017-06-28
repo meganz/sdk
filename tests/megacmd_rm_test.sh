@@ -9,14 +9,31 @@ MKDIR=mega-mkdir
 EXPORT=mega-export
 FIND=mega-find
 
+
 if [ "x$VERBOSE" == "x" ]; then
 VERBOSE=0
 fi
+
+if [ "x$MEGACMDSHELL" != "x" ]; then
+RM="executeinMEGASHELL rm"
+CMDSHELL=1
+fi
+
+
+function executeinMEGASHELL()
+{
+	command=$1
+	shift;
+	echo $command "$@" > /tmp/shellin
+	
+	$MEGACMDSHELL < /tmp/shellin  | sed "s#^.*\[K##g" | grep $MEGA_EMAIL -A 1000 | grep -v $MEGA_EMAIL
+}
+
 ABSPWD=`pwd`
 
 function clean_all() { 
-	$RM -r "*" > /dev/null
-	$RM -r "//bin/*" > /dev/null
+	$RM -rf "/*" > /dev/null
+	$RM -rf "//bin/*" > /dev/null
 
 	if [ -e localUPs ]; then rm -r localUPs; fi
 	if [ -e localtmp ]; then rm -r localtmp; fi
@@ -196,6 +213,7 @@ $RM -rf lf01
 rm -r localUPs/lf01
 compare_and_clear
 
+
 #Test 09 #multiple
 $RM -rf lf01 le01/les01
 rm -r localUPs/{lf01,le01/les01}
@@ -223,13 +241,13 @@ rm -r localUPs/le01/les01
 compare_and_clear
 
 #Test 13 #spaced stuff
-$RM -rf ls\ 01
+$RM -rf "ls\ 01"
 rm -r localUPs/ls\ 01
 compare_and_clear
 
 #Test 14 #complex stuff
 #$RM -rf ls\ 01/../le01/les01 lf01/../ls*/ls\ s02 #This one fails since it is PCRE expresion TODO: if ever supported PCRE enabling/disabling, consider that
-$RM -rf ls\ 01/../le01/les01 lf01/../ls.*/ls\ s02
+$RM -rf "ls\ 01/../le01/les01" "lf01/../ls.*/ls\ s02"
 rm -r localUPs/{ls\ 01/../le01/les01,lf01/../ls*/ls\ s02}
 compare_and_clear
 

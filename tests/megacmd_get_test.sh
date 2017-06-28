@@ -7,15 +7,33 @@ CD=mega-cd
 LCD=mega-lcd
 EXPORT=mega-export
 
+ABSPWD=`pwd`
+
 if [ "x$VERBOSE" == "x" ]; then
 VERBOSE=0
 fi
 
-ABSPWD=`pwd`
+if [ "x$MEGACMDSHELL" != "x" ]; then
+GET="executeinMEGASHELL get"
+CMDSHELL=1
+fi
+
+
+function executeinMEGASHELL()
+{
+	command=$1
+	shift;
+	echo lcd "$PWD" > /tmp/shellin
+	echo $command "$@" >> /tmp/shellin
+	#~ echo $command "$@" > /tmp/shellin
+	
+	$MEGACMDSHELL < /tmp/shellin  | sed "s#^.*\[K##g" | grep $MEGA_EMAIL -A 1000 | grep -v $MEGA_EMAIL
+}
+
 
 function clean_all() { 
-	$RM -r "*" > /dev/null
-	$RM -r "//bin/*" > /dev/null
+	$RM -rf "*" > /dev/null
+	$RM -rf "//bin/*" > /dev/null
 	if [ -e origin ]; then rm -r origin; fi
 	if [ -e megaDls ]; then rm -r megaDls; fi
 	if [ -e localDls ]; then rm -r localDls; fi
@@ -57,6 +75,7 @@ if [ "$?" != "0" ]; then
 	echo "test $currentTest succesful!"
 else
 	echo "test $currentTest failed!"
+	cd $ABSPWD
 	exit 1
 fi
 
@@ -75,6 +94,7 @@ fi
 
 if [ "$(ls -A .)" ]; then
 	echo "initialization folder not empty!"
+	cd $ABSPWD
 	exit 1
 fi
 mkdir -p cloud0{1,2}/c0{1,2}s0{1,2}
@@ -88,7 +108,7 @@ mega-share foreign -a --with=$MEGA_EMAIL
 mega-logout
 
 mega-login $MEGA_EMAIL $MEGA_PWD
-mega-ipc -a $MEGA_EMAIL_AUX
+mega-ipc -a $MEGA_EMAIL_AUX >/dev/null
 
 mega-put cloud0* /
 mega-put bin0* //bin
@@ -99,6 +119,7 @@ URIEXPORTEDFILE=`$EXPORT cloud02/fileatcloud02.txt -a | awk '{print $NF}'`
 
 if [ "$MEGA_EMAIL" == "" ] || [ "$MEGA_PWD" == "" ] || [ "$MEGA_EMAIL_AUX" == "" ] || [ "$MEGA_PWD_AUX" == "" ]; then
 	echo "You must define variables MEGA_EMAIL MEGA_PWD MEGA_EMAIL_AUX MEGA_PWD_AUX. WARNING: Use an empty account for $MEGA_EMAIL"
+	cd $ABSPWD
 	exit 1
 fi
 
@@ -257,13 +278,17 @@ $GET cloud01/fileatcloud01.txt megaDls
 cp -r origin/cloud01/fileatcloud01.txt localDls/
 compare_and_clear
 
-#Test 26
-$GET cloud01/fileatcloud01.txt /no/where > /dev/null
-check_failed_and_clear
+if [ "x$CMDSHELL" != "x1" ]; then #TODO: currently there is no way to know last CMSHELL status code
+	#Test 26
+	$GET cloud01/fileatcloud01.txt /no/where > /dev/null
+	check_failed_and_clear
 
-#Test 27
-$GET /cloud01/cloud01/fileatcloud01.txt /no/where > /dev/null
-check_failed_and_clear
+	#Test 27
+	$GET /cloud01/cloud01/fileatcloud01.txt /no/where > /dev/null
+	check_failed_and_clear
+fi
+
+currentTest=28
 
 #Test 28
 $GET /cloud01/fileatcloud01.txt $ABSMEGADLFOLDER/newfile
@@ -302,6 +327,7 @@ mkdir localDls/newfol
 cp origin/cloud01/fileatcloud01.txt localDls/
 compare_and_clear
 
+if [ "x$CMDSHELL" != "x1" ]; then #TODO: currently there is no way to know last CMSHELL status code
 #Test 33
 $GET path/to/nowhere $ABSMEGADLFOLDER > /dev/null
 check_failed_and_clear
@@ -309,6 +335,9 @@ check_failed_and_clear
 #Test 34
 $GET /path/to/nowhere $ABSMEGADLFOLDER > /dev/null
 check_failed_and_clear
+fi
+
+currentTest=35
 
 #Test 35
 pushd $ABSMEGADLFOLDER > /dev/null

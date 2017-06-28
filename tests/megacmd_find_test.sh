@@ -13,9 +13,27 @@ if [ "x$VERBOSE" == "x" ]; then
 VERBOSE=0
 fi
 
+if [ "x$MEGACMDSHELL" != "x" ]; then
+FIND="executeinMEGASHELL find"
+CMDSHELL=1
+fi
+
+
+function executeinMEGASHELL()
+{
+	command=$1
+	shift;
+	echo $command "$@" > /tmp/shellin
+	
+	$MEGACMDSHELL < /tmp/shellin  | sed "s#^.*\[K##g" | grep $MEGA_EMAIL -A 1000 | grep -v $MEGA_EMAIL
+}
+
+
+
 function clean_all() { 
-	$RM -r "*" > /dev/null
-	$RM -r "//bin/*" > /dev/null
+	rm pipe > /dev/null 2>/dev/null || :
+	$RM -rf "*" > /dev/null
+	$RM -rf "//bin/*" > /dev/null
 
 	if [ -e localUPs ]; then rm -r localUPs; fi
 	if [ -e localtmp ]; then rm -r localtmp; fi
@@ -90,6 +108,7 @@ function initialize () {
 
 	if [ $($FIND / | wc  -l) != 1 ]; then 
 		echo "REMOTE Not empty, please clear it before starting!"
+		#~ $FIND /
 		cd $ABSPWD
 		exit 1
 	fi
@@ -152,6 +171,8 @@ function compare_find(){
 	
 	$FIND "$@"  | sort > $ABSPWD/megafind.txt
 	(cd localUPs 2>/dev/null; find "$@" | sed "s#\./##g" | sort) > $ABSPWD/localfind.txt
+	
+	
 		
 	if diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt 2>/dev/null >/dev/null; then
 		if [ "$VERBOSE" == "1" ]; then
@@ -245,10 +266,12 @@ popd > /dev/null
 compare_find .
 
 #Test 08 #. global
-compare_find ls\ 01
+find_remote "ls\ 01"
+find_local ls\ 01
+compare_remote_local
 
 #Test 09 #XX/..
-find_remote ls\ 01/..
+find_remote "ls\ 01/.."
 find_local .//
 compare_remote_local
 
@@ -261,7 +284,7 @@ compare_remote_local
 
 #Test 11 #complex stuff
 #$RM -rf ls\ 01/../le01/les01 lf01/../ls*/ls\ s02 #This one fails since it is PCRE expresion TODO: if ever supported PCRE enabling/disabling, consider that
-find_remote ls\ 01/../le01/les01 lf01/../ls\ *01/ls\ s02
+find_remote "ls\ 01/../le01/les01" "lf01/../ls\ *01/ls\ s02"
 find_local .//le01/les01
 find_local_append .//ls\ 01/ls\ s02
 compare_remote_local
@@ -272,11 +295,14 @@ find_remote le01/
 find_local le01
 compare_remote_local
 
-#Test 13 #file01.txt/
-$FIND file01.txt/ >/dev/null 2>/dev/null
-if [ $? == 0 ]; then echo "test $currentTest failed!"; cd $ABSPWD; exit 1; 
-else echo "test $currentTest succesful!"; fi
+if [ "x$CMDSHELL" != "x1" ]; then #TODO: currently there is no way to know last CMSHELL status code
 
+	#Test 13 #file01.txt/
+	$FIND file01.txt/ >/dev/null 2>/dev/null
+	if [ $? == 0 ]; then echo "test $currentTest failed!"; cd $ABSPWD; exit 1; 
+	else echo "test $currentTest succesful!"; fi
+
+fi
 ###TODO: do stuff in shared folders...
 
 ########

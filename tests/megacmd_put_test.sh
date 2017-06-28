@@ -9,14 +9,33 @@ MKDIR=mega-mkdir
 EXPORT=mega-export
 FIND=mega-find
 
+
 if [ "x$VERBOSE" == "x" ]; then
 VERBOSE=0
 fi
+
+if [ "x$MEGACMDSHELL" != "x" ]; then
+PUT="executeinMEGASHELL put"
+CMDSHELL=1
+fi
+
+
+function executeinMEGASHELL()
+{
+	command=$1
+	shift;
+	echo lcd "$PWD" > /tmp/shellin
+	echo $command "$@" >> /tmp/shellin
+	#~ echo $command "$@" > /tmp/shellin
+	
+	$MEGACMDSHELL < /tmp/shellin  | sed "s#^.*\[K##g" | grep $MEGA_EMAIL -A 1000 | grep -v $MEGA_EMAIL
+}
+
 ABSPWD=`pwd`
 
 function clean_all() { 
-	$RM -r "*" > /dev/null
-	$RM -r "//bin/*" > /dev/null
+	$RM -rf "*" > /dev/null
+	$RM -rf "//bin/*" > /dev/null
 
 	if [ -e localUPs ]; then rm -r localUPs; fi
 	if [ -e localtmp ]; then rm -r localtmp; fi
@@ -27,7 +46,7 @@ function clean_all() {
 
 function clear_local_and_remote() {
 	rm -r localUPs/* 2>/dev/null
-	$RM -rf /01/../* 2>/dev/null || :
+	$RM -rf /01/../* >/dev/null 2>/dev/null || :
 	initialize_contents
 
 }
@@ -232,8 +251,15 @@ $CD /
 cp -r localtmp/le01 localUPs/01/s01
 compare_and_clear
 
-#Test 14 #spaced stuff
+currentTest=15
+
+#Test 15 #spaced stuff
+if [ "x$CMDSHELL" != "x1" ]; then #TODO: think about this again
 $PUT localtmp/ls\ 01
+else
+$PUT "localtmp/ls\ 01"
+fi
+
 cp -r localtmp/ls\ 01 localUPs/ls\ 01
 compare_and_clear
 
