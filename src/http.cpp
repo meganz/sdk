@@ -343,10 +343,46 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
+    method = METHOD_POST;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
+}
+
+void HttpReq::get(MegaClient *client)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+
+    httpio = client->httpio;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    inpurge = 0;
+    method = METHOD_GET;
+    contentlength = -1;
+    lastdata = Waiter::ds;
+
+    httpio->post(this);
+}
+
+void HttpReq::dns(MegaClient *client)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+
+    method = METHOD_NONE;
+    httpio = client->httpio;
+    httpio->post(this);
 }
 
 void HttpReq::disconnect()
@@ -367,6 +403,8 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
+    method = METHOD_NONE;
+    timeoutms = 0;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -395,6 +433,7 @@ void HttpReq::init()
     timeleft = -1;
     lastdata = NEVER;
     outpos = 0;
+    in.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -696,6 +735,14 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 m_off_t SpeedController::getMeanSpeed()
 {
     return meanSpeed;
+}
+
+GenericHttpReq::GenericHttpReq(bool binary) : HttpReq(binary)
+{
+    tag = 0;
+    maxretries = 0;
+    numretry = 0;
+    isbtactive = false;
 }
 
 } // namespace

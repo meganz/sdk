@@ -2497,6 +2497,21 @@ void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
     pImpl->getLocalSSLCertificate(listener);
 }
 
+void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
+{
+    pImpl->queryDNS(hostname, listener);
+}
+
+void MegaApi::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+{
+    pImpl->queryGeLB(service, timeoutms, maxretries, listener);
+}
+
+void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
+{
+    pImpl->downloadFile(url, dstpath, listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
@@ -3615,6 +3630,11 @@ void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
 void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaRequestListener *listener)
 {
     pImpl->registerPushNotification(deviceType, token, listener);
+}
+
+void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+{
+    pImpl->sendChatStats(data, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()
