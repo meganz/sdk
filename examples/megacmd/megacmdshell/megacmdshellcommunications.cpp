@@ -655,6 +655,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
         if (n == SOCKET_ERROR)
         {
             cerr << "ERROR reading output: " << ERRNO << endl;
+            closeSocket(newsockfd);
             return -1;;
         }
 
@@ -669,6 +670,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
             if (!timeout_notified_server_might_be_down)
             {
                 registerAgainRequired = true;
+                closeSocket(newsockfd);
                 return -1;
             }
             sleepSeconds(1);
