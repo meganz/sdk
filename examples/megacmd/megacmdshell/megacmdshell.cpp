@@ -80,6 +80,7 @@ string getCurrentLine()
     char *saved_line = rl_copy_text(0, rl_point);
     string toret(saved_line);
     free(saved_line);
+    saved_line = NULL;
     return toret;
 }
 
@@ -512,6 +513,7 @@ void changeprompt(const char *newprompt, bool redisplay)
         {
             rl_replace_line(saved_line, 0);
             free(saved_line);
+            saved_line = NULL;
         }
         rl_point = saved_point;
         rl_redisplay();
@@ -677,6 +679,7 @@ char* remote_completion(const char* text, int state)
     }
 
     free(saved_line);
+    saved_line = NULL;
 
     return generic_completion(text, state, validOptions);
 }
@@ -1060,7 +1063,7 @@ void process_line(char * line)
                     //    LOG_err << "Already logged in. Please log out first.";
                     //}
                 }
-                if (words[0] == "confirm")
+                else if (words[0] == "confirm")
                 {
                     if (words.size() == 3)
                     {
@@ -1135,6 +1138,7 @@ void readloop()
                 {
                     rl_replace_line(saved_line, 0);
                     free(saved_line);
+                    saved_line = NULL;
                 }
 
                 rl_point = saved_point;
@@ -1215,6 +1219,7 @@ void readloop()
         {
             if (saved_line != NULL)
                 free(saved_line);
+            saved_line = NULL;
             return;
         }
     }

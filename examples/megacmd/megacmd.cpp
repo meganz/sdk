@@ -656,6 +656,7 @@ char * flags_value_completion(const char*text, int state)
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         free(saved_line);
+        saved_line = NULL;
         if (words.size() > 1)
         {
             string thecommand = words[0];
@@ -807,6 +808,7 @@ char* nodeattrs_completion(const char* text, int state)
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         free(saved_line);
+        saved_line = NULL;
         if (words.size() > 1)
         {
             validAttrs = cmdexecuter->getNodeAttrs(words[1]);
@@ -1021,6 +1023,7 @@ static char** getCompletionMatches(const char * text, int start, int end)
             words.push_back("");
         }
         free(saved_line);
+        saved_line = NULL;
 
         matches = rl_completion_matches((char*)text, getCompletionFunction(words));
     }
@@ -2450,6 +2453,7 @@ void megacmd()
             {
                 rl_replace_line(saved_line, 0);
                 free(saved_line);
+                saved_line = NULL;
             }
 
             rl_point = saved_point;
@@ -2578,6 +2582,7 @@ void megacmd()
         {
             if (saved_line != NULL)
                 free(saved_line);
+            saved_line = NULL;
             return;
         }
     }
