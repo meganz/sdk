@@ -663,9 +663,14 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
             if (!timeout_notified_server_might_be_down)
             {
                 timeout_notified_server_might_be_down = 30;
-                cerr << endl << "Server is probably down. Executing anything will try to respawn it.";
+                cerr << endl << "Server is probably down. Executing anything will try to respawn or reconnect to it";
             }
             timeout_notified_server_might_be_down--;
+            if (!timeout_notified_server_might_be_down)
+            {
+                registerAgainRequired = true;
+                return -1;
+            }
             sleepSeconds(1);
             continue;
         }
