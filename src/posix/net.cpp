@@ -376,7 +376,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
         if (!info.mode)
         {
-            break;
+            continue;
         }
 
 #if defined(_WIN32)
@@ -1142,23 +1142,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
-
-    if (req->method == METHOD_NONE)
-    {
-        req->in = httpctx->hostip;
-        req->httpstatus = 200;
-        req->status = REQ_SUCCESS;
-        req->httpiohandle = NULL;
-
-        httpctx->req = NULL;
-        if (!httpctx->ares_pending)
-        {
-            delete httpctx;
-        }
-        httpio->statechange = true;
-        return;
-    }
-
     int len = httpctx->len;
     const char* data = httpctx->data;
 
@@ -1201,18 +1184,21 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpio->statechange = true;
         return;
     }
-
+    
     CURL* curl;
     if ((curl = curl_easy_init()))
     {
         switch (req->method)
         {
         case METHOD_POST:
-            curl_easy_setopt(curl, CURLOPT_POST, 1);
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
             break;
         case METHOD_GET:
-            curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+            curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+            break;
+        case METHOD_NONE:
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
             break;
         }
 
@@ -1492,10 +1478,6 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
         else if (!scheme->compare(0, 5, "socks"))
         {
             *port = 1080;
-        }
-        else if (!scheme->compare("dns"))
-        {
-            *port = 53;
         }
         else
         {
@@ -1923,6 +1905,24 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
                 if (req->httpstatus)
                 {
+                    if (req->method == METHOD_NONE)
+                    {
+                        char *ip = NULL;
+                        CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+                        if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &ip) == CURLE_OK
+                              && ip && !strstr(httpctx->hostip.c_str(), ip))
+                        {
+                            LOG_err << "cURL has changed the original IP! " << httpctx ->hostip << " -> " << ip;
+                            req->in = strstr(ip, ":") ? (string("[") + ip + "]") : string(ip);
+                        }
+                        else
+                        {
+                            req->in = httpctx->hostip;
+                        }
+                        req->httpstatus = 200;
+
+                    }
+                    
                     if (req->binary)
                     {
                         LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";

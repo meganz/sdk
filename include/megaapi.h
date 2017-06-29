@@ -9005,13 +9005,17 @@ class MegaApi
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Send a DNS request to resolve a hostname
+         * @brief Get the IP of a MegaChat server
+         *
+         * This function allows to get the correct IP to connect to a MEGAchat server
+         * using Websockets.
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_DNS
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the IP of the hostname
+         * - MegaRequest::getText - Returns the IP of the hostname. 
+         * IPv6 addresses are returned between brackets
          *
          * @param hostname Hostname to resolve
          * @param listener MegaRequestListener to track this request
