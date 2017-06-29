@@ -535,7 +535,7 @@ int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, strin
     {
         if (errno == 32) //socket closed
         {
-            LOG_debug << "Unregistering no longer listening client. Original petition " << *inf;
+            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
             connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
             return -1;
         }

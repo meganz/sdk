@@ -674,6 +674,10 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
         {
             changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
         }
+        else if (newstate == "ack")
+        {
+            // do nothing, all good
+        }
         else
         {
             cerr << "received unrecognized state change: " << newstate << endl;

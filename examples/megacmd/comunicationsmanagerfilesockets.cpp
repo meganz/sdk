@@ -373,7 +373,7 @@ int ComunicationsManagerFileSockets::informStateListener(CmdPetition *inf, strin
     {
         if (errno == 32) //socket closed
         {
-            LOG_debug << "Unregistering no longer listening client. Original petition " << *inf;
+            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
             close(connectedsocket);
             connectedsockets.erase(((CmdPetitionPosixSockets *)inf)->outSocket);
             return -1;
