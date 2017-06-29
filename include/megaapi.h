@@ -9020,7 +9020,7 @@ class MegaApi
          * @param hostname Hostname to resolve
          * @param listener MegaRequestListener to track this request
          */
-        void queryDNS(char *hostname, MegaRequestListener *listener = NULL);
+        void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
 
         /**
          * @brief queryGeLB Query the GeLB server for a given service
@@ -9037,7 +9037,7 @@ class MegaApi
          * @param timeoutms Timeout for the request, including all possible retries
          * @param listener MegaRequestListener to track this request
          */
-        void queryGeLB(char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Download a file using a HTTP GET request
@@ -9057,7 +9057,7 @@ class MegaApi
          * @param dstpath Destination path for the downloaded file
          * @param listener MegaRequestListener to track this request
          */
-        void downloadFile(char *url, char *dstpath, MegaRequestListener *listener = NULL);
+        void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the User-Agent header used by the SDK

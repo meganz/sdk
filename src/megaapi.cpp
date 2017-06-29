@@ -2497,17 +2497,17 @@ void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
     pImpl->getLocalSSLCertificate(listener);
 }
 
-void MegaApi::queryDNS(char *hostname, MegaRequestListener *listener)
+void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
 {
     pImpl->queryDNS(hostname, listener);
 }
 
-void MegaApi::queryGeLB(char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApi::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
 {
     pImpl->queryGeLB(service, timeoutms, maxretries, listener);
 }
 
-void MegaApi::downloadFile(char *url, char *dstpath, MegaRequestListener *listener)
+void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
     pImpl->downloadFile(url, dstpath, listener);
 }

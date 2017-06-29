@@ -7446,7 +7446,7 @@ void MegaApiImpl::getLocalSSLCertificate(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryDNS(char *hostname, MegaRequestListener *listener)
+void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_DNS, listener);
     request->setName(hostname);
@@ -7454,7 +7454,7 @@ void MegaApiImpl::queryDNS(char *hostname, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryGeLB(char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApiImpl::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
     request->setName(service);
@@ -7464,7 +7464,7 @@ void MegaApiImpl::queryGeLB(char *service, int timeoutms, int maxretries, MegaRe
     waiter->notify();
 }
 
-void MegaApiImpl::downloadFile(char *url, char *dstpath, MegaRequestListener *listener)
+void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
     request->setLink(url);

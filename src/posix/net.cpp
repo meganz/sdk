@@ -1920,7 +1920,6 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             req->in = httpctx->hostip;
                         }
                         req->httpstatus = 200;
-
                     }
                     
                     if (req->binary)

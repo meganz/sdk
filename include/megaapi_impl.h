@@ -1624,9 +1624,9 @@ class MegaApiImpl : public MegaApp
         char *getOperatingSystemVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
-        void queryDNS(char *hostname, MegaRequestListener *listener = NULL);
-        void queryGeLB(char *service, int timeoutms, int maxretries, MegaRequestListener *listener = NULL);
-        void downloadFile(char *url, char *dstpath, MegaRequestListener *listener = NULL);
+        void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener = NULL);
+        void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
