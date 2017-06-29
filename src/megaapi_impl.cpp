@@ -9954,12 +9954,9 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             || request->getType() == MegaRequest::TYPE_CHAT_STATS
             || request->getType() == MegaRequest::TYPE_QUERY_DNS)
     {
-        if (size)
-        {
-            string result;
-            result.assign((const char *)data, size);
-            request->setText(result.c_str());
-        }
+        string result;
+        result.assign((const char *)data, size);
+        request->setText(result.c_str());
     }
     else if (request->getType() == MegaRequest::TYPE_DOWNLOAD_FILE)
     {
