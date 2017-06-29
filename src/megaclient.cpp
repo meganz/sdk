@@ -1001,7 +1001,7 @@ void MegaClient::exec()
 
         if (pendinghttp.size())
         {
-            map<int, GenericHttpReq*>::iterator it = pendinghttp.begin();
+            pendinghttp_map::iterator it = pendinghttp.begin();
             while (it != pendinghttp.end())
             {
                 GenericHttpReq *req = it->second;
