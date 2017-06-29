@@ -23,9 +23,6 @@
 #include "configurationmanager.h"
 #include "megacmdutils.h"
 
-#define USE_VARARGS
-#define PREFER_STDARG
-#include <readline/readline.h>
 
 using namespace mega;
 
@@ -65,11 +62,6 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
                 LOG_debug << users->size() << " users received or updated";
             }
 
-            // force reshow display for a first clean prompt
-            if (initial && loggerCMD->getCmdLoggerLevel()>=MegaApi::LOG_LEVEL_DEBUG)
-            {
-                rl_forced_update_display();
-            }
             initial = false;
 
             delete users;

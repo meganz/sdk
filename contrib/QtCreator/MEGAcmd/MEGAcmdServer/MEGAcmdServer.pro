@@ -14,13 +14,6 @@ TEMPLATE = app
 CONFIG += console
 CONFIG += USE_MEGAAPI
 
-
-win32 {
-DEFINES += USE_READLINE_STATIC
-}
-
-LIBS += -lreadline
-
 packagesExist(libpcrecpp){
 DEFINES += USE_PCRE
 LIBS += -lpcrecpp
@@ -96,9 +89,7 @@ macx {
     QMAKE_INFO_PLIST = Info_MEGA.plist
     DEFINES += USE_PTHREAD
     INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/FreeImage/Source
-    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/readline
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
-    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
     LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
     QMAKE_CXXFLAGS += -g

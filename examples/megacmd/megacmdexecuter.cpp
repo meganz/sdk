@@ -35,10 +35,6 @@
 
 #include <signal.h>
 
-#define USE_VARARGS
-#define PREFER_STDARG
-#include <readline/readline.h>
-
 using namespace mega;
 
 static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
@@ -5699,7 +5695,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "history")
     {
-        printHistory();
+        //TODO: this command makes no sense now in non-interactive mode. Delete from here and .bat, and from valid commands
         return;
     }
     else if (words[0] == "version")

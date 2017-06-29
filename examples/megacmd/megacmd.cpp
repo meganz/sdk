@@ -35,14 +35,24 @@
 #define USE_VARARGS
 #define PREFER_STDARG
 
-#include <readline/readline.h>
-#include <readline/history.h>
 #include <iomanip>
 #include <string>
 
 #ifndef _WIN32
 #include "signal.h"
 #endif
+
+
+#if !defined (PARAMS)
+#  if defined (__STDC__) || defined (__GNUC__) || defined (__cplusplus)
+#    define PARAMS(protos) protos
+#  else
+#    define PARAMS(protos) ()
+#  endif
+#endif
+
+typedef char *completionfunction_t PARAMS((const char *, int));
+
 
 
 #ifdef _WIN32
@@ -216,11 +226,8 @@ string getCurrentThreadLine()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
     if (threadline.find(currentThread) == threadline.end())
-    {
-        char *saved_line = rl_copy_text(0, rl_point);
-        string toret(saved_line);
-        free(saved_line);
-        return toret;
+    { // not found thread
+        return string();
     }
     else
     {
@@ -246,28 +253,9 @@ void sigint_handler(int signum)
         exit(-2);
     }
 
-    if (prompt != COMMAND)
-    {
-        setprompt(COMMAND);
-    }
+    LOG_debug << "Exiting due to SIGINT";
 
-    // reset position and print prompt
-    rl_replace_line("", 0); //clean contents of actual command
-    rl_crlf(); //move to nextline
-
-    if (RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH))
-    {
-        RL_UNSETSTATE(RL_STATE_ISEARCH);
-        RL_UNSETSTATE(RL_STATE_NSEARCH);
-        RL_UNSETSTATE( RL_STATE_SEARCH);
-        history_set_pos(history_length);
-        rl_restore_prompt(); // readline has stored it when searching
-    }
-    else
-    {
-        rl_reset_line_state();
-    }
-    rl_redisplay();
+    doExit = true;
 }
 
 #ifdef _WIN32
@@ -323,28 +311,6 @@ void changeprompt(const char *newprompt)
     string s = "prompt:";
     s+=dynamicprompt;
     cm->informStateListeners(s);
-}
-
-// readline callback - exit if EOF, add to history unless password
-static void store_line(char* l)
-{
-    if (!l)
-    {
-#ifndef _WIN32 // to prevent exit with Supr key
-        doExit = true;
-        rl_set_prompt("(CTRL+D) Exiting ...\n");
-#endif
-        return;
-    }
-
-    if (*l && ( prompt == COMMAND ))
-    {
-        mutexHistory.lock();
-        add_history(l);
-        mutexHistory.unlock();
-    }
-
-    line = l;
 }
 
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
@@ -545,18 +511,15 @@ char* generic_completion(const char* text, int state, vector<string> validOption
         //Notice: do not escape options for cmdshell. Plus, we won't filter here, because we don't know if the value of rl_completion_quote_chararcter of megacmdshell
         // The filtering and escaping will be performed by the completion function in megacmd shell
         //TODO: change name of validOptions to possibleOptions. Document and change name of generic_completion in cmdshell to a better one
-        if (!rl_completion_quote_character && interactiveThread() && !getCurrentThreadIsCmdShell()) {
+        if (interactiveThread() && !getCurrentThreadIsCmdShell()) {
             escapeEspace(name);
         }
 
         list_index++;
 
-        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) || getCurrentThreadIsCmdShell() ))
+        if (!( strcmp(text, ""))
+                || ((( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) ) || getCurrentThreadIsCmdShell() ))
         {
-            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
-            {
-                rl_completion_suppress_append = 1;
-            }
             foundone = true;
             return dupstr((char*)name.c_str());
         }
@@ -714,7 +677,7 @@ char * flags_value_completion(const char*text, int state)
 
 void unescapeifRequired(string &what)
 {
-    if (!rl_completion_quote_character && interactiveThread() ) {
+    if (interactiveThread() ) {
         return unescapeEspace(what);
     }
 }
@@ -732,9 +695,8 @@ char* remotepaths_completion(const char* text, int state)
 #endif
         wildtext += "*";
 
-        if (!rl_completion_quote_character) {
-            unescapeEspace(wildtext);
-        }
+        unescapeEspace(wildtext);
+
         validpaths = cmdexecuter->listpaths(wildtext);
     }
     return generic_completion(text, state, validpaths);
@@ -857,7 +819,7 @@ void discardOptionsAndFlags(vector<string> *ws)
     }
 }
 
-rl_compentry_func_t *getCompletionFunction(vector<string> words)
+completionfunction_t *getCompletionFunction(vector<string> words)
 {
     // Strip words without flags
     string thecommand = words[0];
@@ -997,43 +959,10 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
     return empty_completion;
 }
 
-static char** getCompletionMatches(const char * text, int start, int end)
-{
-    rl_filename_quoting_desired = 1;
-
-    char **matches;
-
-    matches = (char**)NULL;
-
-    if (start == 0)
-    {
-        matches = rl_completion_matches((char*)text, &commands_completion);
-        if (matches == NULL)
-        {
-            matches = rl_completion_matches((char*)text, &empty_completion);
-        }
-    }
-    else
-    {
-
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
-        {
-            words.push_back("");
-        }
-        free(saved_line);
-        saved_line = NULL;
-
-        matches = rl_completion_matches((char*)text, getCompletionFunction(words));
-    }
-    return( matches );
-}
-
 string getListOfCompletionValues(vector<string> words, char separator = ' ', bool suppressflag = true)
 {
     string completionValues;
-    rl_compentry_func_t * compfunction = getCompletionFunction(words);
+    completionfunction_t * compfunction = getCompletionFunction(words);
     if (compfunction == local_completion)
     {
         return "MEGACMD_USE_LOCAL_COMPLETION";
@@ -1074,29 +1003,6 @@ string getListOfCompletionValues(vector<string> words, char separator = ' ', boo
         state++;
     }
     return completionValues;
-}
-
-
-
-void printHistory()
-{
-    int length = history_length;
-    int offset = 1;
-    int rest = length;
-    while (rest >= 10)
-    {
-        offset++;
-        rest = rest / 10;
-    }
-
-    mutexHistory.lock();
-    for (int i = 0; i < length; i++)
-    {
-        history_set_pos(i);
-        OUTSTREAM << setw(offset) << i << "  " << current_history()->line << endl;
-    }
-
-    mutexHistory.unlock();
 }
 
 MegaApi* getFreeApiFolder()
@@ -1850,6 +1756,7 @@ void printAvailableCommands(int extensive = 0)
                 {
                     u_int width = 90;
                     int rows = 1, cols = width;
+                    // TODO: figure out another way to get cols size??
 
                     #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
                         if (RL_ISSTATE(RL_STATE_INITIALIZED))
@@ -1884,72 +1791,6 @@ void printAvailableCommands(int extensive = 0)
         }
     }
 }
-
-
-#ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-
-/**
- * @brief getcharacterreadlineUTF16support
- * while this works, somehow arrows and other readline stuff is disabled using this one.
- * @param stream
- * @return
- */
-int getcharacterreadlineUTF16support (FILE *stream)
-{
-    int result;
-    char b[10];
-    memset(b,0,10);
-
-    while (1)
-    {
-        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
-
-        result = read (fileno (stream), &b, 10);
-        _setmode(fileno(stream), oldmode);
-
-        if (result == 0)
-        {
-            return (EOF);
-        }
-
-        // convert the UTF16 string to widechar
-        size_t wbuffer_size;
-        mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
-        wchar_t *wbuffer = new wchar_t[wbuffer_size];
-        mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
-
-        // convert the UTF16 widechar to UTF8 string
-        string receivedutf8;
-        MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
-
-        if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
-        {
-            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
-            {
-                rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
-                rl_point=rl_end;
-            }
-            rl_line_buffer[rl_end] = '\0';
-
-            return 0;
-        }
-
-        if (result =! 0)
-        {
-            return (b[0]);
-        }
-
-        /* If zero characters are returned, then the file that we are
-     reading from is empty!  Return EOF in that case. */
-        if (result == 0)
-        {
-            return (EOF);
-        }
-    }
-}
-#endif
 
 void executecommand(char* ptr)
 {
@@ -2140,52 +1981,6 @@ void executecommand(char* ptr)
         return;
     }
 
-    if ( thecommand == "clear" )
-    {
-#ifdef _WIN32
-        HANDLE hStdOut;
-        CONSOLE_SCREEN_BUFFER_INFO csbi;
-        DWORD count;
-
-        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
-        if (hStdOut == INVALID_HANDLE_VALUE) return;
-
-        /* Get the number of cells in the current buffer */
-        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
-        /* Fill the entire buffer with spaces */
-        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
-        {
-            return;
-        }
-        /* Fill the entire buffer with the current colors and attributes */
-        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
-        {
-            return;
-        }
-        /* Move the cursor home */
-        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
-#else
-        rl_clear_screen(0,0);
-#endif
-        return;
-    }
-#ifdef _WIN32
-    if (words[0] == "unicode")
-    {
-        if (interactiveThread() && !getCurrentThreadIsCmdShell())
-        {
-            rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
-            OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
-            return;
-        }
-        else
-        {
-            setCurrentOutCode(MCMD_EARGS);
-            LOG_err << "Incorrect usage. Usage: " << getUsageStr("unicode");
-            return;
-        }
-    }
-#endif
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
@@ -2429,161 +2224,61 @@ void megacmd()
     char *saved_line = NULL;
     int saved_point = 0;
 
-    rl_save_prompt();
 
-    int readline_fd = -1;
-    if (!consoleFailed)
-    {
-        readline_fd = fileno(rl_instream);
-    }
-
-    consoleFailed=true; //TODO: delete or delete everything related to console. Problem: when client breaks or accept breaks (cant remember, the next select has fd_readline set!!!! which is utterly wrong and i cannot explain why)
     for (;; )
     {
-        if (prompt == COMMAND)
-        {
+        cm->waitForPetition();
 
-            if (!consoleFailed)
-            {
-                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
-            }
+        api->retryPendingConnections();
 
-            // display prompt
-            if (saved_line)
-            {
-                rl_replace_line(saved_line, 0);
-                free(saved_line);
-                saved_line = NULL;
-            }
-
-            rl_point = saved_point;
-            rl_redisplay();
-        }
-
-        // command editing loop - exits when a line is submitted
-        for (;; )
-        {
-            if (Waiter::HAVESTDIN)
-            {
-                if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
-                {
-                    if (consoleFailed)
-                    {
-                        cm->waitForPetition();
-                    }
-                    else
-                    {
-                        if (cm->waitForPetitionOrReadlineInput(readline_fd))
-                        {
-                            LOG_warn << " wait failed. Retrying...";
-                            sleepSeconds(1);
-                            continue;
-                        }
-                    }
-                    api->retryPendingConnections();
-                    if (doExit)
-                    {
-                        LOG_verbose << "closing after wait ..." ;
-                        return;
-                    }
-
-                    if (!consoleFailed && cm->receivedReadlineInput(readline_fd))
-                    {
-                        rl_callback_read_char();
-                        if (doExit)
-                        {
-                            LOG_verbose << "closing ..." ;
-                            return;
-                        }
-                    }
-                    else if (cm->receivedPetition())
-                    {
-
-
-                        LOG_verbose << "Client connected ";
-
-                        CmdPetition *inf = cm->getPetition();
-
-                        LOG_verbose << "petition registered: " << *inf;
-
-                        delete_finished_threads();
-
-                        if (!inf || !strcmp(inf->getLine(),"ERROR"))
-                        {
-                            LOG_warn << "Petition couldn't be registered. Dismissing it.";
-                            delete inf;
-                        }
-                        // if state register petition
-                        else if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
-                                !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
-                        {
-
-                            cm->registerStateListener(inf);
-
-                            // communicate status info
-                            string s = "prompt:";
-                            s+=dynamicprompt;
-                            cm->informStateListener(inf,s);
-
-                        }
-                        else
-                        { // normal petition
-
-
-                            semaphoreClients.wait();
-
-                            //append new one
-                            MegaThread * petitionThread = new MegaThread();
-                            petitionThreads.push_back(petitionThread);
-                            inf->setPetitionThread(petitionThread);
-
-                            LOG_debug << "starting processing: <" << *inf << ">";
-
-                            petitionThread->start(doProcessLine, (void*)inf);
-                        }
-                    }
-                }
-                else
-                {
-                    console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
-                }
-            }
-
-            if (line)
-            {
-                break;
-            }
-        }
-
-        // save line
-        saved_point = rl_point;
-        saved_line = rl_copy_text(0, rl_end);
-
-        // remove prompt
-        rl_save_prompt();
-        rl_replace_line("", 0);
-        rl_redisplay();
-
-        if (line)
-        {
-            // execute user command
-#ifdef _WIN32
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT); //this prevents from e.g chinese chars to stop the output
-            doExit = doExit || process_line(line);
-            _setmode(fileno(stdout), oldmode);
-#else
-            doExit = doExit || process_line(line);
-#endif
-
-            free(line);
-            line = NULL;
-        }
         if (doExit)
         {
-            if (saved_line != NULL)
-                free(saved_line);
-            saved_line = NULL;
+            LOG_verbose << "closing after wait ..." ;
             return;
+        }
+
+        if (cm->receivedPetition())
+        {
+
+            LOG_verbose << "Client connected ";
+
+            CmdPetition *inf = cm->getPetition();
+
+            LOG_verbose << "petition registered: " << *inf;
+
+            delete_finished_threads();
+
+            if (!inf || !strcmp(inf->getLine(),"ERROR"))
+            {
+                LOG_warn << "Petition couldn't be registered. Dismissing it.";
+                delete inf;
+            }
+            // if state register petition
+            else if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
+                     !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
+            {
+
+                cm->registerStateListener(inf);
+
+                // communicate status info
+                string s = "prompt:";
+                s+=dynamicprompt;
+                cm->informStateListener(inf,s);
+            }
+            else
+            { // normal petition
+
+                semaphoreClients.wait();
+
+                //append new one
+                MegaThread * petitionThread = new MegaThread();
+                petitionThreads.push_back(petitionThread);
+                inf->setPetitionThread(petitionThread);
+
+                LOG_debug << "starting processing: <" << *inf << ">";
+
+                petitionThread->start(doProcessLine, (void*)inf);
+            }
         }
     }
 }
@@ -2749,41 +2444,11 @@ bool runningInBackground()
     return false;
 }
 
-#ifdef _WIN32
-void mycompletefunct(char **c, int num_matches, int max_length)
-{
-    int rows = 1, cols = 80;
-
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-
-            if (RL_ISSTATE(RL_STATE_INITIALIZED))
-            {
-                rl_resize_terminal();
-                rl_get_screen_size(&rows, &cols);
-            }
-#endif
-
-    OUTSTREAM << endl;
-    int nelements_per_col = (cols-1)/(max_length+1);
-    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
-    {
-        OUTSTREAM << setw(max_length+1) << left << c[i];
-
-        if ( (i%nelements_per_col == 0) && (i != num_matches))
-        {
-            OUTSTREAM << endl;
-        }
-    }
-    OUTSTREAM << endl;
-}
-#endif
-
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
     setlocale(LC_ALL, "");
-    rl_completion_display_matches_hook = mycompletefunct;
 #endif
 
 #ifdef __MACH__
@@ -2903,21 +2568,6 @@ int main(int argc, char* argv[])
 #endif
 
     atexit(finalize);
-
-    rl_attempted_completion_function = getCompletionMatches;
-    rl_completer_quote_characters = "\"'";
-    rl_filename_quote_characters  = " ";
-    rl_completer_word_break_characters = (char *)" ";
-
-    rl_char_is_quoted_p = &quote_detector;
-
-    if (!runningInBackground())
-    {
-        rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
-        // so that we can use rl_message or rl_resize_terminal safely before ever
-        // prompting anything.
-    }
-
 
     printWelcomeMsg();
     if (consoleFailed)
