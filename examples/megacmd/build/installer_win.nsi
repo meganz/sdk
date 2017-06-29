@@ -508,9 +508,13 @@ modeselected:
   AccessControl::SetFileOwner "$INSTDIR\mega-help.bat" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\mega-help.bat" "$USERNAME" "GenericRead + GenericWrite"
 
-  File "${SRCDIR_BATFILES}\mega-history.bat"
-  AccessControl::SetFileOwner "$INSTDIR\mega-history.bat" "$USERNAME"
-  AccessControl::GrantOnFile "$INSTDIR\mega-history.bat" "$USERNAME" "GenericRead + GenericWrite"
+  File "${SRCDIR_BATFILES}\mega-https.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-https.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-https.bat" "$USERNAME" "GenericRead + GenericWrite"
+ 
+  File "${SRCDIR_BATFILES}\mega-transfers.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-transfers.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-transfers.bat" "$USERNAME" "GenericRead + GenericWrite"
 
   File "${SRCDIR_BATFILES}\mega-import.bat"
   AccessControl::SetFileOwner "$INSTDIR\mega-import.bat" "$USERNAME"
@@ -782,7 +786,8 @@ Section Uninstall
   Delete "$INSTDIR\mega-find.bat"
   Delete "$INSTDIR\mega-get.bat"
   Delete "$INSTDIR\mega-help.bat"
-  Delete "$INSTDIR\mega-history.bat"
+  Delete "$INSTDIR\mega-https.bat"
+  Delete "$INSTDIR\mega-transfers.bat"
   Delete "$INSTDIR\mega-import.bat"
   Delete "$INSTDIR\mega-invite.bat"
   Delete "$INSTDIR\mega-ipc.bat"
