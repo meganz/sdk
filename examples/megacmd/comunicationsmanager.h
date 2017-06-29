@@ -24,6 +24,8 @@
 
 #include "megacmd.h"
 
+static const int MAXCMDSTATELISTENERS = 300;
+
 class CmdPetition
 {
     public:
@@ -67,13 +69,10 @@ private:
 public:
     ComunicationsManager();
 
-    virtual bool receivedReadlineInput(int readline_fd);
-
     virtual bool receivedPetition();
 
     void registerStateListener(CmdPetition *inf);
 
-    virtual int waitForPetitionOrReadlineInput(int readline_fd);
     virtual int waitForPetition();
 
     virtual void stopWaiting();

@@ -2221,12 +2221,12 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
 
             if (askforConfirmation(confirmationQuery))
             {
-                LOG_debug << "confirmation received"; //TODO: doDeleteNode
+                LOG_debug << "confirmation received";
                 doDeleteNode(nodeToDelete, api);
             }
             else
             {
-                LOG_debug << "confirmation denied"; //TODO: delete, log and do nth
+                LOG_debug << "confirmation denied";
             }
         }
         else
@@ -5695,7 +5695,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "history")
     {
-        //TODO: this command makes no sense now in non-interactive mode. Delete from here and .bat, and from valid commands
         return;
     }
     else if (words[0] == "version")

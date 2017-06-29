@@ -57,7 +57,6 @@ bool socketValid(int socket)
 }
 
 #ifdef _WIN32
-    HANDLE ComunicationsManagerPortSockets::readlinefd_event_handle;
     bool ComunicationsManagerPortSockets::ended;
 #endif
 
@@ -164,42 +163,6 @@ ComunicationsManagerPortSockets::ComunicationsManagerPortSockets()
     initialize();
 }
 
-#ifdef _WIN32
-void * ComunicationsManagerPortSockets::watchReadlineFd(void *vfd)
-{
-    fd_set fds2;
-    int fd = *(int *)vfd;
-
-    while (!ended)
-    {
-        FD_ZERO(&fds2);
-        FD_SET(fd, &fds2);
-
-        int rc = select(FD_SETSIZE, &fds2, NULL, NULL, NULL);
-        if (rc < 0)
-        {
-            if (errno != EINTR)  //syscall
-            {
-                if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
-                {
-                    //LOG_fatal << "Error at select: " << errno;
-                    Sleep(20);
-                    if (_kbhit()) //check if a key has been pressed
-                    {
-                        SetEvent(readlinefd_event_handle);
-                    }
-                    continue;
-                }
-                continue;
-            }
-        }
-        LOG_info << "signaling readline event";
-
-        SetEvent(readlinefd_event_handle);
-    }
-    return 0;
-}
-#endif
 int ComunicationsManagerPortSockets::initialize()
 {
     mtx->init(false);
@@ -273,105 +236,17 @@ int ComunicationsManagerPortSockets::initialize()
 
 
     ended=false;
-    readlinefd_event_handle = NULL;
 
 #endif
     }
 
     return 0;
-}
-
-bool ComunicationsManagerPortSockets::receivedReadlineInput(int readline_fd)
-{
-    return FD_ISSET(readline_fd, &fds);
 }
 
 bool ComunicationsManagerPortSockets::receivedPetition()
 {
     return FD_ISSET(sockfd, &fds);
 }
-
-int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline_fd)
-{
-
-    FD_ZERO(&fds);
-
-#ifdef _WIN32
-    if (readlinefd_event_handle == NULL)
-    {
-        readlinefd_event_handle = WSACreateEvent();
-        WSAResetEvent(readlinefd_event_handle);
-        MegaThread *readlineWatcherThread = new MegaThread();
-        readlineWatcherThread->start(&ComunicationsManagerPortSockets::watchReadlineFd,(void *)&readline_fd);
-    }
-    HANDLE handles[2];
-
-    handles[0] = sockfd_event_handle;
-    handles[1] = readlinefd_event_handle;
-
-    DWORD result = WSAWaitForMultipleEvents(2, handles, false, WSA_INFINITE, false);
-
-    WSAResetEvent(handles[result - WSA_WAIT_EVENT_0]);
-
-    switch(result) {
-    case WSA_WAIT_TIMEOUT:
-        break;
-
-    case WSA_WAIT_EVENT_0 + 0:
-        FD_SET(sockfd, &fds);
-        break;
-
-    case WSA_WAIT_EVENT_0 + 1:
-        FD_SET(readline_fd, &fds);
-        break;
-
-    default: // handle the other possible conditions
-        if (GetLastError() == ERROR_INVALID_HANDLE)
-        {
-            LOG_fatal << "Error at WaitForMultipleObjects: Port might be in use. Close any other instances";
-        }
-        else
-        {
-            LOG_fatal << "Error at WaitForMultipleObjects: " << GetLastError();
-        }
-
-        Sleep(2900);
-        break;
-    }
-
-#else
-    FD_SET(readline_fd, &fds);
-
-    if (socketValid(sockfd))
-    {
-        FD_SET(sockfd, &fds);
-    }
-    else
-    {
-        LOG_warn << "invalid socket to select: " << sockfd  << " readline_fd="  << readline_fd;
-    }
-
-    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-    if (rc == SOCKET_ERROR)
-    {
-        if (errno == EBADF)
-        {
-            LOG_fatal << "Error at select: " << errno << ". Reinitializing socket";
-            initialize();
-            return EBADF;
-        }
-
-        if (ERRNO != EINTR)  //syscall
-        {
-            LOG_fatal << "Error at select: " << ERRNO;
-            return ERRNO;
-        }
-    }
-#endif
-
-    return 0;
-}
-
 
 int ComunicationsManagerPortSockets::waitForPetition()
 {
@@ -408,7 +283,7 @@ void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
 }
 
 //TODO: implement unregisterStateListener, not 100% necesary, since when a state listener is not accessible it is unregistered (to deal with sudden deaths).
-//TODO: also, unregistering might not be straight forward since we need to correlate the thread doing the unregistration with the one who registered.
+// also, unregistering might not be straight forward since we need to correlate the thread doing the unregistration with the one who registered.
 
 
 /**

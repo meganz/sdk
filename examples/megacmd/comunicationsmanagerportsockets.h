@@ -63,7 +63,6 @@ private:
     int sockfd, newsockfd;
 #ifdef _WIN32
     HANDLE sockfd_event_handle;
-    static HANDLE readlinefd_event_handle;
     static bool ended;
 #endif
     socklen_t clilen;
@@ -83,17 +82,11 @@ private:
 
 public:
     ComunicationsManagerPortSockets();
-#ifdef _WIN32
-    static void * watchReadlineFd(void *);
-#endif
 
     int initialize();
 
-    bool receivedReadlineInput(int readline_fd);
-
     bool receivedPetition();
 
-    int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
 
     virtual void stopWaiting();
@@ -122,7 +115,7 @@ public:
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
+    std::string get_petition_details(CmdPetition *inf);
 
     ~ComunicationsManagerPortSockets();
 };

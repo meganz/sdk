@@ -194,43 +194,10 @@ int ComunicationsManagerFileSockets::initialize()
     return 0;
 }
 
-bool ComunicationsManagerFileSockets::receivedReadlineInput(int readline_fd)
-{
-    return FD_ISSET(readline_fd, &fds);
-}
-
 bool ComunicationsManagerFileSockets::receivedPetition()
 {
     return FD_ISSET(sockfd, &fds);
 }
-
-int ComunicationsManagerFileSockets::waitForPetitionOrReadlineInput(int readline_fd)
-{
-    FD_ZERO(&fds);
-    FD_SET(readline_fd, &fds);
-    if (sockfd)
-    {
-        FD_SET(sockfd, &fds);
-    }
-    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-    if (rc < 0)
-    {
-        if (errno == EBADF)
-        {
-            LOG_fatal << "Error at select: " << errno << ". Reinitializing socket";
-            initialize();
-            return EBADF;
-        }
-
-        if (errno != EINTR)  //syscall
-        {
-            LOG_fatal << "Error at select: " << errno;
-            return errno;
-        }
-    }
-    return 0;
-}
-
 
 int ComunicationsManagerFileSockets::waitForPetition()
 {

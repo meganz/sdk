@@ -75,11 +75,8 @@ public:
 
     int initialize();
 
-    bool receivedReadlineInput(int readline_fd);
-
     bool receivedPetition();
 
-    int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
 
     int get_next_comm_id();

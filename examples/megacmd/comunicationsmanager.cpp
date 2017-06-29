@@ -40,11 +40,6 @@ ComunicationsManager::ComunicationsManager()
 {
 }
 
-bool ComunicationsManager::receivedReadlineInput(int readline_fd)
-{
-    return FD_ISSET(readline_fd, &fds);
-}
-
 bool ComunicationsManager::receivedPetition()
 {
     return false;
@@ -53,7 +48,7 @@ bool ComunicationsManager::receivedPetition()
 void ComunicationsManager::registerStateListener(CmdPetition *inf)
 {
     stateListenersPetitions.push_back(inf);
-    if (stateListenersPetitions.size()>300 && stateListenersPetitions.size()%10 == 0) //TODO: define limit as constant ~300
+    if (stateListenersPetitions.size() >MAXCMDSTATELISTENERS && stateListenersPetitions.size()%10 == 0)
     {
         LOG_debug << " Number of register listeners has grown too much: " << stateListenersPetitions.size() << ". Sending an ACK to discard disconnected ones.";
         string sack="ack";
@@ -61,27 +56,6 @@ void ComunicationsManager::registerStateListener(CmdPetition *inf)
     }
     return;
 }
-
-int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
-{
-    FD_ZERO(&fds);
-    FD_SET(readline_fd, &fds);
-
-    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-    if (rc < 0)
-    {
-        if (errno != EINTR)  //syscall
-        {
-#ifdef _WIN32
-            if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
-#endif
-            LOG_fatal << "Error at select: " << errno;
-            return errno;
-        }
-    }
-    return 0;
-}
-
 
 int ComunicationsManager::waitForPetition()
 {

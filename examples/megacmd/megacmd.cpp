@@ -189,7 +189,7 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"
+                             "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"
 #ifdef _WIN32
                              ,"unicode"
 #endif
@@ -508,9 +508,8 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        //Notice: do not escape options for cmdshell. Plus, we won't filter here, because we don't know if the value of rl_completion_quote_chararcter of megacmdshell
-        // The filtering and escaping will be performed by the completion function in megacmd shell
-        //TODO: change name of validOptions to possibleOptions. Document and change name of generic_completion in cmdshell to a better one
+        //Notice: do not escape options for cmdshell. Plus, we won't filter here, because we don't know if the value of rl_completion_quote_chararcter of cmdshell
+        // The filtering and escaping will be performed by the completion function in cmdshell
         if (interactiveThread() && !getCurrentThreadIsCmdShell()) {
             escapeEspace(name);
         }
@@ -518,7 +517,9 @@ char* generic_completion(const char* text, int state, vector<string> validOption
         list_index++;
 
         if (!( strcmp(text, ""))
-                || ((( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) ) || getCurrentThreadIsCmdShell() ))
+                || (( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) )
+                || getCurrentThreadIsCmdShell()  //do not filter if cmdshell (it will be filter there)
+                )
         {
             foundone = true;
             return dupstr((char*)name.c_str());
@@ -540,7 +541,7 @@ char* commands_completion(const char* text, int state)
 
 char* local_completion(const char* text, int state)
 {
-    return((char*)NULL );  //matches will be NULL: readline will use local completion
+    return((char*)NULL );
 }
 
 void addGlobalFlags(set<string> *setvalidparams)
