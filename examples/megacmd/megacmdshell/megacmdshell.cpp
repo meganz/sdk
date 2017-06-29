@@ -1105,7 +1105,6 @@ void readloop()
     static bool firstloop = true;
 
     comms->registerForStateChanges();
-    comms->registerAgainRequired = false;
 
     //give it a while to communicate the state
     sleepMicroSeconds(1);
@@ -1116,7 +1115,6 @@ void readloop()
     if (comms->registerAgainRequired)
     {
         comms->registerForStateChanges();
-        comms->registerAgainRequired = false;
     }
     //give it a while to communicate the state
     sleepMicroSeconds(1);

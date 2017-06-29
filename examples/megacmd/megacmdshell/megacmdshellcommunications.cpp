@@ -691,6 +691,7 @@ int MegaCmdShellCommunications::registerForStateChanges()
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
     {
+        cerr << "Failed to create socket for registering for state changes" ;
         return INVALID_SOCKET;
     }
 
@@ -715,7 +716,7 @@ int MegaCmdShellCommunications::registerForStateChanges()
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output socket" << endl;
-        return -1;;
+        return -1;
     }
 
     if (listenerThread != NULL)
@@ -728,6 +729,7 @@ int MegaCmdShellCommunications::registerForStateChanges()
 
     listenerThread = new std::thread(listenToStateChanges,receiveSocket);
 
+    registerAgainRequired = false;
 
     closeSocket(thesock);
     return 0;

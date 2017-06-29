@@ -494,13 +494,15 @@ int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, strin
         }
         else
         {
+#ifndef _WIN32
             int oldfl = fcntl(sockfd, F_GETFL);
             fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl | O_NONBLOCK);
+#endif
             connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+#ifndef _WIN32
             fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl);
+#endif
         }
-        //TODO: test the former or ifdef with the following for WIN32:
-//        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength); //this will be done only once??
         connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket] = connectedsocket;
     }
     else
