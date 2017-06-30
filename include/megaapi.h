@@ -9035,6 +9035,7 @@ class MegaApi
          *
          * @param service Service to check
          * @param timeoutms Timeout for the request, including all possible retries
+         * @param maxretries Maximum number of retries for the request
          * @param listener MegaRequestListener to track this request
          */
         void queryGeLB(const char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
