@@ -2711,6 +2711,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_APP_VERSION: return "APP_VERSION";
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
         case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
+        case TYPE_QUERY_DNS: return "QUERY_DNS";
+        case TYPE_QUERY_GELB: return "QUERY_GELB";
+        case TYPE_CHAT_STATS: return "CHAT_STATS";
+        case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
     }
     return "UNKNOWN";
 }
@@ -6767,6 +6771,14 @@ void MegaApiImpl::registerPushNotification(int deviceType, const char *token, Me
     waiter->notify();
 }
 
+void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
+    request->setName(data);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaTextChatList *MegaApiImpl::getChatList()
 {
     sdkMutex.lock();
@@ -7430,6 +7442,33 @@ void MegaApiImpl::getLastAvailableVersion(const char *appKey, MegaRequestListene
 void MegaApiImpl::getLocalSSLCertificate(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_LOCAL_SSL_CERT, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_DNS, listener);
+    request->setName(hostname);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
+    request->setName(service);
+    request->setNumber(timeoutms);
+    request->setNumRetry(maxretries);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
+    request->setLink(url);
+    request->setFile(dstpath);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9902,6 +9941,65 @@ void MegaApiImpl::notify_confirmation(const char *email)
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
     event->setText(email);
     fireOnEvent(event);
+}
+
+void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_DNS
+                    && request->getType() != MegaRequest::TYPE_QUERY_GELB
+                    && request->getType() != MegaRequest::TYPE_CHAT_STATS
+                    && request->getType() != MegaRequest::TYPE_DOWNLOAD_FILE))
+    {
+        return;
+    }
+
+    request->setNumber(httpCode);
+    request->setTotalBytes(size);
+    if (request->getType() == MegaRequest::TYPE_QUERY_GELB
+            || request->getType() == MegaRequest::TYPE_CHAT_STATS
+            || request->getType() == MegaRequest::TYPE_QUERY_DNS)
+    {
+        string result;
+        result.assign((const char *)data, size);
+        request->setText(result.c_str());
+    }
+    else if (request->getType() == MegaRequest::TYPE_DOWNLOAD_FILE)
+    {
+        const char *file = request->getFile();
+        if (file && e == API_OK)
+        {
+            FileAccess *f = client->fsaccess->newfileaccess();
+            string filePath(file);
+            string localPath;
+            fsAccess->path2local(&filePath, &localPath);
+
+            fsAccess->unlinklocal(&localPath);
+            if (!f->fopen(&localPath, false, true))
+            {
+                delete f;
+                fireOnRequestFinish(request, MegaError(API_EWRITE));
+                return;
+            }
+
+            if (size)
+            {
+                if (!f->fwrite((const byte*)data, size, 0))
+                {
+                    delete f;
+                    fireOnRequestFinish(request, MegaError(API_EWRITE));
+                    return;
+                }
+            }
+            delete f;
+        }
+    }
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 // callback for non-EAGAIN request-level errors
@@ -14582,6 +14680,45 @@ void MegaApiImpl::sendPendingRequests()
             client->getlocalsslcertificate();
             break;
         }
+        case MegaRequest::TYPE_QUERY_DNS:
+        {
+            const char *hostname = request->getName();
+            if (!hostname)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->dnsrequest(hostname);
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GELB:
+        {
+            const char *service = request->getName();
+            int timeoutms = request->getNumber();
+            int maxretries = request->getNumRetry();
+            if (!service)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->gelbrequest(service, timeoutms, maxretries);
+            break;
+        }
+        case MegaRequest::TYPE_DOWNLOAD_FILE:
+        {
+            const char *url = request->getLink();
+            const char *file = request->getFile();
+            if (!url || !file)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->httprequest(url, METHOD_GET, true);
+            break;
+        }
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_CHAT_CREATE:
         {
@@ -14751,6 +14888,18 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->registerPushNotification(deviceType, token);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_STATS:
+        {
+            const char *json = request->getName();
+            if (!json)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->sendchatstats(json);
             break;
         }
 #endif
