@@ -379,9 +379,16 @@ void HttpReq::dns(MegaClient *client)
         httpio->cancel(this);
         init();
     }
-
-    method = METHOD_NONE;
+    
     httpio = client->httpio;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    inpurge = 0;
+    method = METHOD_NONE;
+    contentlength = -1;
+    lastdata = Waiter::ds;
+    
     httpio->post(this);
 }
 
