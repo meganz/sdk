@@ -104,7 +104,7 @@ bool isRegExp(std::string what);
 
 std::string unquote(std::string what);
 
-bool patternMatches(const char *what, const char *pattern);
+bool patternMatches(const char *what, const char *pattern, bool usepcre);
 
 int toInteger(std::string what, int failValue = -1);
 

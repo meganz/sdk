@@ -69,11 +69,11 @@ public:
     static bool includeIfMatchesPattern(mega::MegaApi* api, mega::MegaNode * n, void *arg);
     bool processTree(mega::MegaNode * n, bool(mega::MegaApi *, mega::MegaNode *, void *), void *( arg ));
     mega::MegaNode* nodebypath(const char* ptr, std::string* user = NULL, std::string* namepart = NULL);
-    void getPathsMatching(mega::MegaNode *parentNode, std::deque<std::string> pathParts, std::vector<std::string> *pathsMatching, std::string pathPrefix = "");
-    void getNodesMatching(mega::MegaNode *parentNode, std::queue<std::string> pathParts, std::vector<mega::MegaNode *> *nodesMatching);
+    void getPathsMatching(mega::MegaNode *parentNode, std::deque<std::string> pathParts, std::vector<std::string> *pathsMatching, bool usepcre, std::string pathPrefix = "");
+    void getNodesMatching(mega::MegaNode *parentNode, std::queue<std::string> pathParts, std::vector<mega::MegaNode *> *nodesMatching, bool usepcre);
     mega::MegaNode * getRootNodeByPath(const char *ptr, std::string* user = NULL);
-    std::vector <mega::MegaNode*> * nodesbypath(const char* ptr, std::string* user = NULL);
-    std::vector <std::string> * nodesPathsbypath(const char* ptr, std::string* user = NULL, std::string* namepart = NULL);
+    std::vector <mega::MegaNode*> * nodesbypath(const char* ptr, bool usepcre, std::string* user = NULL);
+    std::vector <std::string> * nodesPathsbypath(const char* ptr, bool usepcre, std::string* user = NULL, std::string* namepart = NULL);
     void dumpNode(mega::MegaNode* n, int extended_info, int depth = 0, const char* title = NULL);
     void dumptree(mega::MegaNode* n, int recurse, int extended_info, int depth = 0, std::string pathRelativeTo = "NULL");
     mega::MegaContactRequest * getPcrByContact(std::string contactEmail);
@@ -101,7 +101,7 @@ public:
     void disableExport(mega::MegaNode *n);
     void shareNode(mega::MegaNode *n, std::string with, int level = mega::MegaShare::ACCESS_READ);
     void disableShare(mega::MegaNode *n, std::string with);
-    std::vector<std::string> listpaths(std::string askedPath = "", bool discardFiles = false);
+    std::vector<std::string> listpaths(bool usepcre, std::string askedPath = "", bool discardFiles = false);
     std::vector<std::string> getlistusers();
     std::vector<std::string> getNodeAttrs(std::string nodePath);
     std::vector<std::string> getUserAttrs();
@@ -130,7 +130,7 @@ public:
 
     void printTransfersHeader(const u_int PATHSIZE, bool printstate=true);
     void printTransfer(mega::MegaTransfer *transfer, const u_int PATHSIZE, bool printstate=true);
-    void doFind(mega::MegaNode* nodeBase, std::string word, int printfileinfo, std::string pattern);
+    void doFind(mega::MegaNode* nodeBase, std::string word, int printfileinfo, std::string pattern, bool usepcre);
 };
 
 #endif // MEGACMDEXECUTER_H

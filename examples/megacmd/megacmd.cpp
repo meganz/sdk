@@ -326,10 +326,16 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("R");
         validParams->insert("r");
         validParams->insert("l");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("du" == thecommand)
     {
         validParams->insert("h");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("help" == thecommand)
     {
@@ -346,6 +352,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("r");
         validParams->insert("f");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("speedlimit" == thecommand)
     {
@@ -372,6 +381,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("a");
         validParams->insert("d");
         validOptValues->insert("expire");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("share" == thecommand)
     {
@@ -381,11 +393,17 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validOptValues->insert("with");
         validOptValues->insert("level");
         validOptValues->insert("personal-representation");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("find" == thecommand)
     {
         validOptValues->insert("pattern");
         validOptValues->insert("l");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("mkdir" == thecommand)
     {
@@ -451,6 +469,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("m");
         validParams->insert("q");
         validParams->insert("ignore-quota-warn");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("transfers" == thecommand)
     {
@@ -691,16 +712,21 @@ char* remotepaths_completion(const char* text, int state)
     if (state == 0)
     {
         string wildtext(text);
+        bool usepcre = false; //pcre makes no sense in paths completion
+        if (usepcre)
+        {
 #ifdef USE_PCRE
         wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
+        }
+
         wildtext += "*";
 
         unescapeEspace(wildtext);
 
-        validpaths = cmdexecuter->listpaths(wildtext);
+        validpaths = cmdexecuter->listpaths(usepcre, wildtext);
     }
     return generic_completion(text, state, validpaths);
 }
@@ -711,14 +737,18 @@ char* remotefolders_completion(const char* text, int state)
     if (state == 0)
     {
         string wildtext(text);
+        bool usepcre = false; //pcre makes no sense in paths completion
+        if (usepcre)
+        {
 #ifdef USE_PCRE
         wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
+        }
         wildtext += "*";
 
-        validpaths = cmdexecuter->listpaths(wildtext, true);
+        validpaths = cmdexecuter->listpaths(usepcre, wildtext, usepcre);
     }
     return generic_completion(text, state, validpaths);
 }
@@ -1100,7 +1130,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "ls"))
     {
-        return "ls [-lRr] [remotepath]";
+        return "ls [-lRr] [remotepath] [--use-pcre]";
     }
     if (!strcmp(command, "cd"))
     {
@@ -1112,7 +1142,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "du"))
     {
-        return "du [remotepath remotepath2 remotepath3 ... ]";
+        return "du [-h] [remotepath remotepath2 remotepath3 ... ] [--use-pcre]";
     }
     if (!strcmp(command, "pwd"))
     {
@@ -1140,7 +1170,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
-        return "get [-m] [-q] [--ignore-quota-warn] exportedlink#key|remotepath [localpath]";
+        return "get [-m] [-q] [--ignore-quota-warn] [--use-pcre] exportedlink#key|remotepath [localpath]";
     }
     if (!strcmp(command, "getq"))
     {
@@ -1164,7 +1194,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "rm"))
     {
-        return "rm [-r] [-f] remotepath";
+        return "rm [-r] [-f] [--use-pcre] remotepath";
     }
     if (!strcmp(command, "mv"))
     {
@@ -1184,11 +1214,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "export"))
     {
-        return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
+        return "export [-d|-a [--expire=TIMEDELAY]] [remotepath] [--use-pcre]";
     }
     if (!strcmp(command, "share"))
     {
-        return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath]";
+        return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath] [--use-pcre]";
     }
     if (!strcmp(command, "invite"))
     {
@@ -1304,7 +1334,7 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "find"))
     {
-        return "find [remotepath] [-l] [--pattern=PATTERN]";
+        return "find [remotepath] [-l] [--pattern=PATTERN] [--use-pcre]";
     }
     if (!strcmp(command, "help"))
     {
@@ -1329,11 +1359,11 @@ bool validCommand(string thecommand)
 string getsupportedregexps()
 {
 #ifdef USE_PCRE
-        return "Perl Compatible Regular Expressions";
+        return "Perl Compatible Regular Expressions with \"--use-pcre\"\n   or wildcarded expresions with ? or * like f*00?.txt";
 #elif __cplusplus >= 201103L
         return "c++11 Regular Expressions";
 #else
-        return "it accepts wildcards: ? and *. e.g.: ls f*00?.txt";
+        return "it accepts wildcards: ? and *. e.g.: f*00?.txt";
 #endif
 }
 
@@ -1341,7 +1371,7 @@ string getHelpStr(const char *command)
 {
     ostringstream os;
 
-    os << getUsageStr(command) << endl;
+    os << "Usage: " << getUsageStr(command) << endl;
     if (!strcmp(command, "login"))
     {
         os << "Logs into a mega" << endl;
@@ -1369,7 +1399,7 @@ string getHelpStr(const char *command)
         os << "Prints list of commands" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -f" << "\t" << "Indluce a brief description of the commands" << endl;
+        os << " -f" << "\t" << "Include a brief description of the commands" << endl;
     }
     else if (!strcmp(command, "history"))
     {
@@ -1407,6 +1437,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -R|-r" << "\t" << "list folders recursively" << endl;
         os << " -l" << "\t" << "include extra information" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "cd"))
     {
@@ -1438,7 +1471,9 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -h" << "\t" << "Human readable" << endl;
-        os << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "pwd"))
     {
@@ -1504,6 +1539,10 @@ string getHelpStr(const char *command)
         os << "                     downloaded one (preserving the existing files)" << endl;
         os << " --ignore-quota-warn" << "\t" << "ignore quota surpassing warning. " << endl;
         os << "                    " << "\t" << "  The download will be attempted anyway." << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
+
     }
     if (!strcmp(command, "attr"))
     {
@@ -1535,6 +1574,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -r" << "\t" << "Delete recursively (for folders)" << endl;
         os << " -f" << "\t" << "Force (no asking)" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "mv"))
     {
@@ -1577,6 +1619,9 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the status of current exports" << endl;
         os << endl;
         os << "Options:" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -a" << "\t" << "Adds an export (or modifies it if existing)" << endl;
         os << " --expire=TIMEDELAY" << "\t" << "Determines the expiration time of a node." << endl;
         os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), " << endl;
@@ -1593,6 +1638,9 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the status of current shares" << endl;
         os << endl;
         os << "Options:" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -p" << "\t" << "Show pending shares" << endl;
         os << " --with=email" << "\t" << "Determines the email of the user to [no longer] share with" << endl;
         os << " -d" << "\t" << "Stop sharing with the selected user" << endl;
@@ -1729,6 +1777,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " --pattern=PATTERN" << "\t" << "Pattern to match";
         os << " (" << getsupportedregexps() << ") " << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -l" << "\t" << "Prints file info" << endl;
 
     }

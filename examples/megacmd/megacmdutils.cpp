@@ -837,39 +837,46 @@ string unquote(string what)
     return what;
 }
 
-bool patternMatches(const char *what, const char *pattern)
+bool patternMatches(const char *what, const char *pattern, bool usepcre)
 {
+    if (usepcre)
+    {
 #ifdef USE_PCRE
-    pcrecpp::RE re(pattern);
-    if (re.error().length())
-    {
-        //In case the user supplied non-pcre regexp with * or ? in it.
-        string newpattern(pattern);
-        replaceAll(newpattern,"*",".*");
-        replaceAll(newpattern,"?",".");
-        re=pcrecpp::RE(newpattern);
-    }
+        pcrecpp::RE re(pattern);
+        if (re.error().length())
+        {
+            //In case the user supplied non-pcre regexp with * or ? in it.
+            string newpattern(pattern);
+            replaceAll(newpattern,"*",".*");
+            replaceAll(newpattern,"?",".");
+            re=pcrecpp::RE(newpattern);
+        }
 
-    if (!re.error().length())
-    {
-        bool toret = re.FullMatch(what);
+        if (!re.error().length())
+        {
+            bool toret = re.FullMatch(what);
 
-        return toret;
-    }
-    else
-    {
-        LOG_verbose << "Invalid PCRE regex: " << re.error();
-    }
+            return toret;
+        }
+        else
+        {
+            LOG_warn << "Invalid PCRE regex: " << re.error();
+            return false;
+        }
 #elif __cplusplus >= 201103L
-    try
-    {
-        return std::regex_match(what, std::regex(pattern));
-    }
-    catch (std::regex_error e)
-    {
-        LOG_warn << "Couldn't compile regex: " << pattern;
-    }
+        try
+        {
+            return std::regex_match(what, std::regex(pattern));
+        }
+        catch (std::regex_error e)
+        {
+            LOG_warn << "Couldn't compile regex: " << pattern;
+            return false;
+        }
 #endif
+        LOG_warn << " PCRE not supported";
+        return false;
+    }
 
     if (( *pattern == '\0' ) && ( *what == '\0' ))
     {
@@ -886,12 +893,12 @@ bool patternMatches(const char *what, const char *pattern)
         {
             return false;
         }
-        return patternMatches(what + 1, pattern + 1);
+        return patternMatches(what + 1, pattern + 1, usepcre);
     }
 
     if (*pattern == '*')
     {
-        return patternMatches(what, pattern + 1) || patternMatches(what + 1, pattern);
+        return patternMatches(what, pattern + 1, usepcre) || patternMatches(what + 1, pattern, usepcre);
     }
 
     return false;

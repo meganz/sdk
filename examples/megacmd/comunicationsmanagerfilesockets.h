@@ -106,7 +106,7 @@ public:
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
+    std::string get_petition_details(CmdPetition *inf);
 
     ~ComunicationsManagerFileSockets();
 };
