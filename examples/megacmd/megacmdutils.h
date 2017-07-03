@@ -133,6 +133,7 @@ std::string secondsToText(time_t seconds, bool humanreadable = true);
 
 std::string percentageToText(float percentage);
 
+u_int getNumberOfCols(u_int defaultwidth = 90);
 
 void sleepSeconds(int seconds);
 void sleepMicroSeconds(long microseconds);

@@ -1724,6 +1724,7 @@ string getHelpStr(const char *command)
 
 #define SSTR( x ) static_cast< std::ostringstream & >( \
         ( std::ostringstream() << std::dec << x ) ).str()
+
 void printAvailableCommands(int extensive = 0)
 {
     vector<string> validCommandsOrdered = validCommands;
@@ -1755,22 +1756,7 @@ void printAvailableCommands(int extensive = 0)
             {
                 if (extensive > 1)
                 {
-                    u_int width = 90;
-                    int rows = 1, cols = width;
-                    // TODO: figure out another way to get cols size??
-
-                    #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-                        if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                        {
-                            rl_resize_terminal();
-                            rl_get_screen_size(&rows, &cols);
-                        }
-                    #endif
-
-                    if (cols)
-                    {
-                        width = min((int)width,cols-2);
-                    }
+                    u_int width = getNumberOfCols();
 
                     OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
                     OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
@@ -2313,24 +2299,11 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    u_int width = 75;
-    int rows = 1, cols = width;
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+    u_int width = getNumberOfCols(75);
 
-    if (RL_ISSTATE(RL_STATE_INITIALIZED))
-    {
-        rl_resize_terminal();
-        rl_get_screen_size(&rows, &cols);
-    }
-#endif
-
-    if (cols)
-    {
-        width = cols-2;
 #ifdef _WIN32
         width--;
 #endif
-    }
 
     COUT << endl;
     COUT << ".";

@@ -386,7 +386,7 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     }
 
     bzero(buffer, 1024);
-    int n = read(newsockfd, buffer, 1023); //TODO: petitions for size > 1023?
+    int n = read(newsockfd, buffer, 1023);
     if (n < 0)
     {
         LOG_fatal << "ERROR reading from socket at getPetition: " << errno;

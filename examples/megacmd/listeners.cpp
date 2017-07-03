@@ -301,14 +301,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
     {
         case MegaRequest::TYPE_FETCH_NODES:
         {
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-            int rows = 1, cols = 80;
-
-            if (RL_ISSTATE(RL_STATE_INITIALIZED))
-            {
-                rl_resize_terminal();
-                rl_get_screen_size(&rows, &cols);
-            }
+            u_int cols = getNumberOfCols(80);
             string outputString;
             outputString.resize(cols+1);
             for (int i = 0; i < cols; i++)
@@ -350,27 +343,15 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
                 *ptr++ = '#';
             }
 
-
+            if (percentFetchnodes == 100 && !alreadyFinished)
             {
-                if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                {
-                    if (percentFetchnodes == 100 && !alreadyFinished)
-                    {
-                        alreadyFinished = true;
-                        rl_message("%s\n", outputString.c_str());
-                    }
-                    else
-                    {
-                        rl_message("%s", outputString.c_str());
-                    }
-                }
-                else
-                {
-                    cout << outputString << endl; //too verbose
-                }
+                alreadyFinished = true;
+                cout << outputString << endl;
             }
-
-#endif
+            else
+            {
+                cout << outputString << '\r' << flush;
+            }
             break;
         }
 
@@ -435,14 +416,8 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         return;
     }
 
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-    int rows = 1, cols = 80;
+    u_int cols = getNumberOfCols(80);
 
-    if (RL_ISSTATE(RL_STATE_INITIALIZED))
-    {
-        rl_resize_terminal();
-        rl_get_screen_size(&rows, &cols);
-    }
     string outputString;
     outputString.resize(cols + 1);
     for (int i = 0; i < cols; i++)
@@ -484,25 +459,15 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         *ptr++ = '#';
     }
 
+    if (percentDowloaded == 100 && !alreadyFinished)
     {
-        if (RL_ISSTATE(RL_STATE_INITIALIZED))
-        {
-            if (percentDowloaded == 100 && !alreadyFinished)
-            {
-                alreadyFinished = true;
-                rl_message("%s\n", outputString.c_str());
-            }
-            else
-            {
-                rl_message("%s", outputString.c_str());
-            }
-        }
-        else
-        {
-            cout << outputString << endl; //too verbose
-        }
+        alreadyFinished = true;
+        cout << outputString << endl;
     }
-#endif
+    else
+    {
+        cout << outputString << '\r' << flush;
+    }
 
     LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType();
 }

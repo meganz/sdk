@@ -5635,7 +5635,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
             api->querySignupLink(link.c_str(), megaCmdListener);
             megaCmdListener->wait();
-            if (checkNoErrors(megaCmdListener->getError(), "check email corresponds to link")) //TODO: delete the true ..
+            if (checkNoErrors(megaCmdListener->getError(), "check email corresponds to link"))
             {
                 if (megaCmdListener->getRequest()->getEmail() && email == megaCmdListener->getRequest()->getEmail())
                 {
@@ -5855,7 +5855,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         delete megaCmdListener;
         return;
     }
-    else if (words[0] == "transfers")
+    else if (words[0] == "transfers") //TODO: receive table width (and in megacmd shell send it)
     {
         bool showcompleted = getFlag(clflags, "show-completed");
         bool onlycompleted = getFlag(clflags, "only-completed");
@@ -5867,22 +5867,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (!PATHSIZE)
         {
             // get screen size for output purposes
-            u_int width = 75;
-            int rows = 1, cols = width;
-
-            #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-
-                if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                {
-                    rl_resize_terminal();
-                    rl_get_screen_size(&rows, &cols);
-                }
-            #endif
-
-            if (cols)
-            {
-                width = cols-2;
-            }
+            u_int width = getNumberOfCols(75);
             PATHSIZE = min(60,int((width-45)/2));
         }
 
@@ -6109,7 +6094,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
                     )
             {
-                //TODO: handle completed transfers correctly (need to be save upon onTransferFinish call)
                 shown++;
                 if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
                 {

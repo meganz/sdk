@@ -27,6 +27,11 @@
 #include <regex>
 #endif
 
+#ifdef _WIN32
+#else
+#include <sys/ioctl.h> // console size
+#endif
+
 #include <iomanip>
 
 using namespace std;
@@ -1124,6 +1129,22 @@ string percentageToText(float percentage)
     return os.str();
 }
 
+u_int getNumberOfCols(u_int defaultwidth)
+{
+#ifdef _WIN32
+    //TODO: implement this
+#else
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO,TIOCGWINSZ,&size) != -1)
+    {
+        if (size.ws_col > 2)
+        {
+            return size.ws_col - 2;
+        }
+    }
+#endif
+    return defaultwidth;
+}
 
 void sleepSeconds(int seconds)
 {
