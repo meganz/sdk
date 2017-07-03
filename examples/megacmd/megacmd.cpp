@@ -53,6 +53,8 @@
 
 typedef char *completionfunction_t PARAMS((const char *, int));
 
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
 
 
 #ifdef _WIN32
@@ -736,6 +738,39 @@ char* loglevels_completion(const char* text, int state)
     return generic_completion(text, state, validloglevels);
 }
 
+char* transfertags_completion(const char* text, int state)
+{
+    static vector<string> validtransfertags;
+    if (state == 0)
+    {
+        MegaTransferData * transferdata = api->getTransferData();
+        if (transferdata)
+        {
+            for (int i = 0; i < transferdata->getNumUploads(); i++)
+            {
+                validtransfertags.push_back(SSTR(transferdata->getUploadTag(i)));
+            }
+            for (int i = 0; i < transferdata->getNumDownloads(); i++)
+            {
+                validtransfertags.push_back(SSTR(transferdata->getDownloadTag(i)));
+            }
+
+            // TODO: reconsider including completed transfers (sth like this:)
+//            globalTransferListener->completedTransfersMutex.lock();
+//            for (u_int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+//            {
+//                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
+//                if (!transfer->isSyncTransfer())
+//                {
+//                    validtransfertags.push_back(SSTR(transfer->getTag()));
+//                    shownCompleted++;
+//                }
+//            }
+//            globalTransferListener->completedTransfersMutex.unlock();
+        }
+    }
+    return generic_completion(text, state, validtransfertags);
+}
 char* contacts_completion(const char* text, int state)
 {
     static vector<string> validcontacts;
@@ -955,6 +990,13 @@ completionfunction_t *getCompletionFunction(vector<string> words)
         if (currentparameter == 1)
         {
             return loglevels_completion;
+        }
+    }
+    else if (thecommand == "transfers")
+    {
+        if (currentparameter == 1)
+        {
+            return transfertags_completion;
         }
     }
     return empty_completion;
@@ -2266,7 +2308,7 @@ void megacmd()
                 petitionThreads.push_back(petitionThread);
                 inf->setPetitionThread(petitionThread);
 
-                LOG_debug << "starting processing: <" << *inf << ">";
+                LOG_verbose << "starting processing: <" << *inf << ">";
 
                 petitionThread->start(doProcessLine, (void*)inf);
             }
