@@ -31,6 +31,11 @@ function executeinMEGASHELL()
 
 
 function clean_all() { 
+	if [[ $(mega-whoami) != *"$MEGA_EMAIL" ]]; then
+	mega-logout || :
+	mega-login $MEGA_EMAIL $MEGA_PWD || exit -1
+	fi
+	
 	rm pipe > /dev/null 2>/dev/null || :
 	$RM -rf "*" > /dev/null
 	$RM -rf "//bin/*" > /dev/null

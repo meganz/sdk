@@ -34,6 +34,10 @@ function executeinMEGASHELL()
 ABSPWD=`pwd`
 
 function clean_all() { 
+	if [[ $(mega-whoami) != *"$MEGA_EMAIL" ]]; then
+	mega-logout || :
+	mega-login $MEGA_EMAIL $MEGA_PWD || exit -1
+	fi
 	$RM -rf "*" > /dev/null
 	$RM -rf "//bin/*" > /dev/null
 
