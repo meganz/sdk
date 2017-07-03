@@ -489,7 +489,13 @@ void install_rl_handler(const char *theprompt)
 
 void changeprompt(const char *newprompt, bool redisplay)
 {
+    if (*dynamicprompt)
+    {
+        if (!strcmp(newprompt,dynamicprompt))
+            return; //same prompt. do nth
+    }
     mutexPrompt.lock();
+
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
 
     if (redisplay)
