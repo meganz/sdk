@@ -7529,6 +7529,11 @@ void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestLis
     setUserAttr(MegaApi::USER_ATTR_LANGUAGE, languageCode, listener);
 }
 
+void MegaApiImpl::getLanguagePreference(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_LANGUAGE, NULL, listener);
+}
+
 bool MegaApiImpl::getLanguageCode(const char *languageCode, string &code)
 {
     if (!languageCode)

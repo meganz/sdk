@@ -2554,7 +2554,12 @@ bool MegaApi::setLanguage(const char *languageCode)
 
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
 {
-    pImpl->setLanguage(languageCode);
+    pImpl->setLanguagePreference(languageCode, listener);
+}
+
+void MegaApi::getLanguagePreference(MegaRequestListener *listener)
+{
+    pImpl->getLanguagePreference(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)

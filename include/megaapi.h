@@ -6086,7 +6086,7 @@ class MegaApi
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 10
-         * Get the preferred languange of the user (protected)
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6133,7 +6133,7 @@ class MegaApi
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 10
-         * Get the preferred languange of the user (protected)
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6177,7 +6177,7 @@ class MegaApi
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 10
-         * Get the preferred languange of the user (protected)
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -9129,6 +9129,17 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Return the language code
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLanguagePreference(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails
