@@ -259,6 +259,9 @@ public:
     // open exported file link
     error openfilelink(const char*, int);
 
+    // decrypt password-protected public link
+    char* decryptlink(const char* link, const char* pwd);
+
     // change login password
     error changepw(const byte*, const byte*);
 

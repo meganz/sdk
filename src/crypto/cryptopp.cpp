@@ -665,4 +665,27 @@ void HMACSHA256::get(byte *out)
     hmac.Final(out);
 }
 
+PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
+{
+}
+
+void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                                   byte* pwd, size_t pwdLen,
+                                   byte* salt, size_t saltLen, unsigned int iterations)
+{
+    pbkdf2.DeriveKey(
+            // buffer that holds the derived key
+            derivedkey, derivedkeyLen,
+            // purpose byte. unused by this PBKDF implementation.
+            0x00,
+            // password bytes. careful to be consistent with encoding...
+            pwd, pwdLen,
+            // salt bytes
+            salt, saltLen,
+            // iteration count. See SP 800-132 for details. You want this as large as you can tolerate.
+            // make sure to use the same iteration count on both sides...
+            iterations
+            );
+}
+
 } // namespace

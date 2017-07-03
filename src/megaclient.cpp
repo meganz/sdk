@@ -8020,7 +8020,7 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 // formats supported: ...#!publichandle!key or publichandle!key
 error MegaClient::openfilelink(const char* link, int op)
 {
-    const char* ptr;
+    const char* ptr = NULL;
     handle ph = 0;
     byte key[FILENODEKEYLENGTH];
 
@@ -8028,7 +8028,7 @@ error MegaClient::openfilelink(const char* link, int op)
     {
         ptr += 2;
     }
-    else
+    else    // legacy format without '#'
     {
         ptr = link;
     }
@@ -8066,6 +8066,111 @@ error MegaClient::openfilelink(const char* link, int op)
     }
 
     return API_EARGS;
+}
+
+/* Format of password-protected links
+ *
+ * algorithm        = 1 byte - A byte to identify which algorithm was used (for future upgradability), initially is set to 0
+ * file/folder      = 1 byte - A byte to identify if the link is a file or folder link (0 = folder, 1 = file)
+ * public handle    = 6 bytes - The public folder/file handle
+ * salt             = 32 bytes - A 256 bit randomly generated salt
+ * encrypted key    = 16 or 32 bytes - The encrypted actual folder or file key
+ * MAC tag          = 32 bytes - The MAC of all the previous data to ensure integrity of the link i.e. calculated as:
+ *                      HMAC-SHA256(MAC key, (algorithm || file/folder || public handle || salt || encrypted key))
+ */
+char *MegaClient::decryptlink(const char *link, const char *pwd)
+{
+    const char* ptr = NULL;
+    const char* end = NULL;
+    if (!(ptr = strstr(link, "#P!")))
+    {
+        return NULL;
+    }
+    ptr += 3;
+
+    // Decode the link
+    int linkLen = 1 + 1 + 6 + 32 + 32 + 32;   // maximum size in binary, for file links
+    byte linkBin[linkLen];
+    linkLen = Base64::atob(ptr, (byte*)&linkBin, linkLen);
+
+    ptr = (char *)linkBin;
+    end = ptr + linkLen + 1;
+
+    if ((ptr + 2) > end)
+    {
+        LOG_err << "This link is too short";
+        return NULL;
+    }
+
+    int algorithm = *ptr++;
+    if (algorithm != 1)
+    {
+        LOG_err << "The algorithm this link was encrypted with is not supported";
+        return NULL;
+    }
+
+    int isFolder = !(*ptr++);
+    if (isFolder > 1)
+    {
+        LOG_err << "This link doesn't reference any folder or file";
+        return NULL;
+    }
+
+    size_t keyLen = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+    if ((ptr + 38 + keyLen + 32) > end)
+    {
+        LOG_err << "This link is too short";
+        return NULL;
+    }
+
+    handle ph = MemAccess::get<handle>(ptr);
+    ptr += sizeof ph;
+
+    byte salt[32];
+    memcpy((char*)salt, ptr, 32);
+    ptr += sizeof salt;
+
+    byte encKey[FILENODEKEYLENGTH];
+    memcpy((char*)&encKey, ptr, keyLen);
+    ptr += keyLen;
+
+    byte hmac[32];
+    memcpy((char*)&hmac, ptr, 32);
+    ptr += 32;
+
+    // derive MAC key with salt+pwd
+    byte macKey[64];
+    string pwdBin;
+    Base64::atob(pwd, pwdBin);
+    unsigned int iterations = 100000;
+    PBKDF2_HMAC_SHA512 pbkdf2;
+    pbkdf2.deriveKey(macKey, sizeof macKey,
+                     (byte*) pwd, strlen(pwd),
+//                     (byte*) pwdBin.data(), pwdBin.size(),
+                     salt, sizeof salt, iterations);
+
+    // calculate HMAC with macKey(alg, f/F, ph, salt, encKey)
+    byte resHmac[32];
+
+    HMACSHA256 hmacsha256(macKey + 32, 32);
+    hmacsha256.add(linkBin, 40 + keyLen);
+    hmacsha256.get(resHmac);
+
+    // compare resulting hmac
+    if (memcmp(hmac, resHmac, 32))
+    {
+        return NULL;
+    }
+
+    // decrypt encKey using X-OR with first 32 bytes of macKey
+    byte key[FILENODEKEYLENGTH];
+
+
+    // generate plain link
+
+
+
+    return NULL;
 }
 
 sessiontype_t MegaClient::loggedin()

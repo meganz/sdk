@@ -4625,6 +4625,16 @@ void MegaApiImpl::importFileLink(const char* megaFileLink, MegaNode *parent, Meg
     waiter->notify();
 }
 
+void MegaApiImpl::importFileLinkWithPassword(const char *megaFileLink, MegaNode *parent, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_IMPORT_LINK, listener);
+    if(parent) request->setParentHandle(parent->getHandle());
+    request->setLink(megaFileLink);
+    request->setPassword(password);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PUBLIC_NODE, listener);
@@ -12853,10 +12863,26 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			Node *node = client->nodebyhandle(request->getParentHandle());
 			const char* megaFileLink = request->getLink();
-			if(!megaFileLink) { e = API_EARGS; break; }
-			if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node)) { e = API_EARGS; break; }
+            const char* password = request->getPassword();
 
-			e = client->openfilelink(megaFileLink, 1);
+            if (!megaFileLink)
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK) && (!node))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (password && !(megaFileLink = client->decryptlink(megaFileLink, password)))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            e = client->openfilelink(megaFileLink, 1);
 			break;
 		}
 		case MegaRequest::TYPE_EXPORT:

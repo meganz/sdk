@@ -1624,6 +1624,11 @@ void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaReq
     pImpl->importFileLink(megaFileLink, parent, listener);
 }
 
+void MegaApi::importFileLinkWithPassword(const char *megaFileLink, MegaNode *parent, const char *password, MegaRequestListener *listener)
+{
+    pImpl->importFileLinkWithPassword(megaFileLink, parent, password, listener);
+}
+
 void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
     pImpl->getPublicNode(megaFileLink, listener);

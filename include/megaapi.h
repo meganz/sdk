@@ -5681,6 +5681,26 @@ class MegaApi
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Import a public link to the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_IMPORT_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the public link to the file
+         * - MegaRequest::getParentHandle - Returns the folder that receives the imported file
+         * - MegaRequest::getPassword - Returns the password to decrypt the link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new node in the account
+         *
+         * @param megaFileLink Public link to a file in MEGA
+         * @param parent Parent folder for the imported file
+         * @param password Password to decrypt the link
+         * @param listener MegaRequestListener to track this request
+         */
+        void importFileLinkWithPassword(const char* megaFileLink, MegaNode* parent, const char* password, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get a MegaNode from a public link to a file
          *
          * A public node can be imported using MegaApi::copyNode or downloaded using MegaApi::startDownload
