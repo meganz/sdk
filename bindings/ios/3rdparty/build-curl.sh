@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]
 then
-wget "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
+curl -LO "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}
@@ -51,6 +51,9 @@ fi
 rm -rf curl-${CURL_VERSION}
 tar zxf curl-${CURL_VERSION}.tar.gz
 pushd "curl-${CURL_VERSION}"
+
+# Do not resolve IPs!!
+sed -i '' $'s/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
 export BUILD_TOOLS="${DEVELOPER}"
 export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"

@@ -141,6 +141,7 @@ class ExternalLogger : public Logger
 {
 public:
     ExternalLogger();
+    ~ExternalLogger();
     void addMegaLogger(MegaLogger* logger);
     void removeMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
@@ -1624,6 +1625,9 @@ class MegaApiImpl : public MegaApp
         char *getOperatingSystemVersion();
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
+        void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener = NULL);
+        void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
 
@@ -1698,6 +1702,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -2006,6 +2011,9 @@ protected:
 
         // notify about account confirmation
         virtual void notify_confirmation(const char*);
+
+        // notify about a finished HTTP request
+        virtual void http_result(error, int, byte *, int);
 
         void sendPendingRequests();
         void sendPendingTransfers();

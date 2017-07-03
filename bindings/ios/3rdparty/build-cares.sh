@@ -36,11 +36,12 @@ set -e
 
 if [ ! -e "c-ares-${CARES_VERSION}.tar.gz" ]
 then
-    wget "http://c-ares.haxx.se/download/c-ares-${CARES_VERSION}.tar.gz"
+    curl -LO "http://c-ares.haxx.se/download/c-ares-${CARES_VERSION}.tar.gz"
 fi
 
 tar zxf c-ares-${CARES_VERSION}.tar.gz
 pushd "c-ares-${CARES_VERSION}"
+patch -p1 < ../different_address.patch
 
 for ARCH in ${ARCHS}
 do

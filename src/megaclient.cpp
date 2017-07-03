@@ -33,6 +33,12 @@ bool MegaClient::disablepkp = false;
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
+// root URL for GeLB requests
+string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
+
+// root URL for chat stats
+string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/msglog";
+
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
 
@@ -992,6 +998,73 @@ void MegaClient::exec()
         first = false;
 
         looprequested = false;
+
+        if (pendinghttp.size())
+        {
+            pendinghttp_map::iterator it = pendinghttp.begin();
+            while (it != pendinghttp.end())
+            {
+                GenericHttpReq *req = it->second;
+                switch (req->status)
+                {
+                case REQ_FAILURE:
+                    if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
+                    {
+                        req->numretry++;
+                        req->status = REQ_PREPARED;
+                        req->bt.backoff();
+                        req->isbtactive = true;
+                        LOG_warn << "Request failed (" << req->posturl << ") retrying ("
+                                 << (req->numretry + 1) << " of " << req->maxretries << ")";
+                        it++;
+                        break;
+                    }
+                    // no retry -> fall through
+                case REQ_SUCCESS:
+                    restag = it->first;
+                    app->http_result(req->httpstatus ? API_OK : API_EFAILED,
+                                     req->httpstatus,
+                                     req->buf ? (byte *)req->buf : (byte *)req->in.data(),
+                                     req->buf ? req->bufpos : req->in.size());
+                    delete req;
+                    pendinghttp.erase(it++);
+                    break;
+                case REQ_PREPARED:
+                    if (req->bt.armed())
+                    {
+                        req->isbtactive = false;
+                        LOG_debug << "Sending retry for " << req->posturl;
+                        switch (req->method)
+                        {
+                            case METHOD_GET:
+                                req->get(this);
+                                break;
+                            case METHOD_POST:
+                                req->post(this);
+                                break;
+                            case METHOD_NONE:
+                                req->dns(this);
+                                break;
+                        }
+                        it++;
+                        break;
+                    }
+                    // no retry -> fall through
+                case REQ_INFLIGHT:
+                    if (req->maxbt.nextset() && req->maxbt.armed())
+                    {
+                        LOG_debug << "Max total time exceeded for request: " << req->posturl;
+                        restag = it->first;
+                        app->http_result(API_EFAILED, 0, NULL, 0);
+                        delete req;
+                        pendinghttp.erase(it++);
+                        break;
+                    }
+                default:
+                    it++;
+                }
+            }
+        }
 
         // file attribute puts (handled sequentially as a FIFO)
         if (activefa.size())
@@ -2156,6 +2229,19 @@ int MegaClient::preparewait()
             }
         }
 
+        for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
+        {
+            if (it->second->isbtactive)
+            {
+                it->second->bt.update(&nds);
+            }
+
+            if (it->second->maxbt.nextset())
+            {
+                it->second->maxbt.update(&nds);
+            }
+        }
+
         // retry failed client-server requests
         if (!pendingcs)
         {
@@ -2362,6 +2448,14 @@ bool MegaClient::abortbackoff(bool includexfers)
         for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
         {
             (it++)->second->retry(API_OK);
+        }
+    }
+
+    for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
+    {
+        if (it->second->bt.arm())
+        {
+            r = true;
         }
     }
 
@@ -2831,6 +2925,11 @@ void MegaClient::disconnect()
 
     abortlockrequest();
 
+    for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
+    {
+        it->second->disconnect();
+    }
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
         (*it)->disconnect();
@@ -2923,8 +3022,14 @@ void MegaClient::locallogout()
         delete *it;
     }
 
+    for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
+    {
+        delete it->second;
+    }
+
     queuedfa.clear();
     activefa.clear();
+    pendinghttp.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -3014,6 +3119,66 @@ void MegaClient::getlastversion(const char *appKey)
 void MegaClient::getlocalsslcertificate()
 {
     reqs.add(new CommandGetLocalSSLCertificate(this));
+}
+
+void MegaClient::dnsrequest(const char *hostname)
+{
+    GenericHttpReq *req = new GenericHttpReq();
+    req->tag = reqtag;
+    req->maxretries = 0;
+    pendinghttp[reqtag] = req;
+    req->posturl = string("http://") + hostname;
+    req->dns(this);
+}
+
+void MegaClient::gelbrequest(const char *service, int timeoutms, int retries)
+{
+    GenericHttpReq *req = new GenericHttpReq();
+    req->tag = reqtag;
+    req->maxretries = retries;
+    req->maxbt.backoff(timeoutms);
+    pendinghttp[reqtag] = req;
+    req->posturl = GELBURL;
+    req->posturl.append("?service=");
+    req->posturl.append(service);
+    req->protect = true;
+    req->get(this);
+}
+
+void MegaClient::sendchatstats(const char *json)
+{
+    GenericHttpReq *req = new GenericHttpReq();
+    req->tag = reqtag;
+    req->maxretries = 0;
+    pendinghttp[reqtag] = req;
+    req->posturl = CHATSTATSURL;
+    //FIXME: aid per app?
+    req->posturl.append("?aid=kn-asdasdsdf&t=e");
+    req->protect = true;
+    req->out->assign(json);
+    req->post(this);
+}
+
+void MegaClient::httprequest(const char *url, int method, bool binary, const char *json, int retries)
+{
+    GenericHttpReq *req = new GenericHttpReq(binary);
+    req->tag = reqtag;
+    req->maxretries = retries;
+    pendinghttp[reqtag] = req;
+    if (method == METHOD_GET)
+    {
+        req->posturl = url;
+        req->get(this);
+    }
+    else
+    {
+        req->posturl = url;
+        if (json)
+        {
+            req->out->assign(json);
+        }
+        req->post(this);
+    }
 }
 
 // process server-client request
