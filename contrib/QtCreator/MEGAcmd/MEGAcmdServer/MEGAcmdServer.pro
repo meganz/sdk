@@ -104,6 +104,7 @@ macx {
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
     LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
+    QMAKE_CXXFLAGS += -g
 }
 else {
     LIBS += -lfreeimage

@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/comunicationsmanagerportsockets.cpp
- * @brief MegaCMD: Communications manager using Network Sockets
+ * @brief MEGAcmd: Communications manager using Network Sockets
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -30,6 +30,10 @@
 
 #ifndef SOCKET_ERROR
 #define SOCKET_ERROR -1
+#endif
+
+#ifndef EADDRINUSE
+#define EADDRINUSE WSAEADDRINUSE
 #endif
 
 using namespace mega;

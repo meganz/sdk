@@ -66,6 +66,7 @@ using namespace std;
 struct AttrMap;
 class BackoffTimer;
 class Command;
+class CommandPubKeyRequest;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
@@ -75,6 +76,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -109,6 +111,8 @@ typedef uint32_t dstime;
 typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
+
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
 
 typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
@@ -271,6 +275,9 @@ typedef deque<Transfer*> transfer_list;
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
+// map a request tag with a pending dns request
+typedef map<int, GenericHttpReq*> pendinghttp_map;
+
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<string> > pendingfiles_map;
 
@@ -422,31 +429,38 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+typedef map <handle, set <handle> > attachments_map;
+struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
-    string url;
     int shard;
     userpriv_vector *userpriv;
     bool group;
     string title;   // byte array
     handle ou;
+    m_time_t ts;     // creation time
+    attachments_map attachedNodes;
 
-    TextChat()
-    {
-        id = UNDEF;
-        priv = PRIV_UNKNOWN;
-        shard = -1;
-        userpriv = NULL;
-        group = false;
-        ou = UNDEF;
-    }
+    int tag;    // source tag, to identify own changes
 
-    ~TextChat()
+    TextChat();
+    ~TextChat();
+
+    bool serialize(string *d);
+    static TextChat* unserialize(class MegaClient *client, string *d);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
+
+    struct
     {
-        delete userpriv;
-    }
+        bool attachments : 1;
+    } changed;
+
+    // return false if failed
+    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

@@ -148,7 +148,8 @@ struct MEGA_API FileAccess
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);
-    int numops;
+    bool isAsyncOpened;
+    int numAsyncReads;
 };
 
 struct MEGA_API InputStreamAccess

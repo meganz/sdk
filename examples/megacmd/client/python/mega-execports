@@ -97,5 +97,5 @@ try:
 	exit(outCode)
 except Exception as ex:
 	sys.stderr.write("Unable to connect to service"+" "+str(ex)+"\n")
-	sys.stderr.write("Please ensure MegaCMD is running\n")
+	sys.stderr.write("Please ensure MEGAcmd is running\n")
 	exit(1)

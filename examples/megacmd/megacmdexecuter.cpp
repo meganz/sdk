@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmdexecuter.cpp
- * @brief MegaCMD: Executer of the commands
+ * @brief MEGAcmd: Executer of the commands
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -93,6 +93,9 @@ void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
 
 MegaCmdExecuter::MegaCmdExecuter(MegaApi *api, MegaCMDLogger *loggerCMD)
 {
+    signingup = false;
+    confirming = false;
+
     this->api = api;
     this->loggerCMD = loggerCMD;
     cwd = UNDEF;
@@ -1944,7 +1947,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
         {
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
             OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
-            OUTSTREAM << "--        Please, download it from https://mega.nz/#megacmd        --" << endl;
+            OUTSTREAM << "--        Please, download it from https://mega.nz/cmd        --" << endl;
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
         }
     }

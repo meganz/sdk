@@ -82,7 +82,7 @@ win32 {
             src/wincurl/fs.cpp  \
             src/wincurl/waiter.cpp
         HEADERS += include/mega/wincurl/meganet.h
-        DEFINES += USE_CURL
+        DEFINES += USE_CURL USE_OPENSSL
         LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
     else {
@@ -294,8 +294,9 @@ macx {
 
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
 
-   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
+   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
             -lz -lssl -lcrypto -lcryptopp

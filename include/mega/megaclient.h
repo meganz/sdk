@@ -183,6 +183,11 @@ public:
     // all users
     user_map users;
 
+#ifdef ENABLE_CHAT
+    // all chats
+    textchat_map chats;
+#endif
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -339,7 +344,7 @@ public:
     void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
-    error getfa(Node*, fatype, int = 0);
+    error getfa(handle h, string *fileattrstring, string *nodekey, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
@@ -403,6 +408,21 @@ public:
     // get the last available version of the app
     void getlastversion(const char *appKey);
 
+    // get a local ssl certificate for communications with the webclient
+    void getlocalsslcertificate();
+
+    // send a DNS request to resolve a hostname
+    void dnsrequest(const char*);
+
+    // send a GeLB request for a service with a timeout (in ms) and a number of retries
+    void gelbrequest(const char*, int, int);
+
+    // send chat stats
+    void sendchatstats(const char*);
+
+    // send a HTTP request
+    void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
@@ -460,10 +480,10 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
 
     // remove a user from a chat
-    void removeFromChat(handle chatid, const char *uid = NULL);
+    void removeFromChat(handle chatid, handle uh);
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
@@ -478,7 +498,7 @@ public:
     void removeAccessInChat(handle chatid, handle h, const char *uid);
 
     // update permissions of a peer in a chat
-    void updateChatPermissions(handle chatid, const char *uid, int priv);
+    void updateChatPermissions(handle chatid, handle uh, int priv);
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
@@ -546,6 +566,12 @@ public:
     // root URL for API requests
     static string APIURL;
 
+    // root URL for GeLB requests
+    static string GELBURL;
+
+    // root URL for chat stats
+    static string CHATSTATSURL;
+
     // account auth for public folders
     string accountauth;
 
@@ -582,6 +608,9 @@ private:
     // auth URI component for API requests
     string auth;
 
+    // lang URI component for API requests
+    string lang;
+
     // public handle being used
     handle publichandle;
 
@@ -594,7 +623,9 @@ private:
     // next local user record identifier to use
     int userid;
 
+    // backoff for file attributes
     BackoffTimer btpfa;
+    bool faretrying;
 
     // next internal upload handle
     handle nextuh;
@@ -640,7 +671,9 @@ private:
     void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
+    void sc_chatnode();
 #endif
+    void sc_uac();
 
     void init();
 
@@ -727,8 +760,11 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
+    // pending HTTP requests
+    pendinghttp_map pendinghttp;
+
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
 
     // open/create state cache database table
     void opensctable();
@@ -1036,6 +1072,7 @@ public:
     void procsuk(JSON*);
 
     void procmcf(JSON*);
+    void procmcna(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
@@ -1121,6 +1158,7 @@ public:
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);
+    void queuepubkeyreq(const char*, PubKeyAction*);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);
@@ -1132,6 +1170,8 @@ public:
     // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
+
+    bool setlang(string *code);
 
     // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
     handle getrootpublicfolder();

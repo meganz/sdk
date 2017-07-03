@@ -49,7 +49,6 @@ import java.util.Set;
 public class MegaApiJava {
     MegaApi megaApi;
     MegaGfxProcessor gfxProcessor;
-    static DelegateMegaLogger logger;
 
     void runCallback(Runnable runnable) {
         runnable.run();
@@ -59,6 +58,7 @@ public class MegaApiJava {
     static Set<DelegateMegaTransferListener> activeTransferListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
     static Set<DelegateMegaGlobalListener> activeGlobalListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaGlobalListener>());
     static Set<DelegateMegaListener> activeMegaListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaListener>());
+    static Set<DelegateMegaLogger> activeMegaLoggers = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaLogger>());
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
 
     // Order options for getChildren
@@ -395,6 +395,18 @@ public class MegaApiJava {
      */
     public static long base64ToHandle(String base64Handle) {
         return MegaApi.base64ToHandle(base64Handle);
+    }
+
+    /**
+     * Converts a Base64-encoded user handle to a MegaHandle
+     *
+     * You can revert this operation using MegaApi::userHandleToBase64
+     *
+     * @param base64Handle Base64-encoded node handle
+     * @return Node handle
+     */
+    public static long base64ToUserHandle(String base64Handle){
+        return MegaApi.base64ToUserHandle(base64Handle);
     }
 
     /**
@@ -767,6 +779,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name, MegaRequestListenerInterface listener) {
         megaApi.createAccount(email, password, name, createDelegateRequestListener(listener));
@@ -781,11 +796,14 @@ public class MegaApiJava {
      *            Password for the account.
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name) {
         megaApi.createAccount(email, password, name);
     }
-    
+
     /**
      * Initialize the creation of a new MEGA account, with firstname and lastname
      *
@@ -796,7 +814,14 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the firstname of the user
      * - MegaRequest::getText - Returns the lastname of the user
      *
-     * If this request succeed, a confirmation email will be sent to the users.
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeed, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
      * If an account with the same email already exists, you will get the error code
      * MegaError::API_EEXIST in onRequestFinish
      *
@@ -804,12 +829,64 @@ public class MegaApiJava {
      * @param password Password for the account
      * @param firstname Firstname of the user
      * @param lastname Lastname of the user
-     * @param listener MegaRequestListenerInterface to track this request
+     * @param listener MegaRequestListener to track this request
      */
     public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
     	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
     }
-    
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resumeCreateAccount(String sid, MegaRequestListenerInterface listener) {
+        megaApi.resumeCreateAccount(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     */
+    public void resumeCreateAccount(String sid) {
+        megaApi.resumeCreateAccount(sid);
+    }
 
     /**
      * Initialize the creation of a new MEGA account with precomputed keys.
@@ -832,6 +909,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name, MegaRequestListenerInterface listener) {
         megaApi.fastCreateAccount(email, base64pwkey, name, createDelegateRequestListener(listener));
@@ -846,9 +926,41 @@ public class MegaApiJava {
      *            Private key calculated with MegaApiJava.getBase64PwKey().
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name) {
         megaApi.fastCreateAccount(email, base64pwkey, name);
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendSignupLink(String email, String name, String password, MegaRequestListenerInterface listener) {
+        megaApi.sendSignupLink(email, name, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     */
+    public void sendSignupLink(String email, String name, String password) {
+        megaApi.sendSignupLink(email, name, password);
     }
 
     /**
@@ -1263,19 +1375,45 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a MegaLogger implementation to receive SDK logs.
-     * <p>
+     * Add a MegaLogger implementation to receive SDK logs
+     *
      * Logs received by this objects depends on the active log level.
-     * By default, it is MegaApiJava.LOG_LEVEL_INFO. You can change it
-     * using MegaApiJava.setLogLevel().
-     * 
-     * @param megaLogger
-     *            MegaLogger implementation.
+     * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
+     * using MegaApi::setLogLevel.
+     *
+     * You can remove the existing logger by using MegaApi::removeLoggerObject.
+     *
+     * @param megaLogger MegaLogger implementation
      */
-    public static void setLoggerObject(MegaLoggerInterface megaLogger) {
-        DelegateMegaLogger newLogger = new DelegateMegaLogger(megaLogger);
-        MegaApi.setLoggerObject(newLogger);
-        logger = newLogger;
+    public static void addLoggerObject(MegaLoggerInterface megaLogger){
+        MegaApi.addLoggerObject(createDelegateMegaLogger(megaLogger));
+    }
+
+    /**
+     * Remove a MegaLogger implementation to stop receiving SDK logs
+     *
+     * If the logger was registered in the past, it will stop receiving log
+     * messages after the call to this function.
+     *
+     * @param megaLogger Previously registered MegaLogger implementation
+     */
+    public static void removeLoggerObject(MegaLoggerInterface megaLogger){
+        ArrayList<DelegateMegaLogger> listenersToRemove = new ArrayList<DelegateMegaLogger>();
+
+        synchronized (activeMegaLoggers) {
+            Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
+            while (it.hasNext()) {
+                DelegateMegaLogger delegate = it.next();
+                if (delegate.getUserListener() == megaLogger) {
+                    listenersToRemove.add(delegate);
+                    it.remove();
+                }
+            }
+        }
+
+        for (int i=0;i<listenersToRemove.size();i++){
+            MegaApi.removeLoggerObject(listenersToRemove.get(i));
+        }
     }
 
     /**
@@ -3044,7 +3182,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Invalidate the existing cache and create a fresh one
+     * Invalidate the existing cache and create a fresh one
      */
     public void invalidateCache(){
         megaApi.invalidateCache();
@@ -3510,6 +3648,55 @@ public class MegaApiJava {
     }
 
     /**
+     * Pause/resume a transfer
+     *
+     * The request finishes with MegaError::API_OK if the state of the transfer is the
+     * desired one at that moment. That means that the request succeed when the transfer
+     * is successfully paused or resumed, but also if the transfer was already in the
+     * desired state and it wasn't needed to change anything.
+     *
+     * Resumed transfers don't necessarily continue just after the resumption. They
+     * are tagged as queued and are processed according to its position on the request queue.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+     * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+     *
+     * @param transfer Transfer to pause or resume
+     * @param pause True to pause the transfer or false to resume it
+     * @param listener MegaRequestListener to track this request
+     */
+    public void pauseTransfer(MegaTransfer transfer, boolean pause, MegaRequestListenerInterface listener){
+        megaApi.pauseTransfer(transfer, pause, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Pause/resume a transfer
+     *
+     * The request finishes with MegaError::API_OK if the state of the transfer is the
+     * desired one at that moment. That means that the request succeed when the transfer
+     * is successfully paused or resumed, but also if the transfer was already in the
+     * desired state and it wasn't needed to change anything.
+     *
+     * Resumed transfers don't necessarily continue just after the resumption. They
+     * are tagged as queued and are processed according to its position on the request queue.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to pause or resume
+     * - MegaRequest::getFlag - Returns true if the transfer has to be pause or false if it has to be resumed
+     *
+     * @param transferTag Tag of the transfer to pause or resume
+     * @param pause True to pause the transfer or false to resume it
+     * @param listener MegaRequestListener to track this request
+     */
+    public void pauseTransferByTag(int transferTag, boolean pause, MegaRequestListenerInterface listener){
+        megaApi.pauseTransferByTag(transferTag, pause, createDelegateRequestListener(listener));
+    }
+
+
+    /**
      * Enable the resumption of transfers
      *
      * This function enables the cache of transfers, so they can be resumed later.
@@ -3766,7 +3953,105 @@ public class MegaApiJava {
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
     }
-    
+
+    /**
+     * Get the maximum download speed in bytes per second
+     *
+     * The value 0 means unlimited speed
+     *
+     * @return Download speed in bytes per second
+     */
+    public int getMaxDownloadSpeed(){
+        return megaApi.getMaxDownloadSpeed();
+    }
+
+    /**
+     * Get the maximum upload speed in bytes per second
+     *
+     * The value 0 means unlimited speed
+     *
+     * @return Upload speed in bytes per second
+     */
+    public int getMaxUploadSpeed(){
+        return megaApi.getMaxUploadSpeed();
+    }
+
+    /**
+     * Return the current download speed
+     * @return Download speed in bytes per second
+     */
+    public int getCurrentDownloadSpeed(){
+        return megaApi.getCurrentDownloadSpeed();
+    }
+
+    /**
+     * Return the current download speed
+     * @return Download speed in bytes per second
+     */
+    public int getCurrentUploadSpeed(){
+        return megaApi.getCurrentUploadSpeed();
+    }
+
+    /**
+     * Return the current transfer speed
+     * @param type Type of transfer to get the speed.
+     * Valid values are MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
+     * @return Transfer speed for the transfer type, or 0 if the parameter is invalid
+     */
+    public int getCurrentSpeed(int type){
+        return megaApi.getCurrentSpeed(type);
+    }
+
+
+    /**
+     * Get information about transfer queues
+     * @param listener MegaTransferListener to start receiving information about transfers
+     * @return Information about transfer queues
+     */
+    public MegaTransferData getTransferData(MegaTransferListenerInterface listener){
+        return megaApi.getTransferData(createDelegateTransferListener(listener, false));
+    }
+
+    /**
+     * Get the first transfer in a transfer queue
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param type queue to get the first transfer (MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD)
+     * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
+     */
+    public MegaTransfer getFirstTransfer(int type){
+        return megaApi.getFirstTransfer(type);
+    }
+
+    /**
+     * Force an onTransferUpdate callback for the specified transfer
+     *
+     * The callback will be received by transfer listeners registered to receive all
+     * callbacks related to callbacks and additionally by the listener in the last
+     * parameter of this function, if it's not NULL.
+     *
+     * @param transfer Transfer that will be provided in the onTransferUpdate callback
+     * @param listener Listener that will receive the callback
+     */
+    public void notifyTransfer(MegaTransfer transfer, MegaTransferListenerInterface listener){
+        megaApi.notifyTransfer(transfer, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Force an onTransferUpdate callback for the specified transfer
+     *
+     * The callback will be received by transfer listeners registered to receive all
+     * callbacks related to callbacks and additionally by the listener in the last
+     * parameter of this function, if it's not NULL.
+     *
+     * @param transferTag Tag of the transfer that will be provided in the onTransferUpdate callback
+     * @param listener Listener that will receive the callback
+     */
+    public void notifyTransferByTag(int transferTag, MegaTransferListenerInterface listener){
+        megaApi.notifyTransferByTag(transferTag, createDelegateTransferListener(listener));
+    }
+
     /**
      * Get a list of transfers that belong to a folder transfer
      *
@@ -3809,35 +4094,44 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the number of pending uploads.
-     * 
-     * @return Pending uploads.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * Check if the SDK is waiting for the server
+     * @return true if the SDK is waiting for the server to complete a request
      */
-    @Deprecated public int getNumPendingUploads() {
+    public boolean areServersBusy(){
+        return megaApi.areServersBusy();
+    }
+
+    /**
+     * Get the number of pending uploads
+     *
+     * @return Pending uploads
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     */
+    public int getNumPendingUploads() {
         return megaApi.getNumPendingUploads();
     }
 
     /**
-     * Get the number of pending downloads.
-     * 
+     * Get the number of pending downloads
      * @return Pending downloads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public int getNumPendingDownloads() {
+    public int getNumPendingDownloads() {
         return megaApi.getNumPendingDownloads();
     }
 
     /**
-     * Get the number of queued uploads since the last call to MegaApiJava.resetTotalUploads().
-     * 
-     * @return Number of queued uploads since the last call to MegaApiJava.resetTotalUploads().
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+     * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public int getTotalUploads() {
+    public int getTotalUploads() {
         return megaApi.getTotalUploads();
     }
 
@@ -3845,10 +4139,10 @@ public class MegaApiJava {
      * Get the number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
      * 
      * @return Number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
-     * @deprecated Function related to statistics will be reviewed in future updates. They
+     * Function related to statistics will be reviewed in future updates. They
      *             could change or be removed in the current form.
      */
-    @Deprecated public int getTotalDownloads() {
+    public int getTotalDownloads() {
         return megaApi.getTotalDownloads();
     }
 
@@ -3857,11 +4151,11 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalDownloads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
-    @Deprecated public void resetTotalDownloads() {
+    public void resetTotalDownloads() {
         megaApi.resetTotalDownloads();
     }
 
@@ -3870,34 +4164,69 @@ public class MegaApiJava {
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalUploads().
      * 
-     * @deprecated Function related to statistics will be reviewed in future updates to
+     * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public void resetTotalUploads() {
+    public void resetTotalUploads() {
         megaApi.resetTotalUploads();
     }
 
     /**
-     * Get the total downloaded bytes since the creation of the MegaApi object.
-     * 
-     * @return Total downloaded bytes since the creation of the MegaApi object.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * Get the total downloaded bytes
+     * @return Total downloaded bytes
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
-    @Deprecated public long getTotalDownloadedBytes() {
+    public long getTotalDownloadedBytes() {
         return megaApi.getTotalDownloadedBytes();
     }
 
     /**
-     * Get the total uploaded bytes since the creation of the MegaApi object.
-     * 
-     * @return Total uploaded bytes since the creation of the MegaApi object.
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     * 
+     * Get the total uploaded bytes
+     * @return Total uploaded bytes
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
      */
-    @Deprecated public long getTotalUploadedBytes() {
+    public long getTotalUploadedBytes() {
         return megaApi.getTotalUploadedBytes();
+    }
+
+    /**
+     * @brief Get the total bytes of started downloads
+     * @return Total bytes of started downloads
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     */
+    public long getTotalDownloadBytes(){
+        return megaApi.getTotalDownloadBytes();
+    }
+
+    /**
+     * Get the total bytes of started uploads
+     * @return Total bytes of started uploads
+     *
+     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+     * or just before a log in or a log out.
+     *
+     * Function related to statistics will be reviewed in future updates to
+     * provide more data and avoid race conditions. They could change or be removed in the current form.
+     *
+     */
+    public long getTotalUploadBytes(){
+        return megaApi.getTotalUploadBytes();
     }
 
     /**
@@ -3911,7 +4240,7 @@ public class MegaApiJava {
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      * 
      */
-    @Deprecated public void updateStats() {
+    public void updateStats() {
         megaApi.updateStats();
     }
 
@@ -4055,6 +4384,14 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent) {
         return nodeListToArray(megaApi.getChildren(parent));
+    }
+
+    /**
+     * Returns true if the node has children
+     * @return true if the node has children
+     */
+    public boolean hasChildren(MegaNode parent){
+        return megaApi.hasChildren(parent);
     }
 
     /**
@@ -4845,6 +5182,16 @@ public class MegaApiJava {
     public void changeApiUrl(String apiURL) {
         megaApi.changeApiUrl(apiURL);
     }
+
+    /**
+     * Set the language code used by the app
+     * @param languageCode code used by the app
+     *
+     * @return True if the language code is known for the SDK, otherwise false
+     */
+    public boolean setLanguage(String languageCode){
+        return megaApi.setLanguage(languageCode);
+    }
     
     /**
      * Keep retrying when public key pinning fails
@@ -5048,6 +5395,12 @@ public class MegaApiJava {
         return delegateListener;
     }
 
+    private static MegaLogger createDelegateMegaLogger(MegaLoggerInterface listener){
+        DelegateMegaLogger delegateLogger = new DelegateMegaLogger(listener);
+        activeMegaLoggers.add(delegateLogger);
+        return delegateLogger;
+    }
+
     void privateFreeRequestListener(DelegateMegaRequestListener listener) {
         activeRequestListeners.remove(listener);
     }
@@ -5056,7 +5409,7 @@ public class MegaApiJava {
         activeTransferListeners.remove(listener);
     }
 
-    static ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
+    static public ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
         if (nodeList == null) {
             return null;
         }

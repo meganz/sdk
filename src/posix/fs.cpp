@@ -26,6 +26,9 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#ifdef TARGET_OS_MAC
+#include "mega/osx/osxutils.h"
+#endif
 
 #ifdef __ANDROID__
 #include <jni.h>
@@ -916,9 +919,13 @@ void PosixFileSystemAccess::tmpnamelocal(string* localname) const
     *localname = buf;
 }
 
-void PosixFileSystemAccess::path2local(string* local, string* path) const
+void PosixFileSystemAccess::path2local(string* path, string* local) const
 {
-    *path = *local;
+#ifdef __MACH__
+    path2localMac(path, local);
+#else
+    *local = *path;
+#endif
 }
 
 void PosixFileSystemAccess::local2path(string* local, string* path) const
@@ -1557,6 +1564,10 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
     {
         l->dirnotifytag = (handle)wd;
         fsaccess->wdnodes[wd] = l;
+    }
+    else
+    {
+        LOG_warn << "Unable to addnotify path: " <<  path->c_str() << ". Error code: " << errno;
     }
 #endif
 #endif

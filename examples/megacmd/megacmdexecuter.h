@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmdexecuter.h
- * @brief MegaCMD: Executer of the commands
+ * @brief MEGAcmd: Executer of the commands
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -46,8 +46,8 @@ private:
     void updateprompt(mega::MegaApi *api, mega::MegaHandle handle);
 
 public:
-    bool signingup = false;
-    bool confirming = false;
+    bool signingup;
+    bool confirming;
 
     MegaCmdExecuter(mega::MegaApi *api, MegaCMDLogger *loggerCMD);
     ~MegaCmdExecuter();

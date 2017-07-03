@@ -25,6 +25,7 @@
 #import "MEGANodeList.h"
 #import "MEGAUserList.h"
 #import "MEGAContactRequestList.h"
+#import "MEGAEvent.h"
 
 @class MEGASdk;
 
@@ -131,7 +132,7 @@
  * @brief This function is called when there are new or updated contacts in the account.
  *
  * @param api MEGASdk object connected to the account.
- * @param users List that contains the new or updated contacts.
+ * @param userList List that contains the new or updated contacts.
  */
 - (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList;
 
@@ -142,9 +143,19 @@
  * second parameter will be nil.
  *
  * @param api MEGASdk object connected to the account.
- * @param nodes List that contains the new or updated nodes.
+ * @param nodeList List that contains the new or updated nodes.
  */
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
+
+/**
+ * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
+ *
+ * The usage of this delegate to handle the external account confirmation is deprecated.
+ * Instead, you should use [MEGAGlobalDelegate onEvent:event:].
+ *
+ * @param api MEGASdk object connected to the account
+ */
+- (void)onAccountUpdate:(MEGASdk *)api;
 
 /**
  * @brief This function is called when there are new or updated contact requests in the account
@@ -165,5 +176,32 @@
  * @param api MEGASdk object connected to the account.
  */
 - (void)onReloadNeeded:(MEGASdk *)api;
+
+
+/**
+ * The details about the event, like the type of event and optionally any
+ * additional parameter, is received in the \c params parameter.
+ *
+ * Currently, the following type of events are notified:
+ *
+ *  - EventCommitDB: when the SDK commits the ongoing DB transaction.
+ *  This event can be used to keep synchronization between the SDK cache and the
+ *  cache managed by the app thanks to the sequence number.
+ *
+ *  Valid data in the MegaEvent object received in the callback:
+ *      - [MEGAEvent text]: sequence number recorded by the SDK when this event happened
+ *
+ *  - EventAccountConfirmation: when a new account is finally confirmed
+ * by the user by confirming the signup link.
+ *
+ *   Valid data in the MegaEvent object received in the callback:
+ *      - [MEGAEvent text]: email address used to confirm the account
+ *
+ * You can check the type of event by calling [MEGAEvent type]
+ *
+ * @param api MEGASdk object connected to the account
+ * @param event Details about the event
+ */
+- (void)onEvent:(MEGASdk *)api event:(MEGAEvent *)event;
 
 @end

@@ -34,7 +34,7 @@ BuildRequires: c-ares-devel,
 %endif
 
 %description
-MegaCMD provides non UI access to MEGA services. 
+MEGAcmd provides non UI access to MEGA services. 
 It intends to offer all the functionality 
 with your MEGA account via shell interaction. 
 It features 2 modes of interaction:
@@ -143,6 +143,20 @@ gpgcheck=1
 enabled=1
 DATA
 %endif
+
+%if 0%{?fedora_version} == 26
+# Fedora 26
+YUM_FILE="/etc/yum.repos.d/megasync.repo"
+cat > "$YUM_FILE" << DATA
+[MEGAsync]
+name=MEGAsync
+baseurl=http://mega.nz/linux/MEGAsync/Fedora_26/
+gpgkey=https://mega.nz/linux/MEGAsync/Fedora_26/repodata/repomd.xml.key
+gpgcheck=1
+enabled=1
+DATA
+%endif
+
 
 %if 0%{?fedora_version} == 25
 # Fedora 25

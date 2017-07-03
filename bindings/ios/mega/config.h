@@ -7,9 +7,6 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
 
-/* Define to 1 if you have the `clock_gettime' function. */
-#define HAVE_CLOCK_GETTIME 1
-
 /* Define to 1 if you have the <cryptopp/cryptlib.h> header file. */
 #define HAVE_CRYPTOPP_CRYPTLIB_H 1
 
@@ -156,6 +153,9 @@
 /* Use inotify API
 #define USE_INOTIFY 1*/
 
+/* Define to use OpenSSL */
+#define USE_OPENSSL 1
+
 /* Define to use SQLite */
 #define USE_SQLITE 1
 
@@ -171,7 +171,9 @@
 #define _FILE_OFFSET_BITS 64
 
 /* use GNU extensions */
-#define _GNU_SOURCE 1
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
 
 /* Define for large files, on AIX-style hosts. */
 /* #undef _LARGE_FILES */
