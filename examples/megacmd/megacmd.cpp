@@ -2093,6 +2093,10 @@ void * doProcessLine(void *pointer)
         inf->line=strdup(inf->line+1);
         free(aux);
     }
+    else
+    {
+        setCurrentThreadIsCmdShell(false);
+    }
 
     LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
