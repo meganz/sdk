@@ -49,7 +49,11 @@
   #define strncasecmp _strnicmp
 #endif
 
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
+
 using namespace std;
+
 
 // utility functions
 char * dupstr(char* s)
@@ -174,6 +178,29 @@ void console_setecho(bool echo)
 #else
     //do nth
 #endif
+}
+
+int getNumberOfCols(u_int defaultwidth=0)
+{
+    u_int width = defaultwidth;
+    int rows = 1, cols = width;
+#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+
+    if (RL_ISSTATE(RL_STATE_INITIALIZED))
+    {
+        rl_resize_terminal();
+        rl_get_screen_size(&rows, &cols);
+    }
+#endif
+
+    if (cols)
+    {
+        width = cols-2;
+#ifdef _WIN32
+        width--;
+#endif
+    }
+    return width;
 }
 
 // UNICODE SUPPORT FOR WINDOWS
@@ -1112,6 +1139,30 @@ void process_line(char * line)
 #endif
                     return;
                 }
+                else if (words[0] == "transfers")
+                {
+                    string toexec;
+
+                    if (!strstr (line,"path-display-size"))
+                    {
+                        u_int width = getNumberOfCols(75);
+                        int pathSize = min(60,int((width-45)/2));
+
+                        toexec+="transfers --path-display-size=";
+                        toexec+=SSTR(pathSize);
+                        toexec+=" ";
+                        if (strlen(line)>10)
+                        {
+                            toexec+=line+10;
+                        }
+                    }
+                    else
+                    {
+                        toexec+=line;
+                    }
+
+                    comms->executeCommand(toexec.c_str());
+                }
                 else
                 {
                     // execute user command
@@ -1289,24 +1340,7 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    u_int width = 75;
-    int rows = 1, cols = width;
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-
-    if (RL_ISSTATE(RL_STATE_INITIALIZED))
-    {
-        rl_resize_terminal();
-        rl_get_screen_size(&rows, &cols);
-    }
-#endif
-
-    if (cols)
-    {
-        width = cols-2;
-#ifdef _WIN32
-        width--;
-#endif
-    }
+    u_int width = getNumberOfCols(75);
 
     COUT << endl;
     COUT << ".";

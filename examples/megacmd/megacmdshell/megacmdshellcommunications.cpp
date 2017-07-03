@@ -695,6 +695,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
     }
 
     closeSocket(newsockfd);
+    return 0;
 }
 
 int MegaCmdShellCommunications::registerForStateChanges()
