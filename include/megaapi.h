@@ -6293,11 +6293,6 @@ class MegaApi
          * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
          * Set the public key Cu25519 of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 10
-         * Set the preferred language of the user (private, not-encrypted)
-         *
-         * @note The attribute for the preferred language is automatically created by the server.
-         * Apps only need to set the new value when the user changes the language.
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -9119,13 +9114,15 @@ class MegaApi
         /**
          * @brief Set the preferred language of the user
          *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish:
          * - MegaRequest::getText - Return the language code
          *
          * If the language code is unknown for the SDK, the error code will be MegaError::API_ENOENT
          *
-         * @param Language code
+         * This attribute is automatically created by the server. Apps only need
+         * to set the new value when the user changes the language.
+         *
+         * @param Language code to be set
          * @param listener MegaRequestListener to track this request
          */
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
