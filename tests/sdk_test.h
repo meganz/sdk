@@ -149,7 +149,7 @@ public:
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
     void removeContact(string email, int timeout = maxTimeout);
     void setUserAttribute(int type, string value, int timeout = maxTimeout);
-    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout);
+    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 

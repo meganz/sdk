@@ -1169,7 +1169,11 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     }
     if(user->changed.sigCu255)
     {
-        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU25;
+        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255;
+    }
+    if(user->changed.language)
+    {
+        changed |= MegaUser::CHANGE_TYPE_LANGUAGE;
     }
 }
 
@@ -4019,6 +4023,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_KEYRING:
             attrname = "*keyring";
             break;
+
+        case MegaApi::USER_ATTR_LANGUAGE:
+            attrname = "!lang";
+            break;
     }
 
     return attrname;
@@ -4047,6 +4055,10 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
             scope = '*';
+            break;
+
+        case MegaApi::USER_ATTR_LANGUAGE:
+            scope = '^';
             break;
 
         default:
@@ -7499,6 +7511,26 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
 
 bool MegaApiImpl::setLanguage(const char *languageCode)
 {
+    string code;
+    if (!getLanguageCode(languageCode, code))
+    {
+        return false;
+    }
+
+    bool val;
+    sdkMutex.lock();
+    val = client->setlang(&code);
+    sdkMutex.unlock();
+    return val;
+}
+
+void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
+{
+    setUserAttr(MegaApi::USER_ATTR_LANGUAGE, languageCode, listener);
+}
+
+bool MegaApiImpl::getLanguageCode(const char *languageCode, string &code)
+{
     if (!languageCode)
     {
         return false;
@@ -7514,7 +7546,6 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     transform(s.begin(), s.end(), s.begin(), ::tolower);
 
     JSON json;
-    string code;
     nameid id = json.getnameid(s.c_str());
     switch (id)
     {
@@ -7616,14 +7647,10 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     if (!code.size())
     {
         LOG_debug << "Unsupported language code: " << languageCode;
-        return true;
+        return false;
     }
 
-    bool val;
-    sdkMutex.lock();
-    val = client->setlang(&code);
-    sdkMutex.unlock();
-    return val;
+    return true;
 }
 
 void MegaApiImpl::retrySSLerrors(bool enable)
@@ -10438,6 +10465,12 @@ void MegaApiImpl::putua_result(error e)
     }
 #endif
 
+    // if user just set the preferred language... change the GET param to the new language
+    if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
+    {
+        setLanguage(request->getText());
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -10501,6 +10534,15 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
+            }
+            break;
+
+        case MegaApi::USER_ATTR_LANGUAGE:
+            {
+                string str((const char*)data,len);
+                string val;
+                Base64::atob(str, val);
+                request->setText(val.c_str());
             }
             break;
 
@@ -13380,6 +13422,26 @@ void MegaApiImpl::sendPendingRequests()
                 delete container;
 
                 break;
+            }
+            else if (scope == '^')
+            {
+                if (!value)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string code;
+                if (!getLanguageCode(value, code))
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+
+                string valueB64;
+                Base64::btoa(code, valueB64);
+
+                client->putua(type, (byte *)valueB64.data(), valueB64.length());
             }
             else    // any other type of attribute
             {

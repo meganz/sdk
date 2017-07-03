@@ -62,6 +62,7 @@ struct MEGA_API User : public Cachable
         bool country : 1;
         bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
         bool email : 1;
+        bool language : 1;  // preferred language code
     } changed;
 
     // user's public key

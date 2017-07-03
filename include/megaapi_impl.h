@@ -1632,6 +1632,8 @@ class MegaApiImpl : public MegaApp
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         bool setLanguage(const char* languageCode);
+        void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
+        bool getLanguageCode(const char* languageCode, std::string& code);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();
