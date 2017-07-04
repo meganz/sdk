@@ -14,6 +14,7 @@ JavaVM *MEGAjvm = NULL;
 jstring strEncodeUTF8;
 jclass clsString;
 jmethodID ctorString;
+jmethodID getBytes;
 int sdkVersion = 100;
 #endif
 
@@ -32,6 +33,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
         jenv->DeleteLocalRef(clsStringLocal);
         ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
+        getBytes = jenv->GetMethodID(clsString, "getBytes", "(Ljava/lang/String;)[B");
         jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
         strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
         jenv->DeleteLocalRef(strEncodeUTF8Local);
@@ -110,6 +112,47 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #endif
         {
             $result = jenv->NewStringUTF($1);
+        }
+    }
+%}
+
+%typemap(in) char*
+%{
+#ifdef __ANDROID__
+    jbyteArray $1_array;
+#endif
+
+    $1 = 0;
+    if ($input)
+    {
+#ifdef __ANDROID__
+        if (sdkVersion < 23)
+        {
+            $1_array = (jbyteArray) jenv->CallObjectMethod($input, getBytes, strEncodeUTF8);
+            $1 = (char*) jenv->GetByteArrayElements($1_array, NULL);
+        }
+        else
+#endif
+        {
+            $1 = (char *)jenv->GetStringUTFChars($input, 0);
+        }
+    }
+%}
+
+%typemap(freearg) char*
+%{
+    if ($1)
+    {
+#ifdef __ANDROID__
+        if (sdkVersion < 23)
+        {
+            jenv->ReleaseByteArrayElements($1_array, (jbyte*) $1, JNI_ABORT);
+            jenv->DeleteLocalRef($1_array);
+        }
+        else
+#endif
+        {
+            jenv->ReleaseStringUTFChars($input, (const char *)$1);
         }
     }
 %}
