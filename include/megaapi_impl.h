@@ -1703,6 +1703,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
