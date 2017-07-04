@@ -1969,7 +1969,7 @@ class MegaRequest
             TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
-            TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE, TYPE_CHAT_LOGS,
+            TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -9882,6 +9882,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
+         * - MegaRequest::getSessionKey - Returns the aid provided
          * - MegaRequest::getParamType - Returns number 2
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -9891,9 +9892,10 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the logs server
+         * @param aid User's anonymous identifier for logging
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatLogs(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account

@@ -3158,16 +3158,16 @@ void MegaClient::sendchatstats(const char *json)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json)
+void MegaClient::sendchatlogs(const char *json, const char *aid)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    req->posturl.append("msglog");
-    //FIXME: aid per app?
-    req->posturl.append("?aid=kn-asdasdsdf&t=e");
+    req->posturl.append("msglog?aid=");
+    req->posturl.append(aid);
+    req->posturl.append("&t=e");
     req->protect = true;
     req->out->assign(json);
     req->post(this);

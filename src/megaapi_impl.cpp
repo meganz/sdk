@@ -6780,10 +6780,11 @@ void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatLogs(const char *data, MegaRequestListener *listener)
+void MegaApiImpl::sendChatLogs(const char *data, const char* aid, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
+    request->setSessionKey(aid);
     request->setParamType(2);
     requestQueue.push(request);
     waiter->notify();
@@ -14916,7 +14917,14 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (type == 2)
             {
-                client->sendchatlogs(json);
+                const char *aid = request->getSessionKey();
+                if (!aid)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                client->sendchatlogs(json, aid);
             }
             else
             {
