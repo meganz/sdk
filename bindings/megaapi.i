@@ -129,7 +129,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         if (sdkVersion < 23)
         {
             $1_array = (jbyteArray) jenv->CallObjectMethod($input, getBytes, strEncodeUTF8);
-            $1 = (char*) jenv->GetByteArrayElements($1_array, NULL);
+            jsize $1_size = jenv->GetArrayLength($1_array);
+            $1 = new char[$1_size + 1];
+            if ($1_size)
+            {
+                jenv->GetByteArrayRegion($1_array, 0, $1_size, (jbyte*)$1);
+            }
+            $1[$1_size] = '\0';
         }
         else
 #endif
@@ -146,7 +152,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #ifdef __ANDROID__
         if (sdkVersion < 23)
         {
-            jenv->ReleaseByteArrayElements($1_array, (jbyte*) $1, JNI_ABORT);
+            delete [] $1;
             jenv->DeleteLocalRef($1_array);
         }
         else
