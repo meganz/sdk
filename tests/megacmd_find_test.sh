@@ -308,6 +308,13 @@ if [ "x$CMDSHELL" != "x1" ]; then #TODO: currently there is no way to know last 
 	else echo "test $currentTest succesful!"; fi
 
 fi
+
+currentTest=14
+
+#Test 14 #/
+find_remote /
+find_local .//
+compare_remote_local
 ###TODO: do stuff in shared folders...
 
 ########

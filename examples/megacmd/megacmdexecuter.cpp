@@ -2891,7 +2891,7 @@ void MegaCmdExecuter::doFind(MegaNode* nodeBase, string word, int printfileinfo,
         {
             string pathToShow;
 
-            if ( word.size() > 1 && ( (word.find("/") == 0) || (word.find("..") != string::npos)) )
+            if ( word.size() > 0 && ( (word.find("/") == 0) || (word.find("..") != string::npos)) )
             {
                 char * nodepath = api->getNodePath(n);
                 pathToShow = string(nodepath);
