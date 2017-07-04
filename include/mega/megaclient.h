@@ -420,6 +420,9 @@ public:
     // send chat stats
     void sendchatstats(const char*);
 
+    // send chat logs
+    void sendchatlogs(const char*);
+
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 

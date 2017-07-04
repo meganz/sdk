@@ -3637,6 +3637,11 @@ void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
     pImpl->sendChatStats(data, listener);
 }
 
+void MegaApi::sendChatLogs(const char *data, MegaRequestListener *listener)
+{
+    pImpl->sendChatLogs(data, listener);
+}
+
 MegaTextChatList* MegaApi::getChatList()
 {
     return pImpl->getChatList();

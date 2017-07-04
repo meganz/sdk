@@ -37,7 +37,7 @@ string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/msglog";
+string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
@@ -3152,6 +3152,20 @@ void MegaClient::sendchatstats(const char *json)
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
+    req->posturl.append("stats");
+    req->protect = true;
+    req->out->assign(json);
+    req->post(this);
+}
+
+void MegaClient::sendchatlogs(const char *json)
+{
+    GenericHttpReq *req = new GenericHttpReq();
+    req->tag = reqtag;
+    req->maxretries = 0;
+    pendinghttp[reqtag] = req;
+    req->posturl = CHATSTATSURL;
+    req->posturl.append("msglog");
     //FIXME: aid per app?
     req->posturl.append("?aid=kn-asdasdsdf&t=e");
     req->protect = true;
