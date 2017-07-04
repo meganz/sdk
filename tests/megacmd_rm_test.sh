@@ -252,9 +252,13 @@ rm -r localUPs/ls\ 01
 compare_and_clear
 
 #Test 14 #complex stuff
-#$RM -rf ls\ 01/../le01/les01 lf01/../ls*/ls\ s02 #This one fails since it is PCRE expresion TODO: if ever supported PCRE enabling/disabling, consider that
-$RM -rf "ls\ 01/../le01/les01" "lf01/../ls.*/ls\ s02"
+$RM -rf "ls\ 01/../le01/les01" "lf01/../ls*/ls\ s02"
 rm -r localUPs/{ls\ 01/../le01/les01,lf01/../ls*/ls\ s02}
+compare_and_clear
+
+#Test 15 #complex stuff with PCRE exp
+$RM -rf --use-pcre "ls\ 01/../le01/les0[12]" "lf01/../ls.*/ls\ s0[12]"
+rm -r localUPs/{ls\ 01/../le01/les0[12],lf01/../ls*/ls\ s0[12]}
 compare_and_clear
 
 ###TODO: do stuff in shared folders...
