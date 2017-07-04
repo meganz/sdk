@@ -1153,6 +1153,7 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 
