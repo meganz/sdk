@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		414820921C523AA600552E76 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 414820911C523AA600552E76 /* libuv.a */; };
 		4148209A1C561CB500552E76 /* mega_http_parser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 414820991C561CB500552E76 /* mega_http_parser.cpp */; };
 		418412731BA1A06600D94E72 /* MEGAInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = 418412721BA1A06600D94E72 /* MEGAInputStream.mm */; };
 		41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A990721A5D305700B2094A /* mega_utf8proc.cpp */; };
@@ -21,12 +20,6 @@
 		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D001BD54B5200764370 /* MEGAContactRequest.mm */; };
 		41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */; };
-		41E3FE961D6B10F2005ABE2B /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41E3FE951D6B10F2005ABE2B /* libsodium.a */; };
-		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
-		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
-		940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8F19ED9245007E7FA2 /* libcryptopp.a */; };
-		940BEF9519ED9245007E7FA2 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF9019ED9245007E7FA2 /* libcurl.a */; };
-		940BEF9619ED9245007E7FA2 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF9119ED9245007E7FA2 /* libssl.a */; };
 		940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9819ED92C2007E7FA2 /* attrmap.cpp */; };
 		940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */; };
 		940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9A19ED92C2007E7FA2 /* base64.cpp */; };
@@ -98,7 +91,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		414820911C523AA600552E76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = 3rdparty/lib/libuv.a; sourceTree = "<group>"; };
 		414820951C523B2D00552E76 /* mega_http_parser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_http_parser.h; sourceTree = "<group>"; };
 		414820961C523B2D00552E76 /* pendingcontactrequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pendingcontactrequest.h; sourceTree = "<group>"; };
 		414820991C561CB500552E76 /* mega_http_parser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_http_parser.cpp; path = ../../src/mega_http_parser.cpp; sourceTree = "<group>"; };
@@ -129,13 +121,7 @@
 		41D98D051BD562AD00764370 /* MEGAContactRequestList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAContactRequestList.h; sourceTree = "<group>"; };
 		41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAContactRequestList.mm; sourceTree = "<group>"; };
 		41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAContactRequestList+init.h"; sourceTree = "<group>"; };
-		41E3FE951D6B10F2005ABE2B /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = 3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
 		41F01E301C087D4C001E18E6 /* GfxProcCG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GfxProcCG.h; sourceTree = "<group>"; };
-		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
-		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
-		940BEF8F19ED9245007E7FA2 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = 3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
-		940BEF9019ED9245007E7FA2 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcurl.a; path = 3rdparty/lib/libcurl.a; sourceTree = "<group>"; };
-		940BEF9119ED9245007E7FA2 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = 3rdparty/lib/libssl.a; sourceTree = "<group>"; };
 		940BEF9819ED92C2007E7FA2 /* attrmap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = attrmap.cpp; path = ../../src/attrmap.cpp; sourceTree = "<group>"; };
 		940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = backofftimer.cpp; path = ../../src/backofftimer.cpp; sourceTree = "<group>"; };
 		940BEF9A19ED92C2007E7FA2 /* base64.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = base64.cpp; path = ../../src/base64.cpp; sourceTree = "<group>"; };
@@ -277,13 +263,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41E3FE961D6B10F2005ABE2B /* libsodium.a in Frameworks */,
-				414820921C523AA600552E76 /* libuv.a in Frameworks */,
-				940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */,
-				940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */,
-				940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */,
-				940BEF9519ED9245007E7FA2 /* libcurl.a in Frameworks */,
-				940BEF9619ED9245007E7FA2 /* libssl.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -599,13 +578,6 @@
 		A82751021E97A929007CD9E2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				940BEF8D19ED9245007E7FA2 /* libcares.a */,
-				940BEF8E19ED9245007E7FA2 /* libcrypto.a */,
-				940BEF8F19ED9245007E7FA2 /* libcryptopp.a */,
-				940BEF9019ED9245007E7FA2 /* libcurl.a */,
-				940BEF9119ED9245007E7FA2 /* libssl.a */,
-				414820911C523AA600552E76 /* libuv.a */,
-				41E3FE951D6B10F2005ABE2B /* libsodium.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
