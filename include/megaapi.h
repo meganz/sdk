@@ -9861,6 +9861,9 @@ class MegaApi
          * @brief Send data related to MEGAchat to the stats server
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the data provided.
+         * - MegaRequest::getParamType - Returns number 1
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9872,6 +9875,27 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send logs related to MEGAchat to the logs server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the data provided.
+         * - MegaRequest::getSessionKey - Returns the aid provided
+         * - MegaRequest::getParamType - Returns number 2
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Return the HTTP status code from the stats server
+         * - MegaRequest::getText - Returns the JSON response from the stats server
+         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
+         *
+         * @param data JSON data to send to the logs server
+         * @param aid User's anonymous identifier for logging
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account
