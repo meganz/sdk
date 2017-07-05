@@ -6085,7 +6085,7 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 10
+         * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
@@ -6132,7 +6132,7 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 10
+         * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
@@ -6176,7 +6176,7 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
-         * MegaApi::USER_ATTR_LANGUAGE = 10
+         * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
