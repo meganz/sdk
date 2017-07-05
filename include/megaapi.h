@@ -4504,7 +4504,7 @@ class MegaApi
             USER_ATTR_KEYRING = 7,              // private - byte array
             USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
-            USER_ATTR_LANGUAGE = 10             // private - char array
+            USER_ATTR_LANGUAGE = 14             // private - char array
         };
 
         enum {
