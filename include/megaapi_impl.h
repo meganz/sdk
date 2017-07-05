@@ -141,6 +141,7 @@ class ExternalLogger : public Logger
 {
 public:
     ExternalLogger();
+    ~ExternalLogger();
     void addMegaLogger(MegaLogger* logger);
     void removeMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);

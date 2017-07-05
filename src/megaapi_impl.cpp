@@ -15449,6 +15449,13 @@ ExternalLogger::ExternalLogger()
     SimpleLogger::setOutputClass(this);
 }
 
+ExternalLogger::~ExternalLogger()
+{
+    mutex.lock();
+    SimpleLogger::setOutputClass(NULL);
+    mutex.unlock();
+}
+
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
     mutex.lock();

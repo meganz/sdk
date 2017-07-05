@@ -1371,6 +1371,22 @@ using namespace mega;
     return self.megaApi->setLanguage(languageCode ? [languageCode UTF8String] : NULL);
 }
 
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setLanguangePreferenceCode:(NSString *)languageCode {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL);
+}
+
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getLanguagePreference([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getLanguagePreference {
+    self.megaApi->getLanguagePreference();
+}
+
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
     if (imagePath == nil || destinationPath == nil) return NO;
     
