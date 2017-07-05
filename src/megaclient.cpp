@@ -7493,6 +7493,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "*" - Private and encrypted. Use a TLV container (key-value)
  * "#" - Protected and plain text, accessible only by contacts.
  * "+" - Public and plain text, accessible by anyone knowing userhandle
+ * "^" - Private and non-encrypted.
  *
  * @param an Attribute name.
  * @param av Attribute value.

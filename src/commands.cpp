@@ -2472,6 +2472,11 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
+        if (User::scope(at) == '^') // store in binary format
+        {
+            string avB64 = av;
+            Base64::atob(avB64, av);
+        }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
@@ -2582,7 +2587,7 @@ void CommandGetUA::procresult()
 
                     switch (scope)
                     {
-                        case '*':   // private
+                        case '*':   // private, encrypted
                         {
                             // decrypt the data and build the TLV records
                             TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
@@ -2620,14 +2625,20 @@ void CommandGetUA::procresult()
                             client->app->getua_result((byte*) value.data(), value.size());
                             break;
 
+                        case '^': // private, non-encrypted
+
+                            // store the value in cache in binary format
+                            u->setattr(at, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
+                            break;
+
                         default:    // legacy attributes or unknown attribute
                             if (at != ATTR_FIRSTNAME &&           // protected
                                     at != ATTR_LASTNAME &&        // protected
                                     at != ATTR_COUNTRY  &&        // private
                                     at != ATTR_BIRTHDAY &&        // private
                                     at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR &&       // private
-                                    at != ATTR_LANGUAGE)          // private (not encrypted)
+                                    at != ATTR_BIRTHYEAR)         // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);

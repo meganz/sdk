@@ -10542,18 +10542,10 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         // null-terminated char arrays
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
+        case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
-            }
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-            {
-                string str((const char*)data,len);
-                string val;
-                Base64::atob(str, val);
-                request->setText(val.c_str());
             }
             break;
 
