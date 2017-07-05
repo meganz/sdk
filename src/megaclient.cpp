@@ -7093,15 +7093,6 @@ void MegaClient::discarduser(handle uh)
         u->pkrs.pop_front();
     }
 
-    for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
-    {
-        if (*it == u)
-        {
-            usernotify.erase(it);
-            break;  // no duplicated users in the notify vector
-        }
-    }
-
     discardnotifieduser(u);
 
     umindex.erase(u->email);
