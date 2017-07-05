@@ -22,6 +22,8 @@ LIBS += -lpcrecpp
 win32 {
     SOURCES += ../../../../src/wincurl/console.cpp
     SOURCES += ../../../../src/wincurl/consolewaiter.cpp
+    SOURCES += ../../../../examples/megacmd/comunicationsmanagernamedpipes.cpp
+    HEADERS += ../../../../examples/megacmd/comunicationsmanagernamedpipes.h
 }
 else {
     SOURCES += ../../../../src/posix/console.cpp
@@ -48,7 +50,6 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
     ../../../../examples/megacmd/megacmdutils.h \
     ../../../../examples/megacmd/megacmdversion.h \
     ../../../../examples/megacmd/megacmdplatform.h
-
 
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerportsockets.cpp
     HEADERS +=../../../../examples/megacmd/comunicationsmanagerportsockets.h
