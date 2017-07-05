@@ -7049,6 +7049,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         if (mit != umindex.end() && mit->second != hit->second && (users[mit->second].show != INACTIVE || users[mit->second].userhandle == me))
         {
             // duplicated user: one by email, one by handle
+            discardnotifieduser(&users[mit->second]);
             assert(!users[mit->second].sharing.size());
             users.erase(mit->second);
         }
@@ -7106,6 +7107,8 @@ void MegaClient::discarduser(handle uh)
         u->pkrs.pop_front();
     }
 
+    discardnotifieduser(u);
+
     umindex.erase(u->email);
     users.erase(uhindex[uh]);
     uhindex.erase(uh);
@@ -7130,6 +7133,8 @@ void MegaClient::discarduser(const char *email)
         delete pka;
         u->pkrs.pop_front();
     }
+
+    discardnotifieduser(u);
 
     uhindex.erase(u->userhandle);
     users.erase(umindex[email]);
@@ -7157,6 +7162,19 @@ void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
 {
     delete pcrindex[id];
     pcrindex[id] = pcr;
+}
+
+bool MegaClient::discardnotifieduser(User *u)
+{
+    for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
+    {
+        if (*it == u)
+        {
+            usernotify.erase(it);
+            return true;  // no duplicated users in the notify vector
+        }
+    }
+    return false;
 }
 
 // sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
