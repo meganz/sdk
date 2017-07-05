@@ -9047,7 +9047,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Return the HTTP satus code from the server
+         * - MegaRequest::getNumber - Return the HTTP status code from the server
          * - MegaRequest::getTotalBytes - Returns the number of bytes of the file
          *
          * If the request finishes with the error code MegaError::API_OK, the destination path
