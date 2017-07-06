@@ -61,6 +61,11 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
 win32 {
     LIBS += -lshell32
     RC_FILE = icon.rc
+    QMAKE_LFLAGS += /LARGEADDRESSAWARE
+    QMAKE_LFLAGS_WINDOWS += /SUBSYSTEM:WINDOWS,5.01
+    QMAKE_LFLAGS_CONSOLE += /SUBSYSTEM:CONSOLE,5.01
+    DEFINES += PSAPI_VERSION=1
+    DEFINES += UNICODE _UNICODE NTDDI_VERSION=0x05010000 _WIN32_WINNT=0x0501
 }
 else {
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerfilesockets.cpp
