@@ -686,7 +686,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
                                         l->mtime = -1;  // trigger change detection
-                                        delete it->second;   // delete de old LocalNode
+                                        delete it->second;   // delete old LocalNode
                                     }
                                     else
                                     {
