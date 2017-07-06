@@ -782,7 +782,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         || (it->second->sync == parent->sync)
                         || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
                             && (fp2 = parent->sync->dirnotify->fsfingerprint())
-                            && (fp1 == fp2))
+                            && (fp1 == fp2)
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
                             // same drive letter, to prevent problems with cloned Volume IDs
@@ -791,6 +791,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                    it->second->sync->localroot.name.c_str(),
                                    colon - parent->sync->localroot.name.c_str())
                         #endif
+                            )
                        )
                     && ((it->second->type != FILENODE)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
