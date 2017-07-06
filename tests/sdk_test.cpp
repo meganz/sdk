@@ -784,7 +784,7 @@ void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, cons
     sdklog << message << " (" << source << ")" << endl;
 
     bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
-    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error.";
+    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error: " << message << " (" << source << ")";
 }
 
 void SdkTest::setUserAttribute(int type, string value, int timeout)
