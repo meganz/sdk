@@ -136,7 +136,7 @@ public:
     void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    bool waitForResponse(bool *responseReceived, int timeout = maxTimeout);
+    bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);

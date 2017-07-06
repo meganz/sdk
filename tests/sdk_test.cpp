@@ -537,10 +537,11 @@ void SdkTest::purgeTree(MegaNode *p)
     }
 }
 
-bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
+bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
 {
     timeout *= 1000000; // convert to micro-seconds
-    int tWaited = 0;    // microseconds
+    unsigned int tWaited = 0;    // microseconds
+    bool connRetried = false;
     while(!(*responseReceived))
     {
         usleep(pollingT);
@@ -551,6 +552,15 @@ bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
             if (tWaited >= timeout)
             {
                 return false;   // timeout is expired
+            }
+            else if (!connRetried && tWaited > (pollingT * 10))
+            {
+                megaApi[0]->retryPendingConnections();
+                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                {
+                    megaApi[1]->retryPendingConnections();
+                }
+                connRetried = true;
             }
         }
     }
