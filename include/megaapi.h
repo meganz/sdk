@@ -9230,6 +9230,14 @@ class MegaApi
         bool createPreview(const char *imagePath, const char *dstPath);
 
         /**
+         * @brief Create an avatar from an image
+         * @param imagePath Image path
+         * @param dstPath Destination path for the avatar (including the file name)
+         * @return True if the avatar was successfully created, otherwise false.
+         */
+        bool createAvatar(const char *imagePath, const char *dstPath);
+
+        /**
          * @brief Convert a Base64 string to Base32
          *
          * If the input pointer is NULL, this function will return NULL.
