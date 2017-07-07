@@ -162,19 +162,18 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     return numputs;
 }
 
-bool GfxProc::savefa(string *localfilepath, GfxProc::meta_t type, string *localdstpath)
+bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
 {
     if (!isgfx(localfilepath)
             // (this assumes that the width of the largest dimension is max)
-            || !readbitmap(NULL, localfilepath, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+        || !readbitmap(NULL, localfilepath, width > height ? width : height))
     {
         return false;
     }
 
-    int w = dimensions[type][0];
-    int h = dimensions[type][1];
-    if (type == (sizeof dimensions/sizeof dimensions[0] - 1)
-            && this->w < w && this->h < h )
+    int w = width;
+    int h = height;
+    if (this->w < w && this->h < h)
     {
         LOG_debug << "Skipping upsizing of local preview";
         w = this->w;
