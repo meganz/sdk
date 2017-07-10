@@ -1383,6 +1383,12 @@ using namespace mega;
     return self.megaApi->createPreview([imagePath UTF8String], [destinationPath UTF8String]);
 }
 
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath {
+    if (imagePath == nil || destinationPath == nil) return NO;
+    
+    return self.megaApi->createAvatar([imagePath UTF8String], [destinationPath UTF8String]);
+}
+
 #ifdef HAVE_LIBUV
 
 #pragma mark - HTTP Proxy Server
