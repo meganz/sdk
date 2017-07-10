@@ -2134,6 +2134,7 @@ public:
     std::string nodehandle;
     std::string nodekey;
     std::string nodename;
+    m_off_t nodesize;
     int resultCode;
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
