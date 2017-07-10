@@ -28,6 +28,10 @@ const int GfxProc::dimensions[][2] = {
     { 1000, 1000 }  // PREVIEW1000x1000: scaled version inside 1000x1000 bounding square
 };
 
+const int GfxProc::dimensionsavatar[][2] = {
+    { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
+};
+
 bool GfxProc::isgfx(string* localfilename)
 {
     char ext[8];
