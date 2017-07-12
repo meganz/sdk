@@ -1098,7 +1098,8 @@ class MegaUser
             CHANGE_TYPE_PUBKEY_CU255    = 0x200,
             CHANGE_TYPE_PUBKEY_ED255    = 0x400,
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
-            CHANGE_TYPE_SIG_PUBKEY_CU25 = 0x1600
+            CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
+            CHANGE_TYPE_LANGUAGE        = 0x2000
         };
 
         /**
@@ -1147,8 +1148,11 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
          * Check if the user has new or modified signature for RSA public key
          *
-         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000
          * Check if the user has new or modified signature for Cu25519 public key
+         *
+         * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
+         * Check if the user has modified the preferred language
          *
          * @return true if this user has an specific change
          */
@@ -1198,8 +1202,11 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
          * Check if the user has new or modified signature for RSA public key
          *
-         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000
          * Check if the user has new or modified signature for Cu25519 public key
+         *
+         * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
+         * Check if the user has modified the preferred language
          */
         virtual int getChanges();
 
@@ -4495,10 +4502,9 @@ class MegaApi
             USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
             USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
             USER_ATTR_KEYRING = 7,              // private - byte array
-            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,  // public - byte array
-            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9 // public - byte array
-//            USER_ATTR_AUTHRSA = 8,
-//            USER_ATTR_AUTHCU255 =
+            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
+            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
+            USER_ATTR_LANGUAGE = 14             // private - char array
         };
 
         enum {
@@ -6079,6 +6085,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6124,6 +6132,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6166,6 +6176,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6274,13 +6286,13 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
+         * Set the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
+         * Set the lastname of the user (public)
          * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
+         * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
+         * Set the public key Cu25519 of the user (public)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -9098,6 +9110,33 @@ class MegaApi
          * @return True if the language code is known for the SDK, otherwise false
          */
         bool setLanguage(const char* languageCode);
+
+        /**
+         * @brief Set the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - Return the language code
+         *
+         * If the language code is unknown for the SDK, the error code will be MegaError::API_ENOENT
+         *
+         * This attribute is automatically created by the server. Apps only need
+         * to set the new value when the user changes the language.
+         *
+         * @param Language code to be set
+         * @param listener MegaRequestListener to track this request
+         */
+        void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Return the language code
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLanguagePreference(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails

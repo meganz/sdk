@@ -816,24 +816,24 @@ void SdkTest::setUserAttribute(int type, string value, int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "User attribute setup failed (error: " << lastError[0] << ")";
 }
 
-void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
+void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int accountIndex)
 {
-    requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER] = false;
+    requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER] = false;
 
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        megaApi[1]->getUserAvatar(u, AVATARDST.data());
+        megaApi[accountIndex]->getUserAvatar(u, AVATARDST.data());
     }
     else
     {
-        megaApi[1]->getUserAttribute(u, type);
+        megaApi[accountIndex]->getUserAttribute(u, type);
     }
 
-    ASSERT_TRUE( waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
+    ASSERT_TRUE( waitForResponse(&requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
             << "User attribute retrieval not finished after " << timeout  << " seconds";
 
-    bool result = (lastError[1] == MegaError::API_OK) || (lastError[1] == MegaError::API_ENOENT);
-    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[1] << ")";
+    bool result = (lastError[accountIndex] == MegaError::API_OK) || (lastError[accountIndex] == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[accountIndex] << ")";
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
@@ -1580,6 +1580,18 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
 
     delete u;
+
+
+    // --- Get language preference
+
+    u = megaApi[0]->getMyUser();
+
+    string langCode = "es";
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
+    string language = attributeValue;
+    ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
+
 
     // --- Load avatar ---
 
