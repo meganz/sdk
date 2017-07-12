@@ -13072,11 +13072,13 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!node)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
-            if (node->type > 1) // rootnodes cannot be deleted
+            if (node->type == ROOTNODE
+                    || node->type == INCOMINGNODE
+                    || node->type == RUBBISHNODE) // rootnodes cannot be deleted
             {
                 e = API_EACCESS;
                 break;
