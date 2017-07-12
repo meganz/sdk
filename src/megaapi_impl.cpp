@@ -13069,7 +13069,20 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_REMOVE:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());
-			if(!node) { e = API_EARGS; break; }
+
+            if (!node)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (node->type == ROOTNODE
+                    || node->type == INCOMINGNODE
+                    || node->type == RUBBISHNODE) // rootnodes cannot be deleted
+            {
+                e = API_EACCESS;
+                break;
+            }
 
 			e = client->unlink(node);
 			break;
