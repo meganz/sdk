@@ -59,7 +59,7 @@ GfxProcCG::~GfxProcCG() {
 }
 
 const char* GfxProcCG::supportedformats() {
-    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.";
+    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.heic.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
