@@ -553,8 +553,8 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             {
                 return false;   // timeout is expired
             }
-            // if no response after 5 minutes...
-            else if (!connRetried && tWaited > (pollingT * 100))
+            // if no response after 2 minutes...
+            else if (!connRetried && tWaited > (pollingT * 240))
             {
                 megaApi[0]->retryPendingConnections(true);
                 if (megaApi[1] && megaApi[1]->isLoggedIn())
