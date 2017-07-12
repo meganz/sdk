@@ -39,7 +39,7 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 // Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD (and $MEGA_EMAIL_AUX / $MEGA_PWD_AUX for shares * contacts)
 
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
-static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to wait for response from server
+static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to wait for response from server
 
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
@@ -136,7 +136,7 @@ public:
     void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    bool waitForResponse(bool *responseReceived, int timeout = maxTimeout);
+    bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
