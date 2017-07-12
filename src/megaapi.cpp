@@ -3647,6 +3647,11 @@ void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
     pImpl->sendChatStats(data, listener);
 }
 
+void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
+{
+    pImpl->sendChatLogs(data, aid, listener);
+}
+
 MegaTextChatList* MegaApi::getChatList()
 {
     return pImpl->getChatList();
@@ -3746,6 +3751,11 @@ bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)
 bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
 {
     return pImpl->createPreview(imagePath, dstPath);
+}
+
+bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
+{
+    return pImpl->createAvatar(imagePath, dstPath);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

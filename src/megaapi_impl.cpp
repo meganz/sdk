@@ -5813,7 +5813,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
         else transfer->setPath(localPath);
     }
 
-    if(node)
+    if (node)
     {
         transfer->setNodeHandle(node->getHandle());
         if (node->isPublic() || node->isForeign())
@@ -5867,13 +5867,14 @@ void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
 void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
-    if(node && !node->isPublic() && !node->isForeign())
+    
+    if (node)
     {
         transfer->setNodeHandle(node->getHandle());
-    }
-    else
-    {
-        transfer->setPublicNode(node);
+        if (node->isPublic() || node->isForeign())
+        {
+            transfer->setPublicNode(node, true);
+        }
     }
 
     transfer->setStreamingTransfer(true);
@@ -6347,7 +6348,7 @@ char *MegaApiImpl::unescapeFsIncompatible(const char *name)
 
 bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
 {
-    if (!gfxAccess)
+    if (!gfxAccess || !imagePath || !dstPath)
     {
         return false;
     }
@@ -6361,7 +6362,8 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::THUMBNAIL120X120, &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL120X120][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL120X120][1], &localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -6369,7 +6371,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
 {
-    if (!gfxAccess)
+    if (!gfxAccess || !imagePath || !dstPath)
     {
         return false;
     }
@@ -6383,9 +6385,33 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::PREVIEW1000x1000, &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW1000x1000][0],
+            GfxProc::dimensions[GfxProc::PREVIEW1000x1000][1], &localDstPath);
     sdkMutex.unlock();
 
+    return result;
+}
+
+bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
+{
+    if (!gfxAccess || !imagePath || !dstPath)
+    {
+        return false;
+    }
+    
+    string utf8ImagePath = imagePath;
+    string localImagePath;
+    fsAccess->path2local(&utf8ImagePath, &localImagePath);
+    
+    string utf8DstPath = dstPath;
+    string localDstPath;
+    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    
+    sdkMutex.lock();
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
+            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
+    sdkMutex.unlock();
+    
     return result;
 }
 
@@ -6787,6 +6813,17 @@ void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
+    request->setParamType(1);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendChatLogs(const char *data, const char* aid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
+    request->setName(data);
+    request->setSessionKey(aid);
+    request->setParamType(2);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12685,7 +12722,7 @@ void MegaApiImpl::sendPendingTransfers()
                         cipher.setkey(publicNode->getNodeKey());
                         client->pread(publicNode->getHandle(), &cipher,
                             MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
-                                      startPos, totalBytes, transfer);
+                                      startPos, totalBytes, transfer, publicNode->isForeign());
                         waiter->notify();
                     }
                 }
@@ -14964,7 +15001,26 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->sendchatstats(json);
+            int type = request->getParamType();
+            if (type == 1)
+            {
+                client->sendchatstats(json);
+            }
+            else if (type == 2)
+            {
+                const char *aid = request->getSessionKey();
+                if (!aid)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                client->sendchatlogs(json, aid);
+            }
+            else
+            {
+                e = API_EARGS;
+            }
             break;
         }
 #endif
@@ -17070,11 +17126,16 @@ char *MegaHTTPServer::getLink(MegaNode *node)
     oss << base64handle;
     delete [] base64handle;
 
-    if (node->isPublic())
+    if (node->isPublic() || node->isForeign())
     {
         char *base64key = node->getBase64Key();
         oss << "!" << base64key;
         delete [] base64key;
+
+        if (node->isForeign())
+        {
+            oss << "!" << node->getSize();
+        }
     }
 
     oss << "/";
@@ -17234,8 +17295,25 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
     if (length > 53 && url[index] == '!')
     {
         httpctx->nodekey.assign(url + 10, 43);
-        LOG_debug << "Public link. Key: " << httpctx->nodekey;
+        LOG_debug << "Link key: " << httpctx->nodekey;
         index = 53;
+
+        if (length > 54 && url[index] == '!')
+        {
+           const char* startsize = url + index + 1;
+           const char* endsize = strstr(startsize, "/");
+           if (endsize && *startsize >= '0' && *startsize <= '9')
+           {
+               char* endptr;
+               m_off_t size = strtoll(startsize, &endptr, 10);
+               if (endptr == endsize && errno != ERANGE)
+               {
+                   httpctx->nodesize = size;
+                   LOG_debug << "Link size: " << size;
+                   index += (endsize - startsize) + 1;
+               }
+           }
+        }
     }
 
     if (length > index && url[index] != '/')
@@ -17445,6 +17523,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             string resstr = response.str();
             sendHeaders(httpctx, &resstr);
             return 0;
+        }
+        else if (httpctx->nodesize >= 0)
+        {
+            LOG_debug << "Getting foreign node";
+            node = httpctx->megaApi->createForeignFileNode(
+                        h, httpctx->nodekey.c_str(),
+                        httpctx->nodename.c_str(),
+                        httpctx->nodesize,
+                        -1, UNDEF, NULL, NULL);
         }
         else
         {
@@ -17996,6 +18083,7 @@ MegaHTTPContext::MegaHTTPContext()
     resultCode = API_EINTERNAL;
     node = NULL;
     transfer = NULL;
+    nodesize = -1;
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)

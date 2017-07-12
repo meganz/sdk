@@ -9,34 +9,26 @@
 
 #ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
-
-#ifdef __ANDROID__
 jstring strEncodeUTF8;
 jclass clsString;
 jmethodID ctorString;
-int sdkVersion = 100;
-#endif
+jmethodID getBytes;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
-#ifdef __ANDROID__
     JNIEnv* jenv = NULL;
     jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
-    jclass buildVersionClass = jenv->FindClass("android/os/Build$VERSION");
-    jfieldID sdkVersionField = jenv->GetStaticFieldID(buildVersionClass, "SDK_INT", "I");
-    sdkVersion = jenv->GetStaticIntField(buildVersionClass, sdkVersionField);
-    if (sdkVersion < 23)
-    {
-        jclass clsStringLocal = jenv->FindClass("java/lang/String");
-        clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
-        jenv->DeleteLocalRef(clsStringLocal);
-        ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
-        jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
-        strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
-        jenv->DeleteLocalRef(strEncodeUTF8Local);
-    }
-#endif
+
+    jclass clsStringLocal = jenv->FindClass("java/lang/String");
+    clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
+    jenv->DeleteLocalRef(clsStringLocal);
+    ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
+    getBytes = jenv->GetMethodID(clsString, "getBytes", "(Ljava/lang/String;)[B");
+    jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
+    strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
+    jenv->DeleteLocalRef(strEncodeUTF8Local);
+
     return JNI_VERSION_1_4;
 }
 #endif
@@ -92,25 +84,41 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %typemap(javaclassmodifiers) mega::ShareList "class";
 %typemap(javaclassmodifiers) mega::UserList "class";
 
-
 %typemap(out) char*
 %{
     if ($1)
     {
-#ifdef __ANDROID__
-        if (sdkVersion < 23)
+        int len = strlen($1);
+        jbyteArray $1_array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+        $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+        jenv->DeleteLocalRef($1_array);
+    }
+%}
+
+%typemap(in) char*
+%{
+    jbyteArray $1_array;
+    $1 = 0;
+    if ($input)
+    {
+        $1_array = (jbyteArray) jenv->CallObjectMethod($input, getBytes, strEncodeUTF8);
+        jsize $1_size = jenv->GetArrayLength($1_array);
+        $1 = new char[$1_size + 1];
+        if ($1_size)
         {
-            int len = strlen($1);
-            jbyteArray $1_array = jenv->NewByteArray(len);
-            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
-            $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
-            jenv->DeleteLocalRef($1_array);
+            jenv->GetByteArrayRegion($1_array, 0, $1_size, (jbyte*)$1);
         }
-        else
-#endif
-        {
-            $result = jenv->NewStringUTF($1);
-        }
+        $1[$1_size] = '\0';
+    }
+%}
+
+%typemap(freearg) char*
+%{
+    if ($1)
+    {
+        delete [] $1;
+        jenv->DeleteLocalRef($1_array);
     }
 %}
 
@@ -119,20 +127,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     $input = 0;
     if ($1)
     {
-#ifdef __ANDROID__
-        if (sdkVersion < 23)
-        {
-            int len = strlen($1);
-            jbyteArray $1_array = jenv->NewByteArray(len);
-            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
-            $input = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
-            jenv->DeleteLocalRef($1_array);
-        }
-        else
-#endif
-        {
-            $input = jenv->NewStringUTF($1);
-        }
+        int len = strlen($1);
+        jbyteArray $1_array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+        $input = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+        jenv->DeleteLocalRef($1_array);
     }
     Swig::LocalRefGuard $1_refguard(jenv, $input);
 %}

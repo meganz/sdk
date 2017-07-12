@@ -308,7 +308,7 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -419,6 +419,9 @@ public:
 
     // send chat stats
     void sendchatstats(const char*);
+
+    // send chat logs with user's annonymous id
+    void sendchatlogs(const char*, const char*);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -1153,6 +1156,7 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 

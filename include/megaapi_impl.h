@@ -1658,6 +1658,7 @@ class MegaApiImpl : public MegaApp
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
+        bool createAvatar(const char* imagePath, const char *dstPath);
 
         bool isOnline();
 
@@ -1706,6 +1707,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -2136,6 +2138,7 @@ public:
     std::string nodehandle;
     std::string nodekey;
     std::string nodename;
+    m_off_t nodesize;
     int resultCode;
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);

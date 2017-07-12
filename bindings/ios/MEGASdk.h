@@ -3774,6 +3774,14 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
 
+/**
+ * @brief Create an avatar for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the avatar (including the file name)
+ * @return YES if the avatar was successfully created, otherwise NO.
+ */
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath;
+
 #ifdef HAVE_LIBUV
 
 #pragma mark - HTTP Proxy Server
