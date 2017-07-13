@@ -41,6 +41,7 @@
 #import "MEGATransferDelegate.h"
 #import "MEGAGlobalDelegate.h"
 #import "MEGALoggerDelegate.h"
+#import "MEGATreeProcessorDelegate.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -207,6 +208,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  *
  */
 @property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+
+/**
+ * @brief The total number of nodes in the account
+ */
+@property (readonly, nonatomic) NSUInteger totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -3623,6 +3629,18 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
+ * @param node The parent node of the tree to explore
+ * @param recursive YES if you want to recursively process the whole node tree.
+ * @param delegate MEGATreeProcessorDelegate that will receive callbacks for every node in the tree
+ * NO if you want to process the children of the node only
+ *
+ * @return YES if all nodes were processed. NO otherwise (the operation can be
+ * cancelled by [MEGATreeProcessorDelegate processMEGANode:])
+ */
+- (BOOL)processMEGANodeTree:(MEGANode *)node recvursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
 
 /**
  * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
