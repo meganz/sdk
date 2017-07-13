@@ -3640,7 +3640,7 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return YES if all nodes were processed. NO otherwise (the operation can be
  * cancelled by [MEGATreeProcessorDelegate processMEGANode:])
  */
-- (BOOL)processMEGANodeTree:(MEGANode *)node recvursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
+- (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
 
 /**
  * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk

@@ -26,7 +26,7 @@
  * @brief Protocol to process node trees
  *
  * An implementation of this class can be used to process a node tree passing a pointer to
- * [MEGASdk processMEGANodeTree:recvursive:delegate:]
+ * [MEGASdk processMEGANodeTree:recursive:delegate:]
  *
  * The implementation will receive callbacks from an internal worker thread.
  *
