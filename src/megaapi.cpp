@@ -2805,6 +2805,11 @@ MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
     return pImpl->getChildren(p, order);
 }
 
+MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
+{
+    return pImpl->getFileFolderChildren(p, order);
+}
+
 bool MegaApi::hasChildren(MegaNode *parent)
 {
     return pImpl->hasChildren(parent);
@@ -4481,4 +4486,24 @@ unsigned int MegaHandleList::size() const
 void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
 {
 
+}
+
+MegaChildrenLists::~MegaChildrenLists()
+{
+
+}
+
+MegaChildrenLists *MegaChildrenLists::copy()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFileList()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFolderList()
+{
+    return NULL;
 }
