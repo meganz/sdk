@@ -1098,7 +1098,8 @@ class MegaUser
             CHANGE_TYPE_PUBKEY_CU255    = 0x200,
             CHANGE_TYPE_PUBKEY_ED255    = 0x400,
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
-            CHANGE_TYPE_SIG_PUBKEY_CU25 = 0x1600
+            CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
+            CHANGE_TYPE_LANGUAGE        = 0x2000
         };
 
         /**
@@ -1147,8 +1148,11 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
          * Check if the user has new or modified signature for RSA public key
          *
-         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000
          * Check if the user has new or modified signature for Cu25519 public key
+         *
+         * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
+         * Check if the user has modified the preferred language
          *
          * @return true if this user has an specific change
          */
@@ -1198,8 +1202,11 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800
          * Check if the user has new or modified signature for RSA public key
          *
-         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1600
+         * - MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000
          * Check if the user has new or modified signature for Cu25519 public key
+         *
+         * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
+         * Check if the user has modified the preferred language
          */
         virtual int getChanges();
 
@@ -4495,10 +4502,9 @@ class MegaApi
             USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
             USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
             USER_ATTR_KEYRING = 7,              // private - byte array
-            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,  // public - byte array
-            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9 // public - byte array
-//            USER_ATTR_AUTHRSA = 8,
-//            USER_ATTR_AUTHCU255 =
+            USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
+            USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
+            USER_ATTR_LANGUAGE = 14             // private - char array
         };
 
         enum {
@@ -6079,6 +6085,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6124,6 +6132,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6166,6 +6176,8 @@ class MegaApi
          * Get the signature of RSA public key of the user (public)
          * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
          * Get the signature of Cu25519 public key of the user (public)
+         * MegaApi::USER_ATTR_LANGUAGE = 14
+         * Get the preferred language of the user (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6274,13 +6286,13 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user (public)
+         * Set the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user (public)
+         * Set the lastname of the user (public)
          * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
-         * Get the public key Ed25519 of the user (public)
+         * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
-         * Get the public key Cu25519 of the user (public)
+         * Set the public key Cu25519 of the user (public)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -9100,6 +9112,33 @@ class MegaApi
         bool setLanguage(const char* languageCode);
 
         /**
+         * @brief Set the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - Return the language code
+         *
+         * If the language code is unknown for the SDK, the error code will be MegaError::API_ENOENT
+         *
+         * This attribute is automatically created by the server. Apps only need
+         * to set the new value when the user changes the language.
+         *
+         * @param Language code to be set
+         * @param listener MegaRequestListener to track this request
+         */
+        void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Return the language code
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLanguagePreference(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Keep retrying when public key pinning fails
          *
          * By default, when the check of the MEGA public key fails, it causes an automatic
@@ -9228,6 +9267,14 @@ class MegaApi
          * @return True if the preview was successfully created, otherwise false.
          */
         bool createPreview(const char *imagePath, const char *dstPath);
+
+        /**
+         * @brief Create an avatar from an image
+         * @param imagePath Image path
+         * @param dstPath Destination path for the avatar (including the file name)
+         * @return True if the avatar was successfully created, otherwise false.
+         */
+        bool createAvatar(const char *imagePath, const char *dstPath);
 
         /**
          * @brief Convert a Base64 string to Base32
@@ -9861,6 +9908,9 @@ class MegaApi
          * @brief Send data related to MEGAchat to the stats server
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the data provided.
+         * - MegaRequest::getParamType - Returns number 1
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9872,6 +9922,27 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send logs related to MEGAchat to the logs server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the data provided.
+         * - MegaRequest::getSessionKey - Returns the aid provided
+         * - MegaRequest::getParamType - Returns number 2
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Return the HTTP status code from the stats server
+         * - MegaRequest::getText - Returns the JSON response from the stats server
+         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
+         *
+         * @param data JSON data to send to the logs server
+         * @param aid User's anonymous identifier for logging
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account

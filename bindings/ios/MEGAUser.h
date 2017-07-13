@@ -41,7 +41,8 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypePubKeyCu255    = 0x200,
     MEGAUserChangeTypePubKeyEd255    = 0x400,
     MEGAUserChangeTypeSigPubKeyRsa   = 0x800,
-    MEGAUserChangeTypeSigPubKeyCu255 = 0x1600
+    MEGAUserChangeTypeSigPubKeyCu255 = 0x1000,
+    MEGAUserChangeTypeLanguage       = 0x2000
 };
 
 /**
@@ -142,8 +143,11 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
  * Check if the user has new or modified signature for RSA public key
  *
- * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1600
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1000
  * Check if the user has new or modified signature for Cu25519 public key
+ *
+ * - MEGAUserChangeTypeLanguage        = 0x2000
+ * Check if the user has modified the preferred language
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 

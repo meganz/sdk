@@ -1169,7 +1169,11 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     }
     if(user->changed.sigCu255)
     {
-        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU25;
+        changed |= MegaUser::CHANGE_TYPE_SIG_PUBKEY_CU255;
+    }
+    if(user->changed.language)
+    {
+        changed |= MegaUser::CHANGE_TYPE_LANGUAGE;
     }
 }
 
@@ -4019,6 +4023,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_KEYRING:
             attrname = "*keyring";
             break;
+
+        case MegaApi::USER_ATTR_LANGUAGE:
+            attrname = "!lang";
+            break;
     }
 
     return attrname;
@@ -4047,6 +4055,10 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
             scope = '*';
+            break;
+
+        case MegaApi::USER_ATTR_LANGUAGE:
+            scope = '^';
             break;
 
         default:
@@ -6336,7 +6348,7 @@ char *MegaApiImpl::unescapeFsIncompatible(const char *name)
 
 bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
 {
-    if (!gfxAccess)
+    if (!gfxAccess || !imagePath || !dstPath)
     {
         return false;
     }
@@ -6350,7 +6362,8 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::THUMBNAIL120X120, &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL120X120][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL120X120][1], &localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -6358,7 +6371,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
 {
-    if (!gfxAccess)
+    if (!gfxAccess || !imagePath || !dstPath)
     {
         return false;
     }
@@ -6372,9 +6385,33 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::PREVIEW1000x1000, &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW1000x1000][0],
+            GfxProc::dimensions[GfxProc::PREVIEW1000x1000][1], &localDstPath);
     sdkMutex.unlock();
 
+    return result;
+}
+
+bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
+{
+    if (!gfxAccess || !imagePath || !dstPath)
+    {
+        return false;
+    }
+    
+    string utf8ImagePath = imagePath;
+    string localImagePath;
+    fsAccess->path2local(&utf8ImagePath, &localImagePath);
+    
+    string utf8DstPath = dstPath;
+    string localDstPath;
+    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    
+    sdkMutex.lock();
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
+            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
+    sdkMutex.unlock();
+    
     return result;
 }
 
@@ -6776,6 +6813,17 @@ void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
+    request->setParamType(1);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendChatLogs(const char *data, const char* aid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
+    request->setName(data);
+    request->setSessionKey(aid);
+    request->setParamType(2);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7500,7 +7548,32 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
 
 bool MegaApiImpl::setLanguage(const char *languageCode)
 {
-    if (!languageCode)
+    string code;
+    if (!getLanguageCode(languageCode, &code))
+    {
+        return false;
+    }
+
+    bool val;
+    sdkMutex.lock();
+    val = client->setlang(&code);
+    sdkMutex.unlock();
+    return val;
+}
+
+void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
+{
+    setUserAttr(MegaApi::USER_ATTR_LANGUAGE, languageCode, listener);
+}
+
+void MegaApiImpl::getLanguagePreference(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_LANGUAGE, NULL, listener);
+}
+
+bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
+{
+    if (!languageCode || !code)
     {
         return false;
     }
@@ -7511,120 +7584,121 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
         return false;
     }
 
+    code->clear();
     string s = languageCode;
     transform(s.begin(), s.end(), s.begin(), ::tolower);
 
-    JSON json;
-    string code;
-    nameid id = json.getnameid(s.c_str());
-    switch (id)
+    while (s.size() >= 2)
     {
-        // Regular language codes
-        case MAKENAMEID2('a', 'r'):
-        case MAKENAMEID2('b', 'g'):
-        case MAKENAMEID2('d', 'e'):
-        case MAKENAMEID2('e', 'n'):
-        case MAKENAMEID2('e', 's'):
-        case MAKENAMEID2('f', 'a'):
-        case MAKENAMEID2('f', 'i'):
-        case MAKENAMEID2('f', 'r'):
-        case MAKENAMEID2('h', 'e'):
-        case MAKENAMEID2('h', 'u'):
-        case MAKENAMEID2('i', 'd'):
-        case MAKENAMEID2('i', 't'):
-        case MAKENAMEID2('n', 'l'):
-        case MAKENAMEID2('p', 'l'):
-        case MAKENAMEID2('r', 'o'):
-        case MAKENAMEID2('r', 'u'):
-        case MAKENAMEID2('s', 'k'):
-        case MAKENAMEID2('s', 'l'):
-        case MAKENAMEID2('s', 'r'):
-        case MAKENAMEID2('t', 'h'):
-        case MAKENAMEID2('t', 'l'):
-        case MAKENAMEID2('t', 'r'):
-        case MAKENAMEID2('u', 'k'):
-        case MAKENAMEID2('v', 'i'):
+        JSON json;
+        nameid id = json.getnameid(s.c_str());
+        switch (id)
+        {
+            // Regular language codes
+            case MAKENAMEID2('a', 'r'):
+            case MAKENAMEID2('b', 'g'):
+            case MAKENAMEID2('d', 'e'):
+            case MAKENAMEID2('e', 'n'):
+            case MAKENAMEID2('e', 's'):
+            case MAKENAMEID2('f', 'a'):
+            case MAKENAMEID2('f', 'i'):
+            case MAKENAMEID2('f', 'r'):
+            case MAKENAMEID2('h', 'e'):
+            case MAKENAMEID2('h', 'u'):
+            case MAKENAMEID2('i', 'd'):
+            case MAKENAMEID2('i', 't'):
+            case MAKENAMEID2('n', 'l'):
+            case MAKENAMEID2('p', 'l'):
+            case MAKENAMEID2('r', 'o'):
+            case MAKENAMEID2('r', 'u'):
+            case MAKENAMEID2('s', 'k'):
+            case MAKENAMEID2('s', 'l'):
+            case MAKENAMEID2('s', 'r'):
+            case MAKENAMEID2('t', 'h'):
+            case MAKENAMEID2('t', 'l'):
+            case MAKENAMEID2('t', 'r'):
+            case MAKENAMEID2('u', 'k'):
+            case MAKENAMEID2('v', 'i'):
 
-        // Not used on apps
-        case MAKENAMEID2('c', 'z'):
-        case MAKENAMEID2('j', 'p'):
-        case MAKENAMEID2('k', 'r'):
-        case MAKENAMEID2('b', 'r'):
-        case MAKENAMEID2('s', 'e'):
-        case MAKENAMEID2('c', 'n'):
-        case MAKENAMEID2('c', 't'):
-            code = s;
-            break;
+            // Not used on apps
+            case MAKENAMEID2('c', 'z'):
+            case MAKENAMEID2('j', 'p'):
+            case MAKENAMEID2('k', 'r'):
+            case MAKENAMEID2('b', 'r'):
+            case MAKENAMEID2('s', 'e'):
+            case MAKENAMEID2('c', 'n'):
+            case MAKENAMEID2('c', 't'):
+                *code = s;
+                break;
 
-        // Conversions
-        case MAKENAMEID2('c', 's'):
-            code = "cz";
-            break;
+            // Conversions
+            case MAKENAMEID2('c', 's'):
+                *code = "cz";
+                break;
 
-        case MAKENAMEID2('j', 'a'):
-            code = "jp";
-            break;
+            case MAKENAMEID2('j', 'a'):
+                *code = "jp";
+                break;
 
-        case MAKENAMEID2('k', 'o'):
-            code = "kr";
-            break;
+            case MAKENAMEID2('k', 'o'):
+                *code = "kr";
+                break;
 
-        case MAKENAMEID2('p', 't'):
-        case MAKENAMEID5('p', 't', '_', 'b', 'r'):
-        case MAKENAMEID5('p', 't', '-', 'b', 'r'):
-        case MAKENAMEID5('p', 't', '_', 'p', 't'):
-        case MAKENAMEID5('p', 't', '-', 'p', 't'):
-            code = "br";
-            break;
+            case MAKENAMEID2('p', 't'):
+            case MAKENAMEID5('p', 't', '_', 'b', 'r'):
+            case MAKENAMEID5('p', 't', '-', 'b', 'r'):
+            case MAKENAMEID5('p', 't', '_', 'p', 't'):
+            case MAKENAMEID5('p', 't', '-', 'p', 't'):
+                *code = "br";
+                break;
 
-        case MAKENAMEID2('s', 'v'):
-            code = "se";
-            break;
+            case MAKENAMEID2('s', 'v'):
+                *code = "se";
+                break;
 
-        case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
-        case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
-        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
-        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
-            code = "cn";
-            break;
+            case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
+            case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
+            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
+            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
+                *code = "cn";
+                break;
 
-        case MAKENAMEID5('z', 'h', '_', 't', 'w'):
-        case MAKENAMEID5('z', 'h', '-', 't', 'w'):
-        case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
-        case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
-            code = "ct";
-            break;
+            case MAKENAMEID5('z', 'h', '_', 't', 'w'):
+            case MAKENAMEID5('z', 'h', '-', 't', 'w'):
+            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
+            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
+                *code = "ct";
+                break;
 
-        case MAKENAMEID2('i', 'n'):
-            code = "id";
-            break;
+            case MAKENAMEID2('i', 'n'):
+                *code = "id";
+                break;
 
-        case MAKENAMEID2('i', 'w'):
-            code = "he";
-            break;
+            case MAKENAMEID2('i', 'w'):
+                *code = "he";
+                break;
 
-        // Not supported in the web
-        case MAKENAMEID2('e', 'e'):
-        case MAKENAMEID2('h', 'r'):
-        case MAKENAMEID2('k', 'a'):
-            break;
+            // Not supported in the web
+            case MAKENAMEID2('e', 'e'):
+            case MAKENAMEID2('h', 'r'):
+            case MAKENAMEID2('k', 'a'):
+                break;
 
-        default:
-            LOG_warn << "Unknown language code: " << languageCode;
-            return false;
+            default:
+                LOG_debug << "Unknown language code: " << s.c_str();
+                break;
+        }
+
+        if (code->size())
+        {
+            return true;
+        }
+
+        s.resize(s.size() - 1);
     }
 
-    if (!code.size())
-    {
-        LOG_debug << "Unsupported language code: " << languageCode;
-        return true;
-    }
-
-    bool val;
-    sdkMutex.lock();
-    val = client->setlang(&code);
-    sdkMutex.unlock();
-    return val;
+    LOG_debug << "Unsupported language code: " << languageCode;
+    return false;
 }
 
 void MegaApiImpl::retrySSLerrors(bool enable)
@@ -10439,6 +10513,12 @@ void MegaApiImpl::putua_result(error e)
     }
 #endif
 
+    // if user just set the preferred language... change the GET param to the new language
+    if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
+    {
+        setLanguage(request->getText());
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -10499,6 +10579,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         // null-terminated char arrays
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
+        case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -13033,7 +13114,20 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_REMOVE:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());
-			if(!node) { e = API_EARGS; break; }
+
+            if (!node)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (node->type == ROOTNODE
+                    || node->type == INCOMINGNODE
+                    || node->type == RUBBISHNODE) // rootnodes cannot be deleted
+            {
+                e = API_EACCESS;
+                break;
+            }
 
 			e = client->unlink(node);
 			break;
@@ -13381,6 +13475,26 @@ void MegaApiImpl::sendPendingRequests()
                 delete container;
 
                 break;
+            }
+            else if (scope == '^')
+            {
+                if (!value || type != ATTR_LANGUAGE)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string code;
+                if (!getLanguageCode(value, &code))
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+
+                string valueB64;
+                Base64::btoa(code, valueB64);
+
+                client->putua(type, (byte *)valueB64.data(), valueB64.length());
             }
             else    // any other type of attribute
             {
@@ -14900,7 +15014,26 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->sendchatstats(json);
+            int type = request->getParamType();
+            if (type == 1)
+            {
+                client->sendchatstats(json);
+            }
+            else if (type == 2)
+            {
+                const char *aid = request->getSessionKey();
+                if (!aid)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                client->sendchatlogs(json, aid);
+            }
+            else
+            {
+                e = API_EARGS;
+            }
             break;
         }
 #endif

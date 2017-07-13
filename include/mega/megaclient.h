@@ -420,6 +420,9 @@ public:
     // send chat stats
     void sendchatstats(const char*);
 
+    // send chat logs with user's annonymous id
+    void sendchatlogs(const char*, const char*);
+
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
@@ -1153,6 +1156,7 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 

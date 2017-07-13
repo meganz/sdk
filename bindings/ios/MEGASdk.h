@@ -41,6 +41,7 @@
 #import "MEGATransferDelegate.h"
 #import "MEGAGlobalDelegate.h"
 #import "MEGALoggerDelegate.h"
+#import "MEGATreeProcessorDelegate.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -77,8 +78,17 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
-    MEGAUserAttributeFirstname = 1,
-    MEGAUserAttributeLastname  = 2
+    MEGAUserAttributeAvatar            = 0, // public - char array
+    MEGAUserAttributeFirstname         = 1, // public - char array
+    MEGAUserAttributeLastname          = 2, // public - char array
+    MEGAUserAttributeAuthRing          = 3, // private - byte array
+    MEGAUserAttributeLastInteraction   = 4, // private - byte array
+    MEGAUserAttributeED25519PublicKey  = 5, // public - char array
+    MEGAUserAttributeCU25519PublicKey  = 6, // public - char array
+    MEGAUserAttributeKeyring           = 7, // private - byte array
+    MEGAUserAttributeSigRsaPublicKey   = 8, // public - char array
+    MEGAUserAttributeSigCU255PublicKey = 9, // public - char array
+    MEGAUserAttributeLanguage          = 14 // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -198,6 +208,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  *
  */
 @property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+
+/**
+ * @brief The total number of nodes in the account
+ */
+@property (readonly, nonatomic) NSUInteger totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -2099,9 +2114,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -2125,9 +2142,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2149,9 +2168,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
@@ -2171,9 +2192,11 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2193,9 +2216,9 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  */
@@ -2214,9 +2237,9 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -3608,6 +3631,18 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
+ * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
+ * @param node The parent node of the tree to explore
+ * @param recursive YES if you want to recursively process the whole node tree.
+ * @param delegate MEGATreeProcessorDelegate that will receive callbacks for every node in the tree
+ * NO if you want to process the children of the node only
+ *
+ * @return YES if all nodes were processed. NO otherwise (the operation can be
+ * cancelled by [MEGATreeProcessorDelegate processMEGANode:])
+ */
+- (BOOL)processMEGANodeTree:(MEGANode *)node recvursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
+
+/**
  * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
  *
  * This function only allows to authorize file nodes.
@@ -3690,6 +3725,58 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 -(BOOL)setLanguageCode:(NSString *)languageCode;
 
 /**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ */
+- (void)getLanguagePreference;
+
+/**
  * @brief Create a thumbnail for an image
  * @param imagePath Image path
  * @param destinationPath Destination path for the thumbnail (including the file name)
@@ -3704,6 +3791,14 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return YES if the preview was successfully created, otherwise NO.
  */
 - (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
+/**
+ * @brief Create an avatar for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the avatar (including the file name)
+ * @return YES if the avatar was successfully created, otherwise NO.
+ */
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath;
 
 #ifdef HAVE_LIBUV
 

@@ -37,7 +37,7 @@ string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/msglog";
+string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
@@ -3152,8 +3152,22 @@ void MegaClient::sendchatstats(const char *json)
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    //FIXME: aid per app?
-    req->posturl.append("?aid=kn-asdasdsdf&t=e");
+    req->posturl.append("stats");
+    req->protect = true;
+    req->out->assign(json);
+    req->post(this);
+}
+
+void MegaClient::sendchatlogs(const char *json, const char *aid)
+{
+    GenericHttpReq *req = new GenericHttpReq();
+    req->tag = reqtag;
+    req->maxretries = 0;
+    pendinghttp[reqtag] = req;
+    req->posturl = CHATSTATSURL;
+    req->posturl.append("msglog?aid=");
+    req->posturl.append(aid);
+    req->posturl.append("&t=e");
     req->protect = true;
     req->out->assign(json);
     req->post(this);
@@ -7035,6 +7049,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         if (mit != umindex.end() && mit->second != hit->second && (users[mit->second].show != INACTIVE || users[mit->second].userhandle == me))
         {
             // duplicated user: one by email, one by handle
+            discardnotifieduser(&users[mit->second]);
             assert(!users[mit->second].sharing.size());
             users.erase(mit->second);
         }
@@ -7092,6 +7107,8 @@ void MegaClient::discarduser(handle uh)
         u->pkrs.pop_front();
     }
 
+    discardnotifieduser(u);
+
     umindex.erase(u->email);
     users.erase(uhindex[uh]);
     uhindex.erase(uh);
@@ -7116,6 +7133,8 @@ void MegaClient::discarduser(const char *email)
         delete pka;
         u->pkrs.pop_front();
     }
+
+    discardnotifieduser(u);
 
     uhindex.erase(u->userhandle);
     users.erase(umindex[email]);
@@ -7143,6 +7162,19 @@ void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
 {
     delete pcrindex[id];
     pcrindex[id] = pcr;
+}
+
+bool MegaClient::discardnotifieduser(User *u)
+{
+    for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
+    {
+        if (*it == u)
+        {
+            usernotify.erase(it);
+            return true;  // no duplicated users in the notify vector
+        }
+    }
+    return false;
 }
 
 // sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
@@ -7493,6 +7525,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "*" - Private and encrypted. Use a TLV container (key-value)
  * "#" - Protected and plain text, accessible only by contacts.
  * "+" - Public and plain text, accessible by anyone knowing userhandle
+ * "^" - Private and non-encrypted.
  *
  * @param an Attribute name.
  * @param av Attribute value.
