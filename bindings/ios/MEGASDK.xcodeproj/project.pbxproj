@@ -75,6 +75,7 @@
 		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
 		A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */ = {isa = PBXBuildFile; fileRef = A817900F1EFACE6400110E91 /* MEGAHandleList.mm */; };
 		A81790151EFADDDE00110E91 /* MEGAEvent.mm in Sources */ = {isa = PBXBuildFile; fileRef = A81790141EFADDDE00110E91 /* MEGAEvent.mm */; };
+		A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */; };
 		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 /* End PBXBuildFile section */
 
@@ -253,6 +254,9 @@
 		A81790121EFAD24F00110E91 /* MEGAHandleList+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAHandleList+init.h"; sourceTree = "<group>"; };
 		A81790131EFADDDE00110E91 /* MEGAEvent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAEvent.h; sourceTree = "<group>"; };
 		A81790141EFADDDE00110E91 /* MEGAEvent.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAEvent.mm; sourceTree = "<group>"; };
+		A8827A591F176BCA0097B5DE /* MEGATreeProcessorDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATreeProcessorDelegate.h; sourceTree = "<group>"; };
+		A8827A5A1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGATreeProcessorListener.h; sourceTree = "<group>"; };
+		A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGATreeProcessorListener.mm; sourceTree = "<group>"; };
 		A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAEvent+init.h"; sourceTree = "<group>"; };
 		A8FD7B611E93B3ED0031FC50 /* osxutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osxutils.h; path = osx/osxutils.h; sourceTree = "<group>"; };
 		A8FD7B631E93B40E0031FC50 /* osxutils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = osxutils.mm; path = ../../src/osx/osxutils.mm; sourceTree = "<group>"; };
@@ -383,6 +387,7 @@
 				940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */,
 				940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */,
 				41AD7A7B1A1E0F1B00D66856 /* MEGALoggerDelegate.h */,
+				A8827A591F176BCA0097B5DE /* MEGATreeProcessorDelegate.h */,
 				940BF08F19EDBD62007E7FA2 /* MEGANode.h */,
 				940BF00119ED97B9007E7FA2 /* MEGANode.mm */,
 				940BF09019EDBD62007E7FA2 /* MEGANodeList.h */,
@@ -524,6 +529,8 @@
 		940BF09B19EDBD62007E7FA2 /* Private */ = {
 			isa = PBXGroup;
 			children = (
+				A8827A5A1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.h */,
+				A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */,
 				41AD7A7D1A1E10F900D66856 /* DelegateMEGALoggerListener.h */,
 				41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */,
 				41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */,
@@ -701,6 +708,7 @@
 				41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */,
 				41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */,
 				A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */,
+				A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */,
 				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
 				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
