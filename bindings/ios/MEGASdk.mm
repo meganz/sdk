@@ -36,6 +36,7 @@
 #import "DelegateMEGAGlobalListener.h"
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
+#import "DelegateMEGATreeProcessorListener.h"
 #import "MEGAInputStream.h"
 
 #import <set>
@@ -110,6 +111,10 @@ using namespace mega;
 
 - (NSNumber *)totalsUploadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
+}
+
+- (NSUInteger)totalNodes {
+    return self.megaApi->getNumNodes();
 }
 
 - (NSString *)masterKey {
@@ -1331,6 +1336,10 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {    
+    return self.megaApi->processMegaTree(node ? [node getCPtr] : NULL, [self createMegaTreeProcessor:delegate], recursive);
+}
+
 - (MEGANode *)authorizeNode:(MEGANode *)node {
     return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeNode((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
@@ -1371,6 +1380,22 @@ using namespace mega;
     return self.megaApi->setLanguage(languageCode ? [languageCode UTF8String] : NULL);
 }
 
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setLanguangePreferenceCode:(NSString *)languageCode {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL);
+}
+
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getLanguagePreference([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getLanguagePreference {
+    self.megaApi->getLanguagePreference();
+}
+
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
     if (imagePath == nil || destinationPath == nil) return NO;
     
@@ -1381,6 +1406,12 @@ using namespace mega;
     if (imagePath == nil || destinationPath == nil) return NO;
     
     return self.megaApi->createPreview([imagePath UTF8String], [destinationPath UTF8String]);
+}
+
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath {
+    if (imagePath == nil || destinationPath == nil) return NO;
+    
+    return self.megaApi->createAvatar([imagePath UTF8String], [destinationPath UTF8String]);
 }
 
 #ifdef HAVE_LIBUV
@@ -1550,6 +1581,14 @@ using namespace mega;
     pthread_mutex_lock(&listenerMutex);
     _activeLoggerListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaTreeProcessor *)createMegaTreeProcessor:(id<MEGATreeProcessorDelegate>)delegate {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGATreeProcessorListener *delegateListener = new DelegateMEGATreeProcessorListener(delegate);
+    
     return delegateListener;
 }
 

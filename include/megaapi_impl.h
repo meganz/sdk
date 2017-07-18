@@ -1633,6 +1633,9 @@ class MegaApiImpl : public MegaApp
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
         bool setLanguage(const char* languageCode);
+        void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
+        void getLanguagePreference(MegaRequestListener *listener = NULL);
+        bool getLanguageCode(const char* languageCode, std::string* code);
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();
@@ -1655,6 +1658,7 @@ class MegaApiImpl : public MegaApp
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
+        bool createAvatar(const char* imagePath, const char *dstPath);
 
         bool isOnline();
 
@@ -1703,6 +1707,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);

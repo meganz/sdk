@@ -1551,7 +1551,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (reset)
     {
-        LOG_err << "Error in c-ares. Reinitializing...";
+        LOG_debug << "Error in c-ares. Reinitializing...";
         reset = false;
         ares_destroy(ares);
         struct ares_options options;
