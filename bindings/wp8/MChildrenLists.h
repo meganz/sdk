@@ -1,6 +1,6 @@
 /**
-* @file MNodeList.h
-* @brief List of MNode objects.
+* @file MChildrenLists.h
+* @brief Lists of file and folder children MegaNode objects.
 *
 * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
 *
@@ -21,30 +21,28 @@
 
 #pragma once
 
-#include "MNode.h"
+#include "MNodeList.h"
 
 #include "megaapi.h"
 
 namespace mega
 {
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	public ref class MNodeList sealed
-	{
-		friend ref class MegaSDK;
-        friend ref class MChildrenLists;
-		friend class DelegateMListener;
-		friend class DelegateMGlobalListener;
+    public ref class MChildrenLists sealed
+    {
+        friend ref class MegaSDK;
 
-	public:
-		virtual ~MNodeList();
-		MNode^ get(int i);
-		int size();
+    public:
+        virtual ~MChildrenLists();
+        MChildrenLists^ copy();
+        MNodeList^ getFolderList();
+        MNodeList^ getFileList();
 
-	private:
-		MNodeList(MegaNodeList *nodeList, bool cMemoryOwn);
-		MegaNodeList *nodeList;
-		bool cMemoryOwn;
-	};
+    private:
+        MChildrenLists(MegaChildrenLists *childrenLists, bool cMemoryOwn);
+        MegaChildrenLists *childrenLists;
+        bool cMemoryOwn;
+    };
 }
