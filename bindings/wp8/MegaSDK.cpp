@@ -2905,6 +2905,16 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent)
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
 }
 
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent, int order)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL, order), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
 bool MegaSDK::hasChildren(MNode^ parent)
 {
     return megaApi->hasChildren((parent != nullptr) ? parent->getCPtr() : NULL);

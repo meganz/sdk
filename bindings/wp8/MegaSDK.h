@@ -52,6 +52,7 @@
 #include "MContactRequestList.h"
 #include "MInputStreamAdapter.h"
 #include "MInputStream.h"
+#include "MChildrenLists.h"
 
 #include <megaapi.h>
 #include <set>
@@ -450,6 +451,8 @@ namespace mega
         int getNumChildFolders(MNode^ parent);
         MNodeList^ getChildren(MNode^ parent, int order);
         MNodeList^ getChildren(MNode^ parent);
+        MChildrenLists^ getFileFolderChildren(MNode^ parent, int order);
+        MChildrenLists^ getFileFolderChildren(MNode^ parent);
         bool hasChildren(MNode^ parent);
         int getIndex(MNode^ node, int order);
         int getIndex(MNode^ node);

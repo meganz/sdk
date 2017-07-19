@@ -243,6 +243,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaTransferList::copy;
 %newobject mega::MegaNode::copy;
 %newobject mega::MegaNodeList::copy;
+%newobject mega::MegaChildrenList::copy;
 %newobject mega::MegaShare::copy;
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
