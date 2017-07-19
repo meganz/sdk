@@ -43,10 +43,10 @@ MChildrenLists^ MChildrenLists::copy()
 
 MNodeList^ MChildrenLists::getFolderList()
 {
-    return childrenLists ? ref new MNodeList(childrenLists->getFolderList(), true) : nullptr;
+    return childrenLists ? ref new MNodeList(childrenLists->getFolderList()->copy(), true) : nullptr;
 }
 
 MNodeList^ MChildrenLists::getFileList()
 {
-    return childrenLists ? ref new MNodeList(childrenLists->getFileList(), true) : nullptr;
+    return childrenLists ? ref new MNodeList(childrenLists->getFileList()->copy(), true) : nullptr;
 }
