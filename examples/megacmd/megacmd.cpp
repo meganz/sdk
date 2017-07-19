@@ -1135,7 +1135,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "ls"))
     {
+#ifdef USE_PCRE
         return "ls [-lRr] [remotepath] [--use-pcre]";
+#else
+        return "ls [-lRr] [remotepath]";
+#endif
     }
     if (!strcmp(command, "cd"))
     {
@@ -1147,7 +1151,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "du"))
     {
+#ifdef USE_PCRE
         return "du [-h] [remotepath remotepath2 remotepath3 ... ] [--use-pcre]";
+#else
+        return "du [-h] [remotepath remotepath2 remotepath3 ... ]";
+#endif
     }
     if (!strcmp(command, "pwd"))
     {
@@ -1175,7 +1183,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
+#ifdef USE_PCRE
         return "get [-m] [-q] [--ignore-quota-warn] [--use-pcre] exportedlink#key|remotepath [localpath]";
+#else
+        return "get [-m] [-q] [--ignore-quota-warn] exportedlink#key|remotepath [localpath]";
+#endif
     }
     if (!strcmp(command, "getq"))
     {
@@ -1199,7 +1211,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "rm"))
     {
+#ifdef USE_PCRE
         return "rm [-r] [-f] [--use-pcre] remotepath";
+#else
+        return "rm [-r] [-f] remotepath";
+#endif
     }
     if (!strcmp(command, "mv"))
     {
@@ -1219,11 +1235,19 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "export"))
     {
+#ifdef USE_PCRE
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath] [--use-pcre]";
+#else
+        return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
+#endif
     }
     if (!strcmp(command, "share"))
     {
+#ifdef USE_PCRE
         return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath] [--use-pcre]";
+#else
+        return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath]";
+#endif
     }
     if (!strcmp(command, "invite"))
     {
@@ -1339,7 +1363,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "find"))
     {
+#ifdef USE_PCRE
         return "find [remotepath] [-l] [--pattern=PATTERN] [--use-pcre]";
+#else
+        return "find [remotepath] [-l] [--pattern=PATTERN]";
+#endif
     }
     if (!strcmp(command, "help"))
     {

@@ -28,7 +28,14 @@ void MegaCmdShellCommunicationsNamedPipes::closeNamedPipe(HANDLE namedPipe){
 
 HANDLE MegaCmdShellCommunicationsNamedPipes::doOpenPipe(wstring nameOfPipe)
 {
-    if (nameOfPipe != L"\\\\.\\pipe\\megacmdpipe")
+    wchar_t username[UNLEN+1];
+    DWORD username_len = UNLEN+1;
+    GetUserNameW(username, &username_len);
+    wstring serverPipeName(L"\\\\.\\pipe\\megacmdpipe");
+    serverPipeName += L"_";
+    serverPipeName += username;
+
+    if (nameOfPipe != serverPipeName)
     {
         if (!WaitNamedPipeW(nameOfPipe.c_str(),8000)) //TODO: use a real time and report timeout error.
         {
@@ -55,9 +62,12 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
 
     wchar_t username[UNLEN+1];
     DWORD username_len = UNLEN+1;
-    GetUserNameW(username, &username_len); //TODO: use username!
+    GetUserNameW(username, &username_len);
 
     nameOfPipe += L"\\\\.\\pipe\\megacmdpipe";
+    nameOfPipe += L"_";
+    nameOfPipe += username;
+
     if (number)
     {
         nameOfPipe += std::to_wstring(number);

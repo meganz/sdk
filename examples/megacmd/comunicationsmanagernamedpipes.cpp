@@ -78,9 +78,12 @@ HANDLE ComunicationsManagerNamedPipes::create_new_namedPipe(int *pipeId)
     {
         wchar_t username[UNLEN+1];
         DWORD username_len = UNLEN+1;
-        GetUserNameW(username, &username_len); //TODO: use username in pipe name
+        GetUserNameW(username, &username_len);
 
         nameOfPipe += L"\\\\.\\pipe\\megacmdpipe";
+        nameOfPipe += L"_";
+        nameOfPipe += username;
+
         if (*pipeId)
         {
             nameOfPipe += std::to_wstring(*pipeId);
@@ -130,8 +133,12 @@ int ComunicationsManagerNamedPipes::initialize()
 
     petitionready = false;
 
+    wchar_t username[UNLEN+1];
+    DWORD username_len = UNLEN+1;
+    GetUserNameW(username, &username_len); //TODO: use username in pipe name
     wstring nameOfPipe (L"\\\\.\\pipe\\megacmdpipe");
-//    wcerr << " creating pipe named: " << nameOfPipe << endl; //TODO: delete
+    nameOfPipe += L"_";
+    nameOfPipe += username;
 
     pipeGeneral = doCreatePipe(nameOfPipe);
 
