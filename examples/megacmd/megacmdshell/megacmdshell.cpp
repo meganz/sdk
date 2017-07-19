@@ -22,6 +22,7 @@
 
 #include "megacmdshell.h"
 #include "megacmdshellcommunications.h"
+#include "megacmdshellcommunicationsnamedpipes.h"
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -1198,7 +1199,7 @@ void readloop()
     //give it a while to communicate the state
     sleepMicroSeconds(1);
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(USE_PORT_COMMS)
     // due to a failure in reconnecting to the socket, if the server was initiated in while registeringForStateChanges
     // in windows we would not be yet connected. we need to manually try to register again.
     if (comms->registerAgainRequired)
@@ -1479,7 +1480,11 @@ int main(int argc, char* argv[])
 #endif
 
     // intialize the comms object
+#ifdef _WIN32 && !defined(USE_PORT_COMMS)
+    comms = new MegaCmdShellCommunicationsNamedPipes();
+#else
     comms = new MegaCmdShellCommunications();
+#endif
 
 #if _WIN32
     if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )

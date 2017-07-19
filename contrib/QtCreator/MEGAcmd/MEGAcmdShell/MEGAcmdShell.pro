@@ -14,10 +14,12 @@ TEMPLATE = app
 CONFIG += console
 
 SOURCES += ../../../../examples/megacmd/megacmdshell/megacmdshell.cpp \
-    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.cpp
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.cpp \
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp
 
 HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshell.h \
-    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.h
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.h \
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h
 
 win32 {
 DEFINES += USE_READLINE_STATIC

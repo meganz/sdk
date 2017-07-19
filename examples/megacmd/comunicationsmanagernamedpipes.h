@@ -18,8 +18,8 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#ifndef COMUNICATIONSMANAGERPORTSOCKETS_H
-#define COMUNICATIONSMANAGERPORTSOCKETS_H
+#ifndef COMUNICATIONSMANAGERNAMEDPIPES_H
+#define COMUNICATIONSMANAGERNAMEDPIPES_H
 
 #include "comunicationsmanager.h"
 
@@ -49,9 +49,8 @@ private:
     bool petitionready;
 
     // namedPipes and asociated variables
-    HANDLE pipeGeneral, newsockfd;
+    HANDLE pipeGeneral;
 
-    HANDLE sockfd_event_handle;
     static bool ended;
 
     char buffer[1024];

@@ -49,7 +49,6 @@ void MegaCmdShellCommunications::closeSocket(int socket){
 #endif
 }
 
-
 string createAndRetrieveConfigFolder()
 {
     string configFolder;
@@ -99,7 +98,6 @@ string createAndRetrieveConfigFolder()
 #endif
 
     return configFolder;
-
 }
 
 
@@ -330,6 +328,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
     return INVALID_SOCKET;
 
 #endif
+    return INVALID_SOCKET;
 }
 
 MegaCmdShellCommunications::MegaCmdShellCommunications()
@@ -361,77 +360,8 @@ MegaCmdShellCommunications::MegaCmdShellCommunications()
 }
 
 
-int MegaCmdShellCommunications::executeCommandCompletion(string command, ostringstream &output)
-{
-    int thesock = createSocket();
-    if (thesock == INVALID_SOCKET)
-    {
-        return INVALID_SOCKET;
-    }
-
-    command="X"+command;
-
 #ifdef _WIN32
-    // 1 - get local wide chars string (utf8 -> utf16)
-    wstring wcommand;
-    stringtolocalw(command.c_str(),&wcommand);
-
-    int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
-#else
-    int n = send(thesock,command.data(),command.size(), MSG_NOSIGNAL);
-#endif
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
-        return -1;
-    }
-
-    int receiveSocket = SOCKET_ERROR ;
-
-    n = recv(thesock, (char *)&receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output socket" << endl;
-        return -1;
-    }
-
-    int newsockfd =createSocket(receiveSocket);
-    if (newsockfd == INVALID_SOCKET)
-        return INVALID_SOCKET;
-
-    int outcode = -1;
-
-    n = recv(newsockfd, (char *)&outcode, sizeof(outcode), MSG_NOSIGNAL);
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output code: " << ERRNO << endl;
-        return -1;
-    }
-
-    int BUFFERSIZE = 1024;
-    char buffer[1025];
-    do{
-        n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
-        if (n)
-        {
-            buffer[n]='\0';
-            output << buffer;
-        }
-    } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
-
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output: " << ERRNO << endl;
-        return -1;;
-    }
-
-    closeSocket(newsockfd);
-    closeSocket(thesock);
-    return outcode;
-}
-
-#ifdef _WIN32
-std::string to_utf8(uint32_t cp)
+std::string to_utf8(uint32_t cp) //TODO: move this to a common place
 {
 //    // c++11
 //    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
@@ -541,7 +471,7 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
 #endif
     if (n == SOCKET_ERROR)
     {
-        cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
+        cerr << "ERROR writing command to socket: " << ERRNO << endl;
         return -1;
     }
 
@@ -584,7 +514,7 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
         n = send(newsockfd, (const char *) &response, sizeof(response), MSG_NOSIGNAL);
         if (n == SOCKET_ERROR)
         {
-            cerr << "ERROR writing confirm response to to socket: " << ERRNO << endl;
+            cerr << "ERROR writing confirm response to socket: " << ERRNO << endl;
             return -1;
         }
 

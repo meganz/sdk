@@ -122,8 +122,13 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
 #endif
 
 #ifdef _WIN32
+#ifdef USE_PORT_COMMS
 #include "comunicationsmanagerportsockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerPortSockets
+#else
+#include "comunicationsmanagernamedpipes.h"
+#define COMUNICATIONMANAGER ComunicationsManagerNamedPipes
+#endif
 #else
 #include "comunicationsmanagerfilesockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerFileSockets

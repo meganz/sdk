@@ -44,13 +44,11 @@ public:
     MegaCmdShellCommunications();
     ~MegaCmdShellCommunications();
 
-    int executeCommand(std::string command, OUTSTREAMTYPE &output = COUT);
-    int executeCommandCompletion(std::string command, std::ostringstream &output);
+    virtual int executeCommand(std::string command, OUTSTREAMTYPE &output = COUT);
 
+    virtual int registerForStateChanges();
 
-    static int registerForStateChanges();
-
-    void setResponseConfirmation(bool confirmation);
+    virtual void setResponseConfirmation(bool confirmation);
 
     static bool serverinitiatedfromshell;
     static bool registerAgainRequired;

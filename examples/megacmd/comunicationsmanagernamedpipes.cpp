@@ -78,16 +78,13 @@ HANDLE ComunicationsManagerNamedPipes::create_new_namedPipe(int *pipeId)
     {
         wchar_t username[UNLEN+1];
         DWORD username_len = UNLEN+1;
-        GetUserNameW(username, &username_len);
+        GetUserNameW(username, &username_len); //TODO: use username in pipe name
 
-        //TODO: review this
         nameOfPipe += L"\\\\.\\pipe\\megacmdpipe";
-        nameOfPipe += nameOfPipe;
         if (*pipeId)
         {
             nameOfPipe += std::to_wstring(*pipeId);
         }
-        wcerr << " creating pipe named: " << nameOfPipe << endl; //TODO: delete
 
         // Create a pipe to send data
         thepipe = doCreatePipe(nameOfPipe);
@@ -102,7 +99,7 @@ HANDLE ComunicationsManagerNamedPipes::create_new_namedPipe(int *pipeId)
             }
             if (attempts !=10)
             {
-                LOG_fatal << "ERROR opening namedPipe ID=" << pipeId << " errno: " << errno << ". Attempts: " << attempts;
+                LOG_fatal << "ERROR opening namedPipe ID=" << pipeId << " errno: " << ERRNO << ". Attempts: " << attempts;
             }
             sleepMicroSeconds(500);
         }
@@ -134,8 +131,7 @@ int ComunicationsManagerNamedPipes::initialize()
     petitionready = false;
 
     wstring nameOfPipe (L"\\\\.\\pipe\\megacmdpipe");
-    nameOfPipe += nameOfPipe;
-    wcerr << " creating pipe named: " << nameOfPipe << endl; //TODO: delete
+//    wcerr << " creating pipe named: " << nameOfPipe << endl; //TODO: delete
 
     pipeGeneral = doCreatePipe(nameOfPipe);
 
@@ -158,16 +154,18 @@ int ComunicationsManagerNamedPipes::waitForPetition()
     petitionready = false;
     if (!ConnectNamedPipe(pipeGeneral, NULL))
     {
-        if (errno == EADDRINUSE) //TODO: review errors
+        if (ERRNO == ERROR_PIPE_CONNECTED)
         {
-            LOG_fatal << "ERROR on connecting to namedPipe: Already in use";
+            LOG_debug << "Client arrived first when connecting to pipeGeneral.";
         }
         else
         {
             LOG_fatal << "ERROR on connecting to namedPipe. errno: " << ERRNO;
+            sleepMicroSeconds(1000);
+            pipeGeneral = INVALID_HANDLE_VALUE;
+            return false;
         }
-        pipeGeneral = INVALID_HANDLE_VALUE;
-        return false;
+
     }
     petitionready = true;
     return true;
@@ -202,11 +200,13 @@ void ComunicationsManagerNamedPipes::returnAndClosePetition(CmdPetition *inf, OU
     int attempts = 10;
     while (--attempts && !connectsucceeded)
     {
-        if (!ConnectNamedPipe(outNamedPipe, NULL)) //TODO: read thepipe from inf
+        if (!ConnectNamedPipe(outNamedPipe, NULL))
         {
-            if (errno == EADDRINUSE)
+            if (ERRNO == ERROR_PIPE_CONNECTED)
             {
-                LOG_warn << "ERROR on connecting to namedPipe " << outNamedPipe << ": Already in use. Attempts: " << attempts;
+                LOG_verbose << "Client arrived first when connecting to namedPipe " << outNamedPipe;
+                connectsucceeded = true;
+                break;
             }
             else
             {
@@ -237,7 +237,7 @@ void ComunicationsManagerNamedPipes::returnAndClosePetition(CmdPetition *inf, OU
 
     string sutf8;
     localwtostring(&sout,&sutf8);
-    if (!WriteFile(outNamedPipe,sutf8.data(), sutf8.size(), &n, NULL))
+    if (!WriteFile(outNamedPipe,sutf8.data(), max(1,(int)sutf8.size()), &n, NULL)) // client does not like empty responses
     {
         LOG_err << "ERROR writing to namedPipe: " << ERRNO;
     }
@@ -248,89 +248,42 @@ void ComunicationsManagerNamedPipes::returnAndClosePetition(CmdPetition *inf, OU
 
 int ComunicationsManagerNamedPipes::informStateListener(CmdPetition *inf, string &s)
 {
-    return 1; //TODO: implement this
-//    LOG_verbose << "Inform State Listener: Output to write in namedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe << ": <<" << s << ">>";
+    LOG_verbose << "Inform State Listener: Output to write in namedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe << ": <<" << s << ">>";
+    HANDLE outNamedPipe = ((CmdPetitionNamedPipes *)inf)->outNamedPipe;
 
-//    sockaddr_in cliAddr;
-//    socklen_t cliLength = sizeof( cliAddr );
+    if (!ConnectNamedPipe(outNamedPipe, NULL))
+    {
+        if (ERRNO == ERROR_PIPE_CONNECTED)
+        {
+            LOG_debug << "Client arrived first when connecting to namedPipe to inform state. " << outNamedPipe;
+        }
+        else if(ERRNO == ERROR_NO_DATA)
+        {
+            LOG_debug << "Client probably disconnected: " << outNamedPipe;
+            return -1;
+        }
+        else
+        {
+            LOG_fatal << "ERROR on connecting to namedPipe " << outNamedPipe << ". errno: " << ERRNO;
+            return -1;
+        }
+    }
 
-//    static map<int,int> connectednamedPipes;
+    DWORD n;
+    if (!WriteFile(outNamedPipe, s.data(), s.size(), &n, NULL))
+    {
+        if (ERRNO == 32) //namedPipe closed
+        {
+            LOG_debug << "namedPipe closed. Client probably disconnected. Original petition: " << *inf;
+            return -1;
+        }
+        else
+        {
+            LOG_err << "ERROR writing to namedPipe to inform state: " << ERRNO;
+        }
+    }
 
-//    int connectednamedPipe = -1;
-//    if (connectednamedPipes.find(((CmdPetitionNamedPipes *)inf)->outNamedPipe) == connectednamedPipes.end())
-//    {
-//        //select with timeout and accept non-blocking, so that things don't get stuck
-//        fd_set set;
-//        FD_ZERO(&set);
-//        FD_SET(((CmdPetitionNamedPipes *)inf)->outNamedPipe, &set);
-
-//        struct timeval timeout;
-//        timeout.tv_sec = 0;
-//        timeout.tv_usec = 4000000;
-//        int rv = select(((CmdPetitionNamedPipes *)inf)->outNamedPipe+1, &set, NULL, NULL, &timeout);
-//        if(rv == -1)
-//        {
-//            LOG_err << "Informing state listener: Unable to select on outnamedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe << " error: " << errno;
-//            return -1;
-//        }
-//        else if(rv == 0)
-//        {
-//            LOG_warn << "Informing state listener: timeout in select on outnamedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe;
-//        }
-//        else
-//        {
-//#ifndef _WIN32
-//            int oldfl = fcntl(sockfd, F_GETFL);
-//            fcntl(((CmdPetitionNamedPipes *)inf)->outNamedPipe, F_SETFL, oldfl | O_NONBLOCK);
-//#endif
-//            connectednamedPipe = accept(((CmdPetitionNamedPipes *)inf)->outNamedPipe, (struct sockaddr*)&cliAddr, &cliLength);
-//#ifndef _WIN32
-//            fcntl(((CmdPetitionNamedPipes *)inf)->outNamedPipe, F_SETFL, oldfl);
-//#endif
-//        }
-//        connectednamedPipes[((CmdPetitionNamedPipes *)inf)->outNamedPipe] = connectednamedPipe;
-//    }
-//    else
-//    {
-//        connectednamedPipe = connectednamedPipes[((CmdPetitionNamedPipes *)inf)->outNamedPipe];
-//    }
-
-//    if (connectednamedPipe == -1)
-//    {
-//        if (errno == 32) //namedPipe closed
-//        {
-//            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
-//            closeNamedPipe(connectednamedPipe);
-//            connectednamedPipes.erase(((CmdPetitionNamedPipes *)inf)->outNamedPipe);
-//            return -1;
-//        }
-//        else
-//        {
-//            LOG_err << "Informing state listener: Unable to accept on outnamedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe << " error: " << errno;
-//        }
-//        return 0;
-//    }
-
-//#ifdef __MACH__
-//#define MSG_NOSIGNAL 0
-//#endif
-
-//    int n = send(connectednamedPipe, s.data(), s.size(), MSG_NOSIGNAL);
-//    if (n < 0)
-//    {
-//        if (errno == 32) //namedPipe closed
-//        {
-//            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
-//            connectednamedPipes.erase(((CmdPetitionNamedPipes *)inf)->outNamedPipe);
-//            return -1;
-//        }
-//        else
-//        {
-//            LOG_err << "ERROR writing to namedPipe: " << errno;
-//        }
-//    }
-
-//    return 0;
+    return 0;
 }
 
 /**
@@ -344,7 +297,8 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
     wchar_t wbuffer[1024]= {};
 
     DWORD n;
-    if (!ReadFile(pipeGeneral, wbuffer, 1023 * sizeof(wchar_t), &n, NULL ) )  //TODO: msjs > 1023? review file & port sockets
+    bool readok = ReadFile(pipeGeneral, wbuffer, 1023 * sizeof(wchar_t), &n, NULL );
+    if (!readok)  //TODO: msjs > 1023?
     {
         LOG_err << "Failed to read petition from named pipe. errno: L" << ERRNO;
         inf->line = strdup("ERROR");
@@ -352,15 +306,9 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
     }
 
     string receivedutf8;
-    if (n != SOCKET_ERROR)
-    {
-        wbuffer[n]='\0';
-        localwtostring(&wstring(wbuffer),&receivedutf8);
-    }
-    else
-    {
-        LOG_warn << "Received empty command from client at getPetition: ";
-    }
+
+    wbuffer[n]='\0';
+    localwtostring(&wstring(wbuffer),&receivedutf8);
 
     int namedPipe_id = 0; // this value shouldn't matter
     inf->outNamedPipe = create_new_namedPipe(&namedPipe_id);
@@ -390,36 +338,26 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
 
 bool ComunicationsManagerNamedPipes::getConfirmation(CmdPetition *inf, string message)
 {
-    return false;
-    //TODO: implement this
-//    sockaddr_in cliAddr;
-//    socklen_t cliLength = sizeof( cliAddr );
-//    int connectednamedPipe = ((CmdPetitionNamedPipes *)inf)->acceptedOutNamedPipe;
-//    if (connectednamedPipe == -1)
-//        connectednamedPipe = accept(((CmdPetitionNamedPipes *)inf)->outNamedPipe, (struct sockaddr*)&cliAddr, &cliLength);
-//     ((CmdPetitionNamedPipes *)inf)->acceptedOutNamedPipe = connectednamedPipe;
-//    if (connectednamedPipe == -1)
-//    {
-//        LOG_fatal << "Getting Confirmation: Unable to accept on outnamedPipe " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe << " error: " << errno;
-//        delete inf;
-//        return false;
-//    }
+    HANDLE outNamedPipe = ((CmdPetitionNamedPipes *)inf)->outNamedPipe;
 
-//    int outCode = MCMD_REQCONFIRM;
-//    int n = send(connectednamedPipe, (const char *)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
-//    if (n < 0)
-//    {
-//        LOG_err << "ERROR writing output Code to namedPipe: " << errno;
-//    }
-//    n = send(connectednamedPipe, message.data(), max(1,(int)message.size()), MSG_NOSIGNAL); // for some reason without the max recv never quits in the client for empty responses
-//    if (n < 0)
-//    {
-//        LOG_err << "ERROR writing to namedPipe: " << errno;
-//    }
+    int outCode = MCMD_REQCONFIRM;
+    DWORD n;
+    if (!WriteFile(outNamedPipe, (const char *)&outCode, sizeof( outCode ), &n, NULL))
+    {
+        LOG_err << "ERROR writing output Code to namedPipe: " << ERRNO;
+    }
 
-//    bool response;
-//    n = recv(connectednamedPipe,(char *)&response, sizeof(response), MSG_NOSIGNAL);
-//    return response;
+    if (!WriteFile(outNamedPipe, message.data(), max(1,(int)message.size()), &n, NULL) )
+    {
+        LOG_err << "ERROR writing to namedPipe: " << ERRNO;
+    }
+
+    bool response = false;
+    if (!ReadFile(outNamedPipe,(char *)&response, sizeof(response), &n, NULL))
+    {
+        LOG_err << "ERROR receiving confirmation response: " << ERRNO;
+    }
+    return response;
 }
 
 string ComunicationsManagerNamedPipes::get_petition_details(CmdPetition *inf)
@@ -428,7 +366,6 @@ string ComunicationsManagerNamedPipes::get_petition_details(CmdPetition *inf)
     os << "namedPipe output: " << ((CmdPetitionNamedPipes *)inf)->outNamedPipe;
     return os.str();
 }
-
 
 ComunicationsManagerNamedPipes::~ComunicationsManagerNamedPipes()
 {
