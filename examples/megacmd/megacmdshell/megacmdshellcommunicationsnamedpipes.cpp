@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #include "megacmdshell.h"
 #include "megacmdshellcommunicationsnamedpipes.h"
 
@@ -405,3 +406,4 @@ MegaCmdShellCommunicationsNamedPipes::~MegaCmdShellCommunicationsNamedPipes()
         listenerThread->join();
     }
 }
+#endif
