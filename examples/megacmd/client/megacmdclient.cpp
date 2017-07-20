@@ -19,69 +19,29 @@
  * program.
  */
 
+#include "../megacmdshell/megacmdshellcommunications.h"
+#include "../megacmdshell/megacmdshellcommunicationsnamedpipes.h"
+
 #include <stdio.h>
 #include <iostream>
-#include <errno.h>
 #include <string>
 #include <vector>
 #include <memory.h>
 #include <limits.h>
 
 #ifdef _WIN32
-#include <WinSock2.h>
 #include <Shlwapi.h> //PathAppend
 #include <Shellapi.h> //CommandLineToArgvW
 
 #include <fcntl.h>
 #include <io.h>
 #else
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
 #endif
 #define MEGACMDINITIALPORTNUMBER 12300
 
-
-#ifdef _WIN32
-#include <windows.h>
-#define ERRNO WSAGetLastError()
-#else
-#define ERRNO errno
-#endif
-
-#ifndef SOCKET_ERROR
-#define SOCKET_ERROR -1
-#endif
-
-#ifdef __MACH__
-#define MSG_NOSIGNAL 0
-#elif _WIN32
-#define MSG_NOSIGNAL 0
-#endif
-
-
-bool socketValid(int socket)
-{
-#ifdef _WIN32
-    return socket != INVALID_SOCKET;
-#else
-    return socket >= 0;
-#endif
-}
-
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-void closeSocket(int socket){
-#ifdef _WIN32
-    closesocket(socket);
-#else
-    close(socket);
-#endif
-}
 
 using namespace std;
 
@@ -199,8 +159,6 @@ wstring getWAbsPath(wstring localpath)
    return absolutelocalpath;
 
 }
-
-
 #endif
 
 
@@ -565,95 +523,6 @@ wstring parsewArgs(int argc, wchar_t* argv[])
 }
 #endif
 
-#ifdef _WIN32
-int createSocket(int number = 0, bool net = true)
-#else
-int createSocket(int number = 0, bool net = false)
-#endif
-{
-    if (net)
-    {
-        int thesock = socket(AF_INET, SOCK_STREAM, 0);
-        if (!socketValid(thesock))
-        {
-            cerr << "ERROR opening socket: " << ERRNO << endl;
-            return INVALID_SOCKET;
-        }
-        int portno=MEGACMDINITIALPORTNUMBER+number;
-
-        struct sockaddr_in addr;
-
-        memset(&addr, 0, sizeof( addr ));
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-        addr.sin_port = htons(portno);
-
-        if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
-        {
-            cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
-            if (!number)
-            {
-#ifdef __linux__
-                cerr << "Please ensure mega-cmd is running" << endl;
-#else
-                cerr << "Please ensure MegaCMD is running" << endl;
-#endif
-
-            }
-            return INVALID_SOCKET;
-        }
-        return thesock;
-    }
-
-#ifndef _WIN32
-    else
-    {
-        int thesock = socket(AF_UNIX, SOCK_STREAM, 0);
-        char socket_path[60];
-        if (!socketValid(thesock))
-        {
-            cerr << "ERROR opening socket: " << ERRNO << endl;
-            return INVALID_SOCKET;
-        }
-
-        bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
-        if (number)
-        {
-            sprintf(socket_path, "/tmp/megaCMD_%d/srv_%d", getuid(), number);
-        }
-        else
-        {
-            sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
-        }
-
-        struct sockaddr_un addr;
-
-        memset(&addr, 0, sizeof( addr ));
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
-
-        if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
-        {
-            cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
-            if (!number)
-            {
-#ifdef __linux__
-                cerr << "Please ensure mega-cmd is running" << endl;
-#else
-                cerr << "Please ensure MegaCMD is running" << endl;
-#endif
-            }
-            return INVALID_SOCKET;
-        }
-
-        return thesock;
-    }
-    return INVALID_SOCKET;
-
-#endif
-
-    return INVALID_SOCKET;
-}
 
 int main(int argc, char* argv[])
 {
@@ -666,98 +535,19 @@ int main(int argc, char* argv[])
         cerr << "Too few arguments" << endl;
         return -1;
     }
+    MegaCmdShellCommunications *comms = new MegaCmdShellCommunications();
 
 #ifdef _WIN32
     int wargc;
     LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(),&wargc);
     wstring wcommand = parsewArgs(wargc,szArglist);
+    int outcode = comms->executeCommandW(wcommand, NULL, COUT, false);
 #else
     string parsedArgs = parseArgs(argc,argv);
+    int outcode = comms->executeCommand(parsedArgs, NULL, COUT, false);
 #endif
 
-#if _WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    int err;
+    delete comms;
 
-    /* Use the MAKEWORD(lowbyte, highbyte) macro declared in Windef.h */
-    wVersionRequested = MAKEWORD(2, 2);
-
-    err = WSAStartup(wVersionRequested, &wsaData);
-    if (err != 0) {
-        cerr << "ERROR initializing WSA" << endl;
-    }
-#endif
-
-    int thesock = createSocket();
-    if (thesock == INVALID_SOCKET)
-    {
-        return INVALID_SOCKET;
-    }
-#ifdef _WIN32
-    int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
-#else
-    int n = send(thesock,parsedArgs.data(),parsedArgs.size(), MSG_NOSIGNAL);
-#endif
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
-        return -1;
-    }
-
-    int receiveSocket = SOCKET_ERROR ;
-
-    n = recv(thesock, (char *)&receiveSocket, sizeof(receiveSocket), MSG_NOSIGNAL);
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output socket" << endl;
-        return -1;
-    }
-
-    int newsockfd = createSocket(receiveSocket);
-    if (newsockfd == INVALID_SOCKET)
-        return INVALID_SOCKET;
-
-    int outcode = -1;
-
-    n = recv(newsockfd, (char *)&outcode, sizeof(outcode), MSG_NOSIGNAL);
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output code: " << ERRNO << endl;
-        return -1;
-    }
-
-    int BUFFERSIZE = 1024;
-    char buffer[1025];
-    do{
-        n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
-        if (n)
-        {
-#ifdef _WIN32
-            buffer[n]='\0';
-
-            wstring wbuffer;
-            stringtolocalw((const char*)&buffer,&wbuffer);
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
-            wcout << wbuffer;
-            _setmode(fileno(stdout), oldmode);
-#else
-            buffer[n]='\0';
-            cout << buffer;
-#endif
-        }
-    } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
-
-    if (n == SOCKET_ERROR)
-    {
-        cerr << "ERROR reading output: " << ERRNO << endl;
-        return -1;;
-    }
-
-    closeSocket(thesock);
-    closeSocket(newsockfd);
-#if _WIN32
-    WSACleanup();
-#endif
     return outcode;
 }

@@ -107,3 +107,5 @@ win32 {
 release {
     DEFINES += NDEBUG
 }
+
+QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter

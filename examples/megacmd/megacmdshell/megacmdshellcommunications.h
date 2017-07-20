@@ -1,7 +1,7 @@
 #ifndef MEGACMDSHELLCOMMUNICATIONS_H
 #define MEGACMDSHELLCOMMUNICATIONS_H
 
-#include "megacmdshell.h"
+//#include "megacmdshell.h"
 
 #include <string>
 #include <iostream>
@@ -18,6 +18,28 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #endif
+
+
+#ifdef _WIN32
+
+#define OUTSTREAMTYPE std::wostream
+#define OUTSTRINGSTREAM std::wostringstream
+#define OUTSTRING std::wstring
+#define COUT std::wcout
+
+std::wostream & operator<< ( std::wostream & ostr, std::string const & str );
+std::wostream & operator<< ( std::wostream & ostr, const char * str );
+std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str);
+
+#else
+#define OUTSTREAMTYPE std::ostream
+#define OUTSTRINGSTREAM std::ostringstream
+#define OUTSTRING std::string
+#define COUT std::cout
+#endif
+
+#define OUTSTREAM COUT
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,11 +64,12 @@ class MegaCmdShellCommunications
 {
 public:
     MegaCmdShellCommunications();
-    ~MegaCmdShellCommunications();
+    virtual ~MegaCmdShellCommunications();
 
-    virtual int executeCommand(std::string command, OUTSTREAMTYPE &output = COUT);
+    virtual int executeCommand(std::string command, bool (*readconfirmationloop)(const char *) = NULL, OUTSTREAMTYPE &output = COUT, bool interactiveshell = true, std::wstring = L"");
+    virtual int executeCommandW(std::wstring command, bool (*readconfirmationloop)(const char *) = NULL, OUTSTREAMTYPE &output = COUT, bool interactiveshell = true);
 
-    virtual int registerForStateChanges();
+    virtual int registerForStateChanges(void (*statechangehandle)(std::string) = NULL);
 
     virtual void setResponseConfirmation(bool confirmation);
 
@@ -56,7 +79,7 @@ public:
 private:
     static bool socketValid(int socket);
     static void closeSocket(int socket);
-    static int listenToStateChanges(int receiveSocket);
+    static int listenToStateChanges(int receiveSocket, void (*statechangehandle)(std::string) = NULL);
 
     static bool confirmResponse;
 

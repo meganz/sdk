@@ -1,4 +1,4 @@
-#include "megacmdshell.h"
+//#include "megacmdshell.h"
 #include "megacmdshellcommunications.h"
 
 #include <iostream>
@@ -24,6 +24,24 @@
 #endif
 
 using namespace std;
+
+enum
+{
+    MCMD_OK = 0,              ///< Everything OK
+
+    MCMD_EARGS = -51,         ///< Wrong arguments
+    MCMD_INVALIDEMAIL = -52,  ///< Invalid email
+    MCMD_NOTFOUND = -53,      ///< Resource not found
+    MCMD_INVALIDSTATE = -54,  ///< Invalid state
+    MCMD_INVALIDTYPE = -55,   ///< Invalid type
+    MCMD_NOTPERMITTED = -56,  ///< Operation not allowed
+    MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
+    MCMD_NOFETCH = -58,       ///< Nodes not fetched
+    MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+
+};
 
 
 bool MegaCmdShellCommunications::serverinitiatedfromshell;
@@ -273,7 +291,8 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 #else
                     const char executable[] = "mega-cmd"; //TODO: if changed to mega-cmd-server (and kept mega-cmd for the interactive shell, change it here)
 #endif
-                    char * args[] = {""};
+                    char empty[] = "";
+                    char * args[] = {empty};
 
                     int ret = execvp(executable,args);
                     if (ret)
@@ -447,7 +466,13 @@ string unescapeutf16escapedseqs(const char *what)
 
 #endif
 
-int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &output)
+
+int MegaCmdShellCommunications::executeCommandW(wstring wcommand, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell)
+{
+    return executeCommand("", readconfirmationloop, output, interactiveshell, wcommand);
+}
+
+int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
@@ -455,15 +480,24 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
         return INVALID_SOCKET;
     }
 
-    command="X"+command;
+    if (interactiveshell)
+    {
+        command="X"+command;
+    }
 
 #ifdef _WIN32
 //    //unescape \uXXXX sequences
 //    command=unescapeutf16escapedseqs(command.c_str());
 
     //get local wide chars string (utf8 -> utf16)
-    wstring wcommand;
-    stringtolocalw(command.c_str(),&wcommand);
+    if (!wcommand.size())
+    {
+        stringtolocalw(command.c_str(),&wcommand);
+    }
+    if (interactiveshell)
+    {
+        wcommand=L"X"+wcommand;
+    }
     int n = send(thesock,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
 
 #else
@@ -509,7 +543,12 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
-        bool response = readconfirmationloop(confirmQuestion);
+        bool response = false;
+
+        if (readconfirmationloop != NULL)
+        {
+            response = readconfirmationloop(confirmQuestion);
+        }
 
         n = send(newsockfd, (const char *) &response, sizeof(response), MSG_NOSIGNAL);
         if (n == SOCKET_ERROR)
@@ -558,7 +597,7 @@ int MegaCmdShellCommunications::executeCommand(string command, OUTSTREAMTYPE &ou
     return outcode;
 }
 
-int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
+int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*statechangehandle)(string))
 {
     int newsockfd = createSocket(receiveSocket);
 
@@ -603,23 +642,17 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
                 closeSocket(newsockfd);
                 return -1;
             }
-            sleepSeconds(1);
+#ifdef _WIN32
+            Sleep(1000);
+#else
+            sleep(1);
+#endif
             continue;
         }
 
-        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+        if (statechangehandle != NULL)
         {
-            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
-        }
-        else if (newstate == "ack")
-        {
-            // do nothing, all good
-        }
-        else
-        {
-            cerr << "received unrecognized state change: " << newstate << endl;
-            //sleep a while to avoid continuous looping
-            sleepSeconds(1);
+            statechangehandle(newstate);
         }
 
     }
@@ -628,8 +661,14 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket)
     return 0;
 }
 
-int MegaCmdShellCommunications::registerForStateChanges()
+int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle)(string))
 {
+    if (statechangehandle == NULL)
+    {
+        cerr << "Not registering for state changes since statechangehandle is NULL" << endl; //TODO: delete
+        registerAgainRequired = false;
+        return 0; //Do nth
+    }
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
     {
@@ -669,7 +708,7 @@ int MegaCmdShellCommunications::registerForStateChanges()
 
     stopListener = false;
 
-    listenerThread = new std::thread(listenToStateChanges,receiveSocket);
+    listenerThread = new std::thread(listenToStateChanges,receiveSocket,statechangehandle);
 
     registerAgainRequired = false;
 

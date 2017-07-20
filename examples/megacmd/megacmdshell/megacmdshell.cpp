@@ -109,6 +109,23 @@ void sleepMicroSeconds(long microseconds)
 
 // end utily functions
 
+void statechangehandle(string newstate)
+{
+    if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+    {
+        changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
+    }
+    else if (newstate == "ack")
+    {
+        // do nothing, all good
+    }
+    else
+    {
+        cerr << "received unrecognized state change: " << newstate << endl;
+        //sleep a while to avoid continuous looping
+        sleepSeconds(1);
+    }
+}
 
 // Console related functions:
 void console_readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
@@ -392,7 +409,7 @@ static void store_line(char* l)
         if (comms->serverinitiatedfromshell)
         {
             cerr << " Forwarding exit command to the server, since this cmd shell (most likely) initiated it" << endl;
-            comms->executeCommand("exit");
+            comms->executeCommand("exit", readconfirmationloop);
         }
 #endif
         return;
@@ -674,7 +691,7 @@ char* remote_completion(const char* text, int state)
         OUTSTRING s;
         OUTSTRINGSTREAM oss(s);
 
-        comms->executeCommand(completioncommand,oss);
+        comms->executeCommand(completioncommand, readconfirmationloop, oss);
 
         string outputcommand;
 
@@ -970,7 +987,7 @@ void process_line(char * line)
                 logincommand+=" " ;
                 logincommand+=line;
 
-                comms->executeCommand(logincommand.c_str());
+                comms->executeCommand(logincommand.c_str(), readconfirmationloop);
             }
             else
             {
@@ -981,7 +998,7 @@ void process_line(char * line)
                 confirmcommand+=" " ;
                 confirmcommand+=line;
 
-                comms->executeCommand(confirmcommand.c_str());
+                comms->executeCommand(confirmcommand.c_str(), readconfirmationloop);
 
                 confirminglink = false;
             }
@@ -1032,7 +1049,7 @@ void process_line(char * line)
                 changepasscommand+=" " ;
                 changepasscommand+=newpasswd;
 
-                comms->executeCommand(changepasscommand.c_str());
+                comms->executeCommand(changepasscommand.c_str(), readconfirmationloop);
             }
 
             setprompt(COMMAND);
@@ -1066,7 +1083,7 @@ void process_line(char * line)
                     }
                     else
                     {
-                        comms->executeCommand(line);
+                        comms->executeCommand(line, readconfirmationloop);
                     }
                     //}
                     //else
@@ -1088,7 +1105,7 @@ void process_line(char * line)
                         }
                         else
                         {
-                            comms->executeCommand(line);
+                            comms->executeCommand(line, readconfirmationloop);
                         }
                     //}
                     //else
@@ -1108,7 +1125,7 @@ void process_line(char * line)
                     }
                     else
                     {
-                        comms->executeCommand(line);
+                        comms->executeCommand(line, readconfirmationloop);
                     }
                 }
                 else if ( words[0] == "clear" )
@@ -1162,12 +1179,12 @@ void process_line(char * line)
                         toexec+=line;
                     }
 
-                    comms->executeCommand(toexec.c_str());
+                    comms->executeCommand(toexec.c_str(), readconfirmationloop);
                 }
                 else
                 {
                     // execute user command
-                    comms->executeCommand(line);
+                    comms->executeCommand(line, readconfirmationloop);
                 }
             }
             else
@@ -1183,8 +1200,6 @@ void process_line(char * line)
 // main loop
 void readloop()
 {
-
-
     char *saved_line = NULL;
     int saved_point = 0;
 
@@ -1194,9 +1209,7 @@ void readloop()
 
     readline_fd = fileno(rl_instream);
 
-    static bool firstloop = true;
-
-    comms->registerForStateChanges();
+    comms->registerForStateChanges(statechangehandle);
 
     //give it a while to communicate the state
     sleepMicroSeconds(1);
@@ -1206,7 +1219,7 @@ void readloop()
     // in windows we would not be yet connected. we need to manually try to register again.
     if (comms->registerAgainRequired)
     {
-        comms->registerForStateChanges();
+        comms->registerForStateChanges(statechangehandle);
     }
     //give it a while to communicate the state
     sleepMicroSeconds(1);
@@ -1270,8 +1283,6 @@ void readloop()
             }
         }
 
-        firstloop = false;
-
         // save line
         saved_point = rl_point;
         saved_line = rl_copy_text(0, rl_end);
@@ -1293,7 +1304,7 @@ void readloop()
                 if (comms->registerAgainRequired)
                 {
                     // register again for state changes
-                     comms->registerForStateChanges();
+                     comms->registerForStateChanges(statechangehandle);
                      comms->registerAgainRequired = false;
                 }
 
@@ -1487,7 +1498,7 @@ int main(int argc, char* argv[])
 #endif
 
     // intialize the comms object
-#ifdef _WIN32 && !defined(USE_PORT_COMMS)
+#if defined(_WIN32) && !defined(USE_PORT_COMMS)
     comms = new MegaCmdShellCommunicationsNamedPipes();
 #else
     comms = new MegaCmdShellCommunications();

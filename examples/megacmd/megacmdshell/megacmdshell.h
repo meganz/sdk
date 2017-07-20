@@ -34,28 +34,27 @@ static const char* const prompts[] =
     "MEGA CMD> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Are you sure to delete? "
 };
 
-enum
-{
-    MCMD_OK = 0,              ///< Everything OK
+//enum
+//{
+//    MCMD_OK = 0,              ///< Everything OK
 
-    MCMD_EARGS = -51,         ///< Wrong arguments
-    MCMD_INVALIDEMAIL = -52,  ///< Invalid email
-    MCMD_NOTFOUND = -53,      ///< Resource not found
-    MCMD_INVALIDSTATE = -54,  ///< Invalid state
-    MCMD_INVALIDTYPE = -55,   ///< Invalid type
-    MCMD_NOTPERMITTED = -56,  ///< Operation not allowed
-    MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
-    MCMD_NOFETCH = -58,       ///< Nodes not fetched
-    MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+//    MCMD_EARGS = -51,         ///< Wrong arguments
+//    MCMD_INVALIDEMAIL = -52,  ///< Invalid email
+//    MCMD_NOTFOUND = -53,      ///< Resource not found
+//    MCMD_INVALIDSTATE = -54,  ///< Invalid state
+//    MCMD_INVALIDTYPE = -55,   ///< Invalid type
+//    MCMD_NOTPERMITTED = -56,  ///< Operation not allowed
+//    MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
+//    MCMD_NOFETCH = -58,       ///< Nodes not fetched
+//    MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
 
-    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+//    MCMD_REQCONFIRM = -60,     ///< Confirmation required
 
-};
+//};
 
 void sleepSeconds(int seconds);
 
 void sleepMicroSeconds(long microseconds);
-
 
 void restoreprompt();
 

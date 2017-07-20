@@ -14,6 +14,24 @@
 
 using namespace std;
 
+enum
+{
+    MCMD_OK = 0,              ///< Everything OK
+
+    MCMD_EARGS = -51,         ///< Wrong arguments
+    MCMD_INVALIDEMAIL = -52,  ///< Invalid email
+    MCMD_NOTFOUND = -53,      ///< Resource not found
+    MCMD_INVALIDSTATE = -54,  ///< Invalid state
+    MCMD_INVALIDTYPE = -55,   ///< Invalid type
+    MCMD_NOTPERMITTED = -56,  ///< Operation not allowed
+    MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
+    MCMD_NOFETCH = -58,       ///< Nodes not fetched
+    MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+
+};
+
 bool MegaCmdShellCommunicationsNamedPipes::confirmResponse; //TODO: do all this only in parent class
 bool MegaCmdShellCommunicationsNamedPipes::stopListener;
 std::thread *MegaCmdShellCommunicationsNamedPipes::listenerThread;
@@ -173,7 +191,12 @@ MegaCmdShellCommunicationsNamedPipes::MegaCmdShellCommunicationsNamedPipes()
     listenerThread = NULL;
 }
 
-int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, OUTSTREAMTYPE &output)
+int MegaCmdShellCommunications::executeCommandW(wstring wcommand, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell)
+{
+    return executeCommand("", readconfirmationloop, output, interactiveshell, wcommand);
+}
+
+int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
     HANDLE theNamedPipe = createNamedPipe();
     if (!namedPipeValid(theNamedPipe))
@@ -181,14 +204,23 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, OUTSTRE
         return -1;
     }
 
-    command="X"+command;
+    if (interactiveshell)
+    {
+        command="X"+command;
+    }
 
 //    //unescape \uXXXX sequences
 //    command=unescapeutf16escapedseqs(command.c_str());
 
     //get local wide chars string (utf8 -> utf16)
-    wstring wcommand;
-    stringtolocalw(command.c_str(),&wcommand);
+    if (!wcommand.size())
+    {
+        stringtolocalw(command.c_str(),&wcommand);
+    }
+    if (interactiveshell)
+    {
+        wcommand=L"X"+wcommand;
+    }
 
     DWORD n;
     if (!WriteFile(theNamedPipe,(char *)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), &n, NULL))
@@ -233,7 +265,12 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, OUTSTRE
             cerr << "ERROR reading confirm question: " << ERRNO << endl;
         }
 
-        bool response = readconfirmationloop(confirmQuestion);
+        bool response = false;
+
+        if (readconfirmationloop != NULL)
+        {
+            response = readconfirmationloop(confirmQuestion);
+        }
 
         if (!WriteFile(newNamedPipe, (const char *) &response, sizeof(response), &n, NULL))
         {
@@ -327,33 +364,27 @@ int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedP
                 closeNamedPipe(newNamedPipe);
                 return -1;
             }
-            sleepSeconds(1);
+            Sleep(1000);
             continue;
         }
 
-        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+        if (statechangehandle != NULL)
         {
-            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
+            statechangehandle(newstate);
         }
-        else if (newstate == "ack")
-        {
-            // do nothing, all good
-        }
-        else
-        {
-            cerr << "received unrecognized state change: " << newstate << endl;
-            //sleep a while to avoid continuous looping
-            sleepSeconds(1);
-        }
-
     }
 
     closeNamedPipe(newNamedPipe);
     return 0;
 }
 
-int MegaCmdShellCommunicationsNamedPipes::registerForStateChanges()
+int MegaCmdShellCommunicationsNamedPipes::registerForStateChanges(void (*statechangehandle)(string))
 {
+    if (statechangehandle == NULL)
+    {
+        registerAgainRequired = false;
+        return 0; //Do nth
+    }
     HANDLE theNamedPipe = createNamedPipe();
     if (!namedPipeValid(theNamedPipe))
     {
@@ -385,7 +416,7 @@ int MegaCmdShellCommunicationsNamedPipes::registerForStateChanges()
 
     stopListener = false;
 
-    listenerThread = new std::thread(listenToStateChanges,receiveNamedPipeNum);
+    listenerThread = new std::thread(listenToStateChanges,receiveNamedPipeNum,statechangehandle);
 
     registerAgainRequired = false;
 

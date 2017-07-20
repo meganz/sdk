@@ -13,7 +13,13 @@ TARGET = MEGAclient
 TEMPLATE = app
 CONFIG += console
 
-SOURCES += ../../../../examples/megacmd/client/megacmdclient.cpp
+SOURCES += ../../../../examples/megacmd/client/megacmdclient.cpp \
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.cpp \
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp
+
+HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.h \
+    ../../../../examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h
+
 
 win32 {
     LIBS +=  -lshlwapi -lws2_32
@@ -22,6 +28,11 @@ win32 {
     QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
     QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
 }
+else{
+    LIBS += -lpthread
+}
+
+CONFIG += c++11
 
 macx {
     QMAKE_CXXFLAGS += -g
@@ -30,3 +41,5 @@ macx {
 release {
     DEFINES += NDEBUG
 }
+
+QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
