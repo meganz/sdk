@@ -135,7 +135,7 @@ int ComunicationsManagerNamedPipes::initialize()
 
     wchar_t username[UNLEN+1];
     DWORD username_len = UNLEN+1;
-    GetUserNameW(username, &username_len); //TODO: use username in pipe name
+    GetUserNameW(username, &username_len);
     wstring nameOfPipe (L"\\\\.\\pipe\\megacmdpipe");
     nameOfPipe += L"_";
     nameOfPipe += username;

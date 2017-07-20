@@ -50,6 +50,89 @@ bool MegaCmdShellCommunications::confirmResponse;
 bool MegaCmdShellCommunications::stopListener;
 std::thread *MegaCmdShellCommunications::listenerThread;
 
+#ifdef _WIN32
+// UNICODE SUPPORT FOR WINDOWS
+
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+
+// convert UTF-8 to Windows Unicode wstring
+void stringtolocalw(const char* path, std::wstring* local)
+{
+    // make space for the worst case
+    local->resize((strlen(path) + 1) * sizeof(wchar_t));
+
+    int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
+    local->resize(wchars_num);
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);
+
+    if (len)
+    {
+        local->resize(len-1);
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+//override << operators for wostream for string and const char *
+
+std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
+{
+    std::wstring toout;
+    stringtolocalw(str.c_str(),&toout);
+    ostr << toout;
+
+return ( ostr );
+}
+
+std::wostream & operator<< ( std::wostream & ostr, const char * str )
+{
+    std::wstring toout;
+    stringtolocalw(str,&toout);
+    ostr << toout;
+    return ( ostr );
+}
+
+//override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
+std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
+{
+    //TODO: localtostring
+    //std::wstring toout;
+    //stringtolocalw(str,&toout);
+    //ostr << toout;
+    return ( ostr );
+}
+
+// convert Windows Unicode to UTF-8
+void utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8string)
+{
+    if(!utf16size)
+    {
+        utf8string->clear();
+        return;
+    }
+
+    utf8string->resize((utf16size + 1) * 4);
+
+    utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
+        utf16size,
+        (char*)utf8string->data(),
+        utf8string->size() + 1,
+        NULL, NULL));
+}
+#endif
+
 bool MegaCmdShellCommunications::socketValid(int socket)
 {
 #ifdef _WIN32
@@ -189,8 +272,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 //                }
 
 
-#ifndef NDEBUG //TODO: check in release version
-                LPCWSTR t = TEXT("C:\\Users\\MEGA\\AppData\\Local\\MEGAcmd\\MEGAcmd.exe");//TODO: get appData/Local folder programatically
+#ifndef NDEBUG //TODO: check in release version (all windows???)
+                //LPCWSTR t = TEXT("C:\\Users\\MEGA\\AppData\\Local\\MEGAcmd\\MEGAcmd.exe");//TODO: get appData/Local folder programatically
+                LPCWSTR t = TEXT("..\\MEGAcmdServer\\debug\\MEGAcmd.exe");
 #else
                 LPCWSTR t = TEXT("..\\MEGAcmdServer\\release\\MEGAcmd.exe");
 #endif
@@ -494,7 +578,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     {
         stringtolocalw(command.c_str(),&wcommand);
     }
-    if (interactiveshell)
+    else if (interactiveshell)
     {
         wcommand=L"X"+wcommand;
     }

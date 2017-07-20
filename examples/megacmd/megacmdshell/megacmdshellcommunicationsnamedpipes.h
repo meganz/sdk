@@ -21,7 +21,8 @@ public:
     MegaCmdShellCommunicationsNamedPipes();
     ~MegaCmdShellCommunicationsNamedPipes();
 
-    int executeCommand(std::string command, bool (*readconfirmationloop)(const char *) = NULL, OUTSTREAMTYPE &output = COUT, bool interactiveshell = true);
+    virtual int executeCommand(std::string command, bool (*readconfirmationloop)(const char *) = NULL, OUTSTREAMTYPE &output = COUT, bool interactiveshell = true, std::wstring = L"");
+    virtual int executeCommandW(std::wstring command, bool (*readconfirmationloop)(const char *) = NULL, OUTSTREAMTYPE &output = COUT, bool interactiveshell = true);
 
     virtual int registerForStateChanges(void (*statechangehandle)(std::string) = NULL);
 
@@ -32,7 +33,7 @@ public:
 private:
     static bool namedPipeValid(HANDLE namedPipe);
     static void closeNamedPipe(HANDLE namedPipe);
-    static int listenToStateChanges(int receiveSocket, void (*statechangehandle)(std::string) = NULL);
+    static int listenToStateChanges(int receiveNamedPipeNum, void (*statechangehandle)(std::string) = NULL);
 
     static bool confirmResponse;
 

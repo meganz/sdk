@@ -23,13 +23,15 @@ HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.
 
 win32 {
     LIBS +=  -lshlwapi -lws2_32
-    LIBS +=  -lshell32 -luser32
+    LIBS +=  -lshell32 -luser32 -ladvapi32
+
     RC_FILE = icon.rc
     QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
     QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
 }
 else{
     LIBS += -lpthread
+    QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }
 
 CONFIG += c++11
@@ -42,4 +44,3 @@ release {
     DEFINES += NDEBUG
 }
 
-QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter

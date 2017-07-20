@@ -82,39 +82,6 @@ void local2path(string* local, string* path)
 }
 //TODO: delete the 2 former??
 
-// convert UTF-8 to Windows Unicode wstring
-void stringtolocalw(const char* path, std::wstring* local)
-{
-    // make space for the worst case
-    local->resize((strlen(path) + 1) * sizeof(wchar_t));
-
-    int wchars_num = MultiByteToWideChar(CP_UTF8, 0, path,-1, NULL,0);
-    local->resize(wchars_num);
-
-    int len = MultiByteToWideChar(CP_UTF8, 0, path,-1, (wchar_t*)local->data(), wchars_num);
-
-    if (len)
-    {
-        local->resize(len-1);
-    }
-    else
-    {
-        local->clear();
-    }
-}
-
-//widechar to utf8 string
-void localwtostring(const std::wstring* wide, std::string *multibyte)
-{
-    if( !wide->empty() )
-    {
-        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
-        multibyte->resize(size_needed);
-        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
-    }
-}
-
-
 wstring getWAbsPath(wstring localpath)
 {
     if (!localpath.size())
@@ -535,8 +502,11 @@ int main(int argc, char* argv[])
         cerr << "Too few arguments" << endl;
         return -1;
     }
+#ifdef _WIN32
+    MegaCmdShellCommunications *comms = new MegaCmdShellCommunicationsNamedPipes();
+#else
     MegaCmdShellCommunications *comms = new MegaCmdShellCommunications();
-
+#endif
 #ifdef _WIN32
     int wargc;
     LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(),&wargc);

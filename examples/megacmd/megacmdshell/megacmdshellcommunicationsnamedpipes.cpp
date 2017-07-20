@@ -1,5 +1,5 @@
 #ifdef _WIN32
-#include "megacmdshell.h"
+//#include "megacmdshell.h"
 #include "megacmdshellcommunicationsnamedpipes.h"
 
 #include <iostream>
@@ -191,12 +191,12 @@ MegaCmdShellCommunicationsNamedPipes::MegaCmdShellCommunicationsNamedPipes()
     listenerThread = NULL;
 }
 
-int MegaCmdShellCommunications::executeCommandW(wstring wcommand, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell)
+int MegaCmdShellCommunicationsNamedPipes::executeCommandW(wstring wcommand, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell)
 {
     return executeCommand("", readconfirmationloop, output, interactiveshell, wcommand);
 }
 
-int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
+int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
     HANDLE theNamedPipe = createNamedPipe();
     if (!namedPipeValid(theNamedPipe))
@@ -217,7 +217,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     {
         stringtolocalw(command.c_str(),&wcommand);
     }
-    if (interactiveshell)
+    else if (interactiveshell)
     {
         wcommand=L"X"+wcommand;
     }
@@ -312,7 +312,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     return outcode;
 }
 
-int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedPipeNum)
+int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedPipeNum, void (*statechangehandle)(string))
 {
     HANDLE newNamedPipe = createNamedPipe(receiveNamedPipeNum);
     if (!namedPipeValid(newNamedPipe))

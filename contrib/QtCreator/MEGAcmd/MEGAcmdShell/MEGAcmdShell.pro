@@ -77,8 +77,9 @@ win32 {
             LIBS += -L"$$PWD/../../../../bindings/qt/3rdparty/libs/x32d"
         }
     }
-
-
+}
+else {
+    QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }
 
 release {
@@ -86,4 +87,3 @@ release {
 }
 
 
-QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
