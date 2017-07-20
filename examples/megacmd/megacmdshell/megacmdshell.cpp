@@ -1183,6 +1183,8 @@ void process_line(char * line)
 // main loop
 void readloop()
 {
+
+
     char *saved_line = NULL;
     int saved_point = 0;
 
@@ -1218,6 +1220,7 @@ void readloop()
             if (requirepromptinstall)
             {
                 install_rl_handler(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
+
                 handlerinstalled = false;
 
                 // display prompt
@@ -1234,7 +1237,6 @@ void readloop()
             mutexPrompt.unlock();
         }
 
-        firstloop = false;
 
 
         // command editing loop - exits when a line is submitted
@@ -1243,11 +1245,14 @@ void readloop()
             if (prompt == COMMAND || prompt == AREYOUSURE)
             {
                 procesingline = false;
+
                 wait_for_input(readline_fd);
 
                 //api->retryPendingConnections(); //TODO: this should go to the server!
 
                 rl_callback_read_char(); //this calls store_line if last char was enter
+
+                rl_resize_terminal(); // to always adjust to new screen sizes
 
                 if (doExit)
                 {
@@ -1264,6 +1269,8 @@ void readloop()
                 break;
             }
         }
+
+        firstloop = false;
 
         // save line
         saved_point = rl_point;
@@ -1516,6 +1523,7 @@ int main(int argc, char* argv[])
         // prompting anything.
     }
 
+    sleepMicroSeconds(200); // this gives a little while so that the console is ready and rl_resize_terminal works fine
     printWelcomeMsg();
 
     readloop();
