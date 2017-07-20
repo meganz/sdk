@@ -35,7 +35,6 @@ void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*)
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
-    static bool initial = true;
     if (users)
     {
         if (users->size() == 1)
@@ -61,8 +60,6 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
             {
                 LOG_debug << users->size() << " users received or updated";
             }
-
-            initial = false;
 
             delete users;
         }
@@ -304,7 +301,7 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
             u_int cols = getNumberOfCols(80);
             string outputString;
             outputString.resize(cols+1);
-            for (int i = 0; i < cols; i++)
+            for (u_int i = 0; i < cols; i++)
             {
                 outputString[i] = '.';
             }
@@ -420,7 +417,7 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
 
     string outputString;
     outputString.resize(cols + 1);
-    for (int i = 0; i < cols; i++)
+    for (u_int i = 0; i < cols; i++)
     {
         outputString[i] = '.';
     }

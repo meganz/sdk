@@ -213,12 +213,7 @@ bool consoleFailed = false;
 
 static char dynamicprompt[128];
 
-static char* line;
-
 static prompttype prompt = COMMAND;
-
-static char pw_buf[256];
-static int pw_buf_pos;
 
 // local console
 Console* console;
@@ -298,7 +293,6 @@ void setprompt(prompttype p, string arg)
     }
     else
     {
-        pw_buf_pos = 0;
         if (arg.size())
         {
             OUTSTREAM << arg << flush;
@@ -1761,7 +1755,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -a" << "\t" << "kills all sessions except the current one" << endl;
         os << endl;
-        os << "To see all session use \"whoami -l\"" << endl;
+        os << "To see all sessions use \"whoami -l\"" << endl;
     }
     else if (!strcmp(command, "whoami"))
     {
@@ -2338,10 +2332,6 @@ void finalize()
 // main loop
 void megacmd()
 {
-    char *saved_line = NULL;
-    int saved_point = 0;
-
-
     for (;; )
     {
         cm->waitForPetition();
