@@ -1,10 +1,5 @@
-#ifdef SWIGJAVA
-#define ENABLE_CHAT
-#endif
-
 %module(directors="1") mega
 %{
-#define ENABLE_CHAT
 #include "megaapi.h"
 
 #ifdef SWIGJAVA
