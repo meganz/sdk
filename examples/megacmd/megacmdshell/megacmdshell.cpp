@@ -1418,12 +1418,8 @@ int main(int argc, char* argv[])
 #endif
 
 #if _WIN32
-    if( SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
-     {
-        //cerr << "Control handler set" << endl; //TODO: delete
-     }
-     else
-     {
+    if( !SetConsoleCtrlHandler( (PHANDLER_ROUTINE) CtrlHandler, TRUE ) )
+    {
         cerr << "Control handler set failed" << endl;
      }
 #else

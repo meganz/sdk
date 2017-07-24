@@ -42,6 +42,8 @@ private:
 
     static HANDLE createNamedPipe(int number = 0);
 
+    static bool isFileOwnerCurrentUser(HANDLE hFile);
+
 };
 
 #endif

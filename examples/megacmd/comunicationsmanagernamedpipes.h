@@ -37,7 +37,10 @@ public:
     }
     virtual ~CmdPetitionNamedPipes()
     {
-        CloseHandle(outNamedPipe);
+        if (outNamedPipe != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(outNamedPipe);
+        }
     }
 };
 
@@ -105,6 +108,7 @@ public:
 
     ~ComunicationsManagerNamedPipes();
     HANDLE doCreatePipe(std::wstring nameOfPipe);
+
 };
 
 

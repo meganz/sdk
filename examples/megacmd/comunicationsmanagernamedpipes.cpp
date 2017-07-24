@@ -52,7 +52,7 @@ HANDLE ComunicationsManagerNamedPipes::doCreatePipe(wstring nameOfPipe)
 {
     return CreateNamedPipeW(
            nameOfPipe.c_str(), // name of the pipe
-           /*PIPE_ACCESS_DUPLEX | FILE_FLAG_WRITE_THROUGH, // 2-way pipe, synchronous //TODO: use the same for the client: GENERIC_READ | GENERIC_WRITE , FILE_FLAG_WRITE_THROUGH
+           /*PIPE_ACCESS_DUPLEX | FILE_FLAG_WRITE_THROUGH, // 2-way pipe, synchronous
            PIPE_TYPE_BYTE, // send data as a byte stream
             */
                 PIPE_ACCESS_DUPLEX,
@@ -144,7 +144,16 @@ int ComunicationsManagerNamedPipes::initialize()
 
     if (!namedPipeValid(pipeGeneral))
     {
-        LOG_fatal << "ERROR opening namedPipe";
+        if (ERRNO == ERROR_ACCESS_DENIED)
+        {
+            LOG_fatal << "ERROR initiating communications. Couldn't create NamedPipe: Access denied. Ensure there is no other instance running.";
+        }
+        else
+        {
+            LOG_fatal << "ERROR initiating communications. Couldn't create NamedPipe: " << ERRNO;
+        }
+        Sleep(6000);
+        exit(1);
         return -1;
     }
 
@@ -249,7 +258,6 @@ void ComunicationsManagerNamedPipes::returnAndClosePetition(CmdPetition *inf, OU
         LOG_err << "ERROR writing to namedPipe: " << ERRNO;
     }
     DisconnectNamedPipe(outNamedPipe);
-    CloseHandle(outNamedPipe);
     delete inf;
 }
 
