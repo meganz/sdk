@@ -31,6 +31,7 @@
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
 #import "MEGAContactRequestList+init.h"
+#import "MEGAChildrenLists+init.h"
 #import "DelegateMEGARequestListener.h"
 #import "DelegateMEGATransferListener.h"
 #import "DelegateMEGAGlobalListener.h"
@@ -1093,6 +1094,14 @@ using namespace mega;
 
 - (MEGANodeList *)childrenForParent:(MEGANode *)parent {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
+    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent ? [parent getCPtr] : NULL, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent {
+    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent ? [parent getCPtr] : NULL) cMemoryOwn:YES];
 }
 
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {
