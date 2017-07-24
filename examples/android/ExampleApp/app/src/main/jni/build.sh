@@ -220,9 +220,12 @@ if [ "$1" == "clean" ]; then
     rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}.ready
     rm -rf ${LIBEXPAT}/${LIBEXPAT_SOURCE_FILE}
     rm -rf ${LIBEXPAT}/${LIBEXPAT_SOURCE_FILE}.ready
-	rm -rf ../obj/local/armeabi/
-	rm -rf ../obj/local/x86
-        
+    rm -rf ../obj/local/armeabi-v7a/
+    rm -rf ../obj/local/armeabi/
+    rm -rf ../obj/local/x86
+    rm -f ../libs/armeabi-v7a/libmega.so
+    rm -f ../libs/armeabi/libmega.so
+    rm -f ../libs/x86/libmega.so
     echo "* Task finished OK"
     exit 0
 fi
@@ -244,12 +247,12 @@ if [ ! -f ${SODIUM}/${SODIUM_SOURCE_FILE}.ready ]; then
     export ANDROID_NDK_HOME=${NDK_ROOT}
     ./autogen.sh &>> ${LOG_FILE}
     sed -i 's/enable-minimal/enable-minimal --disable-pie/g' dist-build/android-build.sh
-    echo "* Prebuilding libsodium for ARM"
-    dist-build/android-arm.sh &>> ${LOG_FILE}
+    echo "* Prebuilding libsodium for ARMv7"
+    dist-build/android-armv7-a.sh &>> ${LOG_FILE}
     echo "* Prebuilding libsodium for x86"
     dist-build/android-x86.sh &>> ${LOG_FILE}
-    ln -sf libsodium-android-armv6 libsodium-android-armeabi
-    ln -sf libsodium-android-armv6 libsodium-android-armeabi-v7
+    ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7
+    ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7a
     ln -sf libsodium-android-i686 libsodium-android-x86
     popd &>> ${LOG_FILE}
     touch ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
