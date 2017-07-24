@@ -107,10 +107,9 @@ std::wostream & operator<< ( std::wostream & ostr, const char * str )
 //override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
 {
-    //TODO: localtostring
-    //std::wstring toout;
-    //stringtolocalw(str,&toout);
-    //ostr << toout;
+    std::string s;
+    localwtostring(&str,&s);
+    ostr << s;
     return ( ostr );
 }
 
