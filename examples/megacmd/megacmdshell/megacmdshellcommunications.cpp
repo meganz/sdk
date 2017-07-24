@@ -272,21 +272,48 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 //                }
 
 
-#ifndef NDEBUG //TODO: check in release version (all windows???)
-                //LPCWSTR t = TEXT("C:\\Users\\MEGA\\AppData\\Local\\MEGAcmd\\MEGAcmd.exe");//TODO: get appData/Local folder programatically
+#ifndef NDEBUG
                 LPCWSTR t = TEXT("..\\MEGAcmdServer\\debug\\MEGAcmd.exe");
+                if (true)
+                {
 #else
-                LPCWSTR t = TEXT("..\\MEGAcmdServer\\release\\MEGAcmd.exe");
+
+                wchar_t foldercontainingexec[MAX_PATH+1];
+                bool okgetcontaningfolder = false;
+                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                {
+                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    {
+                        cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
+                    }
+                    else
+                    {
+                        okgetcontaningfolder = true;
+                    }
+                }
+                else
+                {
+                    okgetcontaningfolder = true;
+                }
+
+                if (okgetcontaningfolder)
+                {
+                    wstring fullpathtoexec(foldercontainingexec);
+                    fullpathtoexec+=L"\\MEGAcmd\\MEGAcmd.exe";
+
+                    LPCWSTR t = fullpathtoexec.c_str();
 #endif
 
-                LPWSTR t2 = (LPWSTR) t;
-                si.cb = sizeof(si);
-                if (!CreateProcess( t,t2,NULL,NULL,TRUE,
-                                    CREATE_NEW_CONSOLE,
-                                    NULL,NULL,
-                                    &si,&pi) )
-                {
-                    COUT << "Unable to execute: " << t; //TODO: improve error printing //ERRNO=2 (not found) might happen
+                    LPWSTR t2 = (LPWSTR) t;
+                    si.cb = sizeof(si);
+                    if (!CreateProcess( t,t2,NULL,NULL,TRUE,
+                                        CREATE_NEW_CONSOLE,
+                                        NULL,NULL,
+                                        &si,&pi) )
+                    {
+                        COUT << "Unable to execute: " << t << " errno = : " << ERRNO << endl;
+                    }
+                    Sleep(2000); // Give it a initial while to start.
                 }
 
                 //try again:

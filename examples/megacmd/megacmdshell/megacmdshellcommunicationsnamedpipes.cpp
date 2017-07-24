@@ -320,10 +320,14 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
                     }
                 }
             }
+            else if (ERRNO != ERROR_FILE_NOT_FOUND)
+            {
+                OUTSTREAM << "Unexpected failure to access server: "  << ERRNO << endl;
+            }
             else
             {
                 //launch server
-                OUTSTREAM << "Server might not be running. Initiating in the background. ERRNO: "  << ERRNO << endl;
+                OUTSTREAM << "Server might not be running. Initiating in the background..." << endl;
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -349,24 +353,49 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
                 //                }
 
 
-#ifndef NDEBUG //TODO: check in release version (all windows???)
-                //LPCWSTR t = TEXT("C:\\Users\\MEGA\\AppData\\Local\\MEGAcmd\\MEGAcmd.exe");//TODO: get appData/Local folder programatically
+#ifndef NDEBUG
                 LPCWSTR t = TEXT("..\\MEGAcmdServer\\debug\\MEGAcmd.exe");
-#else
-                LPCWSTR t = TEXT("..\\MEGAcmdServer\\release\\MEGAcmd.exe");
-#endif
-
-                LPWSTR t2 = (LPWSTR) t;
-                si.cb = sizeof(si);
-                if (!CreateProcess( t,t2,NULL,NULL,TRUE,
-                                    CREATE_NEW_CONSOLE,
-                                    NULL,NULL,
-                                    &si,&pi) )
+                if (true)
                 {
-                    COUT << "Unable to execute: " << t; //TODO: improve error printing //ERRNO=2 (not found) might happen
+#else
+
+                wchar_t foldercontainingexec[MAX_PATH+1];
+                bool okgetcontaningfolder = false;
+                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                {
+                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    {
+                        cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
+                    }
+                    else
+                    {
+                        okgetcontaningfolder = true;
+                    }
+                }
+                else
+                {
+                    okgetcontaningfolder = true;
                 }
 
-                Sleep(2000); // Give it a initial while to start.
+                if (okgetcontaningfolder)
+                {
+                    wstring fullpathtoexec(foldercontainingexec);
+                    fullpathtoexec+=L"\\MEGAcmd\\MEGAcmd.exe";
+
+                    LPCWSTR t = fullpathtoexec.c_str();
+#endif
+                    LPWSTR t2 = (LPWSTR) t;
+                    si.cb = sizeof(si);
+                    if (!CreateProcess( t,t2,NULL,NULL,TRUE,
+                                        CREATE_NEW_CONSOLE,
+                                        NULL,NULL,
+                                        &si,&pi) )
+                    {
+                        COUT << "Unable to execute: " << t << endl; //TODO: improve error printing //ERRNO=2 (not found) might happen
+                    }
+
+                    Sleep(2000); // Give it a initial while to start.
+                }
 
                 //try again:
                 int attempts = 10;

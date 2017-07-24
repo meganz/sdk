@@ -5,6 +5,7 @@ CONFIG(debug, debug|release) {
 CONFIG(release, debug|release) {
     CONFIG -= debug release
     CONFIG += release
+    DEFINES += NDEBUG
 }
 
 TEMPLATE = subdirs

@@ -1,14 +1,5 @@
 CONFIG -= qt
 
-CONFIG(debug, debug|release) {
-    CONFIG -= debug release
-    CONFIG += debug
-}
-CONFIG(release, debug|release) {
-    CONFIG -= debug release
-    CONFIG += release
-}
-
 TARGET = MEGAclient
 TEMPLATE = app
 CONFIG += console
@@ -38,9 +29,5 @@ CONFIG += c++11
 
 macx {
     QMAKE_CXXFLAGS += -g
-}
-
-release {
-    DEFINES += NDEBUG
 }
 

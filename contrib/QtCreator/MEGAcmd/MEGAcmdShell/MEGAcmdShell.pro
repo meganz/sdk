@@ -1,14 +1,5 @@
 CONFIG -= qt
 
-CONFIG(debug, debug|release) {
-    CONFIG -= debug release
-    CONFIG += debug
-}
-CONFIG(release, debug|release) {
-    CONFIG -= debug release
-    CONFIG += release
-}
-
 TARGET = MEGAcmdShell
 TEMPLATE = app
 CONFIG += console
@@ -58,7 +49,7 @@ win32 {
 
     DEFINES += __STDC_LIMIT_MACROS #this is required to include <thread> or <mutex>
 
-    LIBS +=  -lshlwapi -lws2_32 -luser32 -ladvapi32
+    LIBS +=  -lshlwapi -lws2_32 -luser32 -ladvapi32 -lshell32
 
     contains(CONFIG, BUILDX64) {
        release {
@@ -81,9 +72,3 @@ win32 {
 else {
     QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }
-
-release {
-    DEFINES += NDEBUG
-}
-
-

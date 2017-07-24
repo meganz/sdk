@@ -1,5 +1,3 @@
-CONFIG -= qt
-
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
@@ -7,7 +5,10 @@ CONFIG(debug, debug|release) {
 CONFIG(release, debug|release) {
     CONFIG -= debug release
     CONFIG += release
+    DEFINES += NDEBUG
 }
+
+CONFIG -= qt
 
 TARGET = MEGAcmd
 TEMPLATE = app
@@ -106,8 +107,3 @@ win32 {
 else {
     QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }
-
-release {
-    DEFINES += NDEBUG
-}
-
