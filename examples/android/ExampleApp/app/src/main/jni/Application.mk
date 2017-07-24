@@ -1,4 +1,4 @@
-APP_PLATFORM=android-9
+APP_PLATFORM=android-14
 NDK_TOOLCHAIN_VERSION=clang
 APP_STL := c++_static
 APP_ABI := armeabi x86
