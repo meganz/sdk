@@ -90,7 +90,7 @@ std::string &ltrim(std::string &s, const char &c);
 // trim at the end
 std::string &rtrim(std::string &s, const char &c);
 
-std::vector<std::string> getlistOfWords(char *ptr);
+std::vector<std::string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces = false);
 
 bool stringcontained(const char * s, std::vector<std::string> list);
 
@@ -104,7 +104,7 @@ bool isRegExp(std::string what);
 
 std::string unquote(std::string what);
 
-bool patternMatches(const char *what, const char *pattern);
+bool patternMatches(const char *what, const char *pattern, bool usepcre);
 
 int toInteger(std::string what, int failValue = -1);
 
@@ -132,5 +132,10 @@ std::string sizeToText(long long totalSize, bool equalizeUnitsLength = true, boo
 std::string secondsToText(time_t seconds, bool humanreadable = true);
 
 std::string percentageToText(float percentage);
+
+u_int getNumberOfCols(u_int defaultwidth = 90);
+
+void sleepSeconds(int seconds);
+void sleepMicroSeconds(long microseconds);
 
 #endif // MEGACMDUTILS_H

@@ -1,6 +1,6 @@
 /**
- * @file examples/megacmd/comunicationsmanagerfilesockets.h
- * @brief MegaCMD: Communications manager using Network Sockets
+ * @file examples/megacmd/comunicationsmanagerportnamedPipes.h
+ * @brief MegaCMD: Communications manager using Network NamedPipes
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -18,60 +18,59 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#ifndef COMUNICATIONSMANAGERFILESOCKETS_H
-#define COMUNICATIONSMANAGERFILESOCKETS_H
+#ifndef COMUNICATIONSMANAGERNAMEDPIPES_H
+#define COMUNICATIONSMANAGERNAMEDPIPES_H
 
 #include "comunicationsmanager.h"
 
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <windows.h>
 
-class CmdPetitionPosixSockets: public CmdPetition
+
+#define MEGACMDINITIALPORTNUMBER 12300
+
+class CmdPetitionNamedPipes: public CmdPetition
 {
 public:
-    int outSocket;
-    int acceptedOutSocket;
-
-    CmdPetitionPosixSockets(){
-        acceptedOutSocket = -1;
+    HANDLE outNamedPipe;
+    CmdPetitionNamedPipes(){
     }
-
-    virtual ~CmdPetitionPosixSockets()
+    virtual ~CmdPetitionNamedPipes()
     {
-        close(outSocket);
-        if (acceptedOutSocket != -1)
+        if (outNamedPipe != INVALID_HANDLE_VALUE)
         {
-            close(acceptedOutSocket);
+            CloseHandle(outNamedPipe);
         }
     }
 };
 
-OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPosixSockets &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionNamedPipes &p);
 
-class ComunicationsManagerFileSockets : public ComunicationsManager
+class ComunicationsManagerNamedPipes : public ComunicationsManager
 {
 private:
-    fd_set fds;
+    bool petitionready;
 
-    // sockets and asociated variables
-    int sockfd, newsockfd;
-    socklen_t clilen;
+    // namedPipes and asociated variables
+    HANDLE pipeGeneral;
+
+    static bool ended;
+
     char buffer[1024];
-    struct sockaddr_in serv_addr, cli_addr;
 
-    // to get next socket id
+    // to get next namedPipe id
     int count;
     mega::MegaMutex *mtx;
 
     /**
-     * @brief create_new_socket
-     * The caller is responsible for deleting the newly created socket
+     * @brief create_new_namedPipe
+     * The caller is responsible for deleting the newly created namedPipe
      * @return
      */
-    int create_new_socket(int *sockId);
+    HANDLE create_new_namedPipe(int *pipeId);
 
 public:
-    ComunicationsManagerFileSockets();
+    ComunicationsManagerNamedPipes();
 
     int initialize();
 
@@ -79,20 +78,19 @@ public:
 
     int waitForPetition();
 
-    int get_next_comm_id();
-
     virtual void stopWaiting();
+
+    int get_next_comm_id();
 
     void registerStateListener(CmdPetition *inf);
 
     /**
      * @brief returnAndClosePetition
-     * I will clean struct and close the socket within
+     * I will clean struct and close the namedPipe within
      */
     void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
 
     int informStateListener(CmdPetition *inf, std::string &s);
-
 
     /**
      * @brief getPetition
@@ -108,7 +106,9 @@ public:
      */
     std::string get_petition_details(CmdPetition *inf);
 
-    ~ComunicationsManagerFileSockets();
+    ~ComunicationsManagerNamedPipes();
+    HANDLE doCreatePipe(std::wstring nameOfPipe);
+
 };
 
 

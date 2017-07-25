@@ -107,3 +107,4 @@ MEGAcmdServer.pro.user
 /examples/megacmd/client/mega-exec
 /contrib/QtCreator/MEGAcmd/MEGAcmdLoader/MEGAcmdLoader
 /contrib/QtCreator/MEGAcmd/MEGAcmdLoader/Makefile
+/contrib/QtCreator/build-*

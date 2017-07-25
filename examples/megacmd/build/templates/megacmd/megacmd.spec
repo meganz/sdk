@@ -427,7 +427,8 @@ killall mega-cmd 2> /dev/null || true
 %{_bindir}/mega-find
 %{_bindir}/mega-get
 %{_bindir}/mega-help
-%{_bindir}/mega-history
+%{_bindir}/mega-https
+%{_bindir}/mega-transfers
 %{_bindir}/mega-import
 %{_bindir}/mega-invite
 %{_bindir}/mega-ipc

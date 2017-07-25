@@ -27,6 +27,11 @@
 #include <regex>
 #endif
 
+#ifdef _WIN32
+#else
+#include <sys/ioctl.h> // console size
+#endif
+
 #include <iomanip>
 
 using namespace std;
@@ -599,7 +604,7 @@ std::string &rtrim(std::string &s, const char &c)
     return s;
 }
 
-vector<string> getlistOfWords(char *ptr)
+vector<string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces)
 {
     vector<string> words;
 
@@ -609,7 +614,7 @@ vector<string> getlistOfWords(char *ptr)
     for (;; )
     {
         // skip leading blank space
-        while (*ptr > 0 && *ptr <= ' ')
+        while (*ptr > 0 && *ptr <= ' ' && (ignoreTrailingSpaces || *(ptr+1)))
         {
             ptr++;
         }
@@ -672,6 +677,8 @@ vector<string> getlistOfWords(char *ptr)
         }
         else
         {
+            while (*ptr == ' ') ptr++;// only possible if ptr+1 is the end
+
             wptr = ptr;
 
             char *prev = ptr;
@@ -687,7 +694,7 @@ vector<string> getlistOfWords(char *ptr)
                 ptr++;
             }
 
-            words.push_back(string(wptr, ptr - wptr));
+                words.push_back(string(wptr, ptr - wptr));
         }
     }
 
@@ -830,39 +837,46 @@ string unquote(string what)
     return what;
 }
 
-bool patternMatches(const char *what, const char *pattern)
+bool patternMatches(const char *what, const char *pattern, bool usepcre)
 {
+    if (usepcre)
+    {
 #ifdef USE_PCRE
-    pcrecpp::RE re(pattern);
-    if (re.error().length())
-    {
-        //In case the user supplied non-pcre regexp with * or ? in it.
-        string newpattern(pattern);
-        replaceAll(newpattern,"*",".*");
-        replaceAll(newpattern,"?",".");
-        re=pcrecpp::RE(newpattern);
-    }
+        pcrecpp::RE re(pattern);
+        if (re.error().length())
+        {
+            //In case the user supplied non-pcre regexp with * or ? in it.
+            string newpattern(pattern);
+            replaceAll(newpattern,"*",".*");
+            replaceAll(newpattern,"?",".");
+            re=pcrecpp::RE(newpattern);
+        }
 
-    if (!re.error().length())
-    {
-        bool toret = re.FullMatch(what);
+        if (!re.error().length())
+        {
+            bool toret = re.FullMatch(what);
 
-        return toret;
-    }
-    else
-    {
-        LOG_verbose << "Invalid PCRE regex: " << re.error();
-    }
+            return toret;
+        }
+        else
+        {
+            LOG_warn << "Invalid PCRE regex: " << re.error();
+            return false;
+        }
 #elif __cplusplus >= 201103L
-    try
-    {
-        return std::regex_match(what, std::regex(pattern));
-    }
-    catch (std::regex_error e)
-    {
-        LOG_warn << "Couldn't compile regex: " << pattern;
-    }
+        try
+        {
+            return std::regex_match(what, std::regex(pattern));
+        }
+        catch (std::regex_error e)
+        {
+            LOG_warn << "Couldn't compile regex: " << pattern;
+            return false;
+        }
 #endif
+        LOG_warn << " PCRE not supported";
+        return false;
+    }
 
     if (( *pattern == '\0' ) && ( *what == '\0' ))
     {
@@ -879,12 +893,12 @@ bool patternMatches(const char *what, const char *pattern)
         {
             return false;
         }
-        return patternMatches(what + 1, pattern + 1);
+        return patternMatches(what + 1, pattern + 1, usepcre);
     }
 
     if (*pattern == '*')
     {
-        return patternMatches(what, pattern + 1) || patternMatches(what + 1, pattern);
+        return patternMatches(what, pattern + 1, usepcre) || patternMatches(what + 1, pattern, usepcre);
     }
 
     return false;
@@ -1121,3 +1135,39 @@ string percentageToText(float percentage)
 
     return os.str();
 }
+
+u_int getNumberOfCols(u_int defaultwidth)
+{
+#ifdef _WIN32
+    //TODO: implement this
+#else
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO,TIOCGWINSZ,&size) != -1)
+    {
+        if (size.ws_col > 2)
+        {
+            return size.ws_col - 2;
+        }
+    }
+#endif
+    return defaultwidth;
+}
+
+void sleepSeconds(int seconds)
+{
+#ifdef _WIN32
+    Sleep(1000*seconds);
+#else
+    sleep(seconds);
+#endif
+}
+
+void sleepMicroSeconds(long microseconds)
+{
+#ifdef _WIN32
+    Sleep(microseconds);
+#else
+    usleep(microseconds*1000);
+#endif
+}
+

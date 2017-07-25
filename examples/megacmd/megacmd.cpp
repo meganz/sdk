@@ -35,10 +35,26 @@
 #define USE_VARARGS
 #define PREFER_STDARG
 
-#include <readline/readline.h>
-#include <readline/history.h>
 #include <iomanip>
 #include <string>
+
+#ifndef _WIN32
+#include "signal.h"
+#endif
+
+
+#if !defined (PARAMS)
+#  if defined (__STDC__) || defined (__GNUC__) || defined (__cplusplus)
+#    define PARAMS(protos) protos
+#  else
+#    define PARAMS(protos) ()
+#  endif
+#endif
+
+typedef char *completionfunction_t PARAMS((const char *, int));
+
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
 
 
 #ifdef _WIN32
@@ -63,6 +79,17 @@ void stringtolocalw(const char* path, std::wstring* local)
     }
 }
 
+//widechar to utf8 string
+void localwtostring(const std::wstring* wide, std::string *multibyte)
+{
+    if( !wide->empty() )
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), NULL, 0, NULL, NULL);
+        multibyte->resize(size_needed);
+        WideCharToMultiByte(CP_UTF8, 0, wide->data(), (int)wide->size(), (char*)multibyte->data(), size_needed, NULL, NULL);
+    }
+}
+
 //override << operators for wostream for string and const char *
 
 std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
@@ -82,13 +109,12 @@ std::wostream & operator<< ( std::wostream & ostr, const char * str )
     return ( ostr );
 }
 
-//override for the log. This is required for compiling, otherwise SimpleLog won't compile. FIXME
+//override for the log. This is required for compiling, otherwise SimpleLog won't compile.
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str)
 {
-    //TODO: localtostring
-    //std::wstring toout;
-    //stringtolocalw(str,&toout);
-    //ostr << toout;
+    std::string s;
+    localwtostring(&str,&s);
+    ostr << s;
     return ( ostr );
 }
 
@@ -96,8 +122,13 @@ std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const 
 #endif
 
 #ifdef _WIN32
+#ifdef USE_PORT_COMMS
 #include "comunicationsmanagerportsockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerPortSockets
+#else
+#include "comunicationsmanagernamedpipes.h"
+#define COMUNICATIONMANAGER ComunicationsManagerNamedPipes
+#endif
 #else
 #include "comunicationsmanagerfilesockets.h"
 #define COMUNICATIONMANAGER ComunicationsManagerFileSockets
@@ -141,13 +172,13 @@ string validGlobalParameters[] = {"v", "help"};
 string alocalremotefolderpatterncommands [] = {"sync"};
 vector<string> localremotefolderpatterncommands(alocalremotefolderpatterncommands, alocalremotefolderpatterncommands + sizeof alocalremotefolderpatterncommands / sizeof alocalremotefolderpatterncommands[0]);
 
-string aremotepatterncommands[] = {"export", "find", "attr"};
+string aremotepatterncommands[] = {"export", "attr"};
 vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncommands + sizeof aremotepatterncommands / sizeof aremotepatterncommands[0]);
 
 string aremotefolderspatterncommands[] = {"cd", "share"};
 vector<string> remotefolderspatterncommands(aremotefolderspatterncommands, aremotefolderspatterncommands + sizeof aremotefolderspatterncommands / sizeof aremotefolderspatterncommands[0]);
 
-string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du"};
+string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du", "find"};
 vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amultipleremotepatterncommands + sizeof amultipleremotepatterncommands / sizeof amultipleremotepatterncommands[0]);
 
 string aremoteremotepatterncommands[] = {"mv", "cp"};
@@ -165,13 +196,12 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "history", "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"
+                             "thumbnail", "preview", "find", "completion", "clear", "https", "transfers", "exit"
 #ifdef _WIN32
                              ,"unicode"
 #endif
                            };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
-
 
 // password change-related state information
 string oldpasswd;
@@ -182,12 +212,7 @@ bool consoleFailed = false;
 
 static char dynamicprompt[128];
 
-static char* line;
-
 static prompttype prompt = COMMAND;
-
-static char pw_buf[256];
-static int pw_buf_pos;
 
 // local console
 Console* console;
@@ -202,11 +227,8 @@ string getCurrentThreadLine()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
     if (threadline.find(currentThread) == threadline.end())
-    {
-        char *saved_line = rl_copy_text(0, rl_point);
-        string toret(saved_line);
-        free(saved_line);
-        return toret;
+    { // not found thread
+        return string();
     }
     else
     {
@@ -232,28 +254,9 @@ void sigint_handler(int signum)
         exit(-2);
     }
 
-    if (prompt != COMMAND)
-    {
-        setprompt(COMMAND);
-    }
+    LOG_debug << "Exiting due to SIGINT";
 
-    // reset position and print prompt
-    rl_replace_line("", 0); //clean contents of actual command
-    rl_crlf(); //move to nextline
-
-    if (RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH) || RL_ISSTATE(RL_STATE_ISEARCH))
-    {
-        RL_UNSETSTATE(RL_STATE_ISEARCH);
-        RL_UNSETSTATE(RL_STATE_NSEARCH);
-        RL_UNSETSTATE( RL_STATE_SEARCH);
-        history_set_pos(history_length);
-        rl_restore_prompt(); // readline has stored it when searching
-    }
-    else
-    {
-        rl_reset_line_state();
-    }
-    rl_redisplay();
+    doExit = true;
 }
 
 #ifdef _WIN32
@@ -289,7 +292,6 @@ void setprompt(prompttype p, string arg)
     }
     else
     {
-        pw_buf_pos = 0;
         if (arg.size())
         {
             OUTSTREAM << arg << flush;
@@ -306,28 +308,9 @@ void setprompt(prompttype p, string arg)
 void changeprompt(const char *newprompt)
 {
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
-}
-
-// readline callback - exit if EOF, add to history unless password
-static void store_line(char* l)
-{
-    if (!l)
-    {
-#ifndef _WIN32 // to prevent exit with Supr key
-        doExit = true;
-        rl_set_prompt("(CTRL+D) Exiting ...\n");
-#endif
-        return;
-    }
-
-    if (*l && ( prompt == COMMAND ))
-    {
-        mutexHistory.lock();
-        add_history(l);
-        mutexHistory.unlock();
-    }
-
-    line = l;
+    string s = "prompt:";
+    s+=dynamicprompt;
+    cm->informStateListeners(s);
 }
 
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
@@ -341,10 +324,16 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("R");
         validParams->insert("r");
         validParams->insert("l");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("du" == thecommand)
     {
         validParams->insert("h");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("help" == thecommand)
     {
@@ -361,6 +350,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("r");
         validParams->insert("f");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("speedlimit" == thecommand)
     {
@@ -387,6 +379,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("a");
         validParams->insert("d");
         validOptValues->insert("expire");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("share" == thecommand)
     {
@@ -396,11 +391,17 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validOptValues->insert("with");
         validOptValues->insert("level");
         validOptValues->insert("personal-representation");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("find" == thecommand)
     {
         validOptValues->insert("pattern");
         validOptValues->insert("l");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("mkdir" == thecommand)
     {
@@ -466,6 +467,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("m");
         validParams->insert("q");
         validParams->insert("ignore-quota-warn");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
     }
     else if ("transfers" == thecommand)
     {
@@ -525,18 +529,19 @@ char* generic_completion(const char* text, int state, vector<string> validOption
     while (list_index < validOptions.size())
     {
         name = validOptions.at(list_index);
-        if (!rl_completion_quote_character && interactiveThread()) {
+        //Notice: do not escape options for cmdshell. Plus, we won't filter here, because we don't know if the value of rl_completion_quote_chararcter of cmdshell
+        // The filtering and escaping will be performed by the completion function in cmdshell
+        if (interactiveThread() && !getCurrentThreadIsCmdShell()) {
             escapeEspace(name);
         }
 
         list_index++;
 
-        if (!( strcmp(text, "")) || (( name.size() >= len ) && ( strlen(text) >= len ) && ( name.find(text) == 0 )))
+        if (!( strcmp(text, ""))
+                || (( name.size() >= len ) && ( strlen(text) >= len ) &&  ( name.find(text) == 0 ) )
+                || getCurrentThreadIsCmdShell()  //do not filter if cmdshell (it will be filter there)
+                )
         {
-            if (name.size() && (( name.at(name.size() - 1) == '=' ) || ( name.at(name.size() - 1) == '/' )))
-            {
-                rl_completion_suppress_append = 1;
-            }
             foundone = true;
             return dupstr((char*)name.c_str());
         }
@@ -557,7 +562,7 @@ char* commands_completion(const char* text, int state)
 
 char* local_completion(const char* text, int state)
 {
-    return((char*)NULL );  //matches will be NULL: readline will use local completion
+    return((char*)NULL );
 }
 
 void addGlobalFlags(set<string> *setvalidparams)
@@ -636,6 +641,7 @@ char * flags_value_completion(const char*text, int state)
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         free(saved_line);
+        saved_line = NULL;
         if (words.size() > 1)
         {
             string thecommand = words[0];
@@ -693,7 +699,7 @@ char * flags_value_completion(const char*text, int state)
 
 void unescapeifRequired(string &what)
 {
-    if (!rl_completion_quote_character && interactiveThread() ) {
+    if (interactiveThread() ) {
         return unescapeEspace(what);
     }
 }
@@ -704,17 +710,21 @@ char* remotepaths_completion(const char* text, int state)
     if (state == 0)
     {
         string wildtext(text);
+        bool usepcre = false; //pcre makes no sense in paths completion
+        if (usepcre)
+        {
 #ifdef USE_PCRE
         wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
+        }
+
         wildtext += "*";
 
-        if (!rl_completion_quote_character) {
-            unescapeEspace(wildtext);
-        }
-        validpaths = cmdexecuter->listpaths(wildtext);
+        unescapeEspace(wildtext);
+
+        validpaths = cmdexecuter->listpaths(usepcre, wildtext);
     }
     return generic_completion(text, state, validpaths);
 }
@@ -725,14 +735,18 @@ char* remotefolders_completion(const char* text, int state)
     if (state == 0)
     {
         string wildtext(text);
+        bool usepcre = false; //pcre makes no sense in paths completion
+        if (usepcre)
+        {
 #ifdef USE_PCRE
         wildtext += ".";
 #elif __cplusplus >= 201103L
         wildtext += ".";
 #endif
+        }
         wildtext += "*";
 
-        validpaths = cmdexecuter->listpaths(wildtext, true);
+        validpaths = cmdexecuter->listpaths(usepcre, wildtext, true);
     }
     return generic_completion(text, state, validpaths);
 }
@@ -752,6 +766,39 @@ char* loglevels_completion(const char* text, int state)
     return generic_completion(text, state, validloglevels);
 }
 
+char* transfertags_completion(const char* text, int state)
+{
+    static vector<string> validtransfertags;
+    if (state == 0)
+    {
+        MegaTransferData * transferdata = api->getTransferData();
+        if (transferdata)
+        {
+            for (int i = 0; i < transferdata->getNumUploads(); i++)
+            {
+                validtransfertags.push_back(SSTR(transferdata->getUploadTag(i)));
+            }
+            for (int i = 0; i < transferdata->getNumDownloads(); i++)
+            {
+                validtransfertags.push_back(SSTR(transferdata->getDownloadTag(i)));
+            }
+
+            // TODO: reconsider including completed transfers (sth like this:)
+//            globalTransferListener->completedTransfersMutex.lock();
+//            for (u_int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+//            {
+//                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
+//                if (!transfer->isSyncTransfer())
+//                {
+//                    validtransfertags.push_back(SSTR(transfer->getTag()));
+//                    shownCompleted++;
+//                }
+//            }
+//            globalTransferListener->completedTransfersMutex.unlock();
+        }
+    }
+    return generic_completion(text, state, validtransfertags);
+}
 char* contacts_completion(const char* text, int state)
 {
     static vector<string> validcontacts;
@@ -787,6 +834,7 @@ char* nodeattrs_completion(const char* text, int state)
         char *saved_line = strdup(getCurrentThreadLine().c_str());
         vector<string> words = getlistOfWords(saved_line);
         free(saved_line);
+        saved_line = NULL;
         if (words.size() > 1)
         {
             validAttrs = cmdexecuter->getNodeAttrs(words[1]);
@@ -835,7 +883,7 @@ void discardOptionsAndFlags(vector<string> *ws)
     }
 }
 
-rl_compentry_func_t *getCompletionFunction(vector<string> words)
+completionfunction_t *getCompletionFunction(vector<string> words)
 {
     // Strip words without flags
     string thecommand = words[0];
@@ -972,45 +1020,20 @@ rl_compentry_func_t *getCompletionFunction(vector<string> words)
             return loglevels_completion;
         }
     }
+    else if (thecommand == "transfers")
+    {
+        if (currentparameter == 1)
+        {
+            return transfertags_completion;
+        }
+    }
     return empty_completion;
 }
 
-static char** getCompletionMatches(const char * text, int start, int end)
-{
-    rl_filename_quoting_desired = 1;
-
-    char **matches;
-
-    matches = (char**)NULL;
-
-    if (start == 0)
-    {
-        matches = rl_completion_matches((char*)text, &commands_completion);
-        if (matches == NULL)
-        {
-            matches = rl_completion_matches((char*)text, &empty_completion);
-        }
-    }
-    else
-    {
-
-        char *saved_line = strdup(getCurrentThreadLine().c_str());
-        vector<string> words = getlistOfWords(saved_line);
-        if (strlen(saved_line) && ( saved_line[strlen(saved_line) - 1] == ' ' ))
-        {
-            words.push_back("");
-        }
-        free(saved_line);
-
-        matches = rl_completion_matches((char*)text, getCompletionFunction(words));
-    }
-    return( matches );
-}
-
-string getListOfCompletionValues(vector<string> words)
+string getListOfCompletionValues(vector<string> words, char separator = ' ', bool suppressflag = true)
 {
     string completionValues;
-    rl_compentry_func_t * compfunction = getCompletionFunction(words);
+    completionfunction_t * compfunction = getCompletionFunction(words);
     if (compfunction == local_completion)
     {
         return "MEGACMD_USE_LOCAL_COMPLETION";
@@ -1021,7 +1044,7 @@ string getListOfCompletionValues(vector<string> words)
     {
         char *newval;
         string &lastword = words[words.size()-1];
-        if (lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
+        if (suppressflag && lastword.size()>3 && lastword[0]== '-' && lastword[1]== '-' && lastword.find('=')!=string::npos)
         {
             newval = compfunction(lastword.substr(lastword.find_first_of('=')+1).c_str(), state);
         }
@@ -1033,10 +1056,10 @@ string getListOfCompletionValues(vector<string> words)
         if (!newval) break;
         if (completionValues.size())
         {
-            completionValues+=" ";
+            completionValues+=separator;
         }
 
-        if (strstr(newval," "))
+        if (strchr(newval,separator))
         {
             completionValues+="\"";
             completionValues+=newval;
@@ -1051,29 +1074,6 @@ string getListOfCompletionValues(vector<string> words)
         state++;
     }
     return completionValues;
-}
-
-
-
-void printHistory()
-{
-    int length = history_length;
-    int offset = 1;
-    int rest = length;
-    while (rest >= 10)
-    {
-        offset++;
-        rest = rest / 10;
-    }
-
-    mutexHistory.lock();
-    for (int i = 0; i < length; i++)
-    {
-        history_set_pos(i);
-        OUTSTREAM << setw(offset) << i << "  " << current_history()->line << endl;
-    }
-
-    mutexHistory.unlock();
 }
 
 MegaApi* getFreeApiFolder()
@@ -1100,7 +1100,14 @@ const char * getUsageStr(const char *command)
 {
     if (!strcmp(command, "login"))
     {
-        return "login [email [password]] | exportedfolderurl#key | session";
+        if (interactiveThread())
+        {
+            return "login [email [password]] | exportedfolderurl#key | session";
+        }
+        else
+        {
+            return "login email password | exportedfolderurl#key | session";
+        }
     }
     if (!strcmp(command, "begin"))
     {
@@ -1128,7 +1135,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "ls"))
     {
+#ifdef USE_PCRE
+        return "ls [-lRr] [remotepath] [--use-pcre]";
+#else
         return "ls [-lRr] [remotepath]";
+#endif
     }
     if (!strcmp(command, "cd"))
     {
@@ -1140,7 +1151,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "du"))
     {
-        return "du [remotepath remotepath2 remotepath3 ... ]";
+#ifdef USE_PCRE
+        return "du [-h] [remotepath remotepath2 remotepath3 ... ] [--use-pcre]";
+#else
+        return "du [-h] [remotepath remotepath2 remotepath3 ... ]";
+#endif
     }
     if (!strcmp(command, "pwd"))
     {
@@ -1168,7 +1183,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "get"))
     {
+#ifdef USE_PCRE
+        return "get [-m] [-q] [--ignore-quota-warn] [--use-pcre] exportedlink#key|remotepath [localpath]";
+#else
         return "get [-m] [-q] [--ignore-quota-warn] exportedlink#key|remotepath [localpath]";
+#endif
     }
     if (!strcmp(command, "getq"))
     {
@@ -1192,7 +1211,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "rm"))
     {
+#ifdef USE_PCRE
+        return "rm [-r] [-f] [--use-pcre] remotepath";
+#else
         return "rm [-r] [-f] remotepath";
+#endif
     }
     if (!strcmp(command, "mv"))
     {
@@ -1212,11 +1235,19 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "export"))
     {
+#ifdef USE_PCRE
+        return "export [-d|-a [--expire=TIMEDELAY]] [remotepath] [--use-pcre]";
+#else
         return "export [-d|-a [--expire=TIMEDELAY]] [remotepath]";
+#endif
     }
     if (!strcmp(command, "share"))
     {
+#ifdef USE_PCRE
+        return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath] [--use-pcre]";
+#else
         return "share [-p] [-d|-a --with=user@email.com [--level=LEVEL]] [remotepath]";
+#endif
     }
     if (!strcmp(command, "invite"))
     {
@@ -1332,7 +1363,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "find"))
     {
+#ifdef USE_PCRE
+        return "find [remotepath] [-l] [--pattern=PATTERN] [--use-pcre]";
+#else
         return "find [remotepath] [-l] [--pattern=PATTERN]";
+#endif
     }
     if (!strcmp(command, "help"))
     {
@@ -1357,11 +1392,11 @@ bool validCommand(string thecommand)
 string getsupportedregexps()
 {
 #ifdef USE_PCRE
-        return "Perl Compatible Regular Expressions";
+        return "Perl Compatible Regular Expressions with \"--use-pcre\"\n   or wildcarded expresions with ? or * like f*00?.txt";
 #elif __cplusplus >= 201103L
         return "c++11 Regular Expressions";
 #else
-        return "it accepts wildcards: ? and *. e.g.: ls f*00?.txt";
+        return "it accepts wildcards: ? and *. e.g.: f*00?.txt";
 #endif
 }
 
@@ -1369,7 +1404,7 @@ string getHelpStr(const char *command)
 {
     ostringstream os;
 
-    os << getUsageStr(command) << endl;
+    os << "Usage: " << getUsageStr(command) << endl;
     if (!strcmp(command, "login"))
     {
         os << "Logs into a mega" << endl;
@@ -1397,7 +1432,7 @@ string getHelpStr(const char *command)
         os << "Prints list of commands" << endl;
         os << endl;
         os << "Options:" << endl;
-        os << " -f" << "\t" << "Indluce a brief description of the commands" << endl;
+        os << " -f" << "\t" << "Include a brief description of the commands" << endl;
     }
     else if (!strcmp(command, "history"))
     {
@@ -1435,6 +1470,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -R|-r" << "\t" << "list folders recursively" << endl;
         os << " -l" << "\t" << "include extra information" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "cd"))
     {
@@ -1466,7 +1504,9 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -h" << "\t" << "Human readable" << endl;
-        os << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "pwd"))
     {
@@ -1532,6 +1572,10 @@ string getHelpStr(const char *command)
         os << "                     downloaded one (preserving the existing files)" << endl;
         os << " --ignore-quota-warn" << "\t" << "ignore quota surpassing warning. " << endl;
         os << "                    " << "\t" << "  The download will be attempted anyway." << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
+
     }
     if (!strcmp(command, "attr"))
     {
@@ -1563,6 +1607,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -r" << "\t" << "Delete recursively (for folders)" << endl;
         os << " -f" << "\t" << "Force (no asking)" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "mv"))
     {
@@ -1605,6 +1652,9 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the status of current exports" << endl;
         os << endl;
         os << "Options:" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -a" << "\t" << "Adds an export (or modifies it if existing)" << endl;
         os << " --expire=TIMEDELAY" << "\t" << "Determines the expiration time of a node." << endl;
         os << "                   " << "\t" << "   It indicates the delay in hours(h), days(d), " << endl;
@@ -1621,6 +1671,9 @@ string getHelpStr(const char *command)
         os << "Prints/Modifies the status of current shares" << endl;
         os << endl;
         os << "Options:" << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -p" << "\t" << "Show pending shares" << endl;
         os << " --with=email" << "\t" << "Determines the email of the user to [no longer] share with" << endl;
         os << " -d" << "\t" << "Stop sharing with the selected user" << endl;
@@ -1708,7 +1761,7 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " -a" << "\t" << "kills all sessions except the current one" << endl;
         os << endl;
-        os << "To see all session use \"whoami -l\"" << endl;
+        os << "To see all sessions use \"whoami -l\"" << endl;
     }
     else if (!strcmp(command, "whoami"))
     {
@@ -1757,6 +1810,9 @@ string getHelpStr(const char *command)
         os << "Options:" << endl;
         os << " --pattern=PATTERN" << "\t" << "Pattern to match";
         os << " (" << getsupportedregexps() << ") " << endl;
+#ifdef USE_PCRE
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
         os << " -l" << "\t" << "Prints file info" << endl;
 
     }
@@ -1764,12 +1820,17 @@ string getHelpStr(const char *command)
     {
         os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
     }
-    else if (!strcmp(command, "quit"))
+    else if (!strcmp(command, "quit") || !strcmp(command, "exit"))
     {
-        os << "Quits" << endl;
+        os << "Quits MEGAcmd" << endl;
         os << endl;
         os << "Notice that the session will still be active, and local caches available" << endl;
         os << "The session will be resumed when the service is restarted" << endl;
+        if (getCurrentThreadIsCmdShell())
+        {
+            os << endl;
+            os << "Be aware that this will exit both the interactive shell and the server." << endl;
+        }
     }
     else if (!strcmp(command, "transfers"))
     {
@@ -1794,6 +1855,7 @@ string getHelpStr(const char *command)
 
 #define SSTR( x ) static_cast< std::ostringstream & >( \
         ( std::ostringstream() << std::dec << x ) ).str()
+
 void printAvailableCommands(int extensive = 0)
 {
     vector<string> validCommandsOrdered = validCommands;
@@ -1825,21 +1887,7 @@ void printAvailableCommands(int extensive = 0)
             {
                 if (extensive > 1)
                 {
-                    u_int width = 90;
-                    int rows = 1, cols = width;
-
-                    #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-                        if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                        {
-                            rl_resize_terminal();
-                            rl_get_screen_size(&rows, &cols);
-                        }
-                    #endif
-
-                    if (cols)
-                    {
-                        width = min((int)width,cols-2);
-                    }
+                    u_int width = getNumberOfCols();
 
                     OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
                     OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
@@ -1861,72 +1909,6 @@ void printAvailableCommands(int extensive = 0)
         }
     }
 }
-
-
-#ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-
-/**
- * @brief getcharacterreadlineUTF16support
- * while this works, somehow arrows and other readline stuff is disabled using this one.
- * @param stream
- * @return
- */
-int getcharacterreadlineUTF16support (FILE *stream)
-{
-    int result;
-    char b[10];
-    memset(b,0,10);
-
-    while (1)
-    {
-        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
-
-        result = read (fileno (stream), &b, 10);
-        _setmode(fileno(stream), oldmode);
-
-        if (result == 0)
-        {
-            return (EOF);
-        }
-
-        // convert the UTF16 string to widechar
-        size_t wbuffer_size;
-        mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
-        wchar_t *wbuffer = new wchar_t[wbuffer_size];
-        mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
-
-        // convert the UTF16 widechar to UTF8 string
-        string receivedutf8;
-        MegaApi::utf16ToUtf8(wbuffer, wbuffer_size,&receivedutf8);
-
-        if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
-        {
-            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
-            {
-                rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
-                rl_point=rl_end;
-            }
-            rl_line_buffer[rl_end] = '\0';
-
-            return 0;
-        }
-
-        if (result =! 0)
-        {
-            return (b[0]);
-        }
-
-        /* If zero characters are returned, then the file that we are
-     reading from is empty!  Return EOF in that case. */
-        if (result == 0)
-        {
-            return (EOF);
-        }
-    }
-}
-#endif
 
 void executecommand(char* ptr)
 {
@@ -1952,6 +1934,36 @@ void executecommand(char* ptr)
         OUTSTREAM << getListOfCompletionValues(wordstocomplete);
         return;
     }
+    if (words[0] == "completionshell")
+    {
+        if (words.size() == 2)
+        {
+            vector<string> validCommandsOrdered = validCommands;
+            sort(validCommandsOrdered.begin(), validCommandsOrdered.end());
+            for (size_t i = 0; i < validCommandsOrdered.size(); i++)
+            {
+                if (validCommandsOrdered.at(i)!="completion")
+                {
+                    OUTSTREAM << validCommandsOrdered.at(i);
+                    if (i != validCommandsOrdered.size() -1)
+                    {
+                        OUTSTREAM << (char)0x1F;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (words.size() < 3) words.push_back("");
+            vector<string> wordstocomplete(words.begin()+1,words.end());
+            setCurrentThreadLine(wordstocomplete);
+            OUTSTREAM << getListOfCompletionValues(wordstocomplete,(char)0x1F, false);
+        }
+
+        return;
+    }
+
+    words = getlistOfWords(ptr,true); //Get words again ignoring trailing spaces (only reasonable for completion)
 
     map<string, string> cloptions;
     map<string, int> clflags;
@@ -1971,7 +1983,7 @@ void executecommand(char* ptr)
     if (!validCommand(thecommand))   //unknown command
     {
         setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "      " << getUsageStr("unknwon");
+        LOG_err << "Command not found: " << thecommand;
         return;
     }
 
@@ -2087,43 +2099,6 @@ void executecommand(char* ptr)
         return;
     }
 
-    if ( thecommand == "clear" )
-    {
-#ifdef _WIN32
-        HANDLE hStdOut;
-        CONSOLE_SCREEN_BUFFER_INFO csbi;
-        DWORD count;
-
-        hStdOut = GetStdHandle( STD_OUTPUT_HANDLE );
-        if (hStdOut == INVALID_HANDLE_VALUE) return;
-
-        /* Get the number of cells in the current buffer */
-        if (!GetConsoleScreenBufferInfo( hStdOut, &csbi )) return;
-        /* Fill the entire buffer with spaces */
-        if (!FillConsoleOutputCharacter( hStdOut, (TCHAR) ' ', csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count ))
-        {
-            return;
-        }
-        /* Fill the entire buffer with the current colors and attributes */
-        if (!FillConsoleOutputAttribute(hStdOut, csbi.wAttributes, csbi.dwSize.X *csbi.dwSize.Y, { 0, 0 }, &count))
-        {
-            return;
-        }
-        /* Move the cursor home */
-        SetConsoleCursorPosition( hStdOut, { 0, 0 } );
-#else
-        rl_clear_screen(0,0);
-#endif
-        return;
-    }
-#ifdef _WIN32
-    if (words[0] == "unicode")
-    {
-        rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
-        OUTSTREAM << "Unicode input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
-        return;
-    }
-#endif
     cmdexecuter->executecommand(words, &clflags, &cloptions);
 }
 
@@ -2240,10 +2215,28 @@ void * doProcessLine(void *pointer)
     setCurrentThreadOutStream(&s);
     setCurrentThreadLogLevel(MegaApi::LOG_LEVEL_ERROR);
     setCurrentOutCode(MCMD_OK);
+    setCurrentPetition(inf);
+
+    if (inf->getLine() && *(inf->getLine())=='X')
+    {
+        setCurrentThreadIsCmdShell(true);
+        char * aux = inf->line;
+        inf->line=strdup(inf->line+1);
+        free(aux);
+    }
+    else
+    {
+        setCurrentThreadIsCmdShell(false);
+    }
 
     LOG_verbose << " Processing " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
     doExit = process_line(inf->getLine());
+
+    if (doExit)
+    {
+        LOG_verbose << " Exit registered upon process_line: " ;
+    }
 
     LOG_verbose << " Procesed " << *inf << " in thread: " << MegaThread::currentThreadId() << " " << cm->get_petition_details(inf);
 
@@ -2251,9 +2244,10 @@ void * doProcessLine(void *pointer)
     cm->returnAndClosePetition(inf, &s, getCurrentOutCode());
 
     semaphoreClients.release();
-    if (doExit)
+
+    if (doExit && (!interactiveThread() || getCurrentThreadIsCmdShell() ))
     {
-        exit(0);
+        cm->stopWaiting();
     }
 
     mutexEndedPetitionThreads.lock();
@@ -2261,6 +2255,22 @@ void * doProcessLine(void *pointer)
     mutexEndedPetitionThreads.unlock();
 
     return NULL;
+}
+
+
+bool askforConfirmation(string message)
+{
+    CmdPetition *inf = getCurrentPetition();
+    if (inf)
+    {
+        return cm->getConfirmation(inf,message);
+    }
+    else
+    {
+        LOG_err << "Unable to get current petition to ask for confirmation";
+    }
+
+    return false;
 }
 
 
@@ -2304,8 +2314,10 @@ void finalize()
     {
         delete console;
     }
+
     delete megaCmdMegaListener;
     delete api;
+
     while (!apiFolders.empty())
     {
         delete apiFolders.front();
@@ -2331,117 +2343,60 @@ void finalize()
 // main loop
 void megacmd()
 {
-    char *saved_line = NULL;
-    int saved_point = 0;
-
-    rl_save_prompt();
-
-    int readline_fd = -1;
-    if (!consoleFailed)
-    {
-        readline_fd = fileno(rl_instream);
-    }
-
     for (;; )
     {
-        if (prompt == COMMAND)
-        {
+        cm->waitForPetition();
 
-            if (!consoleFailed)
-            {
-                rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
-            }
+        api->retryPendingConnections();
 
-            // display prompt
-            if (saved_line)
-            {
-                rl_replace_line(saved_line, 0);
-                free(saved_line);
-            }
-
-            rl_point = saved_point;
-            rl_redisplay();
-        }
-
-        // command editing loop - exits when a line is submitted
-        for (;; )
-        {
-            if (Waiter::HAVESTDIN)
-            {
-                if (prompt == COMMAND || prompt == AREYOUSURETODELETE)
-                {
-                    if (consoleFailed)
-                    {
-                        cm->waitForPetition();
-                    }
-                    else
-                    {
-                        cm->waitForPetitionOrReadlineInput(readline_fd);
-                    }
-                    api->retryPendingConnections();
-
-                    if (!consoleFailed && cm->receivedReadlineInput(readline_fd))
-                    {
-                        rl_callback_read_char();
-                        if (doExit)
-                        {
-                            return;
-                        }
-                    }
-                    else if (cm->receivedPetition())
-                    {
-                        semaphoreClients.wait();
-                        LOG_verbose << "Client connected ";
-
-                        CmdPetition *inf = cm->getPetition();
-
-                        LOG_verbose << "petition registered: " << *inf;
-
-                        delete_finished_threads();
-
-                        //append new one
-                        MegaThread * petitionThread = new MegaThread();
-                        petitionThreads.push_back(petitionThread);
-                        inf->setPetitionThread(petitionThread);
-
-                        LOG_debug << "starting processing: " << *inf;
-
-                        petitionThread->start(doProcessLine, (void*)inf);
-                    }
-                }
-                else
-                {
-                    console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
-                }
-            }
-
-            if (line)
-            {
-                break;
-            }
-        }
-
-        // save line
-        saved_point = rl_point;
-        saved_line = rl_copy_text(0, rl_end);
-
-        // remove prompt
-        rl_save_prompt();
-        rl_replace_line("", 0);
-        rl_redisplay();
-
-        if (line)
-        {
-            // execute user command
-            doExit = doExit || process_line(line);
-            free(line);
-            line = NULL;
-        }
         if (doExit)
         {
-            if (saved_line != NULL)
-                free(saved_line);
+            LOG_verbose << "closing after wait ..." ;
             return;
+        }
+
+        if (cm->receivedPetition())
+        {
+
+            LOG_verbose << "Client connected ";
+
+            CmdPetition *inf = cm->getPetition();
+
+            LOG_verbose << "petition registered: " << *inf;
+
+            delete_finished_threads();
+
+            if (!inf || !strcmp(inf->getLine(),"ERROR"))
+            {
+                LOG_warn << "Petition couldn't be registered. Dismissing it.";
+                delete inf;
+            }
+            // if state register petition
+            else if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
+                     !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
+            {
+
+                cm->registerStateListener(inf);
+
+                // communicate status info
+                string s = "prompt:";
+                s+=dynamicprompt;
+                cm->informStateListener(inf,s);
+            }
+            else
+            { // normal petition
+
+                semaphoreClients.wait();
+
+                //append new one
+                MegaThread * petitionThread = new MegaThread();
+                petitionThreads.push_back(petitionThread);
+                inf->setPetitionThread(petitionThread);
+
+                LOG_verbose << "starting processing: <" << *inf << ">";
+
+                petitionThread->start(doProcessLine, (void*)inf);
+            }
         }
     }
 }
@@ -2475,24 +2430,11 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    u_int width = 75;
-    int rows = 1, cols = width;
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
+    u_int width = getNumberOfCols(75);
 
-    if (RL_ISSTATE(RL_STATE_INITIALIZED))
-    {
-        rl_resize_terminal();
-        rl_get_screen_size(&rows, &cols);
-    }
-#endif
-
-    if (cols)
-    {
-        width = cols-2;
 #ifdef _WIN32
         width--;
 #endif
-    }
 
     COUT << endl;
     COUT << ".";
@@ -2607,40 +2549,11 @@ bool runningInBackground()
     return false;
 }
 
-#ifdef _WIN32
-void mycompletefunct(char **c, int num_matches, int max_length)
-{
-    int rows = 1, cols = 80;
-
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-
-            if (RL_ISSTATE(RL_STATE_INITIALIZED))
-            {
-                rl_resize_terminal();
-                rl_get_screen_size(&rows, &cols);
-            }
-#endif
-
-    OUTSTREAM << endl;
-    int nelements_per_col = (cols-1)/(max_length+1);
-    for (int i=1; i < num_matches; i++)
-    {
-        OUTSTREAM << setw(max_length+1) << left << c[i];
-        if ( (i%nelements_per_col == 0) && (i != num_matches-1))
-        {
-            OUTSTREAM << endl;
-        }
-    }
-    OUTSTREAM << endl;
-}
-#endif
-
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
     setlocale(LC_ALL, "");
-    rl_completion_display_matches_hook = mycompletefunct;
 #endif
 
 #ifdef __MACH__
@@ -2658,6 +2571,10 @@ int main(int argc, char* argv[])
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
 
     if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
+    {
+        loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
+    }
+    if (( argc > 1 ) && !( strcmp(argv[1], "--debug-full")))
     {
         loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
         loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -2756,21 +2673,6 @@ int main(int argc, char* argv[])
 #endif
 
     atexit(finalize);
-
-    rl_attempted_completion_function = getCompletionMatches;
-    rl_completer_quote_characters = "\"'";
-    rl_filename_quote_characters  = " ";
-    rl_completer_word_break_characters = (char *)" ";
-
-    rl_char_is_quoted_p = &quote_detector;
-
-    if (!runningInBackground())
-    {
-        rl_callback_handler_install(NULL, NULL); //this initializes readline somehow,
-        // so that we can use rl_message or rl_resize_terminal safely before ever
-        // prompting anything.
-    }
-
 
     printWelcomeMsg();
     if (consoleFailed)

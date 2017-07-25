@@ -29,10 +29,14 @@
 #define OUTSTRING std::wstring
 #define COUT wcout
 
+
+
 #include <string>
 std::wostream & operator<< ( std::wostream & ostr, std::string const & str );
 std::wostream & operator<< ( std::wostream & ostr, const char * str );
 std::ostringstream & operator<< ( std::ostringstream & ostr, std::wstring const &str);
+
+void localwtostring(const std::wstring* wide, std::string *multibyte);
 
 #else
 #define OUTSTREAMTYPE std::ostream
@@ -75,6 +79,9 @@ enum
     MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
     MCMD_NOFETCH = -58,       ///< Nodes not fetched
     MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+
 };
 
 
@@ -92,6 +99,9 @@ void setprompt(prompttype p, std::string arg = "");
 prompttype getprompt();
 
 void printHistory();
+
+bool askforConfirmation(std::string message);
+
 
 
 #endif

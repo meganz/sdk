@@ -59,47 +59,63 @@ endif
 if BUILD_MEGACMD
 
 
-MEGACMD = examples/mega-cmd examples/mega-exec
+MEGACMD = examples/mega-cmd examples/mega-exec examples/mega-cmd-server
 bin_PROGRAMS += $(MEGACMD)
 $(MEGACMD): $(top_builddir)/src/libmega.la
 noinst_HEADERS += examples/megacmd/comunicationsmanager.h examples/megacmd/configurationmanager.h examples/megacmd/megacmd.h examples/megacmd/megacmdlogger.h examples/megacmd/megacmdsandbox.h examples/megacmd/megacmdutils.h examples/megacmd/listeners.h examples/megacmd/megacmdexecuter.h examples/megacmd/megacmdversion.h examples/megacmd/megacmdplatform.h examples/megacmd/comunicationsmanagerportsockets.h
 megacmdcompletiondir = $(sysconfdir)/bash_completion.d/
 megacmdcompletion_DATA = examples/megacmd/client/megacmd_completion.sh
 megacmdscripts_bindir = $(bindir)
-megacmdscripts_bin_SCRIPTS = examples/megacmd/client/mega-attr examples/megacmd/client/mega-cd examples/megacmd/client/mega-confirm examples/megacmd/client/mega-cp examples/megacmd/client/mega-debug examples/megacmd/client/mega-du examples/megacmd/client/mega-export examples/megacmd/client/mega-find examples/megacmd/client/mega-get examples/megacmd/client/mega-help examples/megacmd/client/mega-history examples/megacmd/client/mega-import examples/megacmd/client/mega-invite examples/megacmd/client/mega-ipc examples/megacmd/client/mega-killsession examples/megacmd/client/mega-lcd examples/megacmd/client/mega-log examples/megacmd/client/mega-login examples/megacmd/client/mega-logout examples/megacmd/client/mega-lpwd examples/megacmd/client/mega-ls examples/megacmd/client/mega-mkdir examples/megacmd/client/mega-mount examples/megacmd/client/mega-mv examples/megacmd/client/mega-passwd examples/megacmd/client/mega-preview examples/megacmd/client/mega-put examples/megacmd/client/mega-speedlimit examples/megacmd/client/mega-pwd examples/megacmd/client/mega-quit examples/megacmd/client/mega-reload examples/megacmd/client/mega-rm examples/megacmd/client/mega-session examples/megacmd/client/mega-share examples/megacmd/client/mega-showpcr examples/megacmd/client/mega-signup examples/megacmd/client/mega-sync examples/megacmd/client/mega-thumbnail examples/megacmd/client/mega-userattr examples/megacmd/client/mega-users examples/megacmd/client/mega-version examples/megacmd/client/mega-whoami
-examples_mega_cmd_SOURCES = examples/megacmd/megacmd.cpp examples/megacmd/comunicationsmanager.cpp examples/megacmd/megacmdutils.cpp examples/megacmd/configurationmanager.cpp examples/megacmd/megacmdlogger.cpp examples/megacmd/megacmdsandbox.cpp examples/megacmd/listeners.cpp examples/megacmd/megacmdexecuter.cpp examples/megacmd/comunicationsmanagerportsockets.cpp  
+megacmdscripts_bin_SCRIPTS = examples/megacmd/client/mega-attr examples/megacmd/client/mega-cd examples/megacmd/client/mega-confirm examples/megacmd/client/mega-cp examples/megacmd/client/mega-debug examples/megacmd/client/mega-du examples/megacmd/client/mega-export examples/megacmd/client/mega-find examples/megacmd/client/mega-get examples/megacmd/client/mega-help examples/megacmd/client/mega-https examples/megacmd/client/mega-transfers examples/megacmd/client/mega-import examples/megacmd/client/mega-invite examples/megacmd/client/mega-ipc examples/megacmd/client/mega-killsession examples/megacmd/client/mega-lcd examples/megacmd/client/mega-log examples/megacmd/client/mega-login examples/megacmd/client/mega-logout examples/megacmd/client/mega-lpwd examples/megacmd/client/mega-ls examples/megacmd/client/mega-mkdir examples/megacmd/client/mega-mount examples/megacmd/client/mega-mv examples/megacmd/client/mega-passwd examples/megacmd/client/mega-preview examples/megacmd/client/mega-put examples/megacmd/client/mega-speedlimit examples/megacmd/client/mega-pwd examples/megacmd/client/mega-quit examples/megacmd/client/mega-reload examples/megacmd/client/mega-rm examples/megacmd/client/mega-session examples/megacmd/client/mega-share examples/megacmd/client/mega-showpcr examples/megacmd/client/mega-signup examples/megacmd/client/mega-sync examples/megacmd/client/mega-thumbnail examples/megacmd/client/mega-userattr examples/megacmd/client/mega-users examples/megacmd/client/mega-version examples/megacmd/client/mega-whoami
+examples_mega_cmd_server_SOURCES = examples/megacmd/megacmd.cpp examples/megacmd/comunicationsmanager.cpp examples/megacmd/megacmdutils.cpp examples/megacmd/configurationmanager.cpp examples/megacmd/megacmdlogger.cpp examples/megacmd/megacmdsandbox.cpp examples/megacmd/listeners.cpp examples/megacmd/megacmdexecuter.cpp examples/megacmd/comunicationsmanagerportsockets.cpp  
 
-examples_mega_exec_SOURCES = examples/megacmd/client/megacmdclient.cpp
-examples_mega_execdir=examples
 examples_mega_cmddir=examples
+
+#CMDCLIENT
+noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunications.h
+examples_mega_exec_SOURCES = examples/megacmd/client/megacmdclient.cpp  examples/megacmd/megacmdshell/megacmdshellcommunications.cpp
+examples_mega_execdir=examples
+examples_mega_exec_CXXFLAGS = -std=c++11
+
+#CMDSHELL
+noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunications.h examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h examples/megacmd/megacmdshell/megacmdshell.h
+examples_mega_cmd_SOURCES = examples/megacmd/megacmdshell/megacmdshellcommunications.cpp examples/megacmd/megacmdshell/megacmdshell.cpp examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp
+
+examples_mega_cmddir=examples
+examples_mega_cmd_CXXFLAGS = -std=c++11 $(RL_CXXFLAGS)
+examples_mega_cmd_LDADD = $(RL_LDFLAGS) $(RL_LIBS)
 
 
 if WIN32
 
-examples_mega_cmd_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
-examples_mega_cmd_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
+examples_mega_cmd_server_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
+examples_mega_cmd_server_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
 
-examples_mega_exec_CXXFLAGS = -D_WIN32=1
+
+examples_mega_exec_CXXFLAGS += -D_WIN32=1
 examples_mega_exec_LDADD = $(LIBS_EXTRA)
+
 
 else
 
-examples_mega_cmd_CXXFLAGS=$(FI_CXXFLAGS) $(RL_CXXFLAGS) $(PCRE_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_mega_cmd_LDADD=$(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
+examples_mega_cmd_server_CXXFLAGS=$(FI_CXXFLAGS) $(PCRE_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
+examples_mega_cmd_server_LDADD=$(FI_LDFLAGS) $(FI_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
 
-examples_mega_cmd_SOURCES += examples/megacmd/comunicationsmanagerfilesockets.cpp
+examples_mega_cmd_server_SOURCES += examples/megacmd/comunicationsmanagerfilesockets.cpp
 noinst_HEADERS += examples/megacmd/comunicationsmanagerfilesockets.h
 
 endif
 
 
 if DARWIN
-examples_mega_cmd_SOURCES += examples/megacmd/megacmdplatform.mm
-examples_mega_cmd_LDFLAGS = -framework Cocoa -framework Security
+examples_mega_cmd_server_SOURCES += examples/megacmd/megacmdplatform.mm
+examples_mega_cmd_server_LDFLAGS = -framework Cocoa -framework Security
 else
 
 if ENABLE_STATIC
-#examples_mega_cmd_LDFLAGS = -Wl,-static -all-static
+#examples_mega_cmd_server_LDFLAGS = -Wl,-static -all-static
+examples_mega_cmd_server_LDFLAGS = -pthread
+examples_mega_exec_LDFLAGS = -pthread
 examples_mega_cmd_LDFLAGS = -pthread
 endif
 
@@ -107,5 +123,3 @@ endif
 
 
 endif
-
-

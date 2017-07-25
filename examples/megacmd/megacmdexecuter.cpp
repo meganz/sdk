@@ -35,10 +35,6 @@
 
 #include <signal.h>
 
-#define USE_VARARGS
-#define PREFER_STDARG
-#include <readline/readline.h>
-
 using namespace mega;
 
 static const char* rootnodenames[] = { "ROOT", "INBOX", "RUBBISH" };
@@ -211,6 +207,7 @@ bool MegaCmdExecuter::includeIfIsSharedOrPendingOutShare(MegaApi *api, MegaNode 
 struct patternNodeVector
 {
     string pattern;
+    bool usepcre;
     vector<MegaNode*> *nodesMatching;
 };
 
@@ -218,7 +215,7 @@ struct patternNodeVector
 bool MegaCmdExecuter::includeIfMatchesPattern(MegaApi *api, MegaNode * n, void *arg)
 {
     struct patternNodeVector *pnv = (struct patternNodeVector*)arg;
-    if (patternMatches(n->getName(), pnv->pattern.c_str()))
+    if (patternMatches(n->getName(), pnv->pattern.c_str(), pnv->usepcre))
     {
         pnv->nodesMatching->push_back(n->copy());
         return true;
@@ -271,6 +268,11 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
     MegaNode* n = NULL;
     MegaNode* nn = NULL;
 
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node whose path is \"\"";
+        return NULL;
+    }
     // split path by / or :
     do
     {
@@ -487,9 +489,10 @@ MegaNode* MegaCmdExecuter::nodebypath(const char* ptr, string* user, string* nam
  * @param parentNode node for reference for relative paths
  * @param pathParts path pattern (separated in strings)
  * @param pathsMatching for the returned paths
+ * @param usepcre use PCRE expressions if available
  * @param pathPrefix prefix to append to paths
  */
-void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathParts, vector<string> *pathsMatching, string pathPrefix)
+void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathParts, vector<string> *pathsMatching, bool usepcre, string pathPrefix)
 {
     if (!pathParts.size())
     {
@@ -507,7 +510,7 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
          }
 
         //ignore this part
-        return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"./");
+        return getPathsMatching(parentNode, pathParts, pathsMatching, usepcre, pathPrefix+"./");
     }
     if (currentPart == "..")
     {
@@ -519,7 +522,7 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
             }
 
             parentNode = api->getNodeByHandle(parentNode->getParentHandle());
-            return getPathsMatching(parentNode, pathParts, pathsMatching, pathPrefix+"../");
+            return getPathsMatching(parentNode, pathParts, pathsMatching, usepcre, pathPrefix+"../");
             delete parentNode;
         }
         else
@@ -546,7 +549,7 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
             string childname(aux);
             delete []childNodePath;
 
-            if (patternMatches(childname.c_str(), currentPart.c_str()))
+            if (patternMatches(childname.c_str(), currentPart.c_str(), usepcre))
             {
                 if (pathParts.size() == 0) //last leave
                 {
@@ -554,7 +557,7 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
                 }
                 else
                 {
-                    getPathsMatching(childNode, pathParts, pathsMatching,pathPrefix+childname+"/");
+                    getPathsMatching(childNode, pathParts, pathsMatching, usepcre,pathPrefix+childname+"/");
                 }
             }
         }
@@ -577,11 +580,12 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
  *
  * You take the ownership of the returned value
  * @param ptr
+ * @param usepcre use PCRE expressions if available
  * @param user
  * @param namepart
  * @return
  */
-vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* user, string* namepart)
+vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, bool usepcre, string* user, string* namepart)
 {
     vector<string> *pathsMatching = new vector<string> ();
     deque<string> c;
@@ -591,6 +595,12 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
     int remote = 0; //shared
     MegaNode* n = NULL;
     bool isrelative = false;
+
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node Paths for a node whose path is \"\"";
+        return pathsMatching;
+    }
 
     // split path by / or :
     do
@@ -740,11 +750,11 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
                     if (c.size()==1) //last leave
                     {
                         string currentPart = c.front();
-                        if (patternMatches("bin", currentPart.c_str()))
+                        if (patternMatches("bin", currentPart.c_str(), usepcre))
                         {
                             pathsMatching->push_back("//bin");
                         }
-                        if (patternMatches("in", currentPart.c_str()))
+                        if (patternMatches("in", currentPart.c_str(), usepcre))
                         {
                             pathsMatching->push_back("//in");
                         }
@@ -787,7 +797,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
                 break;
             }
         }
-        getPathsMatching(n, c, pathsMatching,pathPrefix);
+        getPathsMatching(n, c, pathsMatching, usepcre, pathPrefix);
         delete n;
     }
 
@@ -801,7 +811,7 @@ vector <string> * MegaCmdExecuter::nodesPathsbypath(const char* ptr, string* use
  * @param c
  * @param nodesMatching
  */
-void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching)
+void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathParts, vector<MegaNode *> *nodesMatching, bool usepcre)
 {
     if (!pathParts.size())
     {
@@ -813,16 +823,42 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
 
     if (currentPart == "." || currentPart == "")
     {
-        //ignore this part
-        return getNodesMatching(parentNode, pathParts, nodesMatching);
+        if (pathParts.size() == 0 && currentPart == ".") //last leave
+        {
+            //TODO: consider here currentPart == ""
+            if (parentNode)
+            {
+                nodesMatching->push_back(parentNode->copy());
+                return;
+            }
+        }
+        else
+        {
+            //ignore this part
+            return getNodesMatching(parentNode, pathParts, nodesMatching, usepcre);
+        }
     }
     if (currentPart == "..")
     {
         if (parentNode->getParentHandle())
         {
-            parentNode = api->getNodeByHandle(parentNode->getParentHandle());
-            return getNodesMatching(parentNode, pathParts, nodesMatching);
-            delete parentNode;
+            MegaNode *newparentNode = api->getNodeByHandle(parentNode->getParentHandle());
+            if (!pathParts.size()) //last leave
+            {
+                //TODO: consider here currentPart == ""
+                if (newparentNode)
+                {
+                    nodesMatching->push_back(newparentNode);
+                }
+                return;
+            }
+            else
+            {
+                getNodesMatching(newparentNode, pathParts, nodesMatching, usepcre);
+                delete newparentNode;
+                return;
+            }
+
         }
         else
         {
@@ -837,7 +873,7 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
         for (int i = 0; i < children->size(); i++)
         {
             MegaNode *childNode = children->get(i);
-            if (patternMatches(childNode->getName(), currentPart.c_str()))
+            if (patternMatches(childNode->getName(), currentPart.c_str(), usepcre))
             {
                 if (pathParts.size() == 0) //last leave
                 {
@@ -845,7 +881,7 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
                 }
                 else
                 {
-                    getNodesMatching(childNode, pathParts, nodesMatching);
+                    getNodesMatching(childNode, pathParts, nodesMatching, usepcre);
                 }
             }
         }
@@ -1035,10 +1071,11 @@ MegaNode * MegaCmdExecuter::getRootNodeByPath(const char *ptr, string* user)
  * : and / filename components, as well as the \, must be escaped by \.
  * (correct UTF-8 encoding is assumed)
  * @param ptr
+ * @param usepcre use PCRE expressions if available
  * @param user
  * @return List of MegaNode*.  You take the ownership of those MegaNode*
  */
-vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
+vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, bool usepcre, string* user)
 {
     vector<MegaNode *> *nodesMatching = new vector<MegaNode *> ();
     queue<string> c;
@@ -1047,6 +1084,13 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
     const char* bptr = ptr;
     int remote = 0; //shared
     MegaNode* n = NULL;
+
+    if (*ptr == '\0')
+    {
+        LOG_warn << "Trying to get node whose path is \"\"";
+        return nodesMatching;
+    }
+
 
     // split path by / or :
     do
@@ -1207,7 +1251,7 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, string* user)
     }
     if (n)
     {
-        getNodesMatching(n, c, nodesMatching);
+        getNodesMatching(n, c, nodesMatching, usepcre);
         delete n;
     }
 
@@ -1730,19 +1774,28 @@ void MegaCmdExecuter::actUponGetExtendedAccountDetails(SynchronousRequestListene
         {
             OUTSTREAM << "\tAvailable storage: " << details->getStorageMax() << " byte(s)" << endl;
             MegaNode *n = api->getRootNode();
-            OUTSTREAM << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn ROOT: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
             n = api->getInboxNode();
-            OUTSTREAM << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn INBOX: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
             n = api->getRubbishNode();
-            OUTSTREAM << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
-                      << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
-            delete n;
+            if (n)
+            {
+                OUTSTREAM << "\t\tIn RUBBISH: " << details->getStorageUsed(n->getHandle()) << " byte(s) in "
+                          << details->getNumFiles(n->getHandle()) << " file(s) and " << details->getNumFolders(n->getHandle()) << " folder(s)" << endl;
+                delete n;
+            }
 
 
             MegaNodeList *inshares = api->getInShares();
@@ -2090,12 +2143,26 @@ void MegaCmdExecuter::discardDelete()
 void MegaCmdExecuter::doDeleteNode(MegaNode *nodeToDelete,MegaApi* api)
 {
     char *nodePath = api->getNodePath(nodeToDelete);
-    LOG_verbose << "Deleting: "<< nodePath;
+    if (nodePath)
+    {
+        LOG_verbose << "Deleting: "<< nodePath;
+    }
+    else
+    {
+        LOG_warn << "Deleting node whose path could not be found " << nodeToDelete->getName();
+    }
     MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
     api->remove(nodeToDelete, megaCmdListener);
     megaCmdListener->wait();
     string msj = "delete node ";
-    msj += nodePath;
+    if (nodePath)
+    {
+        msj += nodePath;
+    }
+    else
+    {
+        msj += nodeToDelete->getName();
+    }
     checkNoErrors(megaCmdListener->getError(), msj);
     delete megaCmdListener;
     delete []nodePath;
@@ -2112,7 +2179,7 @@ void MegaCmdExecuter::doDeleteNode(MegaNode *nodeToDelete,MegaApi* api)
  */
 void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recursive, int force)
 {
-    if (( nodeToDelete->getType() == MegaNode::TYPE_FOLDER ) && !recursive)
+    if (( nodeToDelete->getType() != MegaNode::TYPE_FILE ) && !recursive)
     {
         char *nodePath = api->getNodePath(nodeToDelete);
         setCurrentOutCode(MCMD_INVALIDTYPE);
@@ -2121,7 +2188,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
     else
     {
-        if (interactiveThread() && !force && nodeToDelete->getType() == MegaNode::TYPE_FOLDER)
+        if (!getCurrentThreadIsCmdShell() && interactiveThread() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
         {
             bool alreadythere = false;
             for (std::vector< MegaNode * >::iterator it = nodesToConfirmDelete.begin(); it != nodesToConfirmDelete.end(); ++it)
@@ -2148,6 +2215,23 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
             }
 
             return;
+        }
+        else if (!force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
+        {
+
+            string confirmationQuery("Are you sure to delete ");
+            confirmationQuery+=nodeToDelete->getName();
+            confirmationQuery+=" ? (Yes/No): ";
+
+            if (askforConfirmation(confirmationQuery))
+            {
+                LOG_debug << "confirmation received";
+                doDeleteNode(nodeToDelete, api);
+            }
+            else
+            {
+                LOG_debug << "confirmation denied";
+            }
         }
         else
         {
@@ -2261,7 +2345,11 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     {
         megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
     }
+    unescapeifRequired(path);
+
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
+
+
     if (newname.size())
     {
         api->startUpload(path.c_str(), node, newname.c_str(), megaCmdTransferListener);
@@ -2500,12 +2588,12 @@ string MegaCmdExecuter::getCurrentPath()
     return toret;
 }
 
-vector<string> MegaCmdExecuter::listpaths(string askedPath, bool discardFiles)
+vector<string> MegaCmdExecuter::listpaths(bool usepcre, string askedPath, bool discardFiles)
 {
     vector<string> paths;
     if ((int)askedPath.size())
     {
-        vector<string> *pathsToList = nodesPathsbypath(askedPath.c_str());
+        vector<string> *pathsToList = nodesPathsbypath(askedPath.c_str(), usepcre);
         if (pathsToList)
         {
             for (std::vector< string >::iterator it = pathsToList->begin(); it != pathsToList->end(); ++it)
@@ -2786,6 +2874,50 @@ void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE
     OUTSTREAM << endl;
 }
 
+void MegaCmdExecuter::doFind(MegaNode* nodeBase, string word, int printfileinfo, string pattern, bool usepcre)
+{
+    struct patternNodeVector pnv;
+    pnv.pattern = pattern;
+
+    vector<MegaNode *> listOfMatches;
+    pnv.nodesMatching = &listOfMatches;
+    pnv.usepcre = usepcre;
+
+    processTree(nodeBase, includeIfMatchesPattern, (void*)&pnv);
+    for (std::vector< MegaNode * >::iterator it = listOfMatches.begin(); it != listOfMatches.end(); ++it)
+    {
+        MegaNode * n = *it;
+        if (n)
+        {
+            string pathToShow;
+
+            if ( word.size() > 0 && ( (word.find("/") == 0) || (word.find("..") != string::npos)) )
+            {
+                char * nodepath = api->getNodePath(n);
+                pathToShow = string(nodepath);
+                delete [] nodepath;
+            }
+            else
+            {
+                pathToShow = getDisplayPath("", n);
+            }
+            if (printfileinfo)
+            {
+                dumpNode(n, 3, 1, pathToShow.c_str());
+            }
+            else
+            {
+                OUTSTREAM << pathToShow << endl;
+            }
+            //notice: some nodes may be dumped twice
+
+            delete n;
+        }
+    }
+
+    listOfMatches.clear();
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n = NULL;
@@ -2802,7 +2934,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if ((int)words.size() > 1)
         {
-             unescapeifRequired(words[1]);
+
+            unescapeifRequired(words[1]);
 
             string rNpath = "NULL";
             if (words[1].find('/') != string::npos)
@@ -2820,7 +2953,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
             if (isRegExp(words[1]))
             {
-                vector<string> *pathsToList = nodesPathsbypath(words[1].c_str());
+                vector<string> *pathsToList = nodesPathsbypath(words[1].c_str(), getFlag(clflags,"use-pcre"));
                 if (pathsToList && pathsToList->size())
                 {
                     for (std::vector< string >::iterator it = pathsToList->begin(); it != pathsToList->end(); ++it)
@@ -2861,7 +2994,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 else
                 {
                     setCurrentOutCode(MCMD_NOTFOUND);
-                    LOG_err << "Couldn't find " << words[1];
+                    LOG_err << "Couldn't find \"" << words[1] << "\"";
                 }
             }
             else
@@ -2892,68 +3025,62 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "find")
     {
+        string pattern = getOption(cloptions, "pattern", "*");
+        int printfileinfo = getFlag(clflags,"l");
+
         if (!api->isFilesystemAvailable())
         {
             setCurrentOutCode(MCMD_NOTLOGGEDIN);
             LOG_err << "Not logged in.";
             return;
         }
-        if (words.size() > 1)
-        {
-            n = nodebypath(words[1].c_str());
-            if (!n)
-            {
-                setCurrentOutCode(MCMD_NOTFOUND);
-                LOG_err << "Couldn't find " << words[1];
-                return;
-            }
-        }
-        else
+        if (words.size() <= 1)
         {
             n = api->getNodeByHandle(cwd);
+            doFind(n, "", printfileinfo, pattern, getFlag(clflags,"use-pcre"));
+            delete n;
         }
-
-
-        string pattern = getOption(cloptions, "pattern", "*");
-
-        struct patternNodeVector pnv;
-        pnv.pattern = pattern;
-        vector<MegaNode *> listOfMatches;
-        pnv.nodesMatching = &listOfMatches;
-
-        processTree(n, includeIfMatchesPattern, (void*)&pnv);
-        for (std::vector< MegaNode * >::iterator it = listOfMatches.begin(); it != listOfMatches.end(); ++it)
+        for (int i = 1; i < (int)words.size(); i++)
         {
-            MegaNode * n = *it;
-            if (n)
+            if (isRegExp(words[i]))
             {
-                string pathToShow;
-
-                if ( words.size() > 1 && ( (words[1].find("/") == 0) || (words[1].find("..") != string::npos)) )
+                vector<MegaNode *> *nodesToFind = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
+                if (nodesToFind->size())
                 {
-                    char * nodepath = api->getNodePath(n);
-                    pathToShow = string(nodepath);
-                    delete [] nodepath;
+                    for (std::vector< MegaNode * >::iterator it = nodesToFind->begin(); it != nodesToFind->end(); ++it)
+                    {
+                        MegaNode * nodeToFind = *it;
+                        if (nodeToFind)
+                        {
+                            doFind(nodeToFind, words[i], printfileinfo, pattern, getFlag(clflags,"use-pcre"));
+                            delete nodeToFind;
+                        }
+                    }
+                    nodesToFind->clear();
                 }
                 else
                 {
-                    pathToShow = getDisplayPath("", n);
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << words[i] << ": No such file or directory";
                 }
-                if (getFlag(clflags,"l"))
-                {
-                    dumpNode(n, 3, 1, pathToShow.c_str());
-                }
-                else
-                {
-                    OUTSTREAM << pathToShow << endl;
-                }
-                //notice: some nodes may be dumped twice
-
-                delete n;
+                delete nodesToFind;
             }
-        }
+            else
+            {
+                n = nodebypath(words[i].c_str());
+                if (!n)
+                {
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << "Couldn't find " << words[i];
+                }
+                else
+                {
+                    doFind(n, words[i], printfileinfo, pattern, getFlag(clflags,"use-pcre"));
+                    delete n;
+                }
+            }
 
-        listOfMatches.clear();
+        }
     }
     else if (words[0] == "cd")
     {
@@ -3022,13 +3149,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 nodesToConfirmDelete.clear();
             }
 
-
             for (u_int i = 1; i < words.size(); i++)
             {
                 unescapeifRequired(words[i]);
                 if (isRegExp(words[i]))
                 {
-                    vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str());
+                    vector<MegaNode *> *nodesToDelete = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
                     if (nodesToDelete->size())
                     {
                         for (std::vector< MegaNode * >::iterator it = nodesToDelete->begin(); it != nodesToDelete->end(); ++it)
@@ -3364,7 +3490,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
-                vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str());
+                vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
                 if (nodesToList)
                 {
                     for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
@@ -3593,7 +3719,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 if (isRegExp(words[1]))
                 {
-                    vector<MegaNode *> *nodesToGet = nodesbypath(words[1].c_str());
+                    vector<MegaNode *> *nodesToGet = nodesbypath(words[1].c_str(), getFlag(clflags,"use-pcre"));
                     if (nodesToGet)
                     {
                         if (words.size() > 2)
@@ -4391,7 +4517,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
-                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
+                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
                 if (nodes)
                 {
                     if (!nodes->size())
@@ -5114,7 +5240,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             string email = words[1];
             if (( email.find("@") == string::npos )
                 || ( email.find(".") == string::npos )
-                || ( email.find("@") > email.find(".")))
+                || ( email.find("@") > email.find("."))) //TODO: improve email checking
             {
                 setCurrentOutCode(MCMD_INVALIDEMAIL);
                 LOG_err << "No valid email provided";
@@ -5259,7 +5385,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
             {
-                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str());
+                vector<MegaNode *> *nodes = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
                 if (nodes)
                 {
                     if (!nodes->size())
@@ -5517,7 +5643,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             megaCmdListener->wait();
             if (checkNoErrors(megaCmdListener->getError(), "check email corresponds to link"))
             {
-                if (email == megaCmdListener->getRequest()->getEmail())
+                if (megaCmdListener->getRequest()->getEmail() && email == megaCmdListener->getRequest()->getEmail())
                 {
                     string passwd;
                     if (words.size() > 3)
@@ -5530,7 +5656,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         this->login = email;
                         this->link = link;
                         confirming = true;
-                        if (interactiveThread())
+                        if (interactiveThread() && !getCurrentThreadIsCmdShell())
                         {
                             setprompt(LOGINPASSWORD);
                         }
@@ -5575,7 +5701,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "history")
     {
-        printHistory();
         return;
     }
     else if (words[0] == "version")
@@ -5736,7 +5861,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         delete megaCmdListener;
         return;
     }
-    else if (words[0] == "transfers")
+    else if (words[0] == "transfers") //TODO: receive table width (and in megacmd shell send it)
     {
         bool showcompleted = getFlag(clflags, "show-completed");
         bool onlycompleted = getFlag(clflags, "only-completed");
@@ -5748,22 +5873,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (!PATHSIZE)
         {
             // get screen size for output purposes
-            u_int width = 75;
-            int rows = 1, cols = width;
-
-            #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-
-                if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                {
-                    rl_resize_terminal();
-                    rl_get_screen_size(&rows, &cols);
-                }
-            #endif
-
-            if (cols)
-            {
-                width = cols-2;
-            }
+            u_int width = getNumberOfCols(75);
             PATHSIZE = min(60,int((width-45)/2));
         }
 
@@ -5990,7 +6100,6 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     &&  (shown < (limit+1)) //Note limit+1 to seek for one more to show if there are more to show!
                     )
             {
-                //TODO: handle completed transfers correctly (need to be save upon onTransferFinish call)
                 shown++;
                 if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
                 {
