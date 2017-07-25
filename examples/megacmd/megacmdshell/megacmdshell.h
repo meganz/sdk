@@ -1,3 +1,19 @@
+/**
+ * @file examples/megacmd/megacmdshell.h
+ * @brief MEGAcmd: Interactive CLI and service application
+ * This is the shell application
+ *
+ * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is distributed under the terms of the GNU General Public
+ * License, see http://www.gnu.org/copyleft/gpl.txt
+ * for details.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
 #ifndef MEGACMDSHELL_H
 #define MEGACMDSHELL_H
 

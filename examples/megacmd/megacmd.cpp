@@ -1100,7 +1100,14 @@ const char * getUsageStr(const char *command)
 {
     if (!strcmp(command, "login"))
     {
-        return "login [email [password]] | exportedfolderurl#key | session";
+        if (interactiveThread())
+        {
+            return "login [email [password]] | exportedfolderurl#key | session";
+        }
+        else
+        {
+            return "login email password | exportedfolderurl#key | session";
+        }
     }
     if (!strcmp(command, "begin"))
     {
