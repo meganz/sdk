@@ -26,12 +26,11 @@ using namespace Platform;
 
 #define REQUIRED_ENTROPY 64
 
-DelegateMLogger* MegaSDK::externalLogger = new DelegateMLogger(nullptr);
-
 MegaSDK::~MegaSDK()
 {
 	delete megaApi;
 	DeleteCriticalSection(&listenerMutex);
+    DeleteCriticalSection(&loggerMutex);
 }
 
 MegaApi *MegaSDK::getCPtr()
@@ -61,7 +60,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL, 
 		(const char *)NULL, (userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider ^randomProvider)
@@ -91,7 +92,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL,
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor)
@@ -126,7 +129,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		externalGfxProcessor,
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 void MegaSDK::addListener(MListenerInterface^ listener)
@@ -748,6 +753,49 @@ void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
     std::string utf8password;
     if (password != nullptr)
         MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL);
 }
 
 void MegaSDK::querySignupLink(String^ link)
@@ -1110,11 +1158,37 @@ void MegaSDK::setLogLevel(MLogLevel logLevel)
     MegaApi::setLogLevel((int)logLevel);
 }
 
-void MegaSDK::setLoggerObject(MLoggerInterface^ megaLogger)
+void MegaSDK::addLoggerObject(MLoggerInterface^ logger)
 {
-    DelegateMLogger *newLogger = new DelegateMLogger(megaLogger);
-    delete externalLogger;
-    externalLogger = newLogger;
+    MegaApi::addLoggerObject(createDelegateMLogger(logger));
+}
+
+void MegaSDK::removeLoggerObject(MLoggerInterface^ logger)
+{
+    std::vector<DelegateMLogger *> loggersToRemove;
+
+    EnterCriticalSection(&loggerMutex);
+    std::set<DelegateMLogger *>::iterator it = activeLoggers.begin();
+    while (it != activeLoggers.end())
+    {
+        DelegateMLogger *delegate = *it;
+        if (delegate->getUserLogger() == logger)
+        {
+            loggersToRemove.push_back(delegate);
+            activeLoggers.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&loggerMutex);
+
+    for (unsigned int i = 0; i < loggersToRemove.size(); i++)
+    {
+        MegaApi::removeLoggerObject(loggersToRemove[i]);
+        freeLogger(loggersToRemove[i]);
+    }
 }
 
 void MegaSDK::log(MLogLevel logLevel, String^ message, String^ filename, int line)
@@ -2841,6 +2915,16 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent)
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
 }
 
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent, int order)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL, order), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
 bool MegaSDK::hasChildren(MNode^ parent)
 {
     return megaApi->hasChildren((parent != nullptr) ? parent->getCPtr() : NULL);
@@ -3448,4 +3532,21 @@ void MegaSDK::freeTransferListener(DelegateMTransferListener *listener)
 	activeTransferListeners.erase(listener);
 	LeaveCriticalSection(&listenerMutex);
 	delete listener;
+}
+
+MegaLogger *MegaSDK::createDelegateMLogger(MLoggerInterface^ logger)
+{
+    if (logger == nullptr) return NULL;
+
+    DelegateMLogger *delegateLogger = new DelegateMLogger(logger);
+    EnterCriticalSection(&loggerMutex);
+    activeLoggers.insert(delegateLogger);
+    LeaveCriticalSection(&loggerMutex);
+    return delegateLogger;
+}
+
+void MegaSDK::freeLogger(DelegateMLogger *logger)
+{
+    if (logger == nullptr) return;
+    delete logger;
 }

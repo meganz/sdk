@@ -2472,6 +2472,11 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
+        if (User::scope(at) == '^') // store in binary format
+        {
+            string avB64 = av;
+            Base64::atob(avB64, av);
+        }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
@@ -2582,7 +2587,7 @@ void CommandGetUA::procresult()
 
                     switch (scope)
                     {
-                        case '*':   // private
+                        case '*':   // private, encrypted
                         {
                             // decrypt the data and build the TLV records
                             TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
@@ -2616,6 +2621,13 @@ void CommandGetUA::procresult()
 
                         case '#':   // protected
 
+                            u->setattr(at, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
+                            break;
+
+                        case '^': // private, non-encrypted
+
+                            // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
                             break;
@@ -3815,6 +3827,11 @@ void CommandFetchNodes::procresult()
                 // List of chatrooms
                 client->procmcf(&client->json);
                 break;
+
+            case MAKENAMEID4('m', 'c', 'n', 'a'):
+                // nodes shared in chatrooms
+                client->procmcna(&client->json);
+                break;
 #endif
             case EOO:
             {
@@ -4827,6 +4844,9 @@ void CommandChatURL::procresult()
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->h = h;
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcga");
 
@@ -4843,7 +4863,24 @@ void CommandChatGrantAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatgrantaccess_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the action succeed for a non-existing chatroom??
+                client->app->chatgrantaccess_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->setNodeUserAccess(h, uh);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatgrantaccess_result(e);
     }
     else
     {
@@ -4855,6 +4892,9 @@ void CommandChatGrantAccess::procresult()
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
     this->client = client;
+    this->chatid = chatid;
+    this->h = h;
+    Base64::atob(uid, (byte*)&uh, MegaClient::USERHANDLE);
 
     cmd("mcra");
 
@@ -4871,7 +4911,24 @@ void CommandChatRemoveAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatremoveaccess_result((error)client->json.getint());
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                // the action succeed for a non-existing chatroom??
+                client->app->chatremoveaccess_result(API_EINTERNAL);
+                return;
+            }
+
+            TextChat *chat = client->chats[chatid];
+            chat->setNodeUserAccess(h, uh, true);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatremoveaccess_result(e);
     }
     else
     {

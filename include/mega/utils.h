@@ -89,7 +89,7 @@ public:
     unsigned get(AsymmCipher*, byte*, unsigned);
 
     // verify signature
-    bool check(AsymmCipher*, const byte*, unsigned);
+    bool checksignature(AsymmCipher*, const byte*, unsigned);
 
     HashSignature(Hash*);
     ~HashSignature();

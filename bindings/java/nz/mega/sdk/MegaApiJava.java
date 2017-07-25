@@ -49,7 +49,6 @@ import java.util.Set;
 public class MegaApiJava {
     MegaApi megaApi;
     MegaGfxProcessor gfxProcessor;
-    static DelegateMegaLogger logger;
 
     void runCallback(Runnable runnable) {
         runnable.run();
@@ -59,6 +58,7 @@ public class MegaApiJava {
     static Set<DelegateMegaTransferListener> activeTransferListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
     static Set<DelegateMegaGlobalListener> activeGlobalListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaGlobalListener>());
     static Set<DelegateMegaListener> activeMegaListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaListener>());
+    static Set<DelegateMegaLogger> activeMegaLoggers = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaLogger>());
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
 
     // Order options for getChildren
@@ -395,6 +395,18 @@ public class MegaApiJava {
      */
     public static long base64ToHandle(String base64Handle) {
         return MegaApi.base64ToHandle(base64Handle);
+    }
+
+    /**
+     * Converts a Base64-encoded user handle to a MegaHandle
+     *
+     * You can revert this operation using MegaApi::userHandleToBase64
+     *
+     * @param base64Handle Base64-encoded node handle
+     * @return Node handle
+     */
+    public static long base64ToUserHandle(String base64Handle){
+        return MegaApi.base64ToUserHandle(base64Handle);
     }
 
     /**
@@ -1363,19 +1375,45 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a MegaLogger implementation to receive SDK logs.
-     * <p>
+     * Add a MegaLogger implementation to receive SDK logs
+     *
      * Logs received by this objects depends on the active log level.
-     * By default, it is MegaApiJava.LOG_LEVEL_INFO. You can change it
-     * using MegaApiJava.setLogLevel().
-     * 
-     * @param megaLogger
-     *            MegaLogger implementation.
+     * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
+     * using MegaApi::setLogLevel.
+     *
+     * You can remove the existing logger by using MegaApi::removeLoggerObject.
+     *
+     * @param megaLogger MegaLogger implementation
      */
-    public static void setLoggerObject(MegaLoggerInterface megaLogger) {
-        DelegateMegaLogger newLogger = new DelegateMegaLogger(megaLogger);
-        MegaApi.setLoggerObject(newLogger);
-        logger = newLogger;
+    public static void addLoggerObject(MegaLoggerInterface megaLogger){
+        MegaApi.addLoggerObject(createDelegateMegaLogger(megaLogger));
+    }
+
+    /**
+     * Remove a MegaLogger implementation to stop receiving SDK logs
+     *
+     * If the logger was registered in the past, it will stop receiving log
+     * messages after the call to this function.
+     *
+     * @param megaLogger Previously registered MegaLogger implementation
+     */
+    public static void removeLoggerObject(MegaLoggerInterface megaLogger){
+        ArrayList<DelegateMegaLogger> listenersToRemove = new ArrayList<DelegateMegaLogger>();
+
+        synchronized (activeMegaLoggers) {
+            Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
+            while (it.hasNext()) {
+                DelegateMegaLogger delegate = it.next();
+                if (delegate.getUserListener() == megaLogger) {
+                    listenersToRemove.add(delegate);
+                    it.remove();
+                }
+            }
+        }
+
+        for (int i=0;i<listenersToRemove.size();i++){
+            MegaApi.removeLoggerObject(listenersToRemove.get(i));
+        }
     }
 
     /**
@@ -4334,6 +4372,63 @@ public class MegaApiJava {
     }
 
     /**
+     * Get file and folder children of a MegaNode separatedly
+     *
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @param order Order for the returned lists
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return MegaChildren object with two ArrayLists: fileList and FolderList
+     */
+    public MegaChildren getFileFolderChildren(MegaNode parent, int order){
+        MegaChildren children = new MegaChildren();
+
+        MegaChildrenLists childrenList = megaApi.getFileFolderChildren(parent, order);
+
+        children.setFileList(nodeListToArray(childrenList.getFileList()));
+        children.setFolderList(nodeListToArray(childrenList.getFolderList()));
+
+        return children;
+    }
+
+    /**
      * Get all children of a MegaNode.
      * <p>
      * If the parent node does not exist or if it is not a folder, this function.
@@ -5144,6 +5239,16 @@ public class MegaApiJava {
     public void changeApiUrl(String apiURL) {
         megaApi.changeApiUrl(apiURL);
     }
+
+    /**
+     * Set the language code used by the app
+     * @param languageCode code used by the app
+     *
+     * @return True if the language code is known for the SDK, otherwise false
+     */
+    public boolean setLanguage(String languageCode){
+        return megaApi.setLanguage(languageCode);
+    }
     
     /**
      * Keep retrying when public key pinning fails
@@ -5345,6 +5450,12 @@ public class MegaApiJava {
         DelegateMegaListener delegateListener = new DelegateMegaListener(this, listener);
         activeMegaListeners.add(delegateListener);
         return delegateListener;
+    }
+
+    private static MegaLogger createDelegateMegaLogger(MegaLoggerInterface listener){
+        DelegateMegaLogger delegateLogger = new DelegateMegaLogger(listener);
+        activeMegaLoggers.add(delegateLogger);
+        return delegateLogger;
     }
 
     void privateFreeRequestListener(DelegateMegaRequestListener listener) {

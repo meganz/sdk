@@ -783,6 +783,9 @@ public:
 
 class MEGA_API CommandChatGrantAccess : public Command
 {
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();
@@ -791,7 +794,10 @@ public:
 };
 
 class MEGA_API CommandChatRemoveAccess : public Command
-{
+{    
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();

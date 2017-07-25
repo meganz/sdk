@@ -277,6 +277,12 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
+    // account confirmation via signup link
+    virtual void notify_confirmation(const char* email) { }
+
+    // HTTP request finished
+    virtual void http_result(error, int, byte*, int) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

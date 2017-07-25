@@ -33,6 +33,7 @@ namespace mega
 	public ref class MNodeList sealed
 	{
 		friend ref class MegaSDK;
+        friend ref class MChildrenLists;
 		friend class DelegateMListener;
 		friend class DelegateMGlobalListener;
 

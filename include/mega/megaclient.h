@@ -311,7 +311,7 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -413,6 +413,21 @@ public:
 
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
+
+    // send a DNS request to resolve a hostname
+    void dnsrequest(const char*);
+
+    // send a GeLB request for a service with a timeout (in ms) and a number of retries
+    void gelbrequest(const char*, int, int);
+
+    // send chat stats
+    void sendchatstats(const char*);
+
+    // send chat logs with user's annonymous id
+    void sendchatlogs(const char*, const char*);
+
+    // send a HTTP request
+    void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
     // maximum outbound throughput (per target server)
     int putmbpscap;
@@ -557,6 +572,12 @@ public:
     // root URL for API requests
     static string APIURL;
 
+    // root URL for GeLB requests
+    static string GELBURL;
+
+    // root URL for chat stats
+    static string CHATSTATSURL;
+
     // account auth for public folders
     string accountauth;
 
@@ -656,8 +677,9 @@ private:
     void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
+    void sc_chatnode();
 #endif
-    bool sc_uac();
+    void sc_uac();
 
     void init();
 
@@ -743,6 +765,9 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // pending HTTP requests
+    pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
@@ -1053,6 +1078,7 @@ public:
     void procsuk(JSON*);
 
     void procmcf(JSON*);
+    void procmcna(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
@@ -1133,6 +1159,7 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 
