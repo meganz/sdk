@@ -58,11 +58,11 @@ OPENSSL_PREFIX=${JNI_PATH}/${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
 OPENSSL_SHA1="577585f5f5d299c44dd3c993d3c0ac7a219e4949"
 
 SODIUM=sodium
-SODIUM_VERSION=1.0.10
+SODIUM_VERSION=1.0.13
 SODIUM_SOURCE_FILE=libsodium-${SODIUM_VERSION}.tar.gz
 SODIUM_SOURCE_FOLDER=libsodium-${SODIUM_VERSION}
 SODIUM_DOWNLOAD_URL=https://download.libsodium.org/libsodium/releases/${SODIUM_SOURCE_FILE}
-SODIUM_SHA1="f34f78330cf1a4f69acce5f3fc2ada2d4098c7f4"
+SODIUM_SHA1="ba6062fa723e653c6d85a80c3616128e797482ec"
 
 LIBUV=libuv
 LIBUV_VERSION=1.8.0
@@ -215,9 +215,11 @@ if [ "$1" == "clean" ]; then
     rm -rf ../obj/local/armeabi-v7a/
     rm -rf ../obj/local/armeabi/
     rm -rf ../obj/local/x86
+    rm -rf ../obj/local/arm64-v8a
     rm -f ../libs/armeabi-v7a/libmega.so
     rm -f ../libs/armeabi/libmega.so
     rm -f ../libs/x86/libmega.so
+    rm -f ../libs/arm64-v8a/libmega.so
     echo "* Task finished OK"
     exit 0
 fi
@@ -243,8 +245,11 @@ if [ ! -f ${SODIUM}/${SODIUM_SOURCE_FILE}.ready ]; then
     dist-build/android-armv7-a.sh &>> ${LOG_FILE}
     echo "* Prebuilding libsodium for x86"
     dist-build/android-x86.sh &>> ${LOG_FILE}
+    echo "* Prebuilding libsodium for ARM64"
+    dist-build/android-armv8-a.sh &>> ${LOG_FILE}
     ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7
     ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7a
+    ln -sf libsodium-android-armv8-a libsodium-android-arm64-v8a
     ln -sf libsodium-android-i686 libsodium-android-x86
     popd &>> ${LOG_FILE}
     touch ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
@@ -292,6 +297,7 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
     echo "* Setting up cURL"
     downloadCheckAndUnpack ${CURL_DOWNLOAD_URL} ${CURL}/${CURL_SOURCE_FILE} ${CURL_SHA1} ${CURL}
     ln -sf ${CURL_SOURCE_FOLDER} ${CURL}/${CURL}
+    sed -i 's/defined(__ILP32__) ||//' ${CURL}/${CURL}/include/curl/curlbuild.h
     echo "* cURL is ready"
 
     echo "* Setting up c-ares"

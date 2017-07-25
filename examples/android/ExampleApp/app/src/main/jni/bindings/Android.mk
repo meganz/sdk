@@ -8,6 +8,6 @@ LOCAL_MODULE := mega
 LOCAL_CFLAGS := -fexceptions -frtti -fdata-sections -ffunction-sections -DDEBUG
 LOCAL_SRC_FILES := $(LOCAL_PATH)/megasdk.cpp
 LOCAL_LDLIBS := -lm -lz -llog -lGLESv2 -lOpenSLES -latomic
-LOCAL_LDFLAGS :=  -Wl,-dead_strip,-gc-sections 
+LOCAL_LDFLAGS :=  -Wl,-gc-sections 
 LOCAL_STATIC_LIBRARIES := megasdk
 include $(BUILD_SHARED_LIBRARY)
