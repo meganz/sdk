@@ -141,6 +141,8 @@ if test "x$enable_debug" = "xyes" ; then
     CXXFLAGS="-Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+else
+    CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
 
 # Check if we can use -fPIC flag
