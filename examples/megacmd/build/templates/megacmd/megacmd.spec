@@ -99,6 +99,7 @@ make
 for i in examples/megacmd/client/mega-*; do install -D $i %{buildroot}%{_bindir}/${i/examples\/megacmd\/client\//}; done
 install -D examples/megacmd/client/megacmd_completion.sh %{buildroot}%{_sysconfdir}/bash_completion.d/megacmd_completion.sh
 install -D examples/mega-cmd %{buildroot}%{_bindir}/mega-cmd
+install -D examples/mega-cmd-server %{buildroot}%{_bindir}/mega-cmd-server
 install -D examples/mega-exec %{buildroot}%{_bindir}/mega-exec
 
 
@@ -410,6 +411,7 @@ fi
 
 %postun
 killall mega-cmd 2> /dev/null || true
+killall mega-cmd-server 2> /dev/null || true
 
 %clean
 %{?buildroot:%__rm -rf "%{buildroot}"}
@@ -461,6 +463,7 @@ killall mega-cmd 2> /dev/null || true
 %{_bindir}/mega-version
 %{_bindir}/mega-whoami
 %{_bindir}/mega-cmd
+%{_bindir}/mega-cmd-server
 %{_sysconfdir}/bash_completion.d/megacmd_completion.sh
 
 %changelog

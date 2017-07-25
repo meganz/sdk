@@ -86,6 +86,7 @@ package() {
 	for i in examples/megacmd/client/mega-*; do install -D $i $_bindir/${i/examples\/megacmd\/client\//}; done
 	install -D examples/megacmd/client/megacmd_completion.sh $_confdir/bash_completion.d/megacmd_completion.sh
 	install -D examples/mega-cmd $_bindir/mega-cmd
+	install -D examples/mega-cmd-server $_bindir/mega-cmd-server
 	install -D examples/mega-exec $_bindir/mega-exec
 
 }
