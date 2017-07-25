@@ -327,7 +327,7 @@ AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
     enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
