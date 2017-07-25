@@ -36,6 +36,7 @@
 #import "MEGAUserList.h"
 #import "MEGAShareList.h"
 #import "MEGAContactRequestList.h"
+#import "MEGAChildrenLists.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
@@ -3263,6 +3264,64 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return The MEGANode that has the selected parent and name.
  */
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ * @param order Order for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Sort in alphabetical order, ascending
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Sort in alphabetical order, descending
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the parent node of a MEGANode.
