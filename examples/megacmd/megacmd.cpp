@@ -747,7 +747,7 @@ char* remotefolders_completion(const char* text, int state)
         }
         wildtext += "*";
 
-        validpaths = cmdexecuter->listpaths(usepcre, wildtext, usepcre);
+        validpaths = cmdexecuter->listpaths(usepcre, wildtext, true);
     }
     return generic_completion(text, state, validpaths);
 }

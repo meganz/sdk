@@ -490,6 +490,42 @@ wstring parsewArgs(int argc, wchar_t* argv[])
 }
 #endif
 
+bool readconfirmationloop(const char *question)
+{
+    bool firstime = true;
+    for (;; )
+    {
+        string response;
+
+        if (firstime)
+        {
+            cout << question << " " << flush;
+            getline(cin, response);
+        }
+        else
+        {
+            cout << "Please enter [y]es/[n]o:" << " " << flush;
+            getline(cin, response);
+        }
+
+        firstime = false;
+
+        if (response == "yes" || response == "y" || response == "YES" || response == "Y")
+        {
+            return true;
+        }
+        if (response == "no" || response == "n" || response == "NO" || response == "N")
+        {
+            return false;
+        }
+    }
+
+
+
+
+}
+
+
 
 int main(int argc, char* argv[])
 {
@@ -511,10 +547,10 @@ int main(int argc, char* argv[])
     int wargc;
     LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(),&wargc);
     wstring wcommand = parsewArgs(wargc,szArglist);
-    int outcode = comms->executeCommandW(wcommand, NULL, COUT, false);
+    int outcode = comms->executeCommandW(wcommand, readconfirmationloop, COUT, false);
 #else
     string parsedArgs = parseArgs(argc,argv);
-    int outcode = comms->executeCommand(parsedArgs, NULL, COUT, false);
+    int outcode = comms->executeCommand(parsedArgs, readconfirmationloop, COUT, false);
 #endif
 
     delete comms;

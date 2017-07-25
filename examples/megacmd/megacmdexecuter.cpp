@@ -2216,7 +2216,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
 
             return;
         }
-        else if (getCurrentThreadIsCmdShell() && !force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
+        else if (!force && nodeToDelete->getType() != MegaNode::TYPE_FILE)
         {
 
             string confirmationQuery("Are you sure to delete ");
