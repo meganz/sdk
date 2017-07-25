@@ -3255,6 +3255,10 @@ void CommandQueryTransferQuota::procresult()
     {
         LOG_err << "Unexpected response: " << client->json.pos;
         client->json.storeobject();
+
+        // Returns 0 to not alarm apps and don't show overquota pre-warnings
+        // if something unexpected is received, following the same approach as
+        // in the webclient
         return client->app->querytransferquota_result(0);
     }
 

@@ -10503,7 +10503,9 @@ void MegaApiImpl::querytransferquota_result(int code)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_QUERY_TRANSFER_QUOTA)) return;
 
-    request->setFlag(code);
+    // pre-warn about a possible overquota for codes 2 and 3, like in the webclient
+    request->setFlag((code == 2 || code == 3) ? true : false);
+
     fireOnRequestFinish(request, MegaError(API_OK));
 }
 
