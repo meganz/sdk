@@ -8351,9 +8351,9 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
     }
 }
 
-void MegaClient::querybandwidthquota(m_off_t size)
+void MegaClient::querytransferquota(m_off_t size)
 {
-    reqs.add(new CommandQueryBandwidthQuota(this, size));
+    reqs.add(new CommandQueryTransferQuota(this, size));
 }
 
 // export node link

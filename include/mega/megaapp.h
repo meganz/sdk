@@ -64,7 +64,7 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, error) { }
 
     // query bandwidth quota result
-    virtual void querybandwidthquota_result(int) { }
+    virtual void querytransferquota_result(int) { }
 
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }

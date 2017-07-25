@@ -2719,7 +2719,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_QUERY_GELB: return "QUERY_GELB";
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
-        case TYPE_QUERY_BANDWIDTH_QUOTA: return "QUERY_BANDWIDTH_QUOTA";
+        case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
     }
     return "UNKNOWN";
 }
@@ -5057,9 +5057,9 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
     waiter->notify();
 }
 
-void MegaApiImpl::queryBandwidthQuota(long long size, MegaRequestListener *listener)
+void MegaApiImpl::queryTransferQuota(long long size, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_TRANSFER_QUOTA, listener);
     request->setNumber(size);
     requestQueue.push(request);
     waiter->notify();
@@ -10497,11 +10497,11 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::querybandwidthquota_result(int code)
+void MegaApiImpl::querytransferquota_result(int code)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_TRANSFER_QUOTA)) return;
 
     request->setFlag(code);
     fireOnRequestFinish(request, MegaError(API_OK));
@@ -13345,10 +13345,10 @@ void MegaApiImpl::sendPendingRequests()
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
 		}
-        case MegaRequest::TYPE_QUERY_BANDWIDTH_QUOTA:
+        case MegaRequest::TYPE_QUERY_TRANSFER_QUOTA:
         {
             m_off_t size = request->getNumber();
-            client->querybandwidthquota(size);
+            client->querytransferquota(size);
             break;
         }
 		case MegaRequest::TYPE_CHANGE_PW:

@@ -278,7 +278,7 @@ public:
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
-    void querybandwidthquota(m_off_t size);
+    void querytransferquota(m_off_t size);
 
     // update node attributes
     error setattr(Node*, const char* prevattr = NULL);

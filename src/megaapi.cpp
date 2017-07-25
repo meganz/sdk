@@ -1789,9 +1789,9 @@ void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
 }
 
-void MegaApi::queryBandwidthQuota(long long size, MegaRequestListener *listener)
+void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
 {
-    pImpl->queryBandwidthQuota(size, listener);
+    pImpl->queryTransferQuota(size, listener);
 }
 
 void MegaApi::getPricing(MegaRequestListener *listener)
