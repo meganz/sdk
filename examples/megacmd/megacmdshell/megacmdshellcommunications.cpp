@@ -396,10 +396,10 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                     dup2(1, 2);  //redirects stderr to stdout below this line.
                     freopen(pathtolog.c_str(),"w",stdout);
 
-#ifndef NDEBUG //TODO: I fear this might not work via autotools
+#ifndef NDEBUG
                     const char executable[] = "../MEGAcmdServer/MEGAcmd";
 #else
-                    const char executable[] = "mega-cmd"; //TODO: if changed to mega-cmd-server (and kept mega-cmd for the interactive shell, change it here)
+                    const char executable[] = "mega-cmd-server";
 #endif
                     char empty[] = "";
                     char * args[] = {empty};
@@ -782,7 +782,7 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
     int thesock = createSocket();
     if (thesock == INVALID_SOCKET)
     {
-        cerr << "Failed to create socket for registering for state changes" ;
+        cerr << "Failed to create socket for registering for state changes" << endl;
         return INVALID_SOCKET;
     }
 

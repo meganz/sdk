@@ -335,11 +335,13 @@ static void store_line(char* l)
 #ifndef _WIN32 // to prevent exit with Supr key
         doExit = true;
         rl_set_prompt("(CTRL+D) Exiting ...\n");
+#ifndef NDEBUG
         if (comms->serverinitiatedfromshell)
         {
-            cerr << " Forwarding exit command to the server, since this cmd shell (most likely) initiated it" << endl;
+            OUTSTREAM << " Forwarding exit command to the server, since this cmd shell (most likely) initiated it" << endl;
             comms->executeCommand("exit", readconfirmationloop);
         }
+#endif
 #endif
         return;
     }

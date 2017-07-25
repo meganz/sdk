@@ -196,13 +196,12 @@ vector<string> emailpatterncommands(aemailpatterncommands, aemailpatterncommands
 string avalidCommands [] = { "login", "signup", "confirm", "session", "mount", "ls", "cd", "log", "debug", "pwd", "lcd", "lpwd", "import",
                              "put", "get", "attr", "userattr", "mkdir", "rm", "du", "mv", "cp", "sync", "export", "share", "invite", "ipc",
                              "showpcr", "users", "speedlimit", "killsession", "whoami", "help", "passwd", "reload", "logout", "version", "quit",
-                             "thumbnail", "preview", "find", "completion", "clear", "https", "transfers"
+                             "thumbnail", "preview", "find", "completion", "clear", "https", "transfers", "exit"
 #ifdef _WIN32
                              ,"unicode"
 #endif
                            };
 vector<string> validCommands(avalidCommands, avalidCommands + sizeof avalidCommands / sizeof avalidCommands[0]);
-
 
 // password change-related state information
 string oldpasswd;
@@ -1814,12 +1813,17 @@ string getHelpStr(const char *command)
     {
         os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
     }
-    else if (!strcmp(command, "quit"))
+    else if (!strcmp(command, "quit") || !strcmp(command, "exit"))
     {
-        os << "Quits" << endl;
+        os << "Quits MEGAcmd" << endl;
         os << endl;
         os << "Notice that the session will still be active, and local caches available" << endl;
         os << "The session will be resumed when the service is restarted" << endl;
+        if (getCurrentThreadIsCmdShell())
+        {
+            os << endl;
+            os << "Be aware that this will exit both the interactive shell and the server." << endl;
+        }
     }
     else if (!strcmp(command, "transfers"))
     {
