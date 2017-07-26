@@ -6177,7 +6177,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     else
     {
         setCurrentOutCode(MCMD_EARGS);
-        LOG_err << "Invalid command:" << words[0];
+        LOG_err << "Invalid command: " << words[0];
     }
 }
 

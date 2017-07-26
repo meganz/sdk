@@ -969,7 +969,22 @@ void process_line(char * line)
             vector<string> words = getlistOfWords(line);
             if (words.size())
             {
-                if (words[0] == "history")
+                if ( words[0] == "exit" || words[0] == "quit")
+                {
+                    if (words.size() == 1)
+                    {
+                        doExit = true;
+                    }
+                    if (words.size() == 1 || words[1]!="--only-shell")
+                    {
+                        comms->executeCommand(line, readconfirmationloop);
+                    }
+                    else
+                    {
+                        doExit = true;
+                    }
+                }
+                else if (words[0] == "history")
                 {
                     printHistory();
                 }
@@ -1220,11 +1235,6 @@ void readloop()
                 // sleep, so that in case there was a changeprompt waiting, gets executed before relooping
                 // this is not 100% guaranteed to happen
                 sleepSeconds(0);
-
-                if (!strcmp(line,"exit") || !strcmp(line,"quit"))
-                {
-                    doExit = true;
-                }
             }
             free(line);
             line = NULL;

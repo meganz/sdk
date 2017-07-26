@@ -485,6 +485,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validOptValues->insert("limit");
         validOptValues->insert("path-display-size");
     }
+    else if ("exit" == thecommand || "quit" == thecommand)
+    {
+        validParams->insert("only-shell");
+    }
 }
 
 void escapeEspace(string &orig)
@@ -1830,6 +1834,7 @@ string getHelpStr(const char *command)
         {
             os << endl;
             os << "Be aware that this will exit both the interactive shell and the server." << endl;
+            os << "To only exit current shell and keep server running, use \"exit --only-shell\"" << endl;
         }
     }
     else if (!strcmp(command, "transfers"))
@@ -2195,7 +2200,7 @@ static bool process_line(char* l)
 
         case COMMAND:
         {
-            if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
+            if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit") || !strcmp(l, "exit ") || !strcmp(l, "quit "))
             {
                 //                store_line(NULL);
                 return true; // exit
