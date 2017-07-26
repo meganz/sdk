@@ -246,7 +246,7 @@ MegaCmdShellCommunications *comms;
 
 std::mutex mutexPrompt;
 
-void printWelcomeMsg();
+void printWelcomeMsg(u_int width = 0);
 
 void sigint_handler(int signum)
 {
@@ -1276,9 +1276,12 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
     COUT << endl;
 }
 
-void printWelcomeMsg()
+void printWelcomeMsg(u_int width)
 {
-    u_int width = getNumberOfCols(75);
+    if (!width)
+    {
+        width = getNumberOfCols(75);
+    }
 
     COUT << endl;
     COUT << ".";
@@ -1449,8 +1452,17 @@ int main(int argc, char* argv[])
         // prompting anything.
     }
 
+#ifdef _WIN32
+    // in windows, rl_resize_terminal fails to resize before first prompt appears, we take the width from elsewhere
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    int columns;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    columns = csbi.srWindow.Right - csbi.srWindow.Left - 2;
+    printWelcomeMsg(columns);
+#else
     sleepMicroSeconds(200); // this gives a little while so that the console is ready and rl_resize_terminal works fine
     printWelcomeMsg();
+#endif
 
     readloop();
 //    finalize(); //TODO: reset?

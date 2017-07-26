@@ -1139,7 +1139,13 @@ string percentageToText(float percentage)
 u_int getNumberOfCols(u_int defaultwidth)
 {
 #ifdef _WIN32
-    //TODO: implement this
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    int columns;
+
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    columns = csbi.srWindow.Right - csbi.srWindow.Left - 1;
+
+    return columns;
 #else
     struct winsize size;
     if (ioctl(STDOUT_FILENO,TIOCGWINSZ,&size) != -1)
