@@ -203,15 +203,18 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
+#ifndef SWIGPHP7
 //Disable the management of director parameters
 //to workaround several SWIG bugs
 %typemap(directorin) SWIGTYPE* %{ %}
 %typemap(directorout) SWIGTYPE* %{ %}
+#endif
 
 //Rename some overloaded functions to workaround a bug in SWIG
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
 %rename (getOutSharesAll, fullname=1) mega::MegaApi::getOutShares();
 %rename (getTransfersAll, fullname=1) mega::MegaApi::getTransfers();
+%rename (getRootNodeOf, fullname=1) mega::MegaApi::getRootNode(MegaNode*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, MegaTransferListener*);
