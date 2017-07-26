@@ -35,7 +35,7 @@ class MegaListenerPHP extends MegaListener
     var $megaApi;
     var $listener;
 	
-    public function MegaListenerPHP($megaApi, $listener)
+    public function __construct($megaApi, $listener)
     {
         parent::__construct();
 		
@@ -180,7 +180,7 @@ class MegaRequestListenerPHP extends MegaRequestListener
 	var $listener;
 	var $singleListener;
 
-	public function MegaRequestListenerPHP($megaApi, $listener, $single)
+	public function __construct($megaApi, $listener, $single)
 	{
             parent::__construct();
 
@@ -241,7 +241,7 @@ class MegaTransferListenerPHP extends MegaTransferListener
 	var $listener;
 	var $singleListener;
 
-	public function MegaTransferListenerPHP($megaApi, $listener, $single)
+	public function __construct($megaApi, $listener, $single)
 	{
             parent::__construct();
 
@@ -312,7 +312,7 @@ class MegaGlobalListenerPHP extends MegaGlobalListener
 	var $megaApi;
 	var $listener;
 
-	public function MegaGlobalListenerPHP($megaApi, $listener)
+	public function __construct($megaApi, $listener)
 	{
             parent::__construct();
 
@@ -380,7 +380,7 @@ class MegaApiPHP extends MegaApi
     private $activeMegaGlobalListeners = array();
     private $semaphore;
 
-    public function MegaApiPHP($appKey, $userAgent, $basePath = null)
+    public function __construct($appKey, $userAgent, $basePath = null)
     {
         $this->megaApi = new MegaApi($appKey, $basePath, $userAgent);
         $this->semaphore = sem_get("32462", 1, 0666, 1);
@@ -586,9 +586,9 @@ class MegaApiPHP extends MegaApi
         return $this->megaApi->dumpXMPPSession();
     }
 
-    function createAccount($email, $password, $name, $listener = null)
+    function createAccount($email, $password, $firstname, $lastname, $listener = null)
     {
-        $this->megaApi->createAccount($email, $password, $name, $this->createDelegateRequestListener($listener));
+        $this->megaApi->createAccount($email, $password, $firstname, $lastname, $this->createDelegateRequestListener($listener));
     }
 
     function fastCreateAccount($email, $base64pwkey, $name, $listener = null)
