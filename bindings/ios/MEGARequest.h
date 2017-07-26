@@ -103,7 +103,11 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAppVersion,
     MEGARequestTypeGetLocalSSLCertificate,
     MEGARequestTypeSendSignupLink,
-    MEGARequestTypeQueryBandwidthQuota
+    MEGARequestTypeQueryDns,
+    MEGARequestTypeQueryGelb,
+    MEGARequestTypeChatStats,
+    MEGARequestTypeDownloadFile,
+    MEGARequestTypeQueryTransferQuota
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
