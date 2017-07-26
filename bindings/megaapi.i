@@ -1,6 +1,4 @@
-#ifdef SWIGJAVA
 #define ENABLE_CHAT
-#endif
 
 %module(directors="1") mega
 %{
