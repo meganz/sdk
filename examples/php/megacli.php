@@ -9,7 +9,11 @@ set_time_limit(0);
 set_include_path(get_include_path() . PATH_SEPARATOR . "../../bindings/php");
 
 include 'megaapi.php';
-require_once('vendor/autoload.php');
+
+if (file_exists('vendor/autoload.php'))
+    require_once('vendor/autoload.php');
+else
+    require_once('Symfony/autoload.php');
 
 use Symfony\Component\Console\Shell;
 use Symfony\Component\Console\Application; 
