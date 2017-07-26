@@ -189,6 +189,16 @@ int ComunicationsManagerNamedPipes::waitForPetition()
 
 void ComunicationsManagerNamedPipes::stopWaiting()
 {
+    wstring nameOfPipe;
+    wchar_t username[UNLEN+1];
+    DWORD username_len = UNLEN+1;
+    GetUserNameW(username, &username_len);
+
+    nameOfPipe += L"\\\\.\\pipe\\megacmdpipe";
+    nameOfPipe += L"_";
+    nameOfPipe += username;
+    DeleteFile(nameOfPipe.c_str()); // without this, CloseHandle will hang, and loop will be stuck in ConnectNamedPipe
+
     CloseHandle(pipeGeneral);
 }
 
