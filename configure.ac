@@ -1603,7 +1603,7 @@ if test "x$enable_php" = "xyes" ; then
 
     m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
     if test "x"php_version = "x7" ; then
-        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], [SWIG_FLAGS_PHP='-php'])
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
     else
         SWIG_FLAGS_PHP='-php'
     fi
