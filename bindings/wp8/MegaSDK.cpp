@@ -1843,14 +1843,14 @@ void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
 }
 
-void MegaSDK::queryBandwidthQuota(int64 size, MRequestListenerInterface^ listener)
+void MegaSDK::queryTransferQuota(int64 size, MRequestListenerInterface^ listener)
 {
-    megaApi->queryBandwidthQuota(size, createDelegateMRequestListener(listener));
+    megaApi->queryTransferQuota(size, createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::queryBandwidthQuota(int64 size)
+void MegaSDK::queryTransferQuota(int64 size)
 {
-    megaApi->queryBandwidthQuota(size);
+    megaApi->queryTransferQuota(size);
 }
 
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
