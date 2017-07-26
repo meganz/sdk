@@ -23,6 +23,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
+if (!PHP_ZTS)
+{
+   print("WARNING: Your version of PHP is not thread-safe (ZTS).\nThe MEGA SDK uses a worker thread to send callbacks to apps so this app could crash for that reason.\n");
+}
+
 $megaapi = NULL;
 $cwd = NULL;
 

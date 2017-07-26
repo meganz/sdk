@@ -26,3 +26,8 @@ To build and run the project, follow these steps:
 If you you want to build your own app, just create your own `MegaApiPHP` object and use it. Please don't
 directly use the `MegaApi` object, it's intended to be internally used by `MegaApiPHP`, that solves
 all memory management issues for you.
+
+Since the MEGA SDK uses a worker thread to send callbacks to apps, that could cause crashes if you
+don't use a thread-safe version of PHP (ZTE). For that reason, The example app shows a warning if 
+your version of PHP doesn't have ZTE enabled.
+
