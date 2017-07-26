@@ -841,12 +841,12 @@ using namespace mega;
     self.megaApi->getAccountDetails();
 }
 
-- (void)queryBandwidthQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->queryBandwidthQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryTransferQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)queryBandwidthQuotaWithSize:(long long)size {
-    self.megaApi->queryBandwidthQuota(size);
+- (void)queryTransferQuotaWithSize:(long long)size {
+    self.megaApi->queryTransferQuota(size);
 }
 
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
