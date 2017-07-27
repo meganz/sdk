@@ -203,21 +203,38 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
+#ifndef SWIGPHP7
 //Disable the management of director parameters
 //to workaround several SWIG bugs
 %typemap(directorin) SWIGTYPE* %{ %}
 %typemap(directorout) SWIGTYPE* %{ %}
+#endif
 
-//Rename some overloaded functions to workaround a bug in SWIG
+//Rename overloaded functions
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
 %rename (getOutSharesAll, fullname=1) mega::MegaApi::getOutShares();
 %rename (getTransfersAll, fullname=1) mega::MegaApi::getTransfers();
+%rename (getRootNodeOf, fullname=1) mega::MegaApi::getRootNode(MegaNode*);
+%rename (searchAll, fullname=1) mega::MegaApi::search(const char*);
+%rename (getNodeByFingerprintInFolder, fullname=1) mega::MegaApi::getNodeByFingerprint(const char*, MegaNode*);
+%rename (getFingerprintByInputStream, fullname=1) mega::MegaApi::getFingerprint(MegaInputStream*, int64_t);
+%rename (pauseTransfersByDirection, fullname=1) mega::MegaApi::pauseTransfers(bool, int, MegaRequestListener*);
+%rename (exportNodeWithTime, fullname=1) mega::MegaApi::exportNode(MegaNode*, int64_t, MegaRequestListener*);
+%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*, MegaRequestListener*);
+%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*);
+%rename (copyNodeWithName, fullname=1) mega::MegaApi::copyNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t);
+%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool, MegaTransferListener*);
+%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool);
+%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*, MegaRequestListener*);
+%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*);
+
 #endif
 
 %ignore mega::MegaApi::MEGA_DEBRIS_FOLDER;

@@ -253,13 +253,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
@@ -1598,9 +1609,17 @@ if test "x$enable_php" = "xyes" ; then
     fi
 
     AC_SUBST(PHPINC)
-	AC_SUBST(PHPEXT)
-	AC_SUBST(PHPLIBDIR)
+    AC_SUBST(PHPEXT)
+    AC_SUBST(PHPLIBDIR)
 
+    m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
+    if test "x"php_version = "x7" ; then
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
+    else
+        SWIG_FLAGS_PHP='-php'
+    fi
+
+    #do AX_PKG_SWIG again to have $SWIG correctly defined, no only for >=3.0.11
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1610,6 +1629,9 @@ if test "x$enable_php" = "xyes" ; then
     if test -z "$SWIG"; then
         AC_MSG_ERROR([SWIG executable not found!])
     fi
+    
+    AC_SUBST([SWIG_FLAGS_PHP])
+
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
@@ -1661,6 +1683,8 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
+  SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
+  
   Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
