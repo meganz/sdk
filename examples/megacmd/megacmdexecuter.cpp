@@ -2292,13 +2292,13 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     if (!ignorequotawarn)
     {
         MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
-        api->queryBandwidthQuota(node->getSize(),megaCmdListener);
+        api->queryTransferQuota(node->getSize(),megaCmdListener);
         megaCmdListener->wait();
-        if (checkNoErrors(megaCmdListener->getError(), "query bandwidth quota"))
+        if (checkNoErrors(megaCmdListener->getError(), "query transfer quota"))
         {
             if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag() )
             {
-                OUTSTREAM << "Transfer not started: proceding will exceed bandwith quota. "
+                OUTSTREAM << "Transfer not started: proceding will exceed transfer quota. "
                              "Use --ignore-quota-warn to initiate nevertheless" << endl;
                 return;
             }
