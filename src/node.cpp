@@ -699,16 +699,21 @@ const char* Node::displayname() const
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {
+    return Node::hasfileattribute(&fileattrstring, t);
+}
+
+int Node::hasfileattribute(const string *fileattrstring, fatype t)
+{
     char buf[24];
 
     sprintf(buf, ":%u*", t);
-    return fileattrstring.find(buf) + 1;
+    return fileattrstring->find(buf) + 1;
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    int keylength = (type == FILENODE)
+    unsigned int keylength = (type == FILENODE)
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
 
@@ -1073,8 +1078,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
-    LocalTreeProcUpdateTransfers tput;
-    sync->client->proclocaltree(this, &tput);
+    if (newlocalpath)
+    {
+        LocalTreeProcUpdateTransfers tput;
+        sync->client->proclocaltree(this, &tput);
+    }
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1411,7 +1419,7 @@ void LocalNode::prepare()
     getlocalpath(&transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa->localname.size())
+    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->localname.size())
     {
         transfer->slot->fa->updatelocalname(&transfer->localfilename);
     }

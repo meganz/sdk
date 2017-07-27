@@ -49,7 +49,6 @@ import java.util.Set;
 public class MegaApiJava {
     MegaApi megaApi;
     MegaGfxProcessor gfxProcessor;
-    static DelegateMegaLogger logger;
 
     void runCallback(Runnable runnable) {
         runnable.run();
@@ -59,6 +58,7 @@ public class MegaApiJava {
     static Set<DelegateMegaTransferListener> activeTransferListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
     static Set<DelegateMegaGlobalListener> activeGlobalListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaGlobalListener>());
     static Set<DelegateMegaListener> activeMegaListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaListener>());
+    static Set<DelegateMegaLogger> activeMegaLoggers = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaLogger>());
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
 
     // Order options for getChildren
@@ -395,6 +395,18 @@ public class MegaApiJava {
      */
     public static long base64ToHandle(String base64Handle) {
         return MegaApi.base64ToHandle(base64Handle);
+    }
+
+    /**
+     * Converts a Base64-encoded user handle to a MegaHandle
+     *
+     * You can revert this operation using MegaApi::userHandleToBase64
+     *
+     * @param base64Handle Base64-encoded node handle
+     * @return Node handle
+     */
+    public static long base64ToUserHandle(String base64Handle){
+        return MegaApi.base64ToUserHandle(base64Handle);
     }
 
     /**
@@ -767,6 +779,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name, MegaRequestListenerInterface listener) {
         megaApi.createAccount(email, password, name, createDelegateRequestListener(listener));
@@ -781,11 +796,14 @@ public class MegaApiJava {
      *            Password for the account.
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void createAccount(String email, String password, String name) {
         megaApi.createAccount(email, password, name);
     }
-    
+
     /**
      * Initialize the creation of a new MEGA account, with firstname and lastname
      *
@@ -796,7 +814,14 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the firstname of the user
      * - MegaRequest::getText - Returns the lastname of the user
      *
-     * If this request succeed, a confirmation email will be sent to the users.
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeed, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
      * If an account with the same email already exists, you will get the error code
      * MegaError::API_EEXIST in onRequestFinish
      *
@@ -804,12 +829,64 @@ public class MegaApiJava {
      * @param password Password for the account
      * @param firstname Firstname of the user
      * @param lastname Lastname of the user
-     * @param listener MegaRequestListenerInterface to track this request
+     * @param listener MegaRequestListener to track this request
      */
     public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
     	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
     }
-    
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resumeCreateAccount(String sid, MegaRequestListenerInterface listener) {
+        megaApi.resumeCreateAccount(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Resume a registration process
+     *
+     * When a user begins the account registration process by calling MegaApi::createAccount,
+     * an ephemeral account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value 1
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral account (@see MegaApi::createAccount)
+     */
+    public void resumeCreateAccount(String sid) {
+        megaApi.resumeCreateAccount(sid);
+    }
 
     /**
      * Initialize the creation of a new MEGA account with precomputed keys.
@@ -832,6 +909,9 @@ public class MegaApiJava {
      *            Name of the user.
      * @param listener
      *            MegaRequestListener to track this request.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name, MegaRequestListenerInterface listener) {
         megaApi.fastCreateAccount(email, base64pwkey, name, createDelegateRequestListener(listener));
@@ -846,9 +926,41 @@ public class MegaApiJava {
      *            Private key calculated with MegaApiJava.getBase64PwKey().
      * @param name
      *            Name of the user.
+     *
+     * @deprecated This function is deprecated and will eventually be removed. Instead,
+     * use the new version with firstname and lastname.
      */
     public void fastCreateAccount(String email, String base64pwkey, String name) {
         megaApi.fastCreateAccount(email, base64pwkey, name);
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendSignupLink(String email, String name, String password, MegaRequestListenerInterface listener) {
+        megaApi.sendSignupLink(email, name, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sends the confirmation email for a new account
+     *
+     * This function is useful to send the confirmation link again or to send it to a different
+     * email address, in case the user mistyped the email at the registration form.
+     *
+     * @param email Email for the account
+     * @param name Firstname of the user
+     * @param password Password for the account
+     */
+    public void sendSignupLink(String email, String name, String password) {
+        megaApi.sendSignupLink(email, name, password);
     }
 
     /**
@@ -1263,19 +1375,45 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a MegaLogger implementation to receive SDK logs.
-     * <p>
+     * Add a MegaLogger implementation to receive SDK logs
+     *
      * Logs received by this objects depends on the active log level.
-     * By default, it is MegaApiJava.LOG_LEVEL_INFO. You can change it
-     * using MegaApiJava.setLogLevel().
-     * 
-     * @param megaLogger
-     *            MegaLogger implementation.
+     * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
+     * using MegaApi::setLogLevel.
+     *
+     * You can remove the existing logger by using MegaApi::removeLoggerObject.
+     *
+     * @param megaLogger MegaLogger implementation
      */
-    public static void setLoggerObject(MegaLoggerInterface megaLogger) {
-        DelegateMegaLogger newLogger = new DelegateMegaLogger(megaLogger);
-        MegaApi.setLoggerObject(newLogger);
-        logger = newLogger;
+    public static void addLoggerObject(MegaLoggerInterface megaLogger){
+        MegaApi.addLoggerObject(createDelegateMegaLogger(megaLogger));
+    }
+
+    /**
+     * Remove a MegaLogger implementation to stop receiving SDK logs
+     *
+     * If the logger was registered in the past, it will stop receiving log
+     * messages after the call to this function.
+     *
+     * @param megaLogger Previously registered MegaLogger implementation
+     */
+    public static void removeLoggerObject(MegaLoggerInterface megaLogger){
+        ArrayList<DelegateMegaLogger> listenersToRemove = new ArrayList<DelegateMegaLogger>();
+
+        synchronized (activeMegaLoggers) {
+            Iterator<DelegateMegaLogger> it = activeMegaLoggers.iterator();
+            while (it.hasNext()) {
+                DelegateMegaLogger delegate = it.next();
+                if (delegate.getUserListener() == megaLogger) {
+                    listenersToRemove.add(delegate);
+                    it.remove();
+                }
+            }
+        }
+
+        for (int i=0;i<listenersToRemove.size();i++){
+            MegaApi.removeLoggerObject(listenersToRemove.get(i));
+        }
     }
 
     /**
@@ -4234,6 +4372,63 @@ public class MegaApiJava {
     }
 
     /**
+     * Get file and folder children of a MegaNode separatedly
+     *
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @param order Order for the returned lists
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return MegaChildren object with two ArrayLists: fileList and FolderList
+     */
+    public MegaChildren getFileFolderChildren(MegaNode parent, int order){
+        MegaChildren children = new MegaChildren();
+
+        MegaChildrenLists childrenList = megaApi.getFileFolderChildren(parent, order);
+
+        children.setFileList(nodeListToArray(childrenList.getFileList()));
+        children.setFolderList(nodeListToArray(childrenList.getFolderList()));
+
+        return children;
+    }
+
+    /**
      * Get all children of a MegaNode.
      * <p>
      * If the parent node does not exist or if it is not a folder, this function.
@@ -5044,6 +5239,16 @@ public class MegaApiJava {
     public void changeApiUrl(String apiURL) {
         megaApi.changeApiUrl(apiURL);
     }
+
+    /**
+     * Set the language code used by the app
+     * @param languageCode code used by the app
+     *
+     * @return True if the language code is known for the SDK, otherwise false
+     */
+    public boolean setLanguage(String languageCode){
+        return megaApi.setLanguage(languageCode);
+    }
     
     /**
      * Keep retrying when public key pinning fails
@@ -5247,6 +5452,12 @@ public class MegaApiJava {
         return delegateListener;
     }
 
+    private static MegaLogger createDelegateMegaLogger(MegaLoggerInterface listener){
+        DelegateMegaLogger delegateLogger = new DelegateMegaLogger(listener);
+        activeMegaLoggers.add(delegateLogger);
+        return delegateLogger;
+    }
+
     void privateFreeRequestListener(DelegateMegaRequestListener listener) {
         activeRequestListeners.remove(listener);
     }
@@ -5255,7 +5466,7 @@ public class MegaApiJava {
         activeTransferListeners.remove(listener);
     }
 
-    static ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
+    static public ArrayList<MegaNode> nodeListToArray(MegaNodeList nodeList) {
         if (nodeList == null) {
             return null;
         }

@@ -464,9 +464,37 @@ void AsymmCipher::resetkey()
     }
 }
 
-void AsymmCipher::serializekeyforjs(string* d, int keytype)
+void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
 {
-    serializeintarray(key, keytype, d, false);
+    unsigned sizePQ = key[PUB_PQ].ByteCount();
+    unsigned sizeE = key[PUB_E].ByteCount();
+    char c;
+
+    d.clear();
+    d.reserve(!fixedSize ? sizePQ + sizeE : sizePQ + 4);
+
+    for (int j = key[PUB_PQ].ByteCount(); j--;)
+    {
+        c = key[PUB_PQ].GetByte(j);
+        d.append(&c, sizeof c);
+    }
+
+    if (fixedSize)
+    {
+        // accounts created by webclient use 4 bytes for serialization of exponent
+        // --> add left-padding up to 4 bytes for compatibility reasons
+        c = 0;
+        for (unsigned j = 0; j < 4 - sizeE; j++)
+        {
+            d.append(&c, sizeof c);
+        }
+    }
+
+    for (int j = sizeE; j--;)
+    {
+        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
+        d.append(&c, sizeof c);
+    }
 }
 
 void AsymmCipher::serializekey(string* d, int keytype)

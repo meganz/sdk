@@ -25,6 +25,7 @@
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
 #import "MEGAContactRequestList+init.h"
+#import "MEGAEvent+init.h"
 
 using namespace mega;
 
@@ -159,6 +160,16 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
     }
 }
 
+void DelegateMEGAListener::onAccountUpdate(mega::MegaApi *api) {
+    MEGASdk *tempMegaSDK = this->megaSDK;
+    id<MEGADelegate> tempListener = this->listener;
+    if (listener !=nil && [listener respondsToSelector:@selector(onAccountUpdate:)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onAccountUpdate:tempMegaSDK];
+        });
+    }
+}
+
 void DelegateMEGAListener::onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList) {
     if (listener != nil && [listener respondsToSelector:@selector(onContactRequestsUpdate:contactRequestList:)]) {
         MegaContactRequestList *tempContactRequestList = NULL;
@@ -181,5 +192,27 @@ void DelegateMEGAListener::onReloadNeeded(MegaApi *api) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [tempListener onReloadNeeded:tempMegaSDK];
         });
+    }
+}
+
+
+void DelegateMEGAListener::onEvent(mega::MegaApi *api, mega::MegaEvent *event) {
+    switch (event->getType()) {
+        case MegaEvent::EVENT_ACCOUNT_CONFIRMATION:            
+            if (listener != nil && [listener respondsToSelector:@selector(onEvent:event:)]) {
+                MegaEvent *tempEvent = NULL;
+                if(event) {
+                    tempEvent = event->copy();
+                }
+                MEGASdk *tempMegaSDK = this->megaSDK;
+                id<MEGADelegate> tempListener = this->listener;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [tempListener onEvent:tempMegaSDK event:(tempEvent ? [[MEGAEvent alloc] initWithMegaEvent:tempEvent cMemoryOwn:YES] : nil)];
+                });
+            }
+            break;
+            
+        default:
+            break;
     }
 }

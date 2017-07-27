@@ -10,7 +10,6 @@
 		4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4114CBC71A07E9C100B7D475 /* OfflineTableViewController.m */; };
 		4135AE9C19F5882E00A8A56A /* MWPhotoBrowser.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */; };
 		4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4135AEA619F58A2500A8A56A /* libMWPhotoBrowser.a */; };
-		4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF019F57FF10081D102 /* AssetsLibrary.framework */; };
 		414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 414295FA1B13399800639A20 /* libMEGASDK.a */; };
 		41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* SettingsViewController.m */; };
 		4168127719EE6E5700C72800 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127619EE6E5700C72800 /* main.m */; };
@@ -25,9 +24,6 @@
 		416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 416812AC19EE8FAC00C72800 /* SVProgressHUD.bundle */; };
 		416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812AE19EE8FAC00C72800 /* SVProgressHUD.m */; };
 		41954E8B1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41954E8A1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m */; };
-		41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
-		41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
-		41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
 		41AD803F1A2745580015B79B /* SSKeychain.m in Sources */ = {isa = PBXBuildFile; fileRef = 41AD803C1A2745580015B79B /* SSKeychain.m */; };
 		41AD80401A2745580015B79B /* SSKeychainQuery.m in Sources */ = {isa = PBXBuildFile; fileRef = 41AD803E1A2745580015B79B /* SSKeychainQuery.m */; };
 		41AFC10E1A2C745800867F17 /* MainTabBarController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41AFC10D1A2C745800867F17 /* MainTabBarController.m */; };
@@ -43,6 +39,16 @@
 		41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681F21A23658C0088F2E6 /* MEGASdkManager.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
 		943D11F91A25F25100318442 /* MEGAphoto.m in Sources */ = {isa = PBXBuildFile; fileRef = 943D11F81A25F25100318442 /* MEGAphoto.m */; };
+		A88EE21B1F0A63B600AECF76 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2151F0A63B600AECF76 /* libcares.a */; };
+		A88EE21C1F0A63B600AECF76 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2161F0A63B600AECF76 /* libcrypto.a */; };
+		A88EE21D1F0A63B600AECF76 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2171F0A63B600AECF76 /* libcryptopp.a */; };
+		A88EE21E1F0A63B600AECF76 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2181F0A63B600AECF76 /* libcurl.a */; };
+		A88EE21F1F0A63B600AECF76 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2191F0A63B600AECF76 /* libssl.a */; };
+		A88EE2201F0A63B600AECF76 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE21A1F0A63B600AECF76 /* libuv.a */; };
+		A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
+		A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
+		A88EE2241F0A642300AECF76 /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2231F0A642300AECF76 /* libsodium.a */; };
+		A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
 		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
@@ -111,6 +117,13 @@
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 		943D11F71A25F25100318442 /* MEGAphoto.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MEGAphoto.h; path = CloudDrive/MEGAphoto.h; sourceTree = "<group>"; };
 		943D11F81A25F25100318442 /* MEGAphoto.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MEGAphoto.m; path = CloudDrive/MEGAphoto.m; sourceTree = "<group>"; };
+		A88EE2151F0A63B600AECF76 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = ../../../bindings/ios/3rdparty/lib/libcares.a; sourceTree = "<group>"; };
+		A88EE2161F0A63B600AECF76 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = ../../../bindings/ios/3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
+		A88EE2171F0A63B600AECF76 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = ../../../bindings/ios/3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
+		A88EE2181F0A63B600AECF76 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcurl.a; path = ../../../bindings/ios/3rdparty/lib/libcurl.a; sourceTree = "<group>"; };
+		A88EE2191F0A63B600AECF76 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = ../../../bindings/ios/3rdparty/lib/libssl.a; sourceTree = "<group>"; };
+		A88EE21A1F0A63B600AECF76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = ../../../bindings/ios/3rdparty/lib/libuv.a; sourceTree = "<group>"; };
+		A88EE2231F0A642300AECF76 /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = ../../../bindings/ios/3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
 		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Helper.h; sourceTree = "<group>"; };
 		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Helper.m; sourceTree = "<group>"; };
 		E85477501A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Main.strings; sourceTree = "<group>"; };
@@ -124,11 +137,17 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */,
+				A88EE2241F0A642300AECF76 /* libsodium.a in Frameworks */,
+				A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */,
+				A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */,
+				A88EE21B1F0A63B600AECF76 /* libcares.a in Frameworks */,
+				A88EE21C1F0A63B600AECF76 /* libcrypto.a in Frameworks */,
+				A88EE21D1F0A63B600AECF76 /* libcryptopp.a in Frameworks */,
+				A88EE21E1F0A63B600AECF76 /* libcurl.a in Frameworks */,
+				A88EE21F1F0A63B600AECF76 /* libssl.a in Frameworks */,
+				A88EE2201F0A63B600AECF76 /* libuv.a in Frameworks */,
 				414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */,
-				41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */,
-				41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */,
-				41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */,
-				4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */,
 				4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */,
 				41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */,
 				416812A319EE73A000C72800 /* libc++.dylib in Frameworks */,
@@ -206,6 +225,13 @@
 		4168129C19EE6E6D00C72800 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A88EE2231F0A642300AECF76 /* libsodium.a */,
+				A88EE2151F0A63B600AECF76 /* libcares.a */,
+				A88EE2161F0A63B600AECF76 /* libcrypto.a */,
+				A88EE2171F0A63B600AECF76 /* libcryptopp.a */,
+				A88EE2181F0A63B600AECF76 /* libcurl.a */,
+				A88EE2191F0A63B600AECF76 /* libssl.a */,
+				A88EE21A1F0A63B600AECF76 /* libuv.a */,
 				414295FA1B13399800639A20 /* libMEGASDK.a */,
 				41ACFBC61A1155AC00905ACF /* MapKit.framework */,
 				41AB68FD1A094459003FE608 /* ImageIO.framework */,
@@ -593,13 +619,12 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
-					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
+					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios/** ../../../include/** Demo/vendor/MWPhotoBrowser/**";
+				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
 			};
 			name = Debug;
 		};
@@ -614,13 +639,12 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
-					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
+					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios/** ../../../include/** Demo/vendor/MWPhotoBrowser/**";
+				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
 			};
 			name = Release;
 		};

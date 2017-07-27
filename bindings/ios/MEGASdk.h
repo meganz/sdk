@@ -30,16 +30,19 @@
 #import "MEGAPricing.h"
 #import "MEGAAccountDetails.h"
 #import "MEGAContactRequest.h"
+#import "MEGAEvent.h"
 #import "MEGATransferList.h"
 #import "MEGANodeList.h"
 #import "MEGAUserList.h"
 #import "MEGAShareList.h"
 #import "MEGAContactRequestList.h"
+#import "MEGAChildrenLists.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
 #import "MEGAGlobalDelegate.h"
 #import "MEGALoggerDelegate.h"
+#import "MEGATreeProcessorDelegate.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -76,8 +79,17 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
-    MEGAUserAttributeFirstname = 1,
-    MEGAUserAttributeLastname  = 2
+    MEGAUserAttributeAvatar            = 0, // public - char array
+    MEGAUserAttributeFirstname         = 1, // public - char array
+    MEGAUserAttributeLastname          = 2, // public - char array
+    MEGAUserAttributeAuthRing          = 3, // private - byte array
+    MEGAUserAttributeLastInteraction   = 4, // private - byte array
+    MEGAUserAttributeED25519PublicKey  = 5, // public - char array
+    MEGAUserAttributeCU25519PublicKey  = 6, // public - char array
+    MEGAUserAttributeKeyring           = 7, // private - byte array
+    MEGAUserAttributeSigRsaPublicKey   = 8, // public - char array
+    MEGAUserAttributeSigCU255PublicKey = 9, // public - char array
+    MEGAUserAttributeLanguage          = 14 // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -97,6 +109,12 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
     HTTPServerAllowAll               = 0,
     HTTPServerAllowCreatedLocalLinks = 1,
     HTTPServerAllowLastLocalLink     = 2
+};
+
+typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
+    PushNotificationTokenTypeAndroid = 1,
+    PushNotificationTokenTypeiOSVoIP = 2,
+    PushNotificationTokenTypeiOSStandard = 3
 };
 
 /**
@@ -191,6 +209,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  */
 @property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+
+/**
+ * @brief The total number of nodes in the account
+ */
+@property (readonly, nonatomic) NSUInteger totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -332,6 +355,30 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param delegate Delegate that is unregistered.
  */
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
+
+
+/**
+ * @brief Add a MEGALoggerDelegate implementation to receive SDK logs
+ *
+ * Logs received by this objects depends on the active log level.
+ * By default, it is MEGALogLevelInfo. You can change it
+ * using [MEGASdk setLogLevel].
+ *
+ * You can remove the existing logger by using [MEGASdk removeLoggerObject:].
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Remove a MEGALoggerDelegate implementation to stop receiving SDK logs
+ *
+ * If the logger was registered in the past, it will stop receiving log
+ * messages after the call to this function.
+ *
+ * @param delegate Previously registered MegaLogger implementation
+ */
+- (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -659,7 +706,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
- * If this request succeed, a confirmation email will be sent to the users.
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using MegaApi::resumeCreateAccount.
+ *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
  *
@@ -681,7 +735,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
- * If this request succeed, a confirmation email will be sent to the users.
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using MegaApi::resumeCreateAccount.
+ *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
  *
@@ -691,6 +752,55 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param lastname Lastname of the user
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process
+ *
+ * When a user begins the account registration process by calling [MEGASdk createAccountWithEmail:
+ * password:firstname:lastname:delegate:], an ephemeral account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also 
+ * to receive notifications in case the user confirms the account using another client 
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ * - [MEGARequest paramType] - Returns the value 1
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Resume a registration process
+ *
+ * When a user begins the account registration process by calling [MEGASdk createAccountWithEmail:
+ * password:firstname:lastname:delegate:], an ephemeral account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also
+ * to receive notifications in case the user confirms the account using another client
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ * - [MEGARequest paramType] - Returns the value 1
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ */
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
 /**
  * @brief Initialize the creation of a new MEGA account with precomputed keys
@@ -730,6 +840,56 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param name Name of the user.
  */
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param password Password for the account
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param password Password for the account
+ */
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ */
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 
 /**
  * @brief Get information about a confirmation link.
@@ -1955,9 +2115,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -1981,9 +2143,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2005,9 +2169,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
@@ -2027,9 +2193,11 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2049,9 +2217,9 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  */
@@ -2070,9 +2238,9 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -2109,7 +2277,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 /**
  * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
  *
- * The associated request type with this request is MEGARequestTypeQueryBandwidthQuota
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
  * Valid data in the MegaRequest object received on callbacks:
  * - [MEGARequest number] - Returns the amount of bytes to be transferred
@@ -2121,12 +2289,12 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @param size Amount of bytes to be transferred
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)queryBandwidthQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
  *
- * The associated request type with this request is MEGARequestTypeQueryBandwidthQuota
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
  * Valid data in the MegaRequest object received on callbacks:
  * - [MEGARequest number] - Returns the amount of bytes to be transferred
@@ -2137,7 +2305,7 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  *
  * @param size Amount of bytes to be transferred
  */
-- (void)queryBandwidthQuotaWithSize:(long long)size;
+- (void)queryTransferQuotaWithSize:(long long)size;
 
 /**
  * @brief Get the available pricing plans to upgrade a MEGA account.
@@ -3131,6 +3299,64 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
 
 /**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ * @param order Order for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Sort in alphabetical order, ascending
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Sort in alphabetical order, descending
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
+
+/**
  * @brief Get the parent node of a MEGANode.
  *
  * If the node doesn't exist in the account or
@@ -3497,6 +3723,18 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
+ * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
+ * @param node The parent node of the tree to explore
+ * @param recursive YES if you want to recursively process the whole node tree.
+ * @param delegate MEGATreeProcessorDelegate that will receive callbacks for every node in the tree
+ * NO if you want to process the children of the node only
+ *
+ * @return YES if all nodes were processed. NO otherwise (the operation can be
+ * cancelled by [MEGATreeProcessorDelegate processMEGANode:])
+ */
+- (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
+
+/**
  * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
  *
  * This function only allows to authorize file nodes.
@@ -3579,6 +3817,58 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 -(BOOL)setLanguageCode:(NSString *)languageCode;
 
 /**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ */
+- (void)getLanguagePreference;
+
+/**
  * @brief Create a thumbnail for an image
  * @param imagePath Image path
  * @param destinationPath Destination path for the thumbnail (including the file name)
@@ -3593,6 +3883,14 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  * @return YES if the preview was successfully created, otherwise NO.
  */
 - (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
+/**
+ * @brief Create an avatar for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the avatar (including the file name)
+ * @return YES if the avatar was successfully created, otherwise NO.
+ */
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath;
 
 #ifdef HAVE_LIBUV
 
@@ -3970,16 +4268,13 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 + (void)setLogLevel:(MEGALogLevel)logLevel;
 
 /**
- * @brief Set a MEGALogger implementation to receive SDK logs.
+ * @brief Enable log to console
  *
- * Logs received by this objects depends on the active log level.
- * By default, it is MEGALogLevelInfo. You can change it
- * using [MEGASdk setLogLevel].
+ * By default, log to console is false.
  *
- * @param delegate Delegate implementation.
+ * @param enable True to show messages in console, false to skip them.
  */
-
-+ (void)setLogObject:(id<MEGALoggerDelegate>)delegate;
++ (void)setLogToConsole:(BOOL)enable;
 
 /**
  * @brief Send a log to the logging system

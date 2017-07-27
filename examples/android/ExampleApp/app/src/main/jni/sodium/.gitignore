@@ -1,0 +1,3 @@
+/libsodium-*
+/sodium
+!/libsodium-*.sha1

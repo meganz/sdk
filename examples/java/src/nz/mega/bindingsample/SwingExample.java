@@ -105,7 +105,7 @@ public class SwingExample extends JFrame implements MegaRequestListenerInterface
      */
     private void initializeMegaApi() {
 
-        MegaApiSwing.setLoggerObject(this);
+        MegaApiSwing.addLoggerObject(this);
         MegaApiSwing.setLogLevel(MegaApiSwing.LOG_LEVEL_MAX);
 
         if (megaApi == null) {
