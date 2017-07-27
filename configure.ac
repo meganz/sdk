@@ -253,13 +253,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
