@@ -347,7 +347,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
             else
             {
                 //launch server
-                OUTSTREAM << "Server might not be running. Initiating in the background..." << endl;
+                cerr << "Server might not be running. Initiating in the background..." << endl;
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -469,6 +469,41 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommandW(wstring wcommand, bool
     return executeCommand("", readconfirmationloop, output, interactiveshell, wcommand);
 }
 
+/**
+ * @brief Determines it outputing to console (true) or pipe/file (false)
+ * @return
+ */
+bool outputtoconsole(void)
+{
+    HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    if (stdoutHandle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD fileType = GetFileType(stdoutHandle);
+
+    if ((fileType == FILE_TYPE_UNKNOWN) && (GetLastError() != ERROR_SUCCESS)) {
+        return false;
+    }
+
+    fileType &= ~(FILE_TYPE_REMOTE);
+
+    if (fileType == FILE_TYPE_CHAR) {
+        DWORD consoleMode;
+        BOOL result = GetConsoleMode(stdoutHandle, &consoleMode);
+
+        if ((result == FALSE) && (GetLastError() == ERROR_INVALID_HANDLE)) {
+            return false;
+        } else {
+            return true;
+        }
+    } else {
+        return false;
+    }
+    return false;
+}
+
 int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
     HANDLE theNamedPipe = createNamedPipe();
@@ -528,7 +563,7 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
         int BUFFERSIZE = 1024;
         char confirmQuestion[1025];
         memset(confirmQuestion,'\0',1025);
-        bool readok;
+        BOOL readok;
         do{
             readok = ReadFile(newNamedPipe, confirmQuestion, BUFFERSIZE, &n, NULL);
         } while(n == BUFFERSIZE && readok);
@@ -568,9 +603,19 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
             buffer[n]='\0';
             wstring wbuffer;
             stringtolocalw((const char*)&buffer,&wbuffer);
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+            int oldmode;
+            if (interactiveshell || outputtoconsole())
+            {
+                // TODO: in non-interactive mode, when outputting to a file/pipe, we do not save as UTF16
+                // (this will cause issues with unicode chars, but allow piping and processing other files
+                // A full solution should be seeked.
+                 oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+            }
             output << wbuffer;
-            _setmode(fileno(stdout), oldmode);
+            if (interactiveshell || outputtoconsole())
+            {
+                _setmode(fileno(stdout), oldmode);
+            }
         }
     } while(n == BUFFERSIZE && readok);
 

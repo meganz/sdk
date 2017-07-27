@@ -113,7 +113,7 @@ std::wostream & operator<< ( std::wostream & ostr, std::string const & str )
     stringtolocalw(str.c_str(),&toout);
     ostr << toout;
 
-return ( ostr );
+    return ( ostr );
 }
 
 std::wostream & operator<< ( std::wostream & ostr, const char * str )
