@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -2412,6 +2412,7 @@ class MegaRequest
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
          * - MegaApi::setMaxConnections - Returns the number of connections
+         * - MegaApi::queryTransferQuota - Returns the amount of bytes to be transferred
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2444,6 +2445,10 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::queryTransferQuota - True if it is expected to get an overquota error, otherwise false
          *
          * @return Flag related to the request
          */
@@ -6508,6 +6513,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getExtendedAccountDetails(bool sessions = false, bool purchases = false, bool transactions = false, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the available transfer quota is enough to transfer an amount of bytes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_TRANSFER_QUOTA
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the amount of bytes to be transferred
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - True if it is expected to get an overquota error, otherwise false
+         *
+         * @param size Amount of bytes to be transferred
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the available pricing plans to upgrade a MEGA account

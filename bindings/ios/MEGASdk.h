@@ -2275,6 +2275,39 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)getAccountDetails;
 
 /**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ */
+- (void)queryTransferQuotaWithSize:(long long)size;
+
+/**
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function

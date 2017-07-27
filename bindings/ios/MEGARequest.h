@@ -102,7 +102,12 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeGetUserEmail,
     MEGARequestTypeAppVersion,
     MEGARequestTypeGetLocalSSLCertificate,
-    MEGARequestTypeSendSignupLink
+    MEGARequestTypeSendSignupLink,
+    MEGARequestTypeQueryDns,
+    MEGARequestTypeQueryGelb,
+    MEGARequestTypeChatStats,
+    MEGARequestTypeDownloadFile,
+    MEGARequestTypeQueryTransferQuota
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -364,9 +369,9 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  * @brief A flag related to the request.
  *
- * This value is valid for these requests:
- * - [MEGASdk retryPendingConnections] - Returns if request are disconnected
- * - [MEGASdk pauseTransfers:] - Returns the direction of the transfers to pause/resume
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk queryTransferQuota] - YES if it is expected to get an overquota error, otherwise NO
  *
  */
 @property (readonly, nonatomic) BOOL flag;
