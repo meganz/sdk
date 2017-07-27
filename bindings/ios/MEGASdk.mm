@@ -842,6 +842,14 @@ using namespace mega;
     self.megaApi->getAccountDetails();
 }
 
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryTransferQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)queryTransferQuotaWithSize:(long long)size {
+    self.megaApi->queryTransferQuota(size);
+}
+
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPricing([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

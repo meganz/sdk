@@ -3241,6 +3241,30 @@ void CommandGetUserQuota::procresult()
     }
 }
 
+CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client, m_off_t size)
+{
+    cmd("qbq");
+    arg("s", size);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryTransferQuota::procresult()
+{
+    if (!client->json.isnumeric())
+    {
+        LOG_err << "Unexpected response: " << client->json.pos;
+        client->json.storeobject();
+
+        // Returns 0 to not alarm apps and don't show overquota pre-warnings
+        // if something unexpected is received, following the same approach as
+        // in the webclient
+        return client->app->querytransferquota_result(0);
+    }
+
+    return client->app->querytransferquota_result(client->json.getint());
+}
+
 CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
 {
     cmd("utt");
