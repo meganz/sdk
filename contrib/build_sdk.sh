@@ -513,9 +513,9 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.46.0"
+    local curl_ver="7.49.1"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="230e682d59bf8ab6eca36da1d39ebd75"
+    local curl_md5="2feb3767b958add6a177c6602ff21e8c"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""

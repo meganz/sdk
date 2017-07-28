@@ -381,6 +381,7 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
+    cachedtempurl.clear();
     if (type == PUT)
     {
         chunkmacs.clear();

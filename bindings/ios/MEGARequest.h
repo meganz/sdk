@@ -101,8 +101,13 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRegisterPushNotification,
     MEGARequestTypeGetUserEmail,
     MEGARequestTypeAppVersion,
-    MEGARequestTypeGetLocalSSLCert,
-    MEGARequestTypeQueryBandwidthQuota
+    MEGARequestTypeGetLocalSSLCertificate,
+    MEGARequestTypeSendSignupLink,
+    MEGARequestTypeQueryDns,
+    MEGARequestTypeQueryGelb,
+    MEGARequestTypeChatStats,
+    MEGARequestTypeDownloadFile,
+    MEGARequestTypeQueryTransferQuota
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -366,7 +371,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * This value is valid for these request in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
- * - [MEGASdk queryBandwidthQuota] - YES if it is expected to get an overquota error, otherwise NO
+ * - [MEGASdk queryTransferQuota] - YES if it is expected to get an overquota error, otherwise NO
  *
  */
 @property (readonly, nonatomic) BOOL flag;

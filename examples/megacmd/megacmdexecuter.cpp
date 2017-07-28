@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmdexecuter.cpp
- * @brief MegaCMD: Executer of the commands
+ * @brief MEGAcmd: Executer of the commands
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -2292,13 +2292,13 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     if (!ignorequotawarn)
     {
         MegaCmdListener *megaCmdListener = new MegaCmdListener(api, NULL);
-        api->queryBandwidthQuota(node->getSize(),megaCmdListener);
+        api->queryTransferQuota(node->getSize(),megaCmdListener);
         megaCmdListener->wait();
-        if (checkNoErrors(megaCmdListener->getError(), "query bandwidth quota"))
+        if (checkNoErrors(megaCmdListener->getError(), "query transfer quota"))
         {
             if (megaCmdListener->getRequest() && megaCmdListener->getRequest()->getFlag() )
             {
-                OUTSTREAM << "Transfer not started: proceding will exceed bandwith quota. "
+                OUTSTREAM << "Transfer not started: proceding will exceed transfer quota. "
                              "Use --ignore-quota-warn to initiate nevertheless" << endl;
                 return;
             }
@@ -5721,6 +5721,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             OUTSTREAM << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
             OUTSTREAM << "Credits: https://github.com/meganz/sdk/blob/master/CREDITS.md" << endl;
+            OUTSTREAM << "License: https://github.com/meganz/sdk/blob/megacmd/LICENSE" << endl;
 
             OUTSTREAM << "Features enabled:" << endl;
 

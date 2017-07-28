@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/comunicationsmanager.h
- * @brief MegaCMD: Communications manager non supporting non-interactive mode
+ * @brief MEGAcmd: Communications manager non supporting non-interactive mode
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *

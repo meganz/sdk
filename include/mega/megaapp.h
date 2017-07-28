@@ -64,7 +64,7 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, error) { }
 
     // query bandwidth quota result
-    virtual void querybandwidthquota_result(int) { }
+    virtual void querytransferquota_result(int) { }
 
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
@@ -115,7 +115,7 @@ struct MEGA_API MegaApp
     virtual void updatepcr_result(error, ipcactions_t) { }
 
     // file attribute fetch result
-    virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
+    virtual void fa_complete(handle, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int, error)
     {
         return 0;
@@ -276,6 +276,12 @@ struct MEGA_API MegaApp
     virtual void notify_retry(dstime) { }
 
     virtual void notify_dbcommit() { }
+
+    // account confirmation via signup link
+    virtual void notify_confirmation(const char* email) { }
+
+    // HTTP request finished
+    virtual void http_result(error, int, byte*, int) { }
 
     virtual ~MegaApp() { }
 };

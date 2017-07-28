@@ -41,7 +41,7 @@ void SdkTest::SetUp()
     if (megaApi[0] == NULL)
     {
         logger = new MegaLoggerSDK("SDK.log");
-        MegaApi::setLoggerObject(logger);
+        MegaApi::addLoggerObject(logger);
 
         char path[1024];
         assert(getcwd(path, sizeof path));
@@ -96,7 +96,7 @@ void SdkTest::TearDown()
 
         releaseMegaApi(0);
 
-        MegaApi::setLoggerObject(NULL);
+        MegaApi::removeLoggerObject(logger);
         delete logger;
     }
 }
@@ -261,6 +261,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 #endif
 
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        if (lastError[apiIndex] == API_OK)
+        {
+            sid = request->getSessionKey();
+        }
+        break;
+
     }
 }
 
@@ -286,6 +293,27 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
 
     if (lastError[apiIndex] == MegaError::API_OK)
         h = transfer->getNodeHandle();
+}
+
+
+void SdkTest::onAccountUpdate(MegaApi* api)
+{
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
+    accountUpdated[apiIndex] = true;
 }
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
@@ -509,10 +537,11 @@ void SdkTest::purgeTree(MegaNode *p)
     }
 }
 
-bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
+bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
 {
     timeout *= 1000000; // convert to micro-seconds
-    int tWaited = 0;    // microseconds
+    unsigned int tWaited = 0;    // microseconds
+    bool connRetried = false;
     while(!(*responseReceived))
     {
         usleep(pollingT);
@@ -523,6 +552,16 @@ bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
             if (tWaited >= timeout)
             {
                 return false;   // timeout is expired
+            }
+            // if no response after 2 minutes...
+            else if (!connRetried && tWaited > (pollingT * 240))
+            {
+                megaApi[0]->retryPendingConnections(true);
+                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                {
+                    megaApi[1]->retryPendingConnections(true);
+                }
+                connRetried = true;
             }
         }
     }
@@ -756,7 +795,7 @@ void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, cons
     sdklog << message << " (" << source << ")" << endl;
 
     bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
-    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error.";
+    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error: " << message << " (" << source << ")";
 }
 
 void SdkTest::setUserAttribute(int type, string value, int timeout)
@@ -777,24 +816,24 @@ void SdkTest::setUserAttribute(int type, string value, int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "User attribute setup failed (error: " << lastError[0] << ")";
 }
 
-void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
+void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int accountIndex)
 {
-    requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER] = false;
+    requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER] = false;
 
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        megaApi[1]->getUserAvatar(u, AVATARDST.data());
+        megaApi[accountIndex]->getUserAvatar(u, AVATARDST.data());
     }
     else
     {
-        megaApi[1]->getUserAttribute(u, type);
+        megaApi[accountIndex]->getUserAttribute(u, type);
     }
 
-    ASSERT_TRUE( waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
+    ASSERT_TRUE( waitForResponse(&requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
             << "User attribute retrieval not finished after " << timeout  << " seconds";
 
-    bool result = (lastError[1] == MegaError::API_OK) || (lastError[1] == MegaError::API_ENOENT);
-    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[1] << ")";
+    bool result = (lastError[accountIndex] == MegaError::API_OK) || (lastError[accountIndex] == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[accountIndex] << ")";
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
@@ -803,17 +842,47 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
  * @brief TEST_F SdkTestCreateAccount
  *
  * It tests the creation of a new account for a random user.
+ *  - Create account and send confirmation link
+ *  - Logout and resume the create-account process
+ *  - Send the confirmation link to a different email address
+ *  - Wait for confirmation of account by a different client
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    string email1 = "user@domain.com";
+    string pwd = "pwd";
+    string email2 = "other-user@domain.com";
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
+    // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount(email1.c_str(), pwd.c_str(), "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
-
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Logout from ephemeral session and resume session
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
+    requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
+    megaApi[0]->resumeCreateAccount(sid.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
+            << "Account creation has failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Send the confirmation link to a different email address
+    requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
+    megaApi[0]->sendSignupLink(email2.c_str(), "MyFirstname", pwd.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
+            << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Send confirmation link to another email address failed (error: " << lastError[0] << ")";
+
+    // Now, confirm the account by using a different client...
+
+    // ...and wait for the AP notifying the confirmation
+    bool *flag = &accountUpdated[0]; *flag = false;
+    ASSERT_TRUE( waitForResponse(flag) )
+            << "Account confirmation not received after " << maxTimeout << " seconds";
 }
 
 /**
@@ -1511,6 +1580,18 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
 
     delete u;
+
+
+    // --- Get language preference
+
+    u = megaApi[0]->getMyUser();
+
+    string langCode = "es";
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
+    string language = attributeValue;
+    ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
+
 
     // --- Load avatar ---
 

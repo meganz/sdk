@@ -31,11 +31,13 @@
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
 #import "MEGAContactRequestList+init.h"
+#import "MEGAChildrenLists+init.h"
 #import "DelegateMEGARequestListener.h"
 #import "DelegateMEGATransferListener.h"
 #import "DelegateMEGAGlobalListener.h"
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
+#import "DelegateMEGATreeProcessorListener.h"
 #import "MEGAInputStream.h"
 
 #import <set>
@@ -51,19 +53,19 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGATransferListener *>activeTransferListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAGlobalListener *>activeGlobalListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAListener *>activeMegaListeners;
+@property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
+- (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
 @property MegaApi *megaApi;
 
 @end
 
 @implementation MEGASdk
-
-static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListener(nil);
 
 #pragma mark - Properties
 
@@ -110,6 +112,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 - (NSNumber *)totalsUploadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
+}
+
+- (NSUInteger)totalNodes {
+    return self.megaApi->getNumNodes();
 }
 
 - (NSString *)masterKey {
@@ -297,6 +303,34 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 
 }
 
+- (void)addLoggerDelegate:(id<MEGALoggerDelegate>)delegate {
+    MegaApi::addLoggerObject([self createDelegateMegaLogger:delegate]);
+}
+
+- (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate {
+    std::vector<DelegateMEGALoggerListener *> listenersToRemove;
+    
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMEGALoggerListener *>::iterator it = _activeLoggerListeners.begin();
+    while (it != _activeLoggerListeners.end()) {
+        DelegateMEGALoggerListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == delegate) {
+            listenersToRemove.push_back(delegateListener);
+            _activeLoggerListeners.erase(it++);
+        }
+        else {
+            it++;
+        }
+    }
+    pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        MegaApi::removeLoggerObject(listenersToRemove[i]);        
+        delete listenersToRemove[i];
+    }
+}
+
 #pragma mark - Utils
 
 - (NSString *)base64pwkeyForPassword:(NSString *)password {
@@ -443,12 +477,36 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resumeCreateAccountWithSessionId:(NSString *)sessionId {
+    self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL);
+}
+
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
     self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
 }
 
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password {
+    self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fastSendSignupLink(email ? [email UTF8String] : NULL, base64pwkey ? [base64pwkey UTF8String] : NULL, name ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
+    self.megaApi->fastSendSignupLink(email ? [email UTF8String] : NULL, base64pwkey ? [base64pwkey UTF8String] : NULL, name ? [name UTF8String] : NULL);
 }
 
 - (void)querySignupLink:(NSString *)link {
@@ -784,12 +842,12 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     self.megaApi->getAccountDetails();
 }
 
-- (void)queryBandwidthQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->queryBandwidthQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->queryTransferQuota(size, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)queryBandwidthQuotaWithSize:(long long)size {
-    self.megaApi->queryBandwidthQuota(size);
+- (void)queryTransferQuotaWithSize:(long long)size {
+    self.megaApi->queryTransferQuota(size);
 }
 
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -1046,6 +1104,14 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
+    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent ? [parent getCPtr] : NULL, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent {
+    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent ? [parent getCPtr] : NULL) cMemoryOwn:YES];
+}
+
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {
     if (parent == nil || name == nil) return nil;
     
@@ -1287,6 +1353,10 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {    
+    return self.megaApi->processMegaTree(node ? [node getCPtr] : NULL, [self createMegaTreeProcessor:delegate], recursive);
+}
+
 - (MEGANode *)authorizeNode:(MEGANode *)node {
     return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeNode((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
@@ -1327,6 +1397,22 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     return self.megaApi->setLanguage(languageCode ? [languageCode UTF8String] : NULL);
 }
 
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setLanguangePreferenceCode:(NSString *)languageCode {
+    self.megaApi->setLanguagePreference(languageCode ? [languageCode UTF8String] : NULL);
+}
+
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getLanguagePreference([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getLanguagePreference {
+    self.megaApi->getLanguagePreference();
+}
+
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
     if (imagePath == nil || destinationPath == nil) return NO;
     
@@ -1337,6 +1423,12 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     if (imagePath == nil || destinationPath == nil) return NO;
     
     return self.megaApi->createPreview([imagePath UTF8String], [destinationPath UTF8String]);
+}
+
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath {
+    if (imagePath == nil || destinationPath == nil) return NO;
+    
+    return self.megaApi->createAvatar([imagePath UTF8String], [destinationPath UTF8String]);
 }
 
 #ifdef HAVE_LIBUV
@@ -1426,12 +1518,11 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
 }
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken {
-    self.megaApi->registerPushNotifications(2, deviceToken ? [deviceToken UTF8String] : NULL);
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
 #endif
@@ -1442,10 +1533,8 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     MegaApi::setLogLevel((int)logLevel);
 }
 
-+ (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
-    DelegateMEGALoggerListener *newLogger = new DelegateMEGALoggerListener(delegate);
-    delete externalLogger;
-    externalLogger = newLogger;
++ (void)setLogToConsole:(BOOL)enable {
+    MegaApi::setLogToConsole(enable);
 }
 
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename line:(NSInteger)line {
@@ -1499,6 +1588,24 @@ static DelegateMEGALoggerListener *externalLogger = new DelegateMEGALoggerListen
     pthread_mutex_lock(&listenerMutex);
     _activeMegaListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGALoggerListener *delegateListener = new DelegateMEGALoggerListener(delegate);
+    pthread_mutex_lock(&listenerMutex);
+    _activeLoggerListeners.insert(delegateListener);
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaTreeProcessor *)createMegaTreeProcessor:(id<MEGATreeProcessorDelegate>)delegate {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGATreeProcessorListener *delegateListener = new DelegateMEGATreeProcessorListener(delegate);
+    
     return delegateListener;
 }
 

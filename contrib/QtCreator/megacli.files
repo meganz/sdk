@@ -141,3 +141,4 @@
 ../../tests/crypto_test.cpp
 ../../src/thread/libuvthread.cpp
 ../../include/mega/thread/libuvthread.h
+../../include/mega/version.h

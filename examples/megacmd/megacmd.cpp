@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/megacmd.cpp
- * @brief MegaCMD: Interactive CLI and service application
+ * @brief MEGAcmd: Interactive CLI and service application
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -2447,18 +2447,19 @@ void printWelcomeMsg()
         COUT << "=" ;
     COUT << ".";
     COUT << endl;
-    printCenteredLine(" __  __                   ____ __  __ ____  ",width);
-    printCenteredLine("|  \\/  | ___  __ _  __ _ / ___|  \\/  |  _ \\ ",width);
-    printCenteredLine("| |\\/| |/ _ \\/ _` |/ _` | |   | |\\/| | | | |",width);
-    printCenteredLine("| |  | |  __/ (_| | (_| | |___| |  | | |_| |",width);
-    printCenteredLine("|_|  |_|\\___|\\__, |\\__,_|\\____|_|  |_|____/ ",width);
-    printCenteredLine("             |___/                          ",width);
+    printCenteredLine(" __  __ _____ ____    _                      _ ",width);
+    printCenteredLine("|  \\/  | ___|/ ___|  / \\   ___ _ __ ___   __| |",width);
+    printCenteredLine("| |\\/| | \\  / |  _  / _ \\ / __| '_ ` _ \\ / _` |",width);
+    printCenteredLine("| |  | | /__\\ |_| |/ ___ \\ (__| | | | | | (_| |",width);
+    printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
+
     COUT << "|";
     for (u_int i = 0; i < width; i++)
         COUT << " " ;
     COUT << "|";
     COUT << endl;
-    printCenteredLine("Welcome to MegaCMD! A Command Line Interactive and Scriptable",width);
+    printCenteredLine("Welcome to MEGAcmd! A Command Line Interactive and Scriptable",width);
+
     printCenteredLine("Application to interact with your MEGA account",width);
     printCenteredLine("This is a BETA version, it might not be bug-free.",width);
     printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
@@ -2621,7 +2622,7 @@ int main(int argc, char* argv[])
     {
         MegaApi *apiFolder = new MegaApi("BdARkQSQ", (const char*)NULL, userAgent);
         apiFolders.push(apiFolder);
-        apiFolder->setLoggerObject(loggerCMD);
+        apiFolder->addLoggerObject(loggerCMD);
         apiFolder->setLogLevel(MegaApi::LOG_LEVEL_MAX);
         semaphoreapiFolders.release();
     }
@@ -2633,7 +2634,7 @@ int main(int argc, char* argv[])
 
     mutexapiFolders.init(false);
 
-    api->setLoggerObject(loggerCMD);
+    api->addLoggerObject(loggerCMD);
     api->setLogLevel(MegaApi::LOG_LEVEL_MAX);
 
     sandboxCMD = new MegaCmdSandbox();
