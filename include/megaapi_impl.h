@@ -26,6 +26,10 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#ifdef USE_PCRE
+#include <pcre.h>
+#endif
+
 #ifdef HAVE_LIBUV
 #include "uv.h"
 #include "mega/mega_http_parser.h"
@@ -624,6 +628,48 @@ protected:
     MegaHandle prevParent;
 };
 
+#ifdef ENABLE_REGEXP
+
+class MegaRegExpPrivate
+{
+public:
+    MegaRegExpPrivate();
+    ~MegaRegExpPrivate();
+
+    MegaRegExpPrivate *copy();
+
+    bool addRegExp(const char *regExp);
+    int getNumRegExp();
+    const char *getRegExp(int index);
+    bool match(const char *s);
+    const char *getFullPattern();
+
+private:
+    enum{
+        REGEXP_NO_ERROR = 0,
+        REGEXP_COMPILATION_ERROR,
+        REGEXP_OPTIMIZATION_ERROR,
+        REGEXP_EMPTY
+    };
+    int compile();
+    bool updatePattern();
+    bool checkRegExp(const char *regExp);
+    bool isPatternUpdated();
+
+private:
+    std::vector<std::string> regExps;
+    std::string pattern;
+    bool patternUpdated;
+
+#ifdef USE_PCRE
+    int options;
+    pcre* reCompiled;
+    pcre_extra* reOptimization;
+#endif
+};
+
+#endif  // ENABLE_REGEXP
+
 class MegaSyncPrivate : public MegaSync
 {  
 public:
@@ -646,14 +692,21 @@ public:
     MegaSyncListener *getListener();
     virtual int getState() const;
     void setState(int state);
+#ifdef ENABLE_REGEXP
+    virtual MegaRegExp* getRegExp() const;
+    void setRegExp(MegaRegExp *regExp);
+#endif
 
 protected:
     MegaHandle megaHandle;
     string localFolder;
+#ifdef ENABLE_REGEXP
+    MegaRegExp *regExp;
+#endif
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
-    int state;
+    int state; 
 };
 
 #endif
@@ -665,6 +718,7 @@ class MegaRequestPrivate : public MegaRequest
 	public:
 		MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
+
 		virtual ~MegaRequestPrivate();
 		MegaRequest *copy();
 		void setNodeHandle(MegaHandle nodeHandle);
@@ -693,6 +747,9 @@ class MegaRequestPrivate : public MegaRequest
         void setTag(int tag);
         void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+#ifdef ENABLE_REGEXP
+        void setRegExp(MegaRegExp *regExp);
+#endif
 
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -728,7 +785,11 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getNumDetails() const;
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
-	    AccountDetails * getAccountDetails() const;        
+        AccountDetails * getAccountDetails() const;
+#ifdef ENABLE_REGEXP
+        virtual MegaRegExp *getRegExp() const;
+#endif
+
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
@@ -775,11 +836,15 @@ class MegaRequestPrivate : public MegaRequest
         int tag;
         Proxy *proxy;
 
+#ifdef ENABLE_REGEXP
+        MegaRegExp *regExp;
+#endif
+
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
 #endif
-        MegaStringMap *stringMap;
+        MegaStringMap *stringMap;      
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1523,27 +1588,43 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
+#ifdef ENABLE_REGEXP
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener *listener = NULL);
+#else
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+#endif
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
+        void setExcludedPaths(vector<string> *excludedPaths);
         void setExclusionLowerSizeLimit(long long limit);
         void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
+#ifdef ENABLE_REGEXP
+        bool is_syncable(const char* name, const char *path = NULL, MegaRegExp *rExp = NULL);
+#else
         bool is_syncable(const char* name);
+#endif
         bool is_syncable(long long size);
         bool isIndexing();
+        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByNode(MegaNode *node);
+        MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
 #endif
         void update();
         bool isWaiting();
         bool areServersBusy();
+#ifdef ENABLE_REGEXP
+        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
 
         //Statistics
         int getNumPendingUploads();
@@ -1831,6 +1912,7 @@ protected:
         bool waiting;
         bool waitingRequest;
         vector<string> excludedNames;
+        vector<string> excludedPaths;
         long long syncLowerSizeLimit;
         long long syncUpperSizeLimit;
         MegaMutex sdkMutex;
@@ -2014,11 +2096,15 @@ protected:
         virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Node*);
-        virtual bool sync_syncable(const char*name, string*, string*);
+        virtual bool sync_syncable(Sync *, string *, string *, Node *);
+        virtual bool sync_syncable(Sync *, string *, string *, LocalNode * = NULL);
         virtual void syncupdate_local_lockretry(bool);
+
+private:
+        bool sync_syncable(string *, string *, Sync *);
 #endif
 
+protected:
         // suggest reload due to possible race condition with other clients
         virtual void reload(const char*);
 

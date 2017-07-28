@@ -436,16 +436,16 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 name = localname;
                 client->fsaccess->local2name(&name);
 
-                // check if this record is to be ignored
-                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                if (t)
                 {
-                    if (t)
-                    {
-                        localpath->append(client->fsaccess->localseparator);
-                    }
+                    localpath->append(client->fsaccess->localseparator);
+                }
 
-                    localpath->append(localname);
+                localpath->append(localname);
 
+                // check if this record is to be ignored
+                if (client->app->sync_syncable(this, &name, localpath))
+                {
                     // skip the sync's debris folder
                     if (localpath->size() < localdebris.size()
                      || memcmp(localpath->data(), localdebris.data(), localdebris.size())
@@ -468,12 +468,14 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                         }
                     }
 
-                    localpath->resize(t);
+
                 }
                 else
                 {
                     LOG_debug << "Excluded: " << name;
                 }
+
+                localpath->resize(t);
             }
         }
 
@@ -566,7 +568,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         string name = newname;
         client->fsaccess->local2name(&name);
 
-        if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
+        if (!client->app->sync_syncable(this, &name, &tmppath, l))
         {
             LOG_debug << "Excluded: " << path;
             return NULL;

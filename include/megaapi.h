@@ -2621,6 +2621,45 @@ public:
     virtual const char *getText() const;
 };
 
+
+#ifdef ENABLE_REGEXP
+class MegaRegExpPrivate;
+
+/**
+ * @brief Provides a mechanism to handle Regular Expressions
+ */
+class MegaRegExp
+{
+public:
+    MegaRegExp();
+    ~MegaRegExp();
+
+    /**
+     * @brief Creates a copy of this MegaRegExp object
+     *
+     * The resulting object is fully independent of the source MegaRegExp,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaRegExp object
+     */
+    MegaRegExp *copy();
+
+    bool addRegExp(const char *regExp);
+    int getNumRegExp();
+    const char *getRegExp(int index);
+    bool match(const char *s);
+
+    const char *getFullPattern();
+
+private:
+    MegaRegExpPrivate *pImpl;
+    MegaRegExp(MegaRegExpPrivate *pImpl);
+};
+#endif // ENABLE_REGEXP
+
 /**
  * @brief Provides information about a transfer
  *
@@ -7738,7 +7777,10 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+#ifdef ENABLE_REGEXP
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+#endif
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -7764,7 +7806,10 @@ class MegaApi
          * @param localfp Fingerprint of the local file
          * @param listener MegaRequestListener to track this request
          */
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+#ifdef ENABLE_REGEXP
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+#endif
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -7889,6 +7934,17 @@ class MegaApi
         void setExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
+         * @brief Set a list of excluded paths
+         *
+         * Wildcards (* and ?) are allowed
+         *
+         * @param List of excluded paths
+         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
+         * function will be removed in future updates
+         */
+        void setExcludedPaths(std::vector<std::string> *excludedPaths);
+
+        /**
          * @brief Set a lower limit for synchronized files
          *
          * Files with a size lower than this limit won't be synchronized
@@ -7943,6 +7999,19 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByNode(MegaNode *node);
+        MegaSync *getSyncByPath(const char *localPath);
+
+#ifdef ENABLE_REGEXP
+        /**
+        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+        * @param sync Synchronization whose rules want to be updated
+        * @param regExp List of regular expressions (rules)
+        */
+        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
 
         /**
          * @brief Get the total number of local nodes in the account

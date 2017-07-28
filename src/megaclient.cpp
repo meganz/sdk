@@ -9737,9 +9737,21 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     {
         attr_map::iterator ait;
 
+        string localname((*it)->displayname());
+        fsaccess->name2local(&localname);
+        string path = *localpath;
+
+        size_t t = path.size();
+        if (t)
+        {
+            path.append(fsaccess->localseparator);
+        }
+
+        path.append(localname);
+
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(*it)
+        if ((app->sync_syncable(l->sync, &localname, &path, *it)
              && (*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()

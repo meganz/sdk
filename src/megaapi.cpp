@@ -2193,14 +2193,36 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
+#ifdef ENABLE_REGEXP
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+}
+#endif
+
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder, listener);
+#ifdef ENABLE_REGEXP
+    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+#else
+    pImpl->syncFolder(localFolder, megaFolder, listener);
+#endif
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
+#ifdef ENABLE_REGEXP
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+}
+#endif
+
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
+{
+#ifdef ENABLE_REGEXP
+    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+#else
     pImpl->resumeSync(localFolder, localfp, megaFolder, listener);
+#endif
 }
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
@@ -2248,6 +2270,21 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
+MegaSync *MegaApi::getSyncByTag(int tag)
+{
+    return pImpl->getSyncByTag(tag);
+}
+
+MegaSync *MegaApi::getSyncByNode(mega::MegaNode *node)
+{
+    return pImpl->getSyncByNode(node);
+}
+
+MegaSync *MegaApi::getSyncByPath(const char *localPath)
+{
+    return pImpl->getSyncByPath(localPath);
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -2268,6 +2305,11 @@ void MegaApi::setExcludedNames(vector<string> *excludedNames)
     pImpl->setExcludedNames(excludedNames);
 }
 
+void MegaApi::setExcludedPaths(vector<string> *excludedPaths)
+{
+    pImpl->setExcludedPaths(excludedPaths);
+}
+
 void MegaApi::setExclusionLowerSizeLimit(long long limit)
 {
     pImpl->setExclusionLowerSizeLimit(limit);
@@ -2278,6 +2320,13 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
     pImpl->setExclusionUpperSizeLimit(limit);
 }
 
+#endif
+
+#ifdef ENABLE_REGEXP
+void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
+{
+    pImpl->setRegularExpressions(sync,regExp);
+}
 #endif
 
 int MegaApi::getNumPendingUploads()
@@ -4217,7 +4266,49 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+#ifdef ENABLE_REGEXP
+MegaRegExp::MegaRegExp()
+{
+    pImpl = new MegaRegExpPrivate();
+}
 
+MegaRegExp::MegaRegExp(MegaRegExpPrivate *pImpl)
+{
+    this->pImpl = pImpl;
+}
+
+MegaRegExp::~MegaRegExp() { }
+
+MegaRegExp *MegaRegExp::copy()
+{
+    return new MegaRegExp(pImpl->copy());
+}
+
+bool MegaRegExp::addRegExp(const char *regExp)
+{
+    return pImpl->addRegExp(regExp);
+}
+
+int MegaRegExp::getNumRegExp()
+{
+    return pImpl->getNumRegExp();
+}
+
+const char *MegaRegExp::getRegExp(int index)
+{
+    return pImpl->getRegExp(index);
+}
+
+bool MegaRegExp::match(const char *s)
+{
+    return pImpl->match(s);
+}
+
+const char *MegaRegExp::getFullPattern()
+{
+    return pImpl->getFullPattern();
+}
+#endif
 
 int64_t MegaInputStream::getSize()
 {
