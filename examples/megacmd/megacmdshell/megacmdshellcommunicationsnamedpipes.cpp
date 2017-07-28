@@ -406,6 +406,8 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
 #endif
                     LPWSTR t2 = (LPWSTR) t;
                     si.cb = sizeof(si);
+                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+                    si.dwFlags = STARTF_USESHOWWINDOW;
                     if (!CreateProcess( t,t2,NULL,NULL,TRUE,
                                         CREATE_NEW_CONSOLE,
                                         NULL,NULL,
