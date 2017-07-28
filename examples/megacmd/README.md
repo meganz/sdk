@@ -11,9 +11,9 @@ It supports 2 modes of interaction:
 - interactive. A shell to query your actions
 - scriptable. A way to execute commands from a shell/a script/another program.
 
-In order to provide those 2 modes, it features one server (MEGAcmdServer),
-an interactive shell (MEGAcmdShell) and several commands that will
-launch the non-interactive client(MEGAcmdClient). See `Usage` and `Platform`
+In order to provide those 2 modes, it features one server (**MEGAcmdServer**),
+an interactive shell (**MEGAcmdShell**) and several commands that will
+launch the non-interactive client (**MEGAcmdClient**). See [`Usage`](#usage) and [`Platform`](#platforms)
 to understand how to use it in your particular system.
 
 
@@ -66,7 +66,7 @@ automatically.
 
 ### Interactively:
 
-Execute MEGAcmd shell. `Platform` explains how to do that in the different 
+Execute MEGAcmd shell. [`Platform`](#platforms) section explains how to do that in the different 
 supported systems.
 You should be facing an interactive shell where you can start typing your commands, 
 with their arguments and flags.
@@ -89,12 +89,12 @@ Those commands will have an output value != 0 in case of failure.
 See [megacmd.h](megacmd.h) to view the existing error codes.
 
 Ideally, you would like to have these commands in your PATH 
-(See `Platforms` for more info). For further info use `mega-help --non-interactive`.
+(See [`Platform`](#platforms) for more info). For further info use `mega-help --non-interactive`.
 
-#Platforms
+# Platforms
 
 ## Linux
-If you install using one of the available packages at [here](https://mega.nz/cmd), 
+If you have installed MEGAcmd using one of the available packages at [here](https://mega.nz/cmd), 
 or have it built without `--prefix`, both the server (`mega-cmd-server`),
 the shell (`mega-cmd`) and the different client commands (`mega-*`) will be in your PATH 
 (on a fresh install, you might need to open your terminal again). 
@@ -137,7 +137,7 @@ And for bash completion, source `megacmd_completion.sh` :
 source /Applications/MEGAcmd.app/Contents/MacOS/megacmd_completion.sh
 ```
 
-#Features:
+# Features:
 
 ## Autocompletion:
 
@@ -188,5 +188,5 @@ refers to `/` as root path.
 [err: 12:21:51] Couldn't find /toshare/x
 ```
 
-It might better be refered as /toshare/x
+It might better be referred as /toshare/x
 
