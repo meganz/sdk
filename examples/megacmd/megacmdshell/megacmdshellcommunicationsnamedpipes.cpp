@@ -473,7 +473,7 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommandW(wstring wcommand, bool
  * @brief Determines it outputing to console (true) or pipe/file (false)
  * @return
  */
-bool outputtoconsole(void)
+bool outputtobinaryorconsole(void)
 {
     HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -499,7 +499,7 @@ bool outputtoconsole(void)
             return true;
         }
     } else {
-        return false;
+        return true;
     }
     return false;
 }
@@ -601,21 +601,26 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
         if (readok)
         {
             buffer[n]='\0';
+
             wstring wbuffer;
             stringtolocalw((const char*)&buffer,&wbuffer);
             int oldmode;
-            if (interactiveshell || outputtoconsole())
-            {
-                // TODO: in non-interactive mode, when outputting to a file/pipe, we do not save as UTF16
-                // (this will cause issues with unicode chars, but allow piping and processing other files
-                // A full solution should be seeked.
-                 oldmode = _setmode(fileno(stdout), _O_U16TEXT);
-            }
-            output << wbuffer;
-            if (interactiveshell || outputtoconsole())
-            {
-                _setmode(fileno(stdout), oldmode);
-            }
+//            if (interactiveshell || outputtobinaryorconsole())
+//            {
+                // In non-interactive mode, at least in powershell, when outputting to a file/pipe, things get rough
+                // Powershell tries to interpret the output as a string and would meddle with the UTF16 encoding, resulting
+                // in unusable output, So we disable the UTF-16 in such cases (this might cause that the output could be truncated!).
+//                oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+//            }
+
+            oldmode = _setmode(fileno(stdout), _O_U8TEXT);
+            output << wbuffer << flush;
+            _setmode(fileno(stdout), oldmode);
+
+//            if (interactiveshell || outputtobinaryorconsole() || true)
+//            {
+//                _setmode(fileno(stdout), oldmode);
+//            }
         }
     } while(n == BUFFERSIZE && readok);
 

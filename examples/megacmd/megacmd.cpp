@@ -340,6 +340,9 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("f");
         validParams->insert("non-interactive");
         validParams->insert("upgrade");
+#ifdef _WIN32
+        validParams->insert("unicode");
+#endif
     }
     else if ("version" == thecommand)
     {
@@ -1463,7 +1466,9 @@ string getHelpStr(const char *command)
         os << endl;
         os << " Unicode mode is experimental, you might experience" << endl;
         os << " some issues interacting with the console" << endl;
-        os << " (e.g. history navigation fails)" << endl;
+        os << " (e.g. history navigation fails)." << endl;
+        os << "Type \"help unicode\" for further info" << endl;
+
     }
     else if (!strcmp(command, "ls"))
     {
@@ -2063,12 +2068,9 @@ void executecommand(char* ptr)
             OUTSTREAM << "If you use PowerShell, you can add the the location of the scripts to the PATH with:" << endl;
             OUTSTREAM << "  $env:PATH += \";$env:LOCALAPPDATA\\MEGAcmd\"" << endl;
             OUTSTREAM << "Client commands completion requires bash, hence, it is not available for Windows. " << endl;
+            OUTSTREAM << "You can add \" -o outputfile\" to save the output into a file instead of to standard output." << endl;
             OUTSTREAM << endl;
 
-           OUTSTREAM << "  Security caveats:" << endl;
-           OUTSTREAM << "For the current Windows version of MEGAcmd, the server will be using network sockets " << endl;
-           OUTSTREAM << "for attending client commands. This socket is open for petitions on localhost, hence, " << endl;
-           OUTSTREAM << "you should not use it in a multiuser environment." << endl;
 #elif __MACH__
             OUTSTREAM << "After installing the dmg, along with the interactive shell, client commands" << endl;
             OUTSTREAM << "should be located at /Applications/MEGAcmd.app/Contents/MacOS" << endl;
@@ -2087,6 +2089,28 @@ void executecommand(char* ptr)
 
 #endif
         }
+#ifdef _WIN32
+        else if (getFlag(&clflags,"unicode"))
+        {
+            OUTSTREAM << "A great effort has been done so as to have MEGAcmd support non-ASCII characters." << endl;
+            OUTSTREAM << "However, it might still be consider in an experimantal state. You might experiment some issues." << endl;
+            OUTSTREAM << "If that is the case, don´t hesistate to contact us so as to improve our support." << endl;
+            OUTSTREAM << "Known issues: " << endl;
+            OUTSTREAM << "In Windows, when executing a client command in non-interactive mode or the interactive shell " << endl;
+            OUTSTREAM << "Some symbols might not be printed. This is something expected, since your terminal (PowerShell/Command Prompt)" << endl;
+            OUTSTREAM << " is not able to draw those symbols. However you can use the non-interactive mode to have the output " << endl;
+            OUTSTREAM << "written into a file and open it with a graphic editor that supports them. The file will be UTF-8 encoded." << endl;
+            OUTSTREAM << "To do that, use \"-o outputfile\" with your mega-*.bat commands. (See \"help --non-interactive\")." << endl;
+            OUTSTREAM << "Please, restrain using \"> outputfile\" or piping the output into another command if you require unicode support" << endl;
+            OUTSTREAM << " because for instance, when piping your terminal, does not treat the output as binary, it'll meddle with the encoding" << endl;
+            OUTSTREAM << " resulting in unusable output." << endl;
+
+            OUTSTREAM << "In the interactive shell, the library used for reading the inputs is not able to capture unicode inputs by default" << endl;
+            OUTSTREAM << "There's a workaround to activate an alternative way to read input. You can activate using \"unicode\" command. " << endl;
+            OUTSTREAM << "However, if you do so, arrow keys and hotkeys combinations will be disabled. You can disable this input mode again. " << endl;
+            OUTSTREAM << "See \"unicode --help\" for further info." << endl;
+        }
+#endif
         else
         {
             OUTSTREAM << "Here is the list of available commands and their usage" << endl;

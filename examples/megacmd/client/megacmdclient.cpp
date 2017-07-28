@@ -350,6 +350,18 @@ string parseArgs(int argc, char* argv[])
 
 wstring parsewArgs(int argc, wchar_t* argv[])
 {
+
+    for (int i=1;i<argc;i++)
+    {
+        if (i<(argc-1) && !wcscmp(argv[i],L"-o"))
+        {
+            if (i < (argc-2))
+                argv[i]=argv[i+2];
+            argc=argc-2;
+        }
+    }
+
+
     vector<wstring> absolutedargs;
     int totalRealArgs = 0;
     if (argc>1)
@@ -526,8 +538,17 @@ int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     setlocale(LC_ALL, ""); // en_US.utf8 could do?
-#endif
 
+    //Redirect stdout to a file
+    for (int i=1;i<argc;i++)
+    {
+        if (i<(argc-1) && !strcmp(argv[i],"-o"))
+        {
+            freopen(argv[i+1],"w",stdout);
+        }
+    }
+
+#endif
     if (argc < 2)
     {
         cerr << "Too few arguments" << endl;

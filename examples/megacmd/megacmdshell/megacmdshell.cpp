@@ -1309,6 +1309,10 @@ void printWelcomeMsg(u_int width)
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
     printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
 
+#ifdef _WIN32 //TODO: recheck WIN32 defined en infos unicode
+    printCenteredLine("Enter \"help --unicode\" for info regarding non-ASCII support.",width);
+#endif
+
     COUT << "`";
     for (u_int i = 0; i < width; i++)
         COUT << "=" ;
