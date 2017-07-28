@@ -1762,6 +1762,8 @@ string getHelpStr(const char *command)
         os << " -u" << "\t" << "Upload speed limit" << endl;
         os << " -h" << "\t" << "Human readable" << endl;
         os << endl;
+        os << "Notice that this limit won't be saved for the next time you execute MEGAcmd server" << endl;
+
     }
     else if (!strcmp(command, "killsession"))
     {
@@ -1790,7 +1792,7 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "version"))
     {
-        os << "Prints MEGA versioning info" << endl;
+        os << "Prints MEGAcmd versioning and extra  info" << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -c" << "\t" << "Shows changelog for the current version" << endl;
@@ -2372,6 +2374,8 @@ void finalize()
 // main loop
 void megacmd()
 {
+    LOG_info << "Listening to petitions ... ";
+
     for (;; )
     {
         cm->waitForPetition();
@@ -2482,15 +2486,7 @@ void printWelcomeMsg()
         COUT << " " ;
     COUT << "|";
     COUT << endl;
-    printCenteredLine("Welcome to MEGAcmd! A Command Line Interactive and Scriptable",width);
-
-    printCenteredLine("Application to interact with your MEGA account",width);
-    printCenteredLine("This is a BETA version, it might not be bug-free.",width);
-    printCenteredLine("Also, the signature/output of the commands may change in a future.",width);
-    printCenteredLine("Please write to support@mega.nz if you find any issue or",width);
-    printCenteredLine("have any suggestion concerning its functionalities.",width);
-    printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
-    printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
+    printCenteredLine("SERVER",width);
 
     COUT << "`";
     for (u_int i = 0; i < width; i++)
@@ -2705,10 +2701,6 @@ int main(int argc, char* argv[])
     atexit(finalize);
 
     printWelcomeMsg();
-    if (consoleFailed)
-    {
-        LOG_warn << "Couldn't initialize interactive CONSOLE. Running as non-interactive ONLY";
-    }
 
     if (!ConfigurationManager::session.empty())
     {
