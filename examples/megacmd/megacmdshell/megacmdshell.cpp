@@ -1088,7 +1088,7 @@ void process_line(char * line)
                     if (!strstr (line,"path-display-size"))
                     {
                         u_int width = getNumberOfCols(75);
-                        int pathSize = min(60,int((width-45)/2));
+                        int pathSize = int((width-45)/2);
 
                         toexec+="transfers --path-display-size=";
                         toexec+=SSTR(pathSize);
