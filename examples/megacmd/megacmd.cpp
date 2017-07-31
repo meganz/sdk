@@ -1384,10 +1384,6 @@ const char * getUsageStr(const char *command)
     {
         return "clear";
     }
-    if (!strcmp(command, "exit") || !strcmp(command, "quit"))
-    {
-        return "exit [--only-shell]";
-    }
     if (!strcmp(command, "transfers"))
     {
         return "transfers [-c TAG|-a] | [-r TAG|-a]  | [-p TAG|-a] [--only-downloads | --only-uploads] [SHOWOPTIONS]";
@@ -2103,7 +2099,7 @@ void executecommand(char* ptr)
             OUTSTREAM << "If that is the case, don´t hesistate to contact us so as to improve our support." << endl;
             OUTSTREAM << "Known issues: " << endl;
             OUTSTREAM << "In Windows, when executing a client command in non-interactive mode or the interactive shell " << endl;
-            OUTSTREAM << " some symbols might not be printed. This is something expected, since your terminal (PowerShell/Command Prompt)" << endl;
+            OUTSTREAM << "Some symbols might not be printed. This is something expected, since your terminal (PowerShell/Command Prompt)" << endl;
             OUTSTREAM << " is not able to draw those symbols. However you can use the non-interactive mode to have the output " << endl;
             OUTSTREAM << "written into a file and open it with a graphic editor that supports them. The file will be UTF-8 encoded." << endl;
             OUTSTREAM << "To do that, use \"-o outputfile\" with your mega-*.bat commands. (See \"help --non-interactive\")." << endl;

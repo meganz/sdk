@@ -35,6 +35,8 @@
 #else
 #include <fcntl.h>
 
+#include <sys/stat.h>
+
 #include <pwd.h>  //getpwuid_r
 #include <signal.h>
 #endif
@@ -42,6 +44,7 @@
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
 #endif
+
 
 using namespace std;
 
@@ -190,6 +193,7 @@ string createAndRetrieveConfigFolder()
             }
         }
     }
+    //TODO: create folder (not required currently)
 #else
     const char *homedir = NULL;
 
@@ -215,6 +219,13 @@ string createAndRetrieveConfigFolder()
     stringstream sconfigDir;
     sconfigDir << homedir << "/" << ".megaCmd";
     configFolder = sconfigDir.str();
+
+
+    struct stat st = {0};
+    if (stat(configFolder.c_str(), &st) == -1) {
+        mkdir(configFolder.c_str(), 0700);
+    }
+
 #endif
 
     return configFolder;
@@ -264,7 +275,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
             if (!number)
             {
                 //launch server
-                OUTSTREAM << "Server not running. Initiating in the background. ERRNO: "  << ERRNO << endl;
+                cerr << "Server not running. Initiating in the background. ERRNO: "  << ERRNO << endl;
 #ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
