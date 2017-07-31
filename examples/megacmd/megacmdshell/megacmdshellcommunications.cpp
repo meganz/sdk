@@ -430,7 +430,11 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 #ifndef NDEBUG
                     const char executable[] = "../MEGAcmdServer/MEGAcmd";
 #else
+    #ifdef __MACH__
+                    const char executable[] = "/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader";
+    #else
                     const char executable[] = "mega-cmd-server";
+    #endif
 #endif
                     char empty[] = "";
                     char * args[] = {empty};

@@ -1,3 +1,14 @@
+CONFIG(debug, debug|release) {
+    CONFIG -= debug release
+    CONFIG += debug
+}
+CONFIG(release, debug|release) {
+    CONFIG -= debug release
+    CONFIG += release
+    DEFINES += NDEBUG
+}
+
+
 CONFIG -= qt
 
 TARGET = MEGAcmdShell
@@ -60,6 +71,7 @@ win32 {
         }
     }
 
+
     !contains(CONFIG, BUILDX64) {
         release {
             LIBS += -L"$$PWD/../../../../bindings/qt/3rdparty/libs/x32"
@@ -72,3 +84,5 @@ win32 {
 else {
     QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }
+
+
