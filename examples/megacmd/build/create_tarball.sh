@@ -114,9 +114,10 @@ mkdir -p $megacmd_NAME/examples/megacmd
 for i in $BASEPATH/examples/{include.am,megacli.*,megasimple*}; do 
     ln -s $i $megacmd_NAME/examples/
 done    
-for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client}; do
+for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client,megacmdshell}; do
 	ln -s $i $megacmd_NAME/examples/megacmd/
 done
+
 
 mkdir -p $megacmd_NAME/contrib/
 ln -s $BASEPATH/contrib/build_sdk.sh $megacmd_NAME/contrib/

@@ -5,9 +5,9 @@
  # @brief Gets the project cloning git project and creates tarball, then
  #     Triggers OBS compilation for configured repositories          
  #     It stores the project files at                                
- #         /mnt/DATA/datos/building/local_project/megacmd_$THEDATE   
+ #         /datos/building/local_project/megacmd_$THEDATE   
  #     and the stuff for repos building at                           
- #         /mnt/DATA/datos/building/osc_projects/megacmd/$THEDATE    
+ #         /datos/building/osc_projects/megacmd/$THEDATE    
  #
  # (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  #
@@ -27,6 +27,29 @@
 ##
 
 
+function printusage {
+	echo "$0 [--home] [user@remoteobsserver] [-t branch] [PROJECTPATH [OSCFOLDER]]"
+	echo "This scripts gets latest version of the git project and creates tarball, then triggers OBS compilation for configured repositories"
+	echo " An alternative branch/commit can be specified with -t BRANCH "
+	echo " Use --home to only update home:Admin project. Otherwise DEB and RPM projects will be updated" 
+}
+
+if [[ $1 == "--help" ]]; then
+	printusage
+	exit 1
+fi
+
+
+if [[ $1 == "--home" ]]; then
+	onlyhomeproject=$1;
+	shift
+fi
+
+
+if [[ $1 == *@* ]]; then
+remote=$1
+shift
+fi
 
 while getopts ":t:" opt; do
   case $opt in
@@ -42,7 +65,7 @@ THEDATE=`date +%Y%m%d%H%M%S`
 PROJECT_PATH=$1
 NEWOSCFOLDER_PATH=$2
 if [ -z "$PROJECT_PATH" ]; then
-	PROJECT_PATH=/mnt/DATA/datos/building/local_project/megacmd_$THEDATE
+	PROJECT_PATH=/datos/building/local_project/megacmd_$THEDATE
 	echo "using default PROJECT_PATH: $PROJECT_PATH"
 fi
 
@@ -59,10 +82,10 @@ popd
 
 # trigger build commiting new changes into OBS projects
 if [ -z "$NEWOSCFOLDER_PATH" ]; then
-	NEWOSCFOLDER_PATH=/mnt/DATA/datos/building/osc_projects/megacmd/$THEDATE
+	NEWOSCFOLDER_PATH=/datos/building/osc_projects/megacmd/$THEDATE
 	echo "using default NEWOSCFOLDER_PATH: $NEWOSCFOLDER_PATH"
 fi
 
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-$DIR/triggermegacmdBuild.sh $PROJECT_PATH/examples/megacmd $NEWOSCFOLDER_PATH
+$DIR/triggermegacmdBuild.sh $onlyhomeproject $remote $PROJECT_PATH/examples/megacmd $NEWOSCFOLDER_PATH

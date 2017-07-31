@@ -78,18 +78,20 @@ examples_mega_execdir=examples
 examples_mega_exec_CXXFLAGS = -std=c++11
 
 #CMDSHELL
-noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunications.h examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h examples/megacmd/megacmdshell/megacmdshell.h
-examples_mega_cmd_SOURCES = examples/megacmd/megacmdshell/megacmdshellcommunications.cpp examples/megacmd/megacmdshell/megacmdshell.cpp examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp
+noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunications.h examples/megacmd/megacmdshell/megacmdshell.h
+examples_mega_cmd_SOURCES = examples/megacmd/megacmdshell/megacmdshellcommunications.cpp examples/megacmd/megacmdshell/megacmdshell.cpp 
 
 examples_mega_cmddir=examples
 examples_mega_cmd_CXXFLAGS = -std=c++11 $(RL_CXXFLAGS)
-examples_mega_cmd_LDADD = $(RL_LDFLAGS) $(RL_LIBS)
+examples_mega_cmd_LDADD = $(RL_LDFLAGS) $(RL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) 
 
 
 if WIN32
+noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h
+examples_mega_cmd_SOURCES += examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp
 
 examples_mega_cmd_server_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
-examples_mega_cmd_server_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
+examples_mega_cmd_server_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
 
 
 examples_mega_exec_CXXFLAGS += -D_WIN32=1
@@ -99,7 +101,7 @@ examples_mega_exec_LDADD = $(LIBS_EXTRA)
 else
 
 examples_mega_cmd_server_CXXFLAGS=$(FI_CXXFLAGS) $(PCRE_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_mega_cmd_server_LDADD=$(FI_LDFLAGS) $(FI_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
+examples_mega_cmd_server_LDADD=$(FI_LDFLAGS) $(FI_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
 
 examples_mega_cmd_server_SOURCES += examples/megacmd/comunicationsmanagerfilesockets.cpp
 noinst_HEADERS += examples/megacmd/comunicationsmanagerfilesockets.h
