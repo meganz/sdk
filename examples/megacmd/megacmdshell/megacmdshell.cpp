@@ -1469,5 +1469,7 @@ int main(int argc, char* argv[])
 #endif
 
     readloop();
-//    finalize(); //TODO: reset?
+
+    rl_callback_handler_remove(); //To avoid having the terminal messed up (requiring a "reset")
+
 }
