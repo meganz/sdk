@@ -26,7 +26,6 @@ namespace mega {
 // static member initialization
 OutputMap SimpleLogger::outputs;
 Logger *SimpleLogger::logger = NULL;
-char SimpleLogger::base64Handle[14];
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;

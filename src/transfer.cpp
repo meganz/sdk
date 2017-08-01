@@ -25,6 +25,8 @@
 #include "mega/megaapp.h"
 #include "mega/sync.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
+#include "megawaiter.h"
 
 namespace mega {
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)

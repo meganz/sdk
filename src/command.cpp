@@ -21,6 +21,7 @@
 
 #include "mega/command.h"
 #include "mega/base64.h"
+#include "mega/megaclient.h"
 
 namespace mega {
 Command::Command()

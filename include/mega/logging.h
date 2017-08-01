@@ -79,7 +79,12 @@
 #ifndef MEGA_LOGGING_H
 #define MEGA_LOGGING_H 1
 
-#include "mega.h"
+#include <iostream>
+#include <ostream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <map>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -99,14 +104,14 @@ enum LogLevel {
 };
 
 // Output Log Interface
-class MEGA_API Logger {
+class Logger {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
-typedef vector<std::ostream *> OutputStreams;
+typedef std::vector<std::ostream *> OutputStreams;
 
-class MEGA_API OutputMap : public std::map<enum LogLevel, OutputStreams>
+class OutputMap : public std::map<enum LogLevel, OutputStreams>
 {
 public:
     OutputMap() : std::map<enum LogLevel, OutputStreams>()
@@ -118,7 +123,7 @@ public:
     }
 };
 
-class MEGA_API SimpleLogger {
+class SimpleLogger {
     enum LogLevel level;
     std::ostringstream ostr;
     std::string t;
@@ -129,12 +134,11 @@ class MEGA_API SimpleLogger {
         return outputs[ll];
     }
 
-    string getTime();
+    std::string getTime();
 
 public:
     static OutputMap outputs;
     static Logger *logger;
-    static char base64Handle[14];
 
     static enum LogLevel logCurrentLevel;
 
@@ -153,12 +157,6 @@ public:
             default: return "";
         }
         return "";
-    }
-
-    static const char *toNodeHandle(handle nodeHandle)
-    {
-        Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
-        return base64Handle;
     }
 
     template <typename T>
@@ -271,8 +269,6 @@ public:
     SimpleLogger(logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
     SimpleLogger(logFatal, __FILE__, __LINE__, false)
-
-#define LOG_NODEHANDLE(x) SimpleLogger::toNodeHandle(x)
 
 } // namespace
 
