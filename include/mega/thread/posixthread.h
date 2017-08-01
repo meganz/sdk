@@ -19,6 +19,8 @@
  * program.
  */
 
+#include "mega/config.h"
+
 #ifdef USE_PTHREAD
 
 #ifndef THREAD_CLASS

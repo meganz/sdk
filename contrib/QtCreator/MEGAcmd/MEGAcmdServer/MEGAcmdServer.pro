@@ -29,6 +29,9 @@ win32 {
 else {
     SOURCES += ../../../../src/posix/console.cpp
     SOURCES += ../../../../src/posix/consolewaiter.cpp
+
+    DEFINES += USE_PTHREAD
+
 }
 
 SOURCES += ../../../../examples/megacmd/megacmd.cpp \

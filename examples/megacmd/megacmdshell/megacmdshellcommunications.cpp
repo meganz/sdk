@@ -22,7 +22,6 @@
 #include "megacmdshellcommunications.h"
 
 #include <iostream>
-#include <thread>
 #include <sstream>
 
 #ifdef _WIN32
@@ -39,10 +38,23 @@
 
 #include <pwd.h>  //getpwuid_r
 #include <signal.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
 #endif
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
+#endif
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+class MegaThread : public mega::Win32Thread {};
+#elif defined(USE_CPPTHREAD)
+#include "mega/thread/cppthread.h"
+class MegaThread : public mega::CppThread {};
+#else
+#include "mega/thread/posixthread.h"
+class MegaThread : public mega::PosixThread {};
 #endif
 
 
@@ -71,7 +83,7 @@ bool MegaCmdShellCommunications::serverinitiatedfromshell;
 bool MegaCmdShellCommunications::registerAgainRequired;
 bool MegaCmdShellCommunications::confirmResponse;
 bool MegaCmdShellCommunications::stopListener;
-std::thread *MegaCmdShellCommunications::listenerThread;
+mega::Thread *MegaCmdShellCommunications::listenerThread;
 
 #ifdef _WIN32
 // UNICODE SUPPORT FOR WINDOWS
@@ -171,6 +183,7 @@ void MegaCmdShellCommunications::closeSocket(int socket){
     close(socket);
 #endif
 }
+
 
 string createAndRetrieveConfigFolder()
 {
@@ -744,6 +757,13 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     return outcode;
 }
 
+
+void *MegaCmdShellCommunications::listenToStateChangesEntry(void *slsc)
+{
+    listenToStateChanges(((sListenStateChanges *)slsc)->receiveSocket,((sListenStateChanges *)slsc)->statechangehandle);
+    delete ((sListenStateChanges *)slsc);
+}
+
 int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*statechangehandle)(string))
 {
     int newsockfd = createSocket(receiveSocket);
@@ -855,7 +875,12 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
 
     stopListener = false;
 
-    listenerThread = new std::thread(listenToStateChanges,receiveSocket,statechangehandle);
+    sListenStateChanges * slsc = new sListenStateChanges();
+    slsc->receiveSocket = receiveSocket;
+    slsc->statechangehandle = statechangehandle;
+    listenerThread = new MegaThread();
+    listenerThread->start(listenToStateChangesEntry,slsc);
+
 
     registerAgainRequired = false;
 

@@ -32,9 +32,12 @@
 #include <sstream>
 #include <algorithm>
 
+
+
 #ifndef _WIN32
 #include <signal.h>
 #include <sys/types.h>
+#include <errno.h>
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -46,6 +49,17 @@
 
 #define SSTR( x ) static_cast< std::ostringstream & >( \
         ( std::ostringstream() << std::dec << x ) ).str()
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+class MegaMutex : public mega::Win32Thread {};
+#elif defined(USE_CPPTHREADS)
+#include "mega/thread/cppthread.h"
+class MegaMutex : public mega::CppMutex {};
+#else
+#include "mega/thread/posixthread.h"
+class MegaMutex : public mega::PosixMutex {};
+#endif
+
 
 using namespace std;
 
@@ -244,7 +258,7 @@ bool confirminglink = false;
 // communications with megacmdserver:
 MegaCmdShellCommunications *comms;
 
-std::mutex mutexPrompt;
+MegaMutex mutexPrompt;
 
 void printWelcomeMsg(u_int width = 0);
 
@@ -751,10 +765,10 @@ void wait_for_input(int readline_fd)
     int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
     if (rc < 0)
     {
-        if (errno != EINTR)  //syscall
+        if (ERRNO != EINTR)  //syscall
         {
 #ifdef _WIN32
-            if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
+            if (ERRNO != ENOENT) // unexpectedly enters here, although works fine TODO: review this
 #endif
                 cerr << "Error at select at wait_for_input errno: " << errno << endl;
             return;
@@ -1422,6 +1436,8 @@ int main(int argc, char* argv[])
 #ifdef __MACH__
     initializeMacOSStuff(argc,argv);
 #endif
+
+    mutexPrompt.init(false);
 
     // intialize the comms object
 #if defined(_WIN32) && !defined(USE_PORT_COMMS)

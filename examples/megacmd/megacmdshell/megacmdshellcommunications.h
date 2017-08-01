@@ -22,12 +22,10 @@
 #ifndef MEGACMDSHELLCOMMUNICATIONS_H
 #define MEGACMDSHELLCOMMUNICATIONS_H
 
-//#include "megacmdshell.h"
+#include "mega/thread.h"
 
 #include <string>
 #include <iostream>
-#include <thread>
-#include <mutex>
 
 #ifdef _WIN32
 #include <WinSock2.h>
@@ -87,6 +85,11 @@ void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8strin
 
 #define MEGACMDINITIALPORTNUMBER 12300
 
+typedef struct structListenStateChanges{
+    int receiveSocket;
+    void (*statechangehandle)(std::string) = NULL;
+} sListenStateChanges;
+
 class MegaCmdShellCommunications
 {
 public:
@@ -106,12 +109,14 @@ public:
 private:
     static bool socketValid(int socket);
     static void closeSocket(int socket);
+    static void *listenToStateChangesEntry(void *slsc);
+
     static int listenToStateChanges(int receiveSocket, void (*statechangehandle)(std::string) = NULL);
 
     static bool confirmResponse;
 
     static bool stopListener;
-    static std::thread *listenerThread;
+    static mega::Thread *listenerThread;
 
 #ifdef _WIN32
 static int createSocket(int number = 0, bool initializeserver = true, bool net = true);
