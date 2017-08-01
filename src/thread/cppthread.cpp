@@ -20,11 +20,11 @@
  */
 
 #include "mega/thread/cppthread.h"
+#if defined WINDOWS_PHONE || defined USE_CPPTHREADS
 
 #include <ctime>
 #include <chrono>
 
-#if defined WINDOWS_PHONE || defined USE_CPPTHREADS
 
 namespace mega {
 
