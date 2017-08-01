@@ -19,7 +19,6 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/thread/cppthread.h"
 
 #include <ctime>
@@ -45,12 +44,12 @@ void CppThread::join()
     thread->join();
 }
 
-uint64_t CppThread::currentThreadId()
+unsigned long long CppThread::currentThreadId()
 {
 #ifdef _WIN32
-    return (uint64_t) GetCurrentThreadId();
+    return (unsigned long long) GetCurrentThreadId();
 #else
-    return (uint64_t) &errno;
+    return (unsigned long long) &errno;
 #endif
 }
 
