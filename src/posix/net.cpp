@@ -31,7 +31,7 @@ namespace mega {
 
 MUTEX_CLASS CurlHttpIO::curlMutex(false);
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
@@ -134,7 +134,7 @@ CurlHttpIO::CurlHttpIO()
 
     curlMutex.lock();
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
     if (!CRYPTO_get_locking_callback()
 #if OPENSSL_VERSION_NUMBER >= 0x10000000
