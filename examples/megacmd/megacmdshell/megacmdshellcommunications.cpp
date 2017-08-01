@@ -359,9 +359,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
                 {
                     cerr << "Unable to connect to " << (number?("response socket N "+number):"server") << ": error=" << ERRNO << endl;
 #ifdef __linux__
-                    cerr << "Please ensure mega-cmd is running" << endl;
+                    cerr << "Please ensure mega-cmd-server is running" << endl;
 #else
-                    cerr << "Please ensure MegaCMD is running" << endl;
+                    cerr << "Please ensure MEGAcmdServer is running" << endl;
 #endif
                     return INVALID_SOCKET;
                 }
@@ -469,9 +469,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 
                     cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
 #ifdef __linux__
-                    cerr << "Please ensure mega-cmd is running" << endl;
+                    cerr << "Please ensure mega-cmd-server is running" << endl;
 #else
-                    cerr << "Please ensure MegaCMD is running" << endl;
+                    cerr << "Please ensure MEGAcmdServer is running" << endl;
 #endif
                     return INVALID_SOCKET;
                 }

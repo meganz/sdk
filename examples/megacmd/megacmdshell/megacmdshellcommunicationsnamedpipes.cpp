@@ -434,7 +434,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
                 {
                     cerr << "Unable to connect to " << (number?("response namedPipe N "+number):"server") << ": error=" << ERRNO << endl;
 
-                    cerr << "Please ensure MegaCMD is running" << endl;
+                    cerr << "Please ensure MEGAcmdServer is running" << endl;
                     return INVALID_HANDLE_VALUE;
                 }
                 else
