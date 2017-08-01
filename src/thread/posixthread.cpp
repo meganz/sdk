@@ -22,6 +22,7 @@
 #include "mega/thread/posixthread.h"
 #include "mega/logging.h"
 #include <sys/time.h>
+#include <errno.h>
 
 #ifdef USE_PTHREAD
 

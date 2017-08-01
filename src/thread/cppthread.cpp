@@ -24,7 +24,7 @@
 #include <ctime>
 #include <chrono>
 
-#ifdef WINDOWS_PHONE
+#if defined WINDOWS_PHONE || defined USE_CPPTHREADS
 
 namespace mega {
 
