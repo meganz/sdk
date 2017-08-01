@@ -247,11 +247,7 @@ bool is_pid_running(pid_t pid) {
 }
 #endif
 
-#ifdef _WIN32
-int MegaCmdShellCommunications::createSocket(int number, bool net)
-#else
-int MegaCmdShellCommunications::createSocket(int number, bool net)
-#endif
+int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, bool net)
 {
     if (net)
     {
@@ -272,7 +268,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 
         if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
         {
-            if (!number)
+            if (!number && initializeserver)
             {
                 //launch server
                 cerr << "Server not running. Initiating in the background. ERRNO: "  << ERRNO << endl;
@@ -409,7 +405,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool net)
 
         if (::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR)
         {
-            if (!number)
+            if (!number && initializeserver)
             {
                 //launch server
                 int forkret = fork();
@@ -618,7 +614,7 @@ int MegaCmdShellCommunications::executeCommandW(wstring wcommand, bool (*readcon
 
 int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
-    int thesock = createSocket();
+    int thesock = createSocket(0, command.compare(0,4,"exit") && command.compare(0,4,"quit"));
     if (thesock == INVALID_SOCKET)
     {
         return INVALID_SOCKET;
@@ -649,7 +645,14 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 #endif
     if (n == SOCKET_ERROR)
     {
-        cerr << "ERROR writing command to socket: " << ERRNO << endl;
+        if ( (!command.compare(0,5,"Xexit") || !command.compare(0,5,"Xquit") ) && (ERRNO == ENOTCONN) )
+        {
+             cerr << "Could not send exit command to server (probably already down)" << endl;
+        }
+        else
+        {
+            cerr << "ERROR writing command to socket: " << ERRNO << endl;
+        }
         return -1;
     }
 

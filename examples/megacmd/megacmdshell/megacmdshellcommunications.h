@@ -114,9 +114,9 @@ private:
     static std::thread *listenerThread;
 
 #ifdef _WIN32
-static int createSocket(int number = 0, bool net = true);
+static int createSocket(int number = 0, bool initializeserver = true, bool net = true);
 #else
-static int createSocket(int number = 0, bool net = false);
+static int createSocket(int number = 0, bool initializeserver = true, bool net = false);
 #endif
 
 
