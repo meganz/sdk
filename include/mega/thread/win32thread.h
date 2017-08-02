@@ -17,6 +17,9 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed with under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
 #if (defined(_WIN32) && !defined(WINDOWS_PHONE) || defined(USE_WIN32THREAD) )

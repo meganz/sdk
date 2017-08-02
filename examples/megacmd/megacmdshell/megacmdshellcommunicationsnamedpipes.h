@@ -17,7 +17,11 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
+
 #ifndef MEGACMDSHELLCOMMUNICATIONSNAMEDPIPES_H
 #define MEGACMDSHELLCOMMUNICATIONSNAMEDPIPES_H
 #ifdef _WIN32
