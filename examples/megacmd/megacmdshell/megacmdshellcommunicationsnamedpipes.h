@@ -35,6 +35,12 @@
 
 #include <Shlwapi.h> //PathAppend
 
+typedef struct structListenStateChangesNamedPipe{
+    int receiveNamedPipeNum;
+    void (*statechangehandle)(std::string);
+} sListenStateChangesNamedPipe;
+
+
 class MegaCmdShellCommunicationsNamedPipes : public MegaCmdShellCommunications
 {
 public:
@@ -53,12 +59,14 @@ public:
 private:
     static bool namedPipeValid(HANDLE namedPipe);
     static void closeNamedPipe(HANDLE namedPipe);
+
+    static void *listenToStateChangesEntryNamedPipe(void *slsc);
     static int listenToStateChanges(int receiveNamedPipeNum, void (*statechangehandle)(std::string) = NULL);
 
     static bool confirmResponse;
 
     static bool stopListener;
-    static std::thread *listenerThread;
+    static mega::Thread *listenerThread;
 
     static HANDLE createNamedPipe(int number = 0);
 

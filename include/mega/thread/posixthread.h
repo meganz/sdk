@@ -19,7 +19,9 @@
  * program.
  */
 
-#include "mega/config.h"
+#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
+  #include "mega/config.h"
+#endif
 
 #ifdef USE_PTHREAD
 

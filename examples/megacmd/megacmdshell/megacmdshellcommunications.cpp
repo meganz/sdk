@@ -48,6 +48,7 @@
 #endif
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/thread/win32thread.h"
 class MegaThread : public mega::Win32Thread {};
 #elif defined(USE_CPPTHREAD)
 #include "mega/thread/cppthread.h"
@@ -762,6 +763,7 @@ void *MegaCmdShellCommunications::listenToStateChangesEntry(void *slsc)
 {
     listenToStateChanges(((sListenStateChanges *)slsc)->receiveSocket,((sListenStateChanges *)slsc)->statechangehandle);
     delete ((sListenStateChanges *)slsc);
+    return NULL;
 }
 
 int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*statechangehandle)(string))
@@ -904,5 +906,5 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
         stopListener = true;
         listenerThread->join();
     }
-
+    delete listenerThread;
 }

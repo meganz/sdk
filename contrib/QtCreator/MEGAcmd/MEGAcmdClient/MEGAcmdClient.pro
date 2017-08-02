@@ -12,13 +12,18 @@ HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.
     ../../../../examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h \
     ../../../../include/mega/thread.h
 
-INCLUDEPATH += $$PWD/../../../../include
+INCLUDEPATH += ../../../../include
 
-## Disable de following to work with posix threads
-#DEFINES+=USE_CPPTHREAD
-#CONFIG += c++11
+win32{
+    DEFINES += USE_WIN32THREAD
+}
+else{
+    ## Disable de following to work with posix threads
+    #DEFINES+=USE_CPPTHREAD
+    #CONFIG += c++11
 
-DEFINES+=USE_PTHREAD
+    DEFINES+=USE_PTHREAD
+}
 
 win32 {
 SOURCES += ../../../../src/thread/win32thread.cpp \

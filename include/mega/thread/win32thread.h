@@ -19,7 +19,7 @@
  * program.
  */
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE) 
+#if (defined(_WIN32) && !defined(WINDOWS_PHONE) || defined(USE_WIN32THREAD) )
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS Win32Thread
@@ -27,6 +27,7 @@
 #define SEMAPHORE_CLASS Win32Semaphore
 
 #include "mega/thread.h"
+#include <windows.h>
 
 namespace mega {
 class Win32Thread : public Thread
@@ -40,7 +41,7 @@ public:
     void *(*start_routine)(void*);
     void *pointer;
 
-    static uint64_t currentThreadId();
+    static unsigned long long currentThreadId();
 
 protected:
     static DWORD WINAPI run(LPVOID lpParameter);

@@ -54,7 +54,7 @@ bool interactiveThread()
         return true;
     }
 
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
         return true;
@@ -67,7 +67,7 @@ bool interactiveThread()
 
 int getCurrentOutCode()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadoutCode.find(currentThread) == threadoutCode.end())
     {
         return 0; //default OK
@@ -81,7 +81,7 @@ int getCurrentOutCode()
 
 CmdPetition * getCurrentPetition()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadpetition.find(currentThread) == threadpetition.end())
     {
         return NULL;
@@ -94,7 +94,7 @@ CmdPetition * getCurrentPetition()
 
 int getCurrentThreadLogLevel()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadLogLevel.find(currentThread) == threadLogLevel.end())
     {
         return -1;
@@ -107,7 +107,7 @@ int getCurrentThreadLogLevel()
 
 bool getCurrentThreadIsCmdShell()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadIsCmdShell.find(currentThread) == threadIsCmdShell.end())
     {
         return false; //default not

@@ -34,8 +34,17 @@
 
 #include <fcntl.h>
 #include <io.h>
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/thread/win32thread.h"
+class MegaThread : public mega::Win32Thread {};
+#elif defined(USE_CPPTHREAD)
+#include "mega/thread/cppthread.h"
+class MegaThread : public mega::CppThread {};
+#else
+#include "mega/thread/posixthread.h"
+class MegaThread : public mega::PosixThread {};
+#endif
 
-using namespace std;
 
 enum
 {
@@ -57,7 +66,7 @@ enum
 
 bool MegaCmdShellCommunicationsNamedPipes::confirmResponse; //TODO: do all this only in parent class
 bool MegaCmdShellCommunicationsNamedPipes::stopListener;
-std::thread *MegaCmdShellCommunicationsNamedPipes::listenerThread;
+mega::Thread *MegaCmdShellCommunicationsNamedPipes::listenerThread;
 
 bool MegaCmdShellCommunicationsNamedPipes::namedPipeValid(HANDLE namedPipe)
 {
@@ -68,6 +77,7 @@ void MegaCmdShellCommunicationsNamedPipes::closeNamedPipe(HANDLE namedPipe){
     CloseHandle(namedPipe);
 }
 
+using namespace std;
 
 BOOL GetLogonSID (PSID *ppsid)
 {
@@ -638,6 +648,14 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
     return outcode;
 }
 
+void *MegaCmdShellCommunicationsNamedPipes::listenToStateChangesEntryNamedPipe(void *slsc)
+{
+    listenToStateChanges(((sListenStateChangesNamedPipe *)slsc)->receiveNamedPipeNum,((sListenStateChangesNamedPipe *)slsc)->statechangehandle);
+    delete ((sListenStateChangesNamedPipe *)slsc);
+    return NULL;
+}
+
+
 int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedPipeNum, void (*statechangehandle)(string))
 {
     HANDLE newNamedPipe = createNamedPipe(receiveNamedPipeNum);
@@ -749,7 +767,11 @@ int MegaCmdShellCommunicationsNamedPipes::registerForStateChanges(void (*statech
 
     stopListener = false;
 
-    listenerThread = new std::thread(listenToStateChanges,receiveNamedPipeNum,statechangehandle);
+    sListenStateChangesNamedPipe * slsc = new sListenStateChangesNamedPipe();
+    slsc->receiveNamedPipeNum = receiveNamedPipeNum;
+    slsc->statechangehandle = statechangehandle;
+    listenerThread = new MegaThread();
+    listenerThread->start(listenToStateChangesEntryNamedPipe,slsc);
 
     registerAgainRequired = false;
 
@@ -769,5 +791,6 @@ MegaCmdShellCommunicationsNamedPipes::~MegaCmdShellCommunicationsNamedPipes()
         stopListener = true;
         listenerThread->join();
     }
+    delete listenerThread;
 }
 #endif

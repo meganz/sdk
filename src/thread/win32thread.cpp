@@ -19,9 +19,8 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/thread/win32thread.h"
-
+#include "mega/logging.h"
 
 namespace mega {
 //Thread
@@ -49,9 +48,9 @@ void Win32Thread::join()
     WaitForSingleObject(hThread, INFINITE);
 }
 
-uint64_t Win32Thread::currentThreadId()
+unsigned long long Win32Thread::currentThreadId()
 {
-    return (uint64_t) GetCurrentThreadId();
+    return (unsigned long long) GetCurrentThreadId();
 }
 
 Win32Thread::~Win32Thread()

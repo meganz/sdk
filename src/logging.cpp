@@ -20,6 +20,7 @@
  */
 
 #include "mega/logging.h"
+#include <time.h>
 
 namespace mega {
 

@@ -109,8 +109,8 @@ public:
 private:
     static bool socketValid(int socket);
     static void closeSocket(int socket);
-    static void *listenToStateChangesEntry(void *slsc);
 
+    static void *listenToStateChangesEntry(void *slsc);
     static int listenToStateChanges(int receiveSocket, void (*statechangehandle)(std::string) = NULL);
 
     static bool confirmResponse;

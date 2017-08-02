@@ -51,7 +51,8 @@
         ( std::ostringstream() << std::dec << x ) ).str()
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-class MegaMutex : public mega::Win32Thread {};
+#include "mega/thread/win32thread.h"
+class MegaMutex : public mega::Win32Mutex {};
 #elif defined(USE_CPPTHREAD)
 #include "mega/thread/cppthread.h"
 class MegaMutex : public mega::CppMutex {};
@@ -768,9 +769,9 @@ void wait_for_input(int readline_fd)
         if (ERRNO != EINTR)  //syscall
         {
 #ifdef _WIN32
-            if (ERRNO != ENOENT) // unexpectedly enters here, although works fine TODO: review this
+         if (ERRNO != WSAENOTSOCK) // it enters here since it is not a socket. Alt: Use WaitForMultipleObjectsEx
 #endif
-                cerr << "Error at select at wait_for_input errno: " << errno << endl;
+                cerr << "Error at select at wait_for_input errno: " << ERRNO << endl;
             return;
         }
     }
