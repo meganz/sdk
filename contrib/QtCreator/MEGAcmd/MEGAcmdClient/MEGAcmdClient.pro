@@ -15,7 +15,7 @@ HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshellcommunications.
 INCLUDEPATH += $$PWD/../../../../include
 
 ## Disable de following to work with posix threads
-#DEFINES+=USE_CPPTHREADS
+#DEFINES+=USE_CPPTHREAD
 #CONFIG += c++11
 
 DEFINES+=USE_PTHREAD

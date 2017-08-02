@@ -19,7 +19,7 @@
  * program.
  */
 
-#if defined WINDOWS_PHONE || defined USE_CPPTHREADS
+#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread

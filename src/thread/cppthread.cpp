@@ -20,7 +20,7 @@
  */
 
 #include "mega/thread/cppthread.h"
-#if defined WINDOWS_PHONE || defined USE_CPPTHREADS
+#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
 
 #include <ctime>
 #include <chrono>

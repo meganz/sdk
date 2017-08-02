@@ -87,7 +87,7 @@ void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8strin
 
 typedef struct structListenStateChanges{
     int receiveSocket;
-    void (*statechangehandle)(std::string) = NULL;
+    void (*statechangehandle)(std::string);
 } sListenStateChanges;
 
 class MegaCmdShellCommunications

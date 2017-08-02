@@ -31,7 +31,7 @@
 #include <vector>
 #include <sstream>
 #include <algorithm>
-
+#include <stdio.h>
 
 
 #ifndef _WIN32
@@ -52,7 +52,7 @@
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
 class MegaMutex : public mega::Win32Thread {};
-#elif defined(USE_CPPTHREADS)
+#elif defined(USE_CPPTHREAD)
 #include "mega/thread/cppthread.h"
 class MegaMutex : public mega::CppMutex {};
 #else
