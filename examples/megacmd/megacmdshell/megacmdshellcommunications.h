@@ -110,6 +110,7 @@ public:
     static bool registerAgainRequired;
 
 private:
+    static int newsockfd;
     static bool socketValid(int socket);
     static void closeSocket(int socket);
 

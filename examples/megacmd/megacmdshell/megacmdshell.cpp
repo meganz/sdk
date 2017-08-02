@@ -627,6 +627,7 @@ char* remote_completion(const char* text, int state)
 
         if (outputcommand == "MEGACMD_USE_LOCAL_COMPLETION")
         {
+            free(saved_line);
             return local_completion(text,state); //fallback to local path completion
         }
 
@@ -1208,6 +1209,9 @@ void readloop()
 
                 if (doExit)
                 {
+                    if (saved_line != NULL)
+                        free(saved_line);
+                    saved_line = NULL;
                     return;
                 }
             }
@@ -1487,6 +1491,9 @@ int main(int argc, char* argv[])
 
     readloop();
 
+
+    clear_history();
     rl_callback_handler_remove(); //To avoid having the terminal messed up (requiring a "reset")
+    delete comms;
 
 }

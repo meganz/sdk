@@ -2184,6 +2184,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
         char *nodePath = api->getNodePath(nodeToDelete);
         setCurrentOutCode(MCMD_INVALIDTYPE);
         LOG_err << "Unable to delete folder: " << nodePath << ". Use -r to delete a folder recursively";
+        delete nodeToDelete;
         delete []nodePath;
     }
     else
@@ -2303,6 +2304,7 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
                 return;
             }
         }
+        delete megaCmdListener;
     }
 
     MegaCmdTransferListener *megaCmdTransferListener = NULL;
@@ -2389,13 +2391,15 @@ void MegaCmdExecuter::exportNode(MegaNode *n, int expireTime)
         if (nexported)
         {
             char *nodepath = api->getNodePath(nexported);
-            OUTSTREAM << "Exported " << nodepath << ": " << nexported->getPublicLink();
+            char *publiclink = nexported->getPublicLink();
+            OUTSTREAM << "Exported " << nodepath << ": " << publiclink;
             if (nexported->getExpirationTime())
             {
                 OUTSTREAM << " expires at " << getReadableTime(nexported->getExpirationTime());
             }
             OUTSTREAM << endl;
             delete[] nodepath;
+            delete[] publiclink;
             delete nexported;
         }
         else
@@ -3740,6 +3744,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 {
                                     setCurrentOutCode(MCMD_NOTPERMITTED);
                                     LOG_err << "Write not allowed in " << words[2];
+                                    for (std::vector< MegaNode * >::iterator it = nodesToGet->begin(); it != nodesToGet->end(); ++it)
+                                    {
+                                        delete (MegaNode *)*it;
+                                    }
+                                    delete nodesToGet;
                                     return;
                                 }
                             }
@@ -3747,12 +3756,22 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             {
                                 setCurrentOutCode(MCMD_INVALIDTYPE);
                                 LOG_err << words[2] << " is not a valid Download Folder";
+                                for (std::vector< MegaNode * >::iterator it = nodesToGet->begin(); it != nodesToGet->end(); ++it)
+                                {
+                                    delete (MegaNode *)*it;
+                                }
+                                delete nodesToGet;
                                 return;
                             }
                             else //destiny non existing or a file
                             {
                                 if (!TestCanWriteOnContainingFolder(&path))
                                 {
+                                    for (std::vector< MegaNode * >::iterator it = nodesToGet->begin(); it != nodesToGet->end(); ++it)
+                                    {
+                                        delete (MegaNode *)*it;
+                                    }
+                                    delete nodesToGet;
                                     return;
                                 }
                             }

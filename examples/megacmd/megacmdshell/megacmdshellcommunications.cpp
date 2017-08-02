@@ -88,6 +88,7 @@ bool MegaCmdShellCommunications::registerAgainRequired;
 bool MegaCmdShellCommunications::confirmResponse;
 bool MegaCmdShellCommunications::stopListener;
 mega::Thread *MegaCmdShellCommunications::listenerThread;
+int MegaCmdShellCommunications::newsockfd;
 
 #ifdef _WIN32
 // UNICODE SUPPORT FOR WINDOWS
@@ -771,7 +772,7 @@ void *MegaCmdShellCommunications::listenToStateChangesEntry(void *slsc)
 
 int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*statechangehandle)(string))
 {
-    int newsockfd = createSocket(receiveSocket);
+    newsockfd = createSocket(receiveSocket);
 
     int timeout_notified_server_might_be_down = 0;
     while (!stopListener)
@@ -805,7 +806,15 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*s
             if (!timeout_notified_server_might_be_down)
             {
                 timeout_notified_server_might_be_down = 30;
-                cerr << endl << "Server is probably down. Executing anything will try to respawn or reconnect to it";
+                if (!stopListener)
+                {
+                    cerr << endl << "Server is probably down. Executing anything will try to respawn or reconnect to it: " << ERRNO;
+                }
+                else
+                {
+                    closeSocket(newsockfd);
+                    return 0;
+                }
             }
             timeout_notified_server_might_be_down--;
             if (!timeout_notified_server_might_be_down)
@@ -907,6 +916,11 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
     if (listenerThread != NULL)
     {
         stopListener = true;
+#ifdef _WIN32
+    shutdown(newsockfd,SD_BOTH);
+#else
+    shutdown(newsockfd,SHUT_RDWR);
+#endif
         listenerThread->join();
     }
     delete listenerThread;

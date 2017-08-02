@@ -122,6 +122,11 @@ string ComunicationsManager::get_petition_details(CmdPetition *inf)
 
 ComunicationsManager::~ComunicationsManager()
 {
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        delete *it;
+        it = stateListenersPetitions.erase(it);
+    }
 }
 
 MegaThread *CmdPetition::getPetitionThread() const
