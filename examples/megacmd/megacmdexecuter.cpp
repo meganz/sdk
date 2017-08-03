@@ -2231,6 +2231,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
             }
             else
             {
+                delete nodeToDelete;
                 LOG_debug << "confirmation denied";
             }
         }
