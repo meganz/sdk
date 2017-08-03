@@ -5882,7 +5882,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         delete megaCmdListener;
         return;
     }
-    else if (words[0] == "transfers") //TODO: receive table width (and in megacmd shell send it)
+    else if (words[0] == "transfers")
     {
         bool showcompleted = getFlag(clflags, "show-completed");
         bool onlycompleted = getFlag(clflags, "only-completed");

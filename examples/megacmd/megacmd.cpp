@@ -1448,7 +1448,7 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "confirm"))
     {
-        os << "Confirm an account using the link provided after the \"singup\" process." << endl;
+        os << "Confirm an account using the link provided after the \"signup\" process." << endl;
         os << " It requires the email and the password used to obtain the link." << endl;
         os << endl;
     }
@@ -1467,7 +1467,7 @@ string getHelpStr(const char *command)
         os << " Unicode mode is experimental, you might experience" << endl;
         os << " some issues interacting with the console" << endl;
         os << " (e.g. history navigation fails)." << endl;
-        os << "Type \"help unicode\" for further info" << endl;
+        os << "Type \"help --unicode\" for further info" << endl;
 
     }
     else if (!strcmp(command, "ls"))
@@ -1944,6 +1944,19 @@ void executecommand(char* ptr)
         vector<string> wordstocomplete(words.begin()+1,words.end());
         setCurrentThreadLine(wordstocomplete);
         OUTSTREAM << getListOfCompletionValues(wordstocomplete);
+        return;
+    }
+    if (words[0] == "retrycons")
+    {
+        api->retryPendingConnections();
+        return;
+    }
+    if (words[0] == "loggedin")
+    {
+        if (!api->isFilesystemAvailable())
+        {
+            setCurrentOutCode(MCMD_NOTLOGGEDIN);
+        }
         return;
     }
     if (words[0] == "completionshell")

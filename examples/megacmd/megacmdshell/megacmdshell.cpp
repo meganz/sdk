@@ -34,6 +34,24 @@
 #include <stdio.h>
 
 
+enum
+{
+    MCMD_OK = 0,              ///< Everything OK
+
+    MCMD_EARGS = -51,         ///< Wrong arguments
+    MCMD_INVALIDEMAIL = -52,  ///< Invalid email
+    MCMD_NOTFOUND = -53,      ///< Resource not found
+    MCMD_INVALIDSTATE = -54,  ///< Invalid state
+    MCMD_INVALIDTYPE = -55,   ///< Invalid type
+    MCMD_NOTPERMITTED = -56,  ///< Operation not allowed
+    MCMD_NOTLOGGEDIN = -57,   ///< Needs loging in
+    MCMD_NOFETCH = -58,       ///< Nodes not fetched
+    MCMD_EUNEXPECTED = -59,   ///< Unexpected failure
+
+    MCMD_REQCONFIRM = -60,     ///< Confirmation required
+
+};
+
 #ifndef _WIN32
 #include <signal.h>
 #include <sys/types.h>
@@ -778,6 +796,14 @@ void wait_for_input(int readline_fd)
     }
 }
 
+bool isserverloggedin()
+{
+    if (comms->executeCommand(("loggedin")) == MCMD_NOTLOGGEDIN )
+    {
+        return false;
+    }
+    return true;
+}
 
 vector<string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces = true)
 {
@@ -1015,29 +1041,28 @@ void process_line(char * line)
                 else if (words[0] == "passwd")
                 {
 
-                    //if (api->isLoggedIn()) //TODO: this sould be asked to the server or managed as a status
-                    //{
-                    if (words.size() == 1)
+                    if (isserverloggedin())
                     {
-                        setprompt(OLDPASSWORD);
+                        if (words.size() == 1)
+                        {
+                            setprompt(OLDPASSWORD);
+                        }
+                        else
+                        {
+                            comms->executeCommand(line, readconfirmationloop);
+                        }
                     }
                     else
                     {
-                        comms->executeCommand(line, readconfirmationloop);
+                        cerr << "Not logged in." << endl;
                     }
-                    //}
-                    //else
-                    //{
-                    //    setCurrentOutCode(MCMD_NOTLOGGEDIN);
-                    //    LOG_err << "Not logged in.";
-                    //}
 
                     return;
                 }
                 else if (words[0] == "login")
                 {
-                    //if (!api->isLoggedIn()) //TODO: this sould be asked to the server or managed as a status
-                    //{
+                    if (!isserverloggedin())
+                    {
                         if (words.size() == 2)
                         {
                             loginname = words[1];
@@ -1047,12 +1072,12 @@ void process_line(char * line)
                         {
                             comms->executeCommand(line, readconfirmationloop);
                         }
-                    //}
-                    //else
-                    //{
-                    //    setCurrentOutCode(MCMD_INVALIDSTATE);
-                    //    LOG_err << "Already logged in. Please log out first.";
-                    //}
+                    }
+                    else
+                    {
+                        cerr << "Already logged in. Please log out first." << endl;
+                    }
+                    return;
                 }
                 else if (words[0] == "confirm")
                 {
@@ -1140,6 +1165,8 @@ void process_line(char * line)
 // main loop
 void readloop()
 {
+    time_t lasttimeretrycons = 0;
+
     char *saved_line = NULL;
     int saved_point = 0;
 
@@ -1201,7 +1228,12 @@ void readloop()
 
                 wait_for_input(readline_fd);
 
-                //api->retryPendingConnections(); //TODO: this should go to the server!
+                time_t tnow = time(NULL);
+                if ( (tnow - lasttimeretrycons) > 5)
+                {
+                    comms->executeCommand("retrycons");
+                    lasttimeretrycons = tnow;
+                }
 
                 rl_callback_read_char(); //this calls store_line if last char was enter
 
@@ -1328,7 +1360,7 @@ void printWelcomeMsg(u_int width)
     printCenteredLine("Enter \"help --non-interactive\" to learn how to use MEGAcmd with scripts.",width);
     printCenteredLine("Enter \"help\" for basic info and a list of available commands.",width);
 
-#ifdef _WIN32 //TODO: recheck WIN32 defined en infos unicode
+#ifdef _WIN32
     printCenteredLine("Enter \"help --unicode\" for info regarding non-ASCII support.",width);
 #endif
 
@@ -1460,8 +1492,6 @@ int main(int argc, char* argv[])
     // prevent CTRL+C exit
     signal(SIGINT, sigint_handler);
 #endif
-
-//    atexit(finalize);//TODO: reset?
 
     rl_attempted_completion_function = getCompletionMatches;
     rl_completer_quote_characters = "\"'";

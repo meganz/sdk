@@ -366,26 +366,6 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
                 ZeroMemory( &si, sizeof(si) );
                 ZeroMemory( &pi, sizeof(pi) );
 
-                //TODO: This created the file but no log was flushed
-                //                string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
-                //                OUTSTREAM << " The output will logged to " << pathtolog << endl;
-                //                //TODO: use pathtolog
-                //                HANDLE h = CreateFile(TEXT("megacmdserver.log"), GENERIC_READ| GENERIC_WRITE,FILE_SHARE_READ,
-                //                                      NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-                //                if(h != INVALID_HANDLE_VALUE)
-                //                {
-                //                    SetFilePointer (h, 0L, NULL, FILE_END); //TODO: review this
-                //                    si.dwFlags |= STARTF_USESTDHANDLES;
-                //                    si.hStdOutput = h;
-                //                    si.hStdError = h;
-                //                }
-                //                else
-                //                {
-                //                    cerr << " Could not create log file: " << endl;
-                //                }
-
-
 #ifndef NDEBUG
                 LPCWSTR t = TEXT("..\\MEGAcmdServer\\debug\\MEGAcmd.exe");
                 if (true)
