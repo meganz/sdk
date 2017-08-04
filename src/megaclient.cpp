@@ -9886,11 +9886,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         ll->getlocalpath(&lpath);
                         string stream = lpath;
                         stream.append((char *)L":$CmdTcID:$DATA", 30);
-                        if(f->fopen(&stream))
+                        if (f->fopen(&stream))
                         {
                             LOG_warn << "COMODO detected";
                             HKEY hKey;
-                            if(RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
                                             L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
                                             0,
                                             KEY_QUERY_VALUE,
@@ -9898,7 +9898,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             {
                                 DWORD value = 0;
                                 DWORD size = sizeof(value);
-                                if(RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
                                 {
                                     if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
                                     {
@@ -9913,6 +9913,15 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                 RegCloseKey(hKey);
                             }
                         }
+
+                        lpath.append((char *)L":OECustomProperty", 34);
+                        if (f->fopen(&lpath))
+                        {
+                            LOG_warn << "Windows Search detected";
+                            delete f;
+                            continue;
+                        }
+
                         delete f;
                     }
 #endif
