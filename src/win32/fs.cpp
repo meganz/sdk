@@ -667,7 +667,7 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
     {
         if ((*it)->enabled)
         {
-            ((WinWaiter *)w)->addhandle((*it)->overlapped.hEvent, Waiter::NEEDEXEC);
+            ((WinWaiter *)w)->addhandle((*it)->hEvent, Waiter::NEEDEXEC);
         }
     }
 #endif
@@ -685,6 +685,7 @@ int WinFileSystemAccess::checkevents(Waiter *)
             if (GetOverlappedResult((*it)->hDirectory, &((*it)->overlapped), &bytes, FALSE))
             {
                 r = 1;
+                ResetEvent((*it)->hEvent);
                 (*it)->process(bytes);
             }
         }
@@ -1270,21 +1271,6 @@ fsfp_t WinDirNotify::fsfingerprint()
 #endif
 }
 
-VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
-{
-#ifndef WINDOWS_PHONE
-    WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
-    if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
-    {
-        dirnotify->process(dwBytes);
-    }
-    else
-    {
-        dirnotify->enabled = false;
-    }
-#endif
-}
-
 void WinDirNotify::process(DWORD dwBytes)
 {
 #ifndef WINDOWS_PHONE
@@ -1363,6 +1349,8 @@ void WinDirNotify::process(DWORD dwBytes)
 void WinDirNotify::readchanges()
 {
 #ifndef WINDOWS_PHONE
+    ZeroMemory(&overlapped, sizeof(overlapped));
+    overlapped.hEvent = hEvent;
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
@@ -1397,19 +1385,14 @@ void WinDirNotify::readchanges()
 WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifndef WINDOWS_PHONE
-    ZeroMemory(&overlapped, sizeof(overlapped));
-
-    overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-
+    hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     enabled = false;
-    exit = false;
     active = 0;
 
     notifybuf[0].resize(65534);
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
-
     localbasepath->append("", 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
@@ -1421,7 +1404,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = false;
-
         readchanges();
     }
     else
@@ -1435,27 +1417,19 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
-   exit = true;
-
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
         if (enabled)
         {
+            DWORD bytes = 0;
             CancelIo(hDirectory);
-            while (enabled)
-            {
-                DWORD bytes = 0;
-                if (GetOverlappedResult(hDirectory, &overlapped, &bytes, TRUE) || GetLastError() == ERROR_OPERATION_ABORTED)
-                {
-                    enabled = false;
-                }
-            }
+            GetOverlappedResult(hDirectory, &overlapped, &bytes, TRUE);
         }
 
         CloseHandle(hDirectory);
-        CloseHandle(overlapped.hEvent);
     }
+    CloseHandle(hEvent);
     fsaccess->dirnotifys.erase(this);
 #endif
 }

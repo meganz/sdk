@@ -94,16 +94,14 @@ struct MEGA_API WinDirNotify : public DirNotify
     LocalNode* localrootnode;
 
     HANDLE hDirectory;
+    HANDLE hEvent;
 
     bool enabled;
-    bool exit;
     int active;
     string notifybuf[2];
 
     DWORD dwBytes;
     OVERLAPPED overlapped;
-
-    static VOID CALLBACK completion(DWORD, DWORD, LPOVERLAPPED);
 
     void addnotify(LocalNode*, string*);
 
