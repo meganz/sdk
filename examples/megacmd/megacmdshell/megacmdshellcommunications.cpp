@@ -289,7 +289,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
             if (!number && initializeserver)
             {
                 //launch server
-                cerr << "Server not running. Initiating in the background. ERRNO: "  << ERRNO << endl;
+                cerr << "[Server not running. ERRNO: "  << ERRNO << ". Initiating in the background]"<< endl;
 #ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
@@ -413,16 +413,20 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                     signal(SIGINT, SIG_IGN); //ignore Ctrl+C in the server
 
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
-                    sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() ); // TODO: review this line
-                    OUTSTREAM << "Server not running. Initiating in the background." << endl;
-                    OUTSTREAM << " The output will logged to " << pathtolog << endl;
+                    OUTSTREAM << "[Server down. Restarting in background. Log: " << pathtolog << "]" << endl;
 
                     close(0); //close stdin
                     dup2(1, 2);  //redirects stderr to stdout below this line.
                     freopen(pathtolog.c_str(),"w",stdout);
 
 #ifndef NDEBUG
+
+#ifdef __MACH__
                     const char executable[] = "../../../../MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd";
+#else
+                const char executable[] = "../MEGAcmdServer/MEGAcmd";
+#endif
+
 #else
     #ifdef __MACH__
                     const char executable[] = "/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader";
@@ -663,7 +667,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
         return -1;
     }
 
-    int newsockfd =createSocket(receiveSocket);
+    int newsockfd = createSocket(receiveSocket);
     if (newsockfd == INVALID_SOCKET)
         return INVALID_SOCKET;
 
@@ -788,7 +792,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*s
                 timeout_notified_server_might_be_down = 30;
                 if (!stopListener)
                 {
-                    cerr << endl << "Server is probably down. Executing anything will try to respawn or reconnect to it: " << ERRNO;
+                    cerr << endl << "[Server is probably down. Executing anything will try to respawn or reconnect to it]" << endl;
                 }
                 else
                 {
@@ -839,7 +843,6 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
 
 #ifdef _WIN32
     wstring wcommand=L"registerstatelistener";
-
     int n = send(thesock,(char*)wcommand.data(),wcslen(wcommand.c_str())*sizeof(wchar_t), MSG_NOSIGNAL);
 #else
     string command="registerstatelistener";

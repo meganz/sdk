@@ -31,6 +31,7 @@ class CmdPetition
     public:
         char * line;
         mega::MegaThread * petitionThread;
+        int clientID;
 
         CmdPetition()
         {
@@ -91,6 +92,8 @@ public:
      */
     void informStateListeners(std::string &s);
 
+    void informStateListenerByClientId(std::string &s, int clientID);
+
     /**
      * @brief informStateListener
      * @param inf This contains the petition that originated the register. It should contain the implementation details that identify a listener
@@ -99,7 +102,6 @@ public:
      * @return -1 if connection closed by listener (removal required)
      */
     virtual int informStateListener(CmdPetition *inf, std::string &s);
-
 
 
 

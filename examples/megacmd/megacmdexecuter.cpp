@@ -2243,7 +2243,7 @@ void MegaCmdExecuter::deleteNode(MegaNode *nodeToDelete, MegaApi* api, int recur
     }
 }
 
-void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bool background, bool ignorequotawarn)
+void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bool background, bool ignorequotawarn, int clientID)
 {
     if (sandboxCMD->isOverquota() && !ignorequotawarn)
     {
@@ -2311,12 +2311,12 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     MegaCmdTransferListener *megaCmdTransferListener = NULL;
     if (!background)
     {
-        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
+        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL, clientID);
     }
     LOG_debug << "Starting download: " << node->getName() << " to : " << path;
     api->startDownload(node, path.c_str(), megaCmdTransferListener);
     if (megaCmdTransferListener)
-     {
+    {
         megaCmdTransferListener->wait();
         if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
         {
@@ -2326,7 +2326,7 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     }
 }
 
-void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname, bool background, bool ignorequotawarn)
+void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, string newname, bool background, bool ignorequotawarn, int clientID)
 {
     if (!ignorequotawarn)
     { //TODO: reenable this if ever queryBandwidthQuota applies to uploads as well
@@ -2346,7 +2346,7 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     MegaCmdTransferListener *megaCmdTransferListener = NULL;
     if (!background)
     {
-        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL);
+        megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL, clientID);
     }
     unescapeifRequired(path);
 
@@ -3548,10 +3548,15 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "get")
     {
+        int clientID = getintOption(cloptions, "clientID", -1);
         if (words.size() > 1)
         {
             string path = "./";
             bool background = getFlag(clflags,"q");
+            if (background)
+            {
+                clientID = -1;
+            }
             bool ignorequotawarn = getFlag(clflags,"ignore-quota-warn");
             bool destinyIsFolder = false;
             if (isPublicLink(words[1]))
@@ -3622,7 +3627,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 }
                             }
                             MegaNode *n = megaCmdListener->getRequest()->getPublicMegaNode();
-                            downloadNode(path, api, n, background, ignorequotawarn);
+                            downloadNode(path, api, n, background, ignorequotawarn, clientID);
                             delete n;
                         }
                         else
@@ -3691,13 +3696,13 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 MegaNode *authorizedNode = apiFolder->authorizeNode(folderRootNode);
                                 if (authorizedNode != NULL)
                                 {
-                                    downloadNode(path, api, authorizedNode, background, ignorequotawarn);
+                                    downloadNode(path, api, authorizedNode, background, ignorequotawarn, clientID);
                                     delete authorizedNode;
                                 }
                                 else
                                 {
                                     LOG_debug << "Node couldn't be authorized: " << words[1] << ". Downloading as non-loged user";
-                                    downloadNode(path, apiFolder, folderRootNode, background, ignorequotawarn);
+                                    downloadNode(path, apiFolder, folderRootNode, background, ignorequotawarn, clientID);
                                 }
                                 delete folderRootNode;
                             }
@@ -3789,7 +3794,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             MegaNode * n = *it;
                             if (n)
                             {
-                                downloadNode(path, api, n, background, ignorequotawarn);
+                                downloadNode(path, api, n, background, ignorequotawarn, clientID);
                                 delete n;
                             }
                         }
@@ -3875,7 +3880,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                 path=path.substr(0,path.size()-1);
                             }
                         }
-                        downloadNode(path, api, n, background, ignorequotawarn);
+                        downloadNode(path, api, n, background, ignorequotawarn, clientID);
                         delete n;
                     }
                     else
@@ -3896,6 +3901,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "put")
     {
+        int clientID = getintOption(cloptions, "clientID", -1);
+
         if (!api->isFilesystemAvailable())
         {
             setCurrentOutCode(MCMD_NOTLOGGEDIN);
@@ -3904,6 +3911,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         }
 
         bool background = getFlag(clflags,"q");
+        if (background)
+        {
+            clientID = -1;
+        }
         bool ignorequotawarn = getFlag(clflags,"ignore-quota-warn");
 
         if (words.size() > 1)
@@ -3940,7 +3951,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 {
                     for (int i = 1; i < max(1, (int)words.size() - 1); i++)
                     {
-                        uploadNode(words[i], api, n, newname, background, ignorequotawarn);
+                        uploadNode(words[i], api, n, newname, background, ignorequotawarn, clientID);
                     }
                 }
                 else

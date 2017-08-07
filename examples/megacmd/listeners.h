@@ -52,8 +52,10 @@ private:
     MegaCmdSandbox * sandboxCMD;
     float percentDowloaded;
     bool alreadyFinished;
+    int clientID;
+
 public:
-    MegaCmdTransferListener(mega::MegaApi *megaApi, MegaCmdSandbox * sandboxCMD, mega::MegaTransferListener *listener = NULL);
+    MegaCmdTransferListener(mega::MegaApi *megaApi, MegaCmdSandbox * sandboxCMD, mega::MegaTransferListener *listener = NULL, int clientID=-1);
     virtual ~MegaCmdTransferListener();
 
     //Transfer callbacks

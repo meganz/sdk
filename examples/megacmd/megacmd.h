@@ -102,6 +102,7 @@ void printHistory();
 
 bool askforConfirmation(std::string message);
 
+void informTransferUpdate(mega::MegaTransfer *transfer, int clientID);
 
 
 #endif

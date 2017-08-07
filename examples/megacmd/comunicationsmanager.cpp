@@ -74,6 +74,8 @@ int ComunicationsManager::get_next_comm_id()
 
 void ComunicationsManager::informStateListeners(string &s)
 {
+    s+=(char)0x1F;
+
     for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
     {
         if (informStateListener((CmdPetition *)*it, s) <0)
@@ -88,6 +90,23 @@ void ComunicationsManager::informStateListeners(string &s)
     }
 }
 
+void ComunicationsManager::informStateListenerByClientId(string &s, int clientID)
+{
+    s+=(char)0x1F;
+
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        if ((clientID == ((CmdPetition *)*it)->clientID ) && informStateListener((CmdPetition *)*it, s) <0)
+        {
+            delete *it;
+            it = stateListenersPetitions.erase(it);
+        }
+        else
+        {
+             ++it;
+        }
+    }
+}
 int ComunicationsManager::informStateListener(CmdPetition *inf, string &s)
 {
     return 0;

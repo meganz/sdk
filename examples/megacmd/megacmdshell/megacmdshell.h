@@ -38,6 +38,8 @@ void sleepMicroSeconds(long microseconds);
 
 void restoreprompt();
 
+void printprogress(long long completed, long long total, const char *title = "TRANSFERING");
+
 void changeprompt(const char *newprompt, bool redisplay = false);
 
 const char * getUsageStr(const char *command);

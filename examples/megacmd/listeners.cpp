@@ -466,7 +466,9 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         cout << outputString << '\r' << flush;
     }
 
-    LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType();
+    LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType() << " clientID=" << this->clientID;
+
+    informTransferUpdate(transfer, this->clientID);
 }
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
@@ -479,13 +481,14 @@ MegaCmdTransferListener::~MegaCmdTransferListener()
 
 }
 
-MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *listener)
+MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *listener, int clientID)
 {
     this->megaApi = megaApi;
     this->sandboxCMD = sandboxCMD;
     this->listener = listener;
     percentDowloaded = 0.0f;
     alreadyFinished = false;
+    this->clientID = clientID;
 }
 
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)

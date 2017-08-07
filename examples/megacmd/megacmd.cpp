@@ -313,6 +313,18 @@ void changeprompt(const char *newprompt)
     cm->informStateListeners(s);
 }
 
+
+void informTransferUpdate(MegaTransfer *transfer, int clientID)
+{
+    string s = "progress:";
+    s+=SSTR(transfer->getTransferredBytes());
+    s+=":";
+    s+=SSTR(transfer->getTotalBytes());
+
+    cm->informStateListenerByClientId(s, clientID);
+
+}
+
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
 {
     if (!validOptValues)
@@ -464,6 +476,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("c");
         validParams->insert("q");
         validParams->insert("ignore-quota-warn");
+        validOptValues->insert("clientID");
     }
     else if ("get" == thecommand)
     {
@@ -473,6 +486,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
 #ifdef USE_PCRE
         validParams->insert("use-pcre");
 #endif
+        validOptValues->insert("clientID");
     }
     else if ("transfers" == thecommand)
     {
@@ -2384,6 +2398,8 @@ void finalize()
 
 }
 
+int currentclientID = 1;
+
 // main loop
 void megacmd()
 {
@@ -2418,15 +2434,26 @@ void megacmd()
                 delete inf;
             }
             // if state register petition
-            else if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
-                     !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
+            else  if (!strncmp(inf->getLine(),"registerstatelistener",strlen("registerstatelistener")) ||
+                      !strncmp(inf->getLine(),"Xregisterstatelistener",strlen("Xregisterstatelistener")))
             {
 
                 cm->registerStateListener(inf);
 
+                // communicate client ID
+                string s = "clientID:";
+                s+=SSTR(currentclientID);
+                s+=(char)0x1F;
+                inf->clientID = currentclientID;
+                currentclientID++;
+
+                cm->informStateListener(inf,s);
+
                 // communicate status info
-                string s = "prompt:";
+                s = "prompt:";
                 s+=dynamicprompt;
+                s+=(char)0x1F;
+
                 cm->informStateListener(inf,s);
             }
             else

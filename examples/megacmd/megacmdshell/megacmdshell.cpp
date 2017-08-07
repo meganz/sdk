@@ -136,21 +136,61 @@ void sleepMicroSeconds(long microseconds)
 
 // end utily functions
 
-void statechangehandle(string newstate)
+string clientID; //identifier for a registered state listener
+
+long long charstoll(const char *instr)
 {
-    if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+  long long retval;
+  int i;
+
+  retval = 0;
+  for (; *instr; instr++) {
+    retval = 10*retval + (*instr - '0');
+  }
+  return retval;
+}
+
+void statechangehandle(string statestring)
+{
+    char statedelim[2]={(char)0x1F,'\0'};
+    size_t nextstatedelimitpos = statestring.find(statedelim);
+
+    while (nextstatedelimitpos!=string::npos && statestring.size())
     {
-        changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
-    }
-    else if (newstate == "ack")
-    {
-        // do nothing, all good
-    }
-    else
-    {
-        cerr << "received unrecognized state change: " << newstate << endl;
-        //sleep a while to avoid continuous looping
-        sleepSeconds(1);
+        string newstate = statestring.substr(0,nextstatedelimitpos);
+        statestring=statestring.substr(nextstatedelimitpos+1);
+        nextstatedelimitpos = statestring.find(statedelim);
+        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+        {
+            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
+        }
+        else if (newstate.compare(0, strlen("clientID:"), "clientID:") == 0)
+        {
+            clientID = newstate.substr(strlen("clientID:")).c_str();
+        }
+        else if (newstate.compare(0, strlen("progress:"), "progress:") == 0)
+        {
+            string rest = newstate.substr(strlen("progress:"));
+
+            size_t nexdel = rest.find(":");
+            string received = rest.substr(0,nexdel);
+            rest = rest.substr(nexdel+1);
+
+            nexdel = rest.find(":");
+            string total = rest.substr(0,nexdel);
+            printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+
+        }
+        else if (newstate == "ack")
+        {
+            // do nothing, all good
+        }
+        else
+        {
+            cerr << "received unrecognized state change: [" << newstate << "]" << endl;
+            //sleep a while to avoid continuous looping
+            sleepSeconds(1);
+        }
     }
 }
 
@@ -247,6 +287,7 @@ int getNumberOfCols(u_int defaultwidth=0)
     }
     return width;
 }
+bool alreadyFinished = false; //flag to show progress
 
 // password change-related state information
 string oldpasswd;
@@ -306,6 +347,66 @@ void sigint_handler(int signum)
     }
     rl_redisplay();
 }
+
+
+void printprogress(long long completed, long long total, const char *title)
+{
+    int cols = getNumberOfCols(80);
+
+    string outputString;
+    outputString.resize(cols + 1);
+    for (u_int i = 0; i < cols; i++)
+    {
+        outputString[i] = '.';
+    }
+
+    outputString[cols] = '\0';
+    char *ptr = (char *)outputString.c_str();
+    sprintf(ptr, "%s%s", title, " ||");
+    ptr += strlen(title);
+    ptr += strlen(" ||");
+    *ptr = '.'; //replace \0 char
+
+    static float percentDowloaded;
+
+    float oldpercent = percentDowloaded;
+    percentDowloaded = completed * 1.0 / total * 100.0;
+    if (alreadyFinished ||  ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) )
+    {
+        return;
+    }
+    if (percentDowloaded < 0)
+    {
+        percentDowloaded = 0;
+    }
+
+    char aux[40];
+    if (total < 0)
+    {
+        return; // after a 100% this happens
+    }
+    if (completed < 0.001 * total)
+    {
+        return; // after a 100% this happens
+    }
+    sprintf(aux,"||(%lld/%lld MB: %.2f %%) ", completed / 1024 / 1024, total / 1024 / 1024, percentDowloaded);
+    sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
+    for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentDowloaded / 100.0; i++)
+    {
+        *ptr++ = '#';
+    }
+
+    if (percentDowloaded == 100 && !alreadyFinished)
+    {
+        alreadyFinished = true;
+        cerr << outputString << endl;
+    }
+    else
+    {
+        cerr << outputString << '\r' << flush;
+    }
+}
+
 
 #ifdef _WIN32
 BOOL CtrlHandler( DWORD fdwCtrlType )
@@ -1148,8 +1249,22 @@ void process_line(char * line)
                 }
                 else
                 {
-                    // execute user command
-                    comms->executeCommand(line, readconfirmationloop);
+                    if ( words[0] == "get" || words[0] == "put") //TODO: or login
+                    {
+                        string s = line;
+                        if (clientID.size())
+                        {
+                            s += " --clientID=";
+                            s+=clientID;
+                            words.push_back(s);
+                        }
+                        comms->executeCommand(s, readconfirmationloop);
+                    }
+                    else
+                    {
+                        // execute user command
+                        comms->executeCommand(line, readconfirmationloop);
+                    }
                 }
             }
             else
@@ -1271,6 +1386,7 @@ void readloop()
         {
             if (strlen(line))
             {
+                alreadyFinished = false;
                 mutexPrompt.lock();
                 process_line(line);
                 requirepromptinstall = true;
