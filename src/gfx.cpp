@@ -24,8 +24,8 @@
 
 namespace mega {
 const int GfxProc::dimensions[][2] = {
-    { 120, 0 },     // THUMBNAIL120X120: square thumbnail, cropped from near center
-    { 1000, 1000 }  // PREVIEW1000x1000: scaled version inside 1000x1000 bounding square
+    { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
+    { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
 const int GfxProc::dimensionsavatar[][2] = {
