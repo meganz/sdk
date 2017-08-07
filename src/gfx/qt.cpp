@@ -417,7 +417,9 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     if(!image)
         return QImage();
 
-    QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h, 120, 0);
+    QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h,
+            GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1]);
     delete image;
     return result;
 }
