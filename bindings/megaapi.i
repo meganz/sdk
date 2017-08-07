@@ -5,6 +5,21 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
+#ifdef ENABLE_WEBRTC
+#include "webrtc/rtc_base/ssladapter.h"
+#include "webrtc/sdk/android/src/jni/classreferenceholder.h"
+#include "webrtc/sdk/android/src/jni/jni_helpers.h"
+
+namespace webrtc
+{
+    class JVM
+    {
+        public:
+            static void Initialize(JavaVM* jvm, jobject context);
+    };
+};
+#endif
+
 #ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
 jstring strEncodeUTF8;
@@ -26,6 +41,21 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
     strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
     jenv->DeleteLocalRef(strEncodeUTF8Local);
+
+#ifdef ENABLE_WEBRTC
+    // Initialize WebRTC (it doesn't seem to be needed for the example app)
+    // MEGAjvm->AttachCurrentThread(&jenv, NULL);
+    // jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
+    // jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+    // jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+    // webrtc::JVM::Initialize(MEGAjvm, context);
+    // MEGAjvm->DetachCurrentThread();
+
+    // Initialize the JNI and SSL stuff of WebRTC
+    webrtc_jni::InitGlobalJniVariables(jvm);
+    rtc::InitializeSSL();
+    webrtc_jni::LoadGlobalClassReferenceHolder();
+#endif
 
     return JNI_VERSION_1_4;
 }
