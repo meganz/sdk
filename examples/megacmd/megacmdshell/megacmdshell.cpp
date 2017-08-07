@@ -1470,10 +1470,6 @@ int main(int argc, char* argv[])
     rl_completion_display_matches_hook = mycompletefunct;
 #endif
 
-#ifdef __MACH__
-    initializeMacOSStuff(argc,argv);
-#endif
-
     mutexPrompt.init(false);
 
     // intialize the comms object

@@ -2537,7 +2537,7 @@ bool enableSetuidBit()
 
 void initializeMacOSStuff(int argc, char* argv[])
 {
-#ifdef QT_DEBUG
+#ifndef NDEBUG
         return;
 #endif
 

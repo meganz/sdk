@@ -422,7 +422,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                     freopen(pathtolog.c_str(),"w",stdout);
 
 #ifndef NDEBUG
-                    const char executable[] = "../MEGAcmdServer/MEGAcmd";
+                    const char executable[] = "../../../../MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd";
 #else
     #ifdef __MACH__
                     const char executable[] = "/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader";
