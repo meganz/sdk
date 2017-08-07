@@ -2105,12 +2105,14 @@ void MegaClient::exec()
 // returns true if an engine-relevant event has occurred, false otherwise
 int MegaClient::wait()
 {
-    int x = preparewait();
-    if (x)
+    int r = preparewait();
+    if (r)
     {
-        return x;
+        return r;
     }
-    return dowait();
+    r |= dowait();
+    r |= checkevents();
+    return r;
 }
 
 int MegaClient::preparewait()
@@ -2316,12 +2318,13 @@ int MegaClient::preparewait()
 
 int MegaClient::dowait()
 {
-    int r = waiter->wait();
+    return waiter->wait();
+}
 
-    // process results
-    r |= httpio->checkevents(waiter);
+int MegaClient::checkevents()
+{
+    int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
-
     return r;
 }
 
