@@ -684,7 +684,7 @@ int WinFileSystemAccess::checkevents(Waiter *)
             DWORD bytes = 0;
             if (GetOverlappedResult((*it)->hDirectory, &((*it)->overlapped), &bytes, FALSE))
             {
-                r = 1;
+                r |= Waiter::NEEDEXEC;
                 ResetEvent((*it)->hEvent);
                 (*it)->process(bytes);
             }
