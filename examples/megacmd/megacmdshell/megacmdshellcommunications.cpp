@@ -415,8 +415,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
                     OUTSTREAM << "[Server down. Restarting in background. Log: " << pathtolog << "]" << endl;
 
-                    close(0); //close stdin
-                    dup2(1, 2);  //redirects stderr to stdout below this line.
+                    dup2(fileno(stdout), fileno(stderr));  //redirects stderr to stdout below this line.
                     freopen(pathtolog.c_str(),"w",stdout);
 
 #ifndef NDEBUG
