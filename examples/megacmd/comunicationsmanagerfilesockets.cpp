@@ -89,7 +89,7 @@ int ComunicationsManagerFileSockets::create_new_socket(int *sockId)
     attempts = 10;
     while (--attempts && !bindsucceeded)
     {
-        if (bind(thesock, (struct sockaddr*)&addr, saddrlen))
+        if (::bind(thesock, (struct sockaddr*)&addr, saddrlen))
         {
             if (errno == EADDRINUSE)
             {
@@ -170,7 +170,7 @@ int ComunicationsManagerFileSockets::initialize()
 
     unlink(socketPath);
 
-    if (bind(sockfd, (struct sockaddr*)&addr, saddrlen))
+    if (::bind(sockfd, (struct sockaddr*)&addr, saddrlen))
     {
         if (errno == EADDRINUSE)
         {
@@ -290,8 +290,8 @@ int ComunicationsManagerFileSockets::informStateListener(CmdPetition *inf, strin
         FD_SET(((CmdPetitionPosixSockets *)inf)->outSocket, &set);
 
         struct timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 4000000;
+        timeout.tv_sec = 4;
+        timeout.tv_usec = 0;
         int rv = select(((CmdPetitionPosixSockets *)inf)->outSocket+1, &set, NULL, NULL, &timeout);
         if(rv == -1)
         {
