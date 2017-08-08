@@ -224,7 +224,47 @@ void ComunicationsManagerFileSockets::stopWaiting()
     shutdown(sockfd,SD_BOTH);
 #else
     LOG_verbose << "Shutting down main socket ";
-    shutdown(sockfd,SHUT_RDWR);
+
+    if (shutdown(sockfd,SHUT_RDWR) == -1)
+    { //shutdown failed. we need to send something to the blocked thread so as to wake up from select
+
+        int clientsocket = socket(AF_UNIX, SOCK_STREAM, 0);
+        char socket_path[60];
+        if (clientsocket < 0 )
+        {
+            LOG_err << "ERROR opening client socket to exit select: " << errno;
+            close (sockfd);
+        }
+        else
+        {
+            bzero(socket_path, sizeof( socket_path ) * sizeof( *socket_path ));
+            {
+                sprintf(socket_path, "/tmp/megaCMD_%d/srv", getuid() );
+            }
+
+            struct sockaddr_un addr;
+
+            memset(&addr, 0, sizeof( addr ));
+            addr.sun_family = AF_UNIX;
+            strncpy(addr.sun_path, socket_path, sizeof( addr.sun_path ) - 1);
+
+            if (::connect(clientsocket, (struct sockaddr*)&addr, sizeof( addr )) != -1)
+            {
+                if (send(clientsocket,"no matter",1,MSG_NOSIGNAL) == -1)
+                {
+                    LOG_err << "ERROR sending via client socket to exit select: " << errno;
+                    close (sockfd);
+                }
+
+                close(clientsocket);
+            }
+            else
+            {
+                LOG_err << "ERROR connecting client socket to exit select: " << errno;
+                close (sockfd);
+            }
+        }
+    }
     LOG_verbose << "Main socket shut down";
 #endif
 }
