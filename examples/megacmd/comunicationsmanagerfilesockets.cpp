@@ -223,7 +223,9 @@ void ComunicationsManagerFileSockets::stopWaiting()
 #ifdef _WIN32
     shutdown(sockfd,SD_BOTH);
 #else
+    LOG_verbose << "Shutting down main socket ";
     shutdown(sockfd,SHUT_RDWR);
+    LOG_verbose << "Main socket shut down";
 #endif
 }
 

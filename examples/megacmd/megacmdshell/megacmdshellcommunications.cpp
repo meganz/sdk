@@ -482,6 +482,11 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                     registerAgainRequired = true;
                 }
             }
+            else
+            {
+                cerr << "Unable to connect to socket  " << number <<  " : " << ERRNO << endl;
+                return INVALID_SOCKET;
+            }
         }
 
         return thesock;
@@ -780,7 +785,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*s
 
         if (n == SOCKET_ERROR)
         {
-            cerr << "ERROR reading output: " << ERRNO << endl;
+            cerr << "ERROR reading state from server: " << ERRNO << endl;
             closeSocket(newsockfd);
             return -1;;
         }
