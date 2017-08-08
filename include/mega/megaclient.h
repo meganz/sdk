@@ -197,6 +197,7 @@ public:
     // splitted implementation of wait() for a better thread management
     int preparewait();
     int dowait();
+    int checkevents();
 
     // abort exponential backoff
     bool abortbackoff(bool = true);

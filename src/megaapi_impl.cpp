@@ -4514,6 +4514,9 @@ void MegaApiImpl::loop()
         if (!r)
         {
             r = client->dowait();
+            sdkMutex.lock();
+            r |= client->checkevents();
+            sdkMutex.unlock();
         }
 
         if (r & Waiter::NEEDEXEC)

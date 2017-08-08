@@ -621,9 +621,12 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    pendingevents = 0;
-
     localseparator.assign((char*)L"\\", sizeof(wchar_t));
+}
+
+WinFileSystemAccess::~WinFileSystemAccess()
+{
+    assert(!dirnotifys.size());
 }
 
 // append \ to bare Windows drive letter paths
@@ -660,9 +663,35 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
 #ifndef WINDOWS_PHONE
-    // overlapped completion wakes up WaitForMultipleObjectsEx()
-    ((WinWaiter*)w)->pendingfsevents = pendingevents;
+    for (set<WinDirNotify*>::iterator it = dirnotifys.begin(); it != dirnotifys.end(); it++)
+    {
+        if ((*it)->enabled)
+        {
+            ((WinWaiter *)w)->addhandle((*it)->hEvent, Waiter::NEEDEXEC);
+        }
+    }
 #endif
+}
+
+int WinFileSystemAccess::checkevents(Waiter *)
+{
+    int r = 0;
+#ifndef WINDOWS_PHONE
+    for (set<WinDirNotify*>::iterator it = dirnotifys.begin(); it != dirnotifys.end(); it++)
+    {
+        if ((*it)->enabled)
+        {
+            DWORD bytes = 0;
+            if (GetOverlappedResult((*it)->hDirectory, &((*it)->overlapped), &bytes, FALSE))
+            {
+                r |= Waiter::NEEDEXEC;
+                ResetEvent((*it)->hEvent);
+                (*it)->process(bytes);
+            }
+        }
+    }
+#endif
+    return r;
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -1242,21 +1271,6 @@ fsfp_t WinDirNotify::fsfingerprint()
 #endif
 }
 
-VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
-{
-#ifndef WINDOWS_PHONE
-    WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
-    if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
-    {
-        dirnotify->process(dwBytes);
-    }
-    else
-    {
-        dirnotify->enabled = false;
-    }
-#endif
-}
-
 void WinDirNotify::process(DWORD dwBytes)
 {
 #ifndef WINDOWS_PHONE
@@ -1335,6 +1349,8 @@ void WinDirNotify::process(DWORD dwBytes)
 void WinDirNotify::readchanges()
 {
 #ifndef WINDOWS_PHONE
+    ZeroMemory(&overlapped, sizeof(overlapped));
+    overlapped.hEvent = hEvent;
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
@@ -1342,7 +1358,7 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
                             | FILE_NOTIFY_CHANGE_CREATION,
-                              &dwBytes, &overlapped, completion))
+                              &dwBytes, &overlapped, NULL))
     {
         failed = false;
         enabled = true;
@@ -1369,19 +1385,14 @@ void WinDirNotify::readchanges()
 WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifndef WINDOWS_PHONE
-    ZeroMemory(&overlapped, sizeof(overlapped));
-
-    overlapped.hEvent = this;
-
+    hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     enabled = false;
-    exit = false;
     active = 0;
 
     notifybuf[0].resize(65534);
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
-
     localbasepath->append("", 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
@@ -1393,7 +1404,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = false;
-
         readchanges();
     }
     else
@@ -1407,22 +1417,20 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
-   exit = true;
-
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
         if (enabled)
         {
+            DWORD bytes = 0;
             CancelIo(hDirectory);
-            while (enabled)
-            {
-                SleepEx(INFINITE, true);
-            }
+            GetOverlappedResult(hDirectory, &overlapped, &bytes, TRUE);
         }
 
         CloseHandle(hDirectory);
     }
+    CloseHandle(hEvent);
+    fsaccess->dirnotifys.erase(this);
 #endif
 }
 
@@ -1438,7 +1446,10 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 
 DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-    return new WinDirNotify(localpath, ignore);
+    WinDirNotify *dirnotify = new WinDirNotify(localpath, ignore);
+    dirnotify->fsaccess = this;
+    dirnotifys.insert(dirnotify);
+    return dirnotify;
 }
 
 bool WinFileSystemAccess::issyncsupported(string *localpath)
