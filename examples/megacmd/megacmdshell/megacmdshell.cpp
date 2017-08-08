@@ -174,11 +174,27 @@ void statechangehandle(string statestring)
 
             size_t nexdel = rest.find(":");
             string received = rest.substr(0,nexdel);
-            rest = rest.substr(nexdel+1);
 
+            rest = rest.substr(nexdel+1);
             nexdel = rest.find(":");
             string total = rest.substr(0,nexdel);
-            printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+
+            string title;
+            if ( (nexdel != string::npos) && (nexdel < rest.size() ) )
+            {
+                rest = rest.substr(nexdel+1);
+                nexdel = rest.find(":");
+                title = rest.substr(0,nexdel);
+            }
+
+            if (title.size())
+            {
+                printprogress(charstoll(received.c_str()), charstoll(total.c_str()),title.c_str());
+            }
+            else
+            {
+                printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+            }
 
         }
         else if (newstate == "ack")
@@ -288,6 +304,8 @@ int getNumberOfCols(u_int defaultwidth=0)
     return width;
 }
 bool alreadyFinished = false; //flag to show progress
+float percentDowloaded = 0.0; // to show progress
+
 
 // password change-related state information
 string oldpasswd;
@@ -355,7 +373,7 @@ void printprogress(long long completed, long long total, const char *title)
 
     string outputString;
     outputString.resize(cols + 1);
-    for (u_int i = 0; i < cols; i++)
+    for (int i = 0; i < cols; i++)
     {
         outputString[i] = '.';
     }
@@ -367,11 +385,9 @@ void printprogress(long long completed, long long total, const char *title)
     ptr += strlen(" ||");
     *ptr = '.'; //replace \0 char
 
-    static float percentDowloaded;
-
     float oldpercent = percentDowloaded;
     percentDowloaded = completed * 1.0 / total * 100.0;
-    if (alreadyFinished ||  ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) )
+    if (alreadyFinished || ( ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) ) )
     {
         return;
     }
@@ -391,7 +407,7 @@ void printprogress(long long completed, long long total, const char *title)
     }
     sprintf(aux,"||(%lld/%lld MB: %.2f %%) ", completed / 1024 / 1024, total / 1024 / 1024, percentDowloaded);
     sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
-    for (int i = 0; i <= ( cols - strlen("TRANSFERING ||") - strlen(aux)) * 1.0 * percentDowloaded / 100.0; i++)
+    for (int i = 0; i <= ( cols - (strlen(title) + strlen(" ||")) - strlen(aux)) * 1.0 * percentDowloaded / 100.0; i++)
     {
         *ptr++ = '#';
     }
@@ -405,6 +421,7 @@ void printprogress(long long completed, long long total, const char *title)
     {
         cerr << outputString << '\r' << flush;
     }
+
 }
 
 
@@ -1039,6 +1056,12 @@ void process_line(char * line)
                 logincommand+=" " ;
                 logincommand+=line;
 
+                if (clientID.size())
+                {
+                    logincommand += " --clientID=";
+                    logincommand+=clientID;
+                }
+
                 comms->executeCommand(logincommand.c_str(), readconfirmationloop);
             }
             else
@@ -1171,7 +1194,14 @@ void process_line(char * line)
                         }
                         else
                         {
-                            comms->executeCommand(line, readconfirmationloop);
+                            string s = line;
+                            if (clientID.size())
+                            {
+                                s += " --clientID=";
+                                s+=clientID;
+                                words.push_back(s);
+                            }
+                            comms->executeCommand(s, readconfirmationloop);
                         }
                     }
                     else
@@ -1249,7 +1279,7 @@ void process_line(char * line)
                 }
                 else
                 {
-                    if ( words[0] == "get" || words[0] == "put") //TODO: or login
+                    if ( words[0] == "get" || words[0] == "put")
                     {
                         string s = line;
                         if (clientID.size())
@@ -1387,6 +1417,7 @@ void readloop()
             if (strlen(line))
             {
                 alreadyFinished = false;
+                percentDowloaded = 0.0;
                 mutexPrompt.lock();
                 process_line(line);
                 requirepromptinstall = true;

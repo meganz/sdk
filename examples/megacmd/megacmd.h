@@ -104,5 +104,8 @@ bool askforConfirmation(std::string message);
 
 void informTransferUpdate(mega::MegaTransfer *transfer, int clientID);
 
+void informProgressUpdate(long long transferred, long long total, int clientID, std::string title = "");
+
+
 
 #endif

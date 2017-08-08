@@ -316,13 +316,23 @@ void changeprompt(const char *newprompt)
 
 void informTransferUpdate(MegaTransfer *transfer, int clientID)
 {
+    informProgressUpdate(transfer->getTransferredBytes(),transfer->getTotalBytes(), clientID);
+}
+
+void informProgressUpdate(long long transferred, long long total, int clientID, string title)
+{
     string s = "progress:";
-    s+=SSTR(transfer->getTransferredBytes());
+    s+=SSTR(transferred);
     s+=":";
-    s+=SSTR(transfer->getTotalBytes());
+    s+=SSTR(total);
+
+    if (title.size())
+    {
+        s+=":";
+        s+=title;
+    }
 
     cm->informStateListenerByClientId(s, clientID);
-
 }
 
 void insertValidParamsPerCommand(set<string> *validParams, string thecommand, set<string> *validOptValues = NULL)
@@ -488,6 +498,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
 #endif
         validOptValues->insert("clientID");
     }
+    else if ("login" == thecommand)
+    {
+        validOptValues->insert("clientID");
+    }
     else if ("transfers" == thecommand)
     {
         validParams->insert("show-completed");
@@ -506,6 +520,7 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("only-shell");
     }
+
 }
 
 void escapeEspace(string &orig)

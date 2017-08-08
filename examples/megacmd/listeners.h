@@ -30,9 +30,10 @@ class MegaCmdListener : public mega::SynchronousRequestListener
 private:
     float percentFetchnodes;
     bool alreadyFinished;
+    int clientID;
 
 public:
-    MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL);
+    MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL, int clientID=-1);
     virtual ~MegaCmdListener();
 
     //Request callbacks

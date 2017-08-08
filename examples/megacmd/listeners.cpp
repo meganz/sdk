@@ -349,6 +349,10 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
             {
                 cout << outputString << '\r' << flush;
             }
+
+            informProgressUpdate(request->getTransferredBytes(), request->getTotalBytes(), this->clientID, "Fetching nodes");
+
+
             break;
         }
 
@@ -367,12 +371,13 @@ MegaCmdListener::~MegaCmdListener()
 {
 }
 
-MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
+MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener, int clientID)
 {
     this->megaApi = megaApi;
     this->listener = listener;
     percentFetchnodes = 0.0f;
     alreadyFinished = false;
+    this->clientID = clientID;
 }
 
 
@@ -400,6 +405,7 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
     }
 
     LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
+    informTransferUpdate(transfer, this->clientID);
 
 
 }

@@ -4418,6 +4418,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 #endif
     else if (words[0] == "login")
     {
+        int clientID = getintOption(cloptions, "clientID", -1);
+
         if (!api->isLoggedIn())
         {
             if (words.size() > 1)
@@ -4427,7 +4429,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     // full account login
                     if (words.size() > 2)
                     {
-                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL,NULL,clientID);
                         api->login(words[1].c_str(), words[2].c_str(), megaCmdListener);
                         actUponLogin(megaCmdListener);
                         delete megaCmdListener;
