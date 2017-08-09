@@ -1202,7 +1202,7 @@ void WinFileSystemAccess::osversion(string* u) const
             RtlGetVersion(&version);
         }
     }
-    snprintf(buf, sizeof(buf), "Windows %d.%d", version.dwMajorVersion, version.dwMinorVersion);
+    snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
 #endif
 
     u->append(buf);
