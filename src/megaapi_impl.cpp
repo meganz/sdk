@@ -11734,42 +11734,167 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
 {
-    if(i->type < j->type) return 0;
-    if(i->type > j->type) return 1;
-
-    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 1;
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+    {
+        return 1;
+    }
 	return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
-    if(i->type < j->type) return 1;
-    if(i->type > j->type) return 0;
-    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 0;
+    if (i->type < j->type)
+    {
+        return 1;
+    }
+    if (i->type > j->type)
+    {
+        return 0;
+    }
+    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+    {
+        return 0;
+    }
     return 1;
 }
 
-bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
-{ if(i->size < j->size) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorSizeDESC (Node *i, Node *j)
-{ if(i->size < j->size) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->size < j->size)
+    {
+        return 1;
+    }
+    return 0;
+}
 
-bool MegaApiImpl::nodeComparatorCreationASC  (Node *i, Node *j)
-{ if(i->ctime < j->ctime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorCreationDESC  (Node *i, Node *j)
-{ if(i->ctime < j->ctime) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->size < j->size)
+    {
+        return 0;
+    }
+    return 1;
+}
 
-bool MegaApiImpl::nodeComparatorModificationASC  (Node *i, Node *j)
-{ if(i->mtime < j->mtime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorModificationDESC  (Node *i, Node *j)
-{ if(i->mtime < j->mtime) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (i->ctime < j->ctime)
+    {
+        return 1;
+    }
+    if (i->ctime > j->ctime)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
 
-bool MegaApiImpl::nodeComparatorAlphabeticalASC  (Node *i, Node *j)
-{ if(strcasecmp(i->displayname(), j->displayname())<=0) return 1; return 0; }
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC  (Node *i, Node *j)
-{ if(strcasecmp(i->displayname(), j->displayname())<=0) return 0; return 1; }
+bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (i->ctime < j->ctime)
+    {
+        return 0;
+    }
+    if (i->ctime > j->ctime)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->mtime < j->mtime)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->mtime < j->mtime)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+    {
+        return 0;
+    }
+    return 1;
+}
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
 {
