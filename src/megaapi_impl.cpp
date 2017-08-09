@@ -17752,7 +17752,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         web << "<title>MEGA</title>";
 
         //Styles
-        web << "<head><style>"
+        web << "<head><meta charset=\"utf-8\" /><style>"
                ".folder {"
                "padding: 0;"
                "width: 24px;"
@@ -17882,7 +17882,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         string sweb = web.str();
         response << "HTTP/1.1 200 OK\r\n"
-            << "Content-Type: text/html\r\n"
+            << "Content-Type: text/html; charset=utf-8\r\n"
             << "Connection: close\r\n"
             << "Content-Length: " << sweb.size() << "\r\n"
             << "Access-Control-Allow-Origin: *\r\n"
