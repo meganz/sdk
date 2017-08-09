@@ -411,6 +411,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                 if (!forkret) //-> child is server. (debug megacmdshell)
                 {
                     signal(SIGINT, SIG_IGN); //ignore Ctrl+C in the server
+                    setsid(); //create new session so as not to receive parent's Ctrl+C
 
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
                     OUTSTREAM << "[Server down. Restarting in background. Log: " << pathtolog << "]" << endl;
