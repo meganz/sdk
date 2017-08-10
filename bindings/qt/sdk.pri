@@ -179,7 +179,11 @@ unix {
             include/mega/config.h
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT ENABLE_REGEXP USE_PCRE
+CONFIG(USE_PCRE) {
+ DEFINES += USE_PCRE
+}
+
+DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT ENABLE_REGEXP
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
@@ -205,8 +209,6 @@ win32 {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
 
-    DEFINES += PCRE_STATIC
-
     contains(CONFIG, BUILDX64) {
        release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
@@ -225,12 +227,17 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lpcre
+    CONFIG(USE_PCRE) {
+     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     DEFINES += PCRE_STATIC
+     LIBS += -lpcre
+    }
+
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp
 }
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   DEFINES += PCRE_STATIC
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
@@ -282,13 +289,15 @@ unix:!macx {
     LIBS += -lsodium
    }
 
-   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a) {
-    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a
+   CONFIG(USE_PCRE) {
+    DEFINES += PCRE_STATIC
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a
+    }
+    else {
+     LIBS += -lpcre
+    }
    }
-   else {
-    LIBS += -lpcre
-   }
-
 }
 
 macx {
@@ -302,11 +311,16 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
 
-   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL
+   CONFIG(USE_PCRE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+    DEFINES += PCRE_STATIC
+    LIBS += -lpcre
+   }
+
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
-            -lz -lssl -lcrypto -lcryptopp -lpcre
+            -lz -lssl -lcrypto -lcryptopp
    LIBS += -framework SystemConfiguration
 }
