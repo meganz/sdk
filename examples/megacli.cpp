@@ -429,13 +429,13 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(Node* n)
+bool DemoApp::sync_syncable(Sync *, const char *, string *, Node *n)
 {
     return is_syncable(n->displayname());
 }
 
 // determines whether local file should be synced
-bool DemoApp::sync_syncable(const char* name, string* localpath, string* localname)
+bool DemoApp::sync_syncable(Sync *, const char *name, string *)
 {
     return is_syncable(name);
 }

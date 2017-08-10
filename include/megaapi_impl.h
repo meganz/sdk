@@ -2070,12 +2070,12 @@ protected:
         virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Sync *, string *, string *, Node *);
-        virtual bool sync_syncable(Sync *, string *, string *, LocalNode * = NULL);
+        virtual bool sync_syncable(Sync *, const char*, string *, Node *);
+        virtual bool sync_syncable(Sync *, const char*, string *);
         virtual void syncupdate_local_lockretry(bool);
 
 private:
-        bool sync_syncable(string *, string *, Sync *);
+        bool sync_syncable(const char *, string *, Sync *);
 #endif
 
 protected:

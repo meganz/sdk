@@ -9372,7 +9372,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, string *name, string *localpath, Node *node)
+bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
 {
     if (node->type == FILENODE && !is_syncable(node->size))
     {
@@ -9382,28 +9382,18 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *name, string *localpath, Nod
     return sync_syncable(name, localpath, sync);
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, string *name, string *localpath, LocalNode *localnode)
+bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if (localnode)
+    if (f->fopen(localpath) && !is_syncable(f->size))
     {
-        if (localnode->type == FILENODE && !is_syncable(localnode->size))
-        {
-            return false;
-        }
-    }
-    else
-    {
-        if (f->fopen(localpath) && !is_syncable(f->size))
-        {
-            return false;
-        }
+        return false;
     }
 
     return sync_syncable(name, localpath, sync);
 }
 
-bool MegaApiImpl::sync_syncable(string *name, string *localpath, Sync *sync)
+bool MegaApiImpl::sync_syncable(const char *name, string *localpath, Sync *sync)
 {
     if (syncMap.find(sync->tag) == syncMap.end())
     {
@@ -9418,7 +9408,7 @@ bool MegaApiImpl::sync_syncable(string *name, string *localpath, Sync *sync)
     const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
 
     sdkMutex.unlock();
-    bool result =  is_syncable(name->c_str(), relName, megaSync->getRegExp());
+    bool result =  is_syncable(name, relName, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
