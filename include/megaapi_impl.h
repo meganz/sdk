@@ -628,8 +628,6 @@ protected:
     MegaHandle prevParent;
 };
 
-#ifdef ENABLE_REGEXP
-
 class MegaRegExpPrivate
 {
 public:
@@ -668,8 +666,6 @@ private:
 #endif
 };
 
-#endif  // ENABLE_REGEXP
-
 class MegaSyncPrivate : public MegaSync
 {  
 public:
@@ -692,17 +688,13 @@ public:
     MegaSyncListener *getListener();
     virtual int getState() const;
     void setState(int state);
-#ifdef ENABLE_REGEXP
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
-#endif
 
 protected:
     MegaHandle megaHandle;
     string localFolder;
-#ifdef ENABLE_REGEXP
     MegaRegExp *regExp;
-#endif
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
@@ -747,10 +739,6 @@ class MegaRequestPrivate : public MegaRequest
         void setTag(int tag);
         void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
-#ifdef ENABLE_REGEXP
-        void setRegExp(MegaRegExp *regExp);
-#endif
-
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
 
@@ -786,9 +774,6 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
         AccountDetails * getAccountDetails() const;
-#ifdef ENABLE_REGEXP
-        virtual MegaRegExp *getRegExp() const;
-#endif
 
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
@@ -802,6 +787,8 @@ class MegaRequestPrivate : public MegaRequest
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
         MegaSyncListener *getSyncListener() const;
+        void setRegExp(MegaRegExp *regExp);
+        virtual MegaRegExp *getRegExp() const;
 #endif
 
     protected:
@@ -828,6 +815,7 @@ class MegaRequestPrivate : public MegaRequest
 		MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
+        MegaRegExp *regExp;
 #endif
         int transfer;
 		int numDetails;
@@ -835,10 +823,6 @@ class MegaRequestPrivate : public MegaRequest
 		int numRetry;
         int tag;
         Proxy *proxy;
-
-#ifdef ENABLE_REGEXP
-        MegaRegExp *regExp;
-#endif
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
@@ -1588,13 +1572,8 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
-#ifdef ENABLE_REGEXP
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener *listener = NULL);
-#else
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
-        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-#endif
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
@@ -1607,24 +1586,19 @@ class MegaApiImpl : public MegaApp
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
-#ifdef ENABLE_REGEXP
         bool is_syncable(const char* name, const char *path = NULL, MegaRegExp *rExp = NULL);
-#else
-        bool is_syncable(const char* name);
-#endif
         bool is_syncable(long long size);
         bool isIndexing();
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
+        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
+
         void update();
         bool isWaiting();
         bool areServersBusy();
-#ifdef ENABLE_REGEXP
-        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
-#endif
 
         //Statistics
         int getNumPendingUploads();
