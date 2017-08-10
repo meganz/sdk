@@ -2910,6 +2910,11 @@ bool MegaApi::isOnline()
     return pImpl->isOnline();
 }
 
+void MegaApi::getMegaAchievements(MegaRequestListener *listener)
+{
+    pImpl->getMegaAchievements(listener);
+}
+
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port)
 {

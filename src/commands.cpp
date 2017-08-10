@@ -5167,5 +5167,27 @@ void CommandRegisterPushNotification::procresult()
 }
 #endif
 
+CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, int)
+{
+    int version = 0;
+
+    cmd("maf");
+    arg("v", version);
+
+    tag = client->reqtag;
+}
+
+void CommandGetMegaAchievements::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getmegaachievements_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->getmegaachievements_result(API_EINTERNAL);
+    }
+}
 
 } // namespace

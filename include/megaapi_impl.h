@@ -1732,6 +1732,8 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
 #endif
 
+        void getMegaAchievements(MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -1977,6 +1979,7 @@ protected:
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
+        virtual void getmegaachievements_result(error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

@@ -520,6 +520,9 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
 
+    // get mega achievements
+    void getmegaachievements();
+
     // toggle global debug flag
     bool toggledebug();
 

@@ -2720,6 +2720,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
+        case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
     }
     return "UNKNOWN";
 }
@@ -6922,7 +6923,14 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     sdkMutex.unlock();
 
-     return fileAttributes;
+    return fileAttributes;
+}
+
+void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 #endif
@@ -8825,6 +8833,21 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
         request->setMegaStringMap(datamap);
         delete datamap;
     }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::getmegaachievements_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
+
+    if (!e)
+    {
+
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -15283,6 +15306,11 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_GET_ACHIEVEMENTS:
+        {
+            client->getmegaachievements();
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;

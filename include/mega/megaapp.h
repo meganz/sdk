@@ -221,6 +221,9 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
 #endif
 
+    // get mega-achievements
+    virtual void getmegaachievements_result(error) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }

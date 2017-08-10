@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_GET_ACHIEVEMENTS, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -10082,6 +10082,18 @@ class MegaApi
          */
         const char* getFileAttribute(MegaHandle h);
 #endif
+
+        /**
+         * @brief Get the MEGA Achievements of the account logged in
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMegaAchievements(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

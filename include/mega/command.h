@@ -857,6 +857,13 @@ public:
 
 #endif
 
+class MEGA_API CommandGetMegaAchievements : public Command
+{
+public:
+    void procresult();
+
+    CommandGetMegaAchievements(MegaClient*, int);
+};
 
 } // namespace
 

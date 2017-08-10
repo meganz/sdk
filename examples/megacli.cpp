@@ -2758,6 +2758,9 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    else if (words[0] == "test")
+                    {
+                    }
                     break;
 
                 case 5:
