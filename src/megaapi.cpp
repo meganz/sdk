@@ -2310,9 +2310,8 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 
 void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
-    pImpl->setRegularExpressions(sync,regExp);
+    pImpl->setRegularExpressions(sync, regExp);
 }
-
 #endif
 
 int MegaApi::getNumPendingUploads()

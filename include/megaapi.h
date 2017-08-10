@@ -7801,7 +7801,7 @@ class MegaApi
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Resume a previously synced folder
+         * @brief Resume a previously synced folder, having an exclusion list
          *
          * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
          * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
@@ -8042,8 +8042,25 @@ class MegaApi
          */
         std::string getLocalPath(MegaNode *node);
 
+        /**
+         * @brief Get the synchronization identified with a tag
+         * @param tag Tag that identifies the synchronization
+         * @return Synchronization identified by the tag
+         */
         MegaSync *getSyncByTag(int tag);
+
+        /**
+         * @brief getSyncByNode Get the synchronization associated with a node
+         * @param node Root node of the synchronization
+         * @return Synchronization with the specified root node
+         */
         MegaSync *getSyncByNode(MegaNode *node);
+
+        /**
+         * @brief getSyncByPath Get the syncrhonization associated with a local path
+         * @param localPath Root local path of the synchronization
+         * @return Synchronization with the specified root local path
+         */
         MegaSync *getSyncByPath(const char *localPath);
 
         /**
