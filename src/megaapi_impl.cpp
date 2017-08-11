@@ -6270,12 +6270,14 @@ void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
         return;
     }
 
+    this->excludedNames.clear();
     for (unsigned int i = 0; i < excludedNames->size(); i++)
     {
-        LOG_debug << "Excluded name: " << excludedNames->at(i);
+        string name = excludedNames->at(i);
+        fsAccess->normalize(&name);
+        this->excludedNames.push_back(name);
+        LOG_debug << "Excluded name: " << name;
     }
-
-    this->excludedNames = *excludedNames;
     sdkMutex.unlock();
 }
 
@@ -6289,12 +6291,14 @@ void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
         return;
     }
 
+    this->excludedPaths.clear();
     for (unsigned int i = 0; i < excludedPaths->size(); i++)
     {
-        LOG_debug << "Excluded path: " << excludedPaths->at(i);
+        string path = excludedPaths->at(i);
+        fsAccess->normalize(&path);
+        this->excludedPaths.push_back(path);
+        LOG_debug << "Excluded path: " << path;
     }
-
-    this->excludedPaths = *excludedPaths;
     sdkMutex.unlock();
 }
 
