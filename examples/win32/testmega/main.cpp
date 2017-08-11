@@ -103,7 +103,7 @@ public:
 
 	virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error)
 	{
-		if(error->getErrorCode())
+		if (error->getErrorCode())
 		{
 			cout << "***** Transfer finished with error: " << error->getErrorString() << endl;
 		}
@@ -127,6 +127,11 @@ public:
 
 	virtual void onUsersUpdate(MegaApi* api, MegaUserList *users)
 	{
+		if (users == NULL)
+		{
+			//Full account reload
+			return;
+		}
 		cout << "***** There are " << users->size() << " new or updated users in your account" << endl;
 	}
 
@@ -174,8 +179,20 @@ int main()
 	{
 		Sleep(1000);
 	}
-	
+
+	cout << "Do you want to enable the local HTTP server (y/n)?" << endl;
+	char c = getchar();
+	if (c == 'y' || c == 'Y')
+	{
+		megaApi->httpServerStart();
+		megaApi->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_ALL);
+		megaApi->httpServerEnableFileServer(true);
+		megaApi->httpServerEnableFolderServer(true);
+		cout << "You can browse your account now! http://127.0.0.1:4443/" << endl;
+	}
+
 	cout << "Press any key to exit the app..." << endl;
+	getchar();
 	getchar();
 	return 0;
 }

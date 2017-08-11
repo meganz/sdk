@@ -1843,6 +1843,16 @@ void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
 }
 
+void MegaSDK::queryTransferQuota(int64 size, MRequestListenerInterface^ listener)
+{
+    megaApi->queryTransferQuota(size, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryTransferQuota(int64 size)
+{
+    megaApi->queryTransferQuota(size);
+}
+
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
 {
 	megaApi->getPricing(createDelegateMRequestListener(listener));
@@ -2903,6 +2913,16 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent, int order)
 MNodeList^ MegaSDK::getChildren(MNode^ parent)
 {
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent, int order)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL, order), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
 }
 
 bool MegaSDK::hasChildren(MNode^ parent)

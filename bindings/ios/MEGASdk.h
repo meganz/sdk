@@ -36,6 +36,7 @@
 #import "MEGAUserList.h"
 #import "MEGAShareList.h"
 #import "MEGAContactRequestList.h"
+#import "MEGAChildrenLists.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
@@ -2274,6 +2275,39 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)getAccountDetails;
 
 /**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ */
+- (void)queryTransferQuotaWithSize:(long long)size;
+
+/**
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function
@@ -3263,6 +3297,64 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return The MEGANode that has the selected parent and name.
  */
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ * @param order Order for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Sort in alphabetical order, ascending
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Sort in alphabetical order, descending
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the parent node of a MEGANode.

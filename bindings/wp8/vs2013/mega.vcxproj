@@ -396,6 +396,7 @@
     <ClInclude Include="..\MAccountPurchase.h" />
     <ClInclude Include="..\MAccountSession.h" />
     <ClInclude Include="..\MAccountTransaction.h" />
+    <ClInclude Include="..\MChildrenLists.h" />
     <ClInclude Include="..\MContactRequest.h" />
     <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
@@ -477,6 +478,7 @@
     <ClCompile Include="..\MAccountPurchase.cpp" />
     <ClCompile Include="..\MAccountSession.cpp" />
     <ClCompile Include="..\MAccountTransaction.cpp" />
+    <ClCompile Include="..\MChildrenLists.cpp" />
     <ClCompile Include="..\MContactRequest.cpp" />
     <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />

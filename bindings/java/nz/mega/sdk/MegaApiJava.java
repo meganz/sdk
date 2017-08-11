@@ -4372,6 +4372,63 @@ public class MegaApiJava {
     }
 
     /**
+     * Get file and folder children of a MegaNode separatedly
+     *
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @param order Order for the returned lists
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return MegaChildren object with two ArrayLists: fileList and FolderList
+     */
+    public MegaChildren getFileFolderChildren(MegaNode parent, int order){
+        MegaChildren children = new MegaChildren();
+
+        MegaChildrenLists childrenList = megaApi.getFileFolderChildren(parent, order);
+
+        children.setFileList(nodeListToArray(childrenList.getFileList()));
+        children.setFolderList(nodeListToArray(childrenList.getFolderList()));
+
+        return children;
+    }
+
+    /**
      * Get all children of a MegaNode.
      * <p>
      * If the parent node does not exist or if it is not a folder, this function.

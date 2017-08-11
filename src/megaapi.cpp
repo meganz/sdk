@@ -1789,6 +1789,11 @@ void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
 }
 
+void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
+{
+    pImpl->queryTransferQuota(size, listener);
+}
+
 void MegaApi::getPricing(MegaRequestListener *listener)
 {
     pImpl->getPricing(listener);
@@ -2803,6 +2808,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
+}
+
+MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
+{
+    return pImpl->getFileFolderChildren(p, order);
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)
@@ -4481,4 +4491,24 @@ unsigned int MegaHandleList::size() const
 void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
 {
 
+}
+
+MegaChildrenLists::~MegaChildrenLists()
+{
+
+}
+
+MegaChildrenLists *MegaChildrenLists::copy()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFileList()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFolderList()
+{
+    return NULL;
 }

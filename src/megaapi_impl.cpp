@@ -2719,6 +2719,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_QUERY_GELB: return "QUERY_GELB";
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
+        case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
     }
     return "UNKNOWN";
 }
@@ -5053,6 +5054,14 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 	request->setNumDetails(numDetails);
 
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryTransferQuota(long long size, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_TRANSFER_QUOTA, listener);
+    request->setNumber(size);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -10488,6 +10497,18 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::querytransferquota_result(int code)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_TRANSFER_QUOTA)) return;
+
+    // pre-warn about a possible overquota for codes 2 and 3, like in the webclient
+    request->setFlag((code == 2 || code == 3) ? true : false);
+
+    fireOnRequestFinish(request, MegaError(API_OK));
+}
+
 void MegaApiImpl::removecontact_result(error e)
 {
 	MegaError megaError(e);
@@ -11863,6 +11884,97 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     else return new MegaNodeListPrivate();
 }
 
+MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
+{
+    if(!p)
+    {
+        return new MegaChildrenListsPrivate();
+    }
+
+    sdkMutex.lock();
+    Node *parent = client->nodebyhandle(p->getHandle());
+    if(!parent)
+    {
+        sdkMutex.unlock();
+        return new MegaChildrenListsPrivate();
+    }
+
+    vector<Node *> files;
+    vector<Node *> folders;
+
+    if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
+    {
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+        {
+            Node *n = *it++;
+            if (n->type == FILENODE)
+            {
+                files.push_back(n);
+            }
+            else // if (n->type == FOLDERNODE)
+            {
+                folders.push_back(n);
+            }
+        }
+    }
+    else
+    {
+        bool (*comp)(Node*, Node*);
+        switch(order)
+        {
+        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
+        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
+        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
+        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
+        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
+        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
+        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
+        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        }
+
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+        {
+            Node *n = *it++;
+            if (n->type == FILENODE)
+            {
+                vector<Node *>::iterator i = std::lower_bound(files.begin(), files.end(), n, comp);
+                files.insert(i, n);
+            }
+            else // if (n->type == FOLDERNODE)
+            {
+                vector<Node *>::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comp);
+                folders.insert(i, n);
+            }
+        }
+    }
+    sdkMutex.unlock();
+
+    MegaNodeListPrivate *fileList;
+    if (files.size())
+    {
+        fileList = new MegaNodeListPrivate(files.data(), files.size());
+    }
+    else
+    {
+        fileList = new MegaNodeListPrivate();
+    }
+
+    MegaNodeListPrivate *folderList;
+    if (folders.size())
+    {
+        folderList = new MegaNodeListPrivate(folders.data(), folders.size());
+    }
+    else
+    {
+        folderList = new MegaNodeListPrivate();
+    }
+
+    return new MegaChildrenListsPrivate(folderList, fileList);
+}
+
 bool MegaApiImpl::hasChildren(MegaNode *parent)
 {
     if (!parent)
@@ -13235,6 +13347,12 @@ void MegaApiImpl::sendPendingRequests()
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
 		}
+        case MegaRequest::TYPE_QUERY_TRANSFER_QUOTA:
+        {
+            m_off_t size = request->getNumber();
+            client->querytransferquota(size);
+            break;
+        }
 		case MegaRequest::TYPE_CHANGE_PW:
 		{
 			const char* oldPassword = request->getPassword();
@@ -18643,3 +18761,41 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
     mList.push_back(h);
 }
 
+MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
+{
+    files = list->getFileList()->copy();
+    folders = list->getFolderList()->copy();
+}
+
+MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList)
+{
+    folders = folderList;
+    files = fileList;
+}
+
+MegaChildrenListsPrivate::~MegaChildrenListsPrivate()
+{
+    delete files;
+    delete folders;
+}
+
+MegaChildrenLists *MegaChildrenListsPrivate::copy()
+{
+    return new MegaChildrenListsPrivate(this);
+}
+
+MegaNodeList *MegaChildrenListsPrivate::getFileList()
+{
+    return files;
+}
+
+MegaNodeList *MegaChildrenListsPrivate::getFolderList()
+{
+    return folders;
+}
+
+MegaChildrenListsPrivate::MegaChildrenListsPrivate()
+{
+    files = new MegaNodeListPrivate();
+    folders = new MegaNodeListPrivate();
+}
