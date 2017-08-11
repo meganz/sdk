@@ -850,6 +850,7 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
     if (thesock == INVALID_SOCKET)
     {
         cerr << "Failed to create socket for registering for state changes" << endl;
+        registerAgainRequired = true;
         return INVALID_SOCKET;
     }
 
@@ -864,7 +865,8 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR writing output Code to socket: " << ERRNO << endl;
-        return -1;;
+        registerAgainRequired = true;
+        return -1;
     }
 
     int receiveSocket = SOCKET_ERROR ;
@@ -873,6 +875,7 @@ int MegaCmdShellCommunications::registerForStateChanges(void (*statechangehandle
     if (n == SOCKET_ERROR)
     {
         cerr << "ERROR reading output socket" << endl;
+        registerAgainRequired = true;
         return -1;
     }
 
