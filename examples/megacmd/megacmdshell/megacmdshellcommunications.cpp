@@ -414,7 +414,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                     setsid(); //create new session so as not to receive parent's Ctrl+C
 
                     string pathtolog = createAndRetrieveConfigFolder()+"/megacmdserver.log";
-                    OUTSTREAM << "[Server down. Restarting in background. Log: " << pathtolog << "]" << endl;
+                    OUTSTREAM << "[Initiating server in background. Log: " << pathtolog << "]" << endl;
 
                     dup2(fileno(stdout), fileno(stderr));  //redirects stderr to stdout below this line.
                     freopen(pathtolog.c_str(),"w",stdout);
@@ -455,7 +455,14 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 
                 //try again:
                 int attempts = 12;
+#ifdef __MACH__
+                int waitimet = 15000; // Give a longer while for the user to insert password to unblock fsevents. TODO: this should only be required the first time using megacmd
+#else
                 int waitimet = 1500;
+                static int relaunchnumber = 1;
+                waitimet=waitimet*(relaunchnumber++);
+#endif
+
                 usleep(waitimet*100); //TODO: check again deleting this
                 while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
                 {
@@ -797,7 +804,7 @@ int MegaCmdShellCommunications::listenToStateChanges(int receiveSocket, void (*s
                 timeout_notified_server_might_be_down = 30;
                 if (!stopListener)
                 {
-                    cerr << endl << "[Server is probably down. Executing anything will try to respawn or reconnect to it]" << endl;
+                    cerr << endl << "[Server is probably down. Type to respawn or reconnect to it]" << endl;
                 }
                 else
                 {
