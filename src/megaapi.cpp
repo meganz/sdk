@@ -2193,25 +2193,27 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
-}
-
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
-}
-
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
 }
+
+#ifdef USE_PCRE
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+}
+
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
+{
+    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+}
+#endif
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 {
@@ -2308,10 +2310,12 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
     pImpl->setExclusionUpperSizeLimit(limit);
 }
 
+#ifdef USE_PCRE
 void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
     pImpl->setRegularExpressions(sync, regExp);
 }
+#endif
 #endif
 
 int MegaApi::getNumPendingUploads()

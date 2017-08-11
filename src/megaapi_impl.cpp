@@ -904,11 +904,13 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
     }
 
     MegaRegExp *regExp = NULL;
+#ifdef USE_PCRE
     MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
     if (megaSync)
     {
         regExp = megaSync->getRegExp();
     }
+#endif
 
     if ((regExp || excludedPaths.size()) && localpath->size() > (sync->localroot.localname.size() + sync->client->fsaccess->localseparator.size()))
     {             
@@ -925,10 +927,12 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
             }
         }
 
+#ifdef USE_PCRE
         if (regExp && regExp->match(relPath))
         {
             return false;
         }
+#endif
     }
 
     return true;
