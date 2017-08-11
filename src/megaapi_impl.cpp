@@ -9435,7 +9435,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
 {
-    if (!sync || node->type == FILENODE && !is_syncable(node->size))
+    if (!sync || !sync->appData || node->type == FILENODE && !is_syncable(node->size))
     {
         return false;
     }
@@ -9449,8 +9449,9 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath,
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                  && f->fopen(localpath) && !is_syncable(f->size)))
+    if (!sync || !sync->appData
+            || ((syncLowerSizeLimit || syncUpperSizeLimit)
+                && f->fopen(localpath) && !is_syncable(f->size)))
     {
         return false;
     }
