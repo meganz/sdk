@@ -1590,6 +1590,11 @@ string getHelpStr(const char *command)
         os << " -q" << "\t" << "queue upload: execute in the background. Don't wait for it to end' " << endl;
         os << " --ignore-quota-warn" << "\t" << "ignore quota surpassing warning. " << endl;
         os << "                    " << "\t" << "  The upload will be attempted anyway." << endl;
+
+        os << endl;
+        os << "Notice that the dstremotepath can only be omitted when only one local path is provided. " << endl;
+        os << " In such case, the current remote working dir will be the destination for the upload." << endl;
+        os << " Mind that using wildcards for local paths will result in multiple paths." << endl;
     }
     else if (!strcmp(command, "get"))
     {
