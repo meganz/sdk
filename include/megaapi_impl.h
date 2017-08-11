@@ -1586,6 +1586,7 @@ class MegaApiImpl : public MegaApp
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
+        bool isSyncable(const char *path);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         bool isIndexing();

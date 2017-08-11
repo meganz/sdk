@@ -8023,13 +8023,11 @@ class MegaApi
         bool moveToLocalDebris(const char *path);
 
         /**
-         * @brief Check if a name is syncable based on the excluded names
-         * @param name Name to check
-         * @return true if the name is syncable, otherwise false
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed or modified in future updates
+         * @brief Check if a path is syncable based on the excluded names and paths
+         * @param name Path to check
+         * @return true if the path is syncable, otherwise false
          */
-        bool isSyncable(const char *name);
+        bool isSyncable(const char *path);
 
         /**
          * @brief Get the corresponding local path of a synced node

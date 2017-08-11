@@ -6340,6 +6340,43 @@ long long MegaApiImpl::getNumLocalNodes()
     return client->totalLocalNodes;
 }
 
+bool MegaApiImpl::isSyncable(const char *path)
+{
+    if (!path)
+    {
+        return false;
+    }
+
+    string utf8path = path;
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if (!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
+    {
+        utf8path.insert(0, "\\\\?\\");
+    }
+#endif
+
+    string localpath, name;
+    LocalNode *parent = NULL;
+    fsAccess->path2local(&utf8path, &localpath);
+
+    bool result = false;
+    sdkMutex.lock();
+    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+    {
+        Sync *sync = (*it);
+        if (sync->localnodebypath(NULL, &localpath, &parent) || parent)
+        {
+            int index = fsAccess->lastpartlocal(&localpath);
+            name = localpath.substr(index);
+            fsAccess->local2name(&name);
+            result = is_syncable(sync, name.c_str(), &localpath);
+            break;
+        }
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()
