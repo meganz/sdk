@@ -887,22 +887,12 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-bool MegaApiImpl::is_syncable(const char *name, const char *path, MegaRegExp *rExp)
+bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
 {
     // Don't sync these system files from OS X
     if (!strcmp(name, "Icon\x0d"))
     {
         return false;
-    }
-
-    if (rExp)
-    {
-        if (rExp->match(path))
-        {
-            return false;
-            // TODO: check if excluded by Blacklist, but included
-            // in the exceptions (Whitelist)
-        }
     }
 
     for (unsigned int i = 0; i < excludedNames.size(); i++)
@@ -913,9 +903,29 @@ bool MegaApiImpl::is_syncable(const char *name, const char *path, MegaRegExp *rE
         }
     }
 
-    for (unsigned int i = 0; i < excludedPaths.size(); i++)
+    MegaRegExp *regExp = NULL;
+    MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
+    if (megaSync)
     {
-        if (WildcardMatch(path, excludedPaths[i].c_str()))
+        regExp = megaSync->getRegExp();
+    }
+
+    if ((regExp || excludedPaths.size()) && localpath->size() > (sync->localroot.localname.size() + sync->client->fsaccess->localseparator.size()))
+    {             
+        string relpath = localpath->substr(sync->localroot.localname.size() + fsAccess->localseparator.size());
+        string utf8relpath;
+        fsAccess->local2path(&relpath, &utf8relpath);
+        const char* relPath = utf8relpath.c_str();
+
+        for (unsigned int i = 0; i < excludedPaths.size(); i++)
+        {
+            if (WildcardMatch(relPath, excludedPaths[i].c_str()))
+            {
+                return false;
+            }
+        }
+
+        if (regExp && regExp->match(relPath))
         {
             return false;
         }
@@ -6000,6 +6010,11 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
 //Move local files inside synced folders to the "Rubbish" folder.
 bool MegaApiImpl::moveToLocalDebris(const char *path)
 {
+    if (!path)
+    {
+        return false;
+    }
+
     sdkMutex.lock();
 
     string utf8path = path;
@@ -6086,7 +6101,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
     {
         Sync *sync = (*it);
-        if(path->size() == sync->localroot.localname.size() &&
+        if (path->size() == sync->localroot.localname.size() &&
                 !memcmp(path->data(), sync->localroot.localname.data(), path->size()))
         {
             node = MegaNodePrivate::fromNode(sync->localroot.node);
@@ -6167,15 +6182,24 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         string utf8name(localPath);
         string localname;
         client->fsaccess->path2local(&utf8name, &localname);
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag);
+
+        MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+        sync->setListener(request->getSyncListener());
+        sync->setLocalFingerprint(localfp);
+        sync->setRegExp(regExp);
+
+        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
-            MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
-            sync->setListener(request->getSyncListener());
-            sync->setRegExp(regExp);
+            Sync *s = client->syncs.back();
+            fsfp_t fsfp = s->fsfp;
+            sync->setState(s->state);
+            request->setNumber(fsfp);
             syncMap[-nextTag] = sync;
-
-            request->setNumber(client->syncs.back()->fsfp);
+        }
+        else
+        {
+            delete sync;
         }
     }
 
@@ -9374,41 +9398,28 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
 {
-    if (node->type == FILENODE && !is_syncable(node->size))
+    if (!sync || node->type == FILENODE && !is_syncable(node->size))
     {
         return false;
     }
 
-    return sync_syncable(name, localpath, sync);
+    sdkMutex.unlock();
+    bool result = is_syncable(sync, name, localpath);
+    sdkMutex.lock();
+    return result;
 }
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if (f->fopen(localpath) && !is_syncable(f->size))
+    if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
+                  && f->fopen(localpath) && !is_syncable(f->size)))
     {
         return false;
     }
 
-    return sync_syncable(name, localpath, sync);
-}
-
-bool MegaApiImpl::sync_syncable(const char *name, string *localpath, Sync *sync)
-{
-    if (syncMap.find(sync->tag) == syncMap.end())
-    {
-        return true;
-    }
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    string path;
-    const char *syncPath = megaSync->getLocalFolder();
-
-    fsAccess->local2path(localpath, &path);
-    const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
-
     sdkMutex.unlock();
-    bool result =  is_syncable(name, relName, megaSync->getRegExp());
+    bool result = is_syncable(sync, name, localpath);
     sdkMutex.lock();
     return result;
 }
@@ -14708,16 +14719,25 @@ void MegaApiImpl::sendPendingRequests()
             string utf8name(localPath);
             string localname;
             client->fsaccess->path2local(&utf8name, &localname);
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag);
-            if(!e)
-            {
-                MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
-                sync->setListener(request->getSyncListener());
-                sync->setRegExp(request->getRegExp());
-                syncMap[-nextTag] = sync;
 
-                request->setNumber(client->syncs.back()->fsfp);
+            MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+            sync->setListener(request->getSyncListener());
+            sync->setRegExp(request->getRegExp());
+
+            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            if (!e)
+            {
+                Sync *s = client->syncs.back();
+                fsfp_t fsfp = s->fsfp;
+                sync->setState(s->state);
+                sync->setLocalFingerprint(fsfp);
+                request->setNumber(fsfp);
+                syncMap[-nextTag] = sync;
                 fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            else
+            {
+                delete sync;
             }
             break;
         }
@@ -14734,6 +14754,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (syncMap.find(tag) != syncMap.end())
                 {
+                    sync->appData = NULL;
                     MegaSyncPrivate *megaSync = syncMap.at(tag);
                     syncMap.erase(tag);
                     delete megaSync;
@@ -14766,6 +14787,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     if (syncMap.find(tag) != syncMap.end())
                     {
+                        sync->appData = NULL;
                         MegaSyncPrivate *megaSync = syncMap.at(tag);
                         syncMap.erase(tag);
                         delete megaSync;
@@ -16037,13 +16059,14 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int g
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
+MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 {
-    this->tag = sync->tag;
-    sync->client->fsaccess->local2path(&sync->localroot.localname, &localFolder);
-    this->megaHandle = sync->localroot.node->nodehandle;
-    this->fingerprint = sync->fsfp;
-    this->state = sync->state;
+    this->tag = tag;
+    this->megaHandle = nodehandle;
+    this->localFolder = NULL;
+    setLocalFolder(path);
+    this->state = SYNC_INITIALSCAN;
+    this->fingerprint = 0;
     this->regExp = NULL;
     this->listener = NULL;
 }
@@ -16051,6 +16074,7 @@ MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
     this->regExp = NULL;
+    this->localFolder = NULL;
     this->setTag(sync->getTag());
     this->setLocalFolder(sync->getLocalFolder());
     this->setMegaHandle(sync->getMegaHandle());
@@ -16062,6 +16086,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 
 MegaSyncPrivate::~MegaSyncPrivate()
 {
+    delete [] localFolder;
     delete regExp;
 }
 
@@ -16082,15 +16107,16 @@ void MegaSyncPrivate::setMegaHandle(MegaHandle handle)
 
 const char *MegaSyncPrivate::getLocalFolder() const
 {
-    if(!localFolder.size())
-        return NULL;
-
-    return localFolder.c_str();
+    return localFolder;
 }
 
 void MegaSyncPrivate::setLocalFolder(const char *path)
 {
-    this->localFolder = path;
+    if (localFolder)
+    {
+        delete [] localFolder;
+    }
+    localFolder =  MegaApi::strdup(path);
 }
 
 long long MegaSyncPrivate::getLocalFingerprint() const

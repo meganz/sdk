@@ -9506,7 +9506,7 @@ void MegaClient::updateputs()
 // disallow nested syncs (there is only one LocalNode pointer per node), return
 // EEXIST otherwise
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -9609,7 +9609,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             fsaccess->local2path(rootpath, &utf8path);
             LOG_debug << "Adding sync: " << utf8path;
 
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
+            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
 
             if (sync->scan(rootpath, fa))
             {

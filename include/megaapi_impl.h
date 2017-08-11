@@ -669,7 +669,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {  
 public:
-    MegaSyncPrivate(Sync *sync);
+    MegaSyncPrivate(const char *path, handle nodehandle, int tag);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -693,7 +693,7 @@ public:
 
 protected:
     MegaHandle megaHandle;
-    string localFolder;
+    char *localFolder;
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
@@ -1586,7 +1586,7 @@ class MegaApiImpl : public MegaApp
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
-        bool is_syncable(const char* name, const char *path = NULL, MegaRegExp *rExp = NULL);
+        bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         bool isIndexing();
         MegaSync *getSyncByTag(int tag);
@@ -2073,9 +2073,6 @@ protected:
         virtual bool sync_syncable(Sync *, const char*, string *, Node *);
         virtual bool sync_syncable(Sync *, const char*, string *);
         virtual void syncupdate_local_lockretry(bool);
-
-private:
-        bool sync_syncable(const char *, string *, Sync *);
 #endif
 
 protected:
