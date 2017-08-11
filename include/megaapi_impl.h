@@ -1398,6 +1398,7 @@ class MegaApiImpl : public MegaApp
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
+        bool isAchievementsEnabled();
 #ifdef ENABLE_CHAT
         char* getMyFingerprint();
 #endif

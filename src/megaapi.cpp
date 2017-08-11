@@ -1325,6 +1325,11 @@ char *MegaApi::getMyXMPPJid()
     return pImpl->getMyXMPPJid();
 }
 
+bool MegaApi::isAchievementsEnabled()
+{
+    return pImpl->isAchievementsEnabled();
+}
+
 #ifdef ENABLE_CHAT
 char *MegaApi::getMyFingerprint()
 {

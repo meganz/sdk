@@ -3804,6 +3804,17 @@ char *MegaApiImpl::getMyXMPPJid()
     return result;
 }
 
+bool MegaApiImpl::isAchievementsEnabled()
+{
+    bool ret;
+
+    sdkMutex.lock();
+    ret = client->achievements_enabled;
+    sdkMutex.unlock();
+
+    return ret;
+}
+
 #ifdef ENABLE_CHAT
 char *MegaApiImpl::getMyFingerprint()
 {

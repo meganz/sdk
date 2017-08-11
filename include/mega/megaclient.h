@@ -1228,6 +1228,9 @@ public:
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
 
+    // achievements enabled for the account
+    bool achievements_enabled;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

@@ -1393,6 +1393,7 @@ void CommandLogin::procresult()
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
     bool fa = false;
+    bool ach = false;
 
     for (;;)
     {
@@ -1424,6 +1425,10 @@ void CommandLogin::procresult()
 
             case MAKENAMEID2('f', 'a'):
                 fa = client->json.getint();
+                break;
+
+            case MAKENAMEID3('a', 'c', 'h'):
+                ach = client->json.getint();
                 break;
 
             case MAKENAMEID2('s', 'n'):
@@ -1531,6 +1536,7 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+                client->achievements_enabled = ach;
 
                 if (len_sek)
                 {

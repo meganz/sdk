@@ -5621,6 +5621,12 @@ class MegaApi
          */
         char* getMyXMPPJid();
 
+        /**
+         * @brief Returns whether MEGA Achievements are enabled for the open account
+         * @return True if enabled, false otherwise.
+         */
+        bool isAchievementsEnabled();
+
 #ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account
