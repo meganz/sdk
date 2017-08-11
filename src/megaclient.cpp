@@ -9735,35 +9735,34 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // build child hash - nameclash resolution: use newest/largest version
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
-        attr_map::iterator ait;
-
-        const char *displayname = (*it)->displayname();
-        string localname(displayname);
-        fsaccess->name2local(&localname);
-        string path = *localpath;
-
-        size_t t = path.size();
-        if (t)
-        {
-            path.append(fsaccess->localseparator);
-        }
-
-        path.append(localname);
+        attr_map::iterator ait;        
 
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(l->sync, displayname, &path, *it)
-             && (*it)->syncdeleted == SYNCDEL_NONE
+        if (((*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
              && ait->second.size())
          && (l->parent || l->sync->debris != ait->second))
         {
-            addchild(&nchildren, &ait->second, *it, &strings);
+            size_t t = localpath->size();
+            string localname = ait->second;
+            fsaccess->name2local(&localname);
+            localpath->append(fsaccess->localseparator);
+            localpath->append(localname);
+            if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
+            {
+                addchild(&nchildren, &ait->second, *it, &strings);
+            }
+            else
+            {
+                LOG_debug << "Node excluded " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
+            }
+            localpath->resize(t);
         }
         else
         {
-            LOG_debug << "Node skipped " << (*it)->nodehandle << "  Name: " << (*it)->displayname();
+            LOG_debug << "Node skipped " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
         }
     }
 
