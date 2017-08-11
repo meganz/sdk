@@ -859,10 +859,11 @@ public:
 
 class MEGA_API CommandGetMegaAchievements : public Command
 {
+    AchievementsDetails* details;
 public:
     void procresult();
 
-    CommandGetMegaAchievements(MegaClient*, int);
+    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details);
 };
 
 } // namespace

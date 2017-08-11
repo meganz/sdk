@@ -2149,7 +2149,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transferredBytes = 0;
     this->number = 0;
 
-    if(type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
         this->accountDetails = new AccountDetails();
     }
@@ -2158,7 +2158,16 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->accountDetails = NULL;
     }
 
-    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
+    if (type == MegaRequest::TYPE_GET_ACHIEVEMENTS)
+    {
+        this->achievementsDetails = new AchievementsDetails();
+    }
+    else
+    {
+        this->achievementsDetails = NULL;
+    }
+
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
     {
         this->megaPricing = new MegaPricingPrivate();
     }
@@ -2168,7 +2177,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     }
 
 #ifdef ENABLE_CHAT
-    if(type == MegaRequest::TYPE_CHAT_CREATE)
+    if (type == MegaRequest::TYPE_CHAT_CREATE)
     {
         this->chatPeerList = new MegaTextChatPeerListPrivate();
     }
@@ -2177,7 +2186,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->chatPeerList = NULL;
     }
 
-    if(type == MegaRequest::TYPE_CHAT_FETCH)
+    if (type == MegaRequest::TYPE_CHAT_FETCH)
     {
         this->chatList = new MegaTextChatListPrivate();
     }
@@ -2241,6 +2250,13 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->accountDetails) = *(request->getAccountDetails());
 	}
 
+    this->achievementsDetails = NULL;
+    if(request->getAchievementsDetails())
+    {
+        this->achievementsDetails = new AchievementsDetails();
+        *(this->achievementsDetails) = *(request->getAchievementsDetails());
+    }
+
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
@@ -2252,6 +2268,20 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
 {
     return accountDetails;
+}
+
+MegaAchievementsDetails *MegaRequestPrivate::getMegaAchievementsDetails() const
+{
+    if (achievementsDetails)
+    {
+        return MegaAchievementsDetailsPrivate::fromAchievementsDetails(achievementsDetails);
+    }
+    return NULL;
+}
+
+AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
+{
+    return achievementsDetails;
 }
 
 #ifdef ENABLE_CHAT
@@ -8847,7 +8877,7 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::getmegaachievements_result(error e)
+void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -18965,4 +18995,17 @@ MegaChildrenListsPrivate::MegaChildrenListsPrivate()
 {
     files = new MegaNodeListPrivate();
     folders = new MegaNodeListPrivate();
+}
+
+MegaAchievementsDetails *MegaAchievementsDetailsPrivate::fromAchievementsDetails(AchievementsDetails *details)
+{
+    return new MegaAchievementsDetailsPrivate(details);
+}
+
+MegaAchievementsDetailsPrivate::~MegaAchievementsDetailsPrivate()
+{ }
+
+MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
+{
+    this->details = (*details);
 }

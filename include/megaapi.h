@@ -54,6 +54,7 @@ class MegaTransferListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
+class MegaAchievementsDetails;
 class MegaPricing;
 class MegaNode;
 class MegaUser;
@@ -2343,6 +2344,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getPublicNode - Returns the public node
          *
+         * You take the ownership of the returned value.
+         *
          * @return Public node related to the request
          */
         virtual MegaNode *getPublicMegaNode() const;
@@ -2482,6 +2485,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getAccountDetails - Details of the MEGA account
          *
+         * You take the ownership of the returned value.
+         *
          * @return Details related to the MEGA account
          */
         virtual MegaAccountDetails *getMegaAccountDetails() const;
@@ -2493,10 +2498,24 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getPricing - Returns the available pricing plans
          *
+         * You take the ownership of the returned value.
+         *
          * @return Available pricing plans to upgrade a MEGA account
          */
         virtual MegaPricing *getPricing() const;
 
+        /**
+         * @brief Returns details related to the MEGA Achievements of this account
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getMegaAchievements - Details of the MEGA Achievements of this account
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Details related to the MEGA Achievements of this account
+         */
+        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
 
         /**
          * @brief Returns the tag of a transfer related to the request
@@ -2892,7 +2911,8 @@ class MegaTransfer
         /**
          * @brief Returns a public node related to the transfer
          *
-         * The return value is only valid for downloads of public nodes
+         * The return value is only valid for downloads of public nodes.
+         *
          * You take the ownership of the returned value.
          *
          * @return Public node related to the transfer
@@ -10742,6 +10762,25 @@ public:
      * @return Copy of the MegaPricing object
      */
     virtual MegaPricing *copy();
+};
+
+class MegaAchievementsDetails
+{
+public:
+    virtual ~MegaAchievementsDetails();
+
+    /**
+     * @brief Creates a copy of this MegaAchievementsDetails object.
+     *
+     * The resulting object is fully independent of the source MegaAchievementsDetails,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaAchievementsDetails object
+     */
+    virtual MegaAchievementsDetails *copy();
 };
 
 }

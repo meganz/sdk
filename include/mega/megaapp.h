@@ -222,7 +222,7 @@ struct MEGA_API MegaApp
 #endif
 
     // get mega-achievements
-    virtual void getmegaachievements_result(error) {}
+    virtual void getmegaachievements_result(AchievementsDetails*, error) {}
 
     // global transfer queue updates
     virtual void file_added(File*) { }

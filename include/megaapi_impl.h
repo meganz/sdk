@@ -723,12 +723,14 @@ class MegaRequestPrivate : public MegaRequest
         virtual long long getTransferredBytes() const;
         virtual long long getTotalBytes() const;
 		virtual MegaRequestListener *getListener() const;
-		virtual MegaAccountDetails *getMegaAccountDetails() const;
+        virtual MegaAccountDetails *getMegaAccountDetails() const;
         virtual int getTransferTag() const;
         virtual int getNumDetails() const;
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;        
+        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
+        AchievementsDetails *getAchievementsDetails() const;
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
@@ -746,6 +748,7 @@ class MegaRequestPrivate : public MegaRequest
     protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
+        AchievementsDetails *achievementsDetails;
 		int type;
         MegaHandle nodeHandle;
 		const char* link;
@@ -876,7 +879,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
         static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
-        virtual ~MegaAccountDetailsPrivate() ;
+        virtual ~MegaAccountDetailsPrivate();
 
         virtual int getProLevel();
         virtual int64_t getProExpiration();
@@ -948,6 +951,17 @@ private:
     vector<const char *> description;
     vector<const char *> iosId;
     vector<const char *> androidId;
+};
+
+class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
+{
+public:
+    static MegaAchievementsDetails *fromAchievementsDetails(AchievementsDetails *details);
+    virtual ~MegaAchievementsDetailsPrivate();
+
+private:
+    MegaAchievementsDetailsPrivate(AchievementsDetails *details);
+    AchievementsDetails details;
 };
 
 #ifdef ENABLE_CHAT
@@ -1980,7 +1994,7 @@ protected:
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
-        virtual void getmegaachievements_result(error);
+        virtual void getmegaachievements_result(AchievementsDetails*, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

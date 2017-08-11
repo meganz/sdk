@@ -5173,8 +5173,10 @@ void CommandRegisterPushNotification::procresult()
 }
 #endif
 
-CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, int)
+CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details)
 {
+    this->details = details;
+
     int version = 0;
 
     cmd("maf");
@@ -5187,12 +5189,78 @@ void CommandGetMegaAchievements::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->getmegaachievements_result((error)client->json.getint());
+        client->app->getmegaachievements_result(details, (error)client->json.getint());
     }
     else
     {
-        client->json.storeobject();
-        client->app->getmegaachievements_result(API_EINTERNAL);
+        if (client->json.enterarray() && client->json.enterobject())
+        {
+            bool noexit = true;
+            while(noexit)
+            {
+                switch (client->json.getnameid())
+                {
+                    case 's':
+                        details->permanent_size = client->json.getint();
+                        break;
+
+                    case 'u':
+                        if (client->json.enterobject())
+                        {
+                            // readachievements();  // one object, "id":<array>
+
+                            client->json.leaveobject();
+                        }
+                        else
+                        {
+                            client->json.storeobject();
+                        }
+                        break;
+
+                    case 'a':
+                        {
+                            if (client->json.enterarray())
+                            {
+                                // readawards();    multiple objects?
+                            }
+                            else
+                            {
+                                client->json.storeobject();
+                            }
+                        }
+                        break;
+
+                    case 'r':
+                        {
+                            // readrewards();
+                        }
+                        break;
+
+                    case EOO:
+                        {
+                            noexit = false;
+                        }
+                        break;
+
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            client->app->getmegaachievements_result(details, API_EINTERNAL);
+                            return;
+                        }
+                        break;
+                }
+            }
+        }
+        else
+        {
+            client->json.storeobject();
+            client->app->getmegaachievements_result(details, (error)API_EINTERNAL);
+        }
+
+        client->json.leaveobject();
+        client->json.leavearray();
+
     }
 }
 

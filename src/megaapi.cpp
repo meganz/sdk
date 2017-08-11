@@ -662,7 +662,12 @@ MegaAccountDetails *MegaRequest::getMegaAccountDetails() const
 
 MegaPricing *MegaRequest::getPricing() const
 {
-	return NULL;
+    return NULL;
+}
+
+MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
+{
+    return NULL;
 }
 
 int MegaRequest::getTransferTag() const
@@ -4519,6 +4524,16 @@ MegaNodeList *MegaChildrenLists::getFileList()
 }
 
 MegaNodeList *MegaChildrenLists::getFolderList()
+{
+    return NULL;
+}
+
+MegaAchievementsDetails::~MegaAchievementsDetails()
+{
+
+}
+
+MegaAchievementsDetails *MegaAchievementsDetails::copy()
 {
     return NULL;
 }
