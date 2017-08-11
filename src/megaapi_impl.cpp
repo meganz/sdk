@@ -6348,7 +6348,7 @@ long long MegaApiImpl::getNumLocalNodes()
     return client->totalLocalNodes;
 }
 
-bool MegaApiImpl::isSyncable(const char *path)
+bool MegaApiImpl::isSyncable(const char *path, long long size)
 {
     if (!path)
     {
@@ -6378,6 +6378,10 @@ bool MegaApiImpl::isSyncable(const char *path)
             name = localpath.substr(index);
             fsAccess->local2name(&name);
             result = is_syncable(sync, name.c_str(), &localpath);
+            if (result && size >= 0)
+            {
+                result = is_syncable(size);
+            }
             break;
         }
     }

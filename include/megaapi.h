@@ -8025,11 +8025,12 @@ class MegaApi
         bool moveToLocalDebris(const char *path);
 
         /**
-         * @brief Check if a path is syncable based on the excluded names and paths
+         * @brief Check if a path is syncable based on the excluded names and paths and sizes
          * @param name Path to check
+         * @param size Size of the file or -1 to ignore the size
          * @return true if the path is syncable, otherwise false
          */
-        bool isSyncable(const char *path);
+        bool isSyncable(const char *path, long long size);
 
         /**
          * @brief Get the corresponding local path of a synced node

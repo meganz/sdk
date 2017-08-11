@@ -2285,9 +2285,9 @@ bool MegaApi::isSynced(MegaNode *n)
     return pImpl->isSynced(n);
 }
 
-bool MegaApi::isSyncable(const char *path)
+bool MegaApi::isSyncable(const char *path, long long size)
 {
-    return pImpl->isSyncable(path);
+    return pImpl->isSyncable(path, size);
 }
 
 void MegaApi::setExcludedNames(vector<string> *excludedNames)
