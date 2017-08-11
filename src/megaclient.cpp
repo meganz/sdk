@@ -808,6 +808,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     workinglockcs = NULL;
     scpaused = false;
     asyncfopens = 0;
+    achievements_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3001,6 +3002,7 @@ void MegaClient::locallogout()
     me = UNDEF;
     publichandle = UNDEF;
     cachedscsn = UNDEF;
+    achievements_enabled = false;
 
     freeq(GET);
     freeq(PUT);
