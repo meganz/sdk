@@ -11440,9 +11440,9 @@ void MegaClient::registerPushNotification(int deviceType, const char *token)
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
 }
 
-void MegaClient::getmegaachievements()
+void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
-    reqs.add(new CommandGetMegaAchievements(this, 0));
+    reqs.add(new CommandGetMegaAchievements(this, details));
 }
 
 #endif

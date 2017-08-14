@@ -5190,77 +5190,176 @@ void CommandGetMegaAchievements::procresult()
     if (client->json.isnumeric())
     {
         client->app->getmegaachievements_result(details, (error)client->json.getint());
+        return;
     }
-    else
-    {
-        if (client->json.enterarray() && client->json.enterobject())
-        {
-            bool noexit = true;
-            while(noexit)
-            {
-                switch (client->json.getnameid())
-                {
-                    case 's':
-                        details->permanent_size = client->json.getint();
-                        break;
 
-                    case 'u':
-                        if (client->json.enterobject())
+    details->permanent_size = 0;
+    details->achievements.clear();
+    details->awards.clear();
+    details->rewards.clear();
+
+    bool noexit = true;
+    while(noexit)
+    {
+        switch (client->json.getnameid())
+        {
+            case 's':
+                details->permanent_size = client->json.getint();
+                break;
+
+            case 'u':
+                if (client->json.enterobject())
+                {
+                    for (;;)
+                    {
+                        achievement_class_id id = client->json.getnameid();
+                        if (id == EOO)
                         {
-                            // readachievements();  // one object, "id":<array>
+                            break;
+                        }
+
+                        id -= 48;   // convert to number
+
+//                        const char *class_id = client->json.getvalue();
+//                        achievement_class_id id = strtol(class_id, NULL, 10);
+
+                        client->json.enterarray();
+
+                        Achievement achievement;
+                        achievement.storage = client->json.getint();
+                        achievement.transfer = client->json.getint();
+                        const char *exp_ts = client->json.getvalue();
+                        achievement.expire = strtol(exp_ts, NULL, 10);
+
+                        details->achievements[id] = achievement;
+
+                        client->json.leavearray();
+                    }
+
+                    client->json.leaveobject();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Achievements of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+
+            case 'a':
+                {
+                    if (client->json.enterarray())
+                    {
+                        while (client->json.enterobject())
+                        {
+                            Award award;
+                            award.achievement_class = 0;
+                            award.award_id = 0;
+                            award.ts = 0;
+                            award.expire = 0;
+                            award.emails_invited.clear();
+
+                            bool finished = false;
+                            while (!finished)
+                            {
+                                switch (client->json.getnameid())
+                                {
+                                case 'a':
+                                    award.achievement_class = client->json.getint();
+                                    break;
+                                case 'r':
+                                    award.award_id = client->json.getint();
+                                    break;
+                                case MAKENAMEID2('t', 's'):
+                                    award.ts = client->json.getint();
+                                    break;
+                                case 'e':
+                                    award.expire = client->json.getint();
+                                    break;
+                                case EOO:
+                                    finished = true;
+                                    break;
+                                default:
+                                    client->json.storeobject();
+                                    break;
+                                }
+                            }
+
+                            details->awards.push_back(award);
 
                             client->json.leaveobject();
                         }
-                        else
-                        {
-                            client->json.storeobject();
-                        }
-                        break;
 
-                    case 'a':
-                        {
-                            if (client->json.enterarray())
-                            {
-                                // readawards();    multiple objects?
-                            }
-                            else
-                            {
-                                client->json.storeobject();
-                            }
-                        }
-                        break;
-
-                    case 'r':
-                        {
-                            // readrewards();
-                        }
-                        break;
-
-                    case EOO:
-                        {
-                            noexit = false;
-                        }
-                        break;
-
-                    default:
-                        if (!client->json.storeobject())
-                        {
-                            client->app->getmegaachievements_result(details, API_EINTERNAL);
-                            return;
-                        }
-                        break;
+                        client->json.leavearray();
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse Awards of MEGA achievements";
+                        client->json.storeobject();
+                        client->app->getmegaachievements_result(details, API_EINTERNAL);
+                        return;
+                    }
                 }
-            }
-        }
-        else
-        {
-            client->json.storeobject();
-            client->app->getmegaachievements_result(details, (error)API_EINTERNAL);
-        }
+                break;
 
-        client->json.leaveobject();
-        client->json.leavearray();
+            case 'r':
+                {
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nameid id = client->json.getnameid();
+                            if (id == EOO)
+                            {
+                                break;
+                            }
 
+                            Reward reward;
+                            reward.award_id = id - 48;   // convert to number
+
+                            client->json.enterarray();
+
+                            reward.storage = client->json.getint();
+                            reward.transfer = client->json.getint();
+                            const char *exp_ts = client->json.getvalue();
+                            reward.expire = strtol(exp_ts, NULL, 10);
+
+                            client->json.leavearray();
+
+                            details->rewards.push_back(reward);
+                        }
+
+                        client->json.leaveobject();
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to parse Rewards of MEGA achievements";
+                        client->json.storeobject();
+                        client->app->getmegaachievements_result(details, API_EINTERNAL);
+                        return;
+                    }
+                    break;
+                }
+                break;
+
+            case EOO:
+                {
+                    noexit = false;
+                    client->app->getmegaachievements_result(details, API_OK);
+                    return;
+                }
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse MEGA achievements";
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+        }
     }
 }
 

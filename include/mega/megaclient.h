@@ -521,7 +521,7 @@ public:
 #endif
 
     // get mega achievements
-    void getmegaachievements();
+    void getmegaachievements(AchievementsDetails *details);
 
     // toggle global debug flag
     bool toggledebug();

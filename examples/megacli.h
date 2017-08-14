@@ -226,6 +226,8 @@ struct DemoApp : public MegaApp
     void checkout_result(error);
     void checkout_result(const char*);
 
+    void getmegaachievements_result(AchievementsDetails*, error);
+
     void reload(const char*);
     void clearing();
 

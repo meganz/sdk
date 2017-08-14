@@ -4782,6 +4782,12 @@ void DemoApp::checkout_result(const char*)
     // FIXME: implement
 }
 
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+{
+    // FIXME: implement display of values
+    delete details;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)

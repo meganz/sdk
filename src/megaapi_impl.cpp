@@ -15349,7 +15349,7 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
         {
-            client->getmegaachievements();
+            client->getmegaachievements(request->getAchievementsDetails());
             break;
         }
         default:
