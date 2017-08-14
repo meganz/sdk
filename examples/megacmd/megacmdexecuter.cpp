@@ -4187,6 +4187,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             setCurrentOutCode(MCMD_NOTLOGGEDIN);
             return;
         }
+        bool headershown = false;
         bool modifiedsyncs = false;
         mtxSyncMap.lock();
         if (words.size() == 3)
@@ -4333,6 +4334,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                         else
                         {
+                            if (!headershown)
+                            {
+                                headershown = true;
+                                OUTSTREAM << "ID: LOCALPATH to REMOTEPATH - ACTIVE/DISABLED - STATE, SIZE" << endl;
+                            }
+
                             OUTSTREAM << i << ": " << key << " to " << nodepath;
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
@@ -4373,6 +4380,11 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                 if (n)
                 {
+                    if (!headershown)
+                    {
+                        headershown = true;
+                        OUTSTREAM << "ID: LOCALPATH to REMOTEPATH - ACTIVE/DISABLED - STATE, SIZE" << endl;
+                    }
                     int nfiles = 0;
                     int nfolders = 0;
                     nfolders++; //add the share itself
