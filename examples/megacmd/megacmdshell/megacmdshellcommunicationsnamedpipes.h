@@ -69,10 +69,12 @@ private:
 
     static bool confirmResponse;
 
+    static HANDLE newNamedPipe;
+
     static bool stopListener;
     static mega::Thread *listenerThread;
 
-    static HANDLE createNamedPipe(int number = 0);
+    static HANDLE createNamedPipe(int number = 0,bool initializeserver = true);
 
     static bool isFileOwnerCurrentUser(HANDLE hFile);
 

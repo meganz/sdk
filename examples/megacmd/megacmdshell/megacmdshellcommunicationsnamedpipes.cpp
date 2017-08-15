@@ -70,6 +70,7 @@ enum
 bool MegaCmdShellCommunicationsNamedPipes::confirmResponse; //TODO: do all this only in parent class
 bool MegaCmdShellCommunicationsNamedPipes::stopListener;
 mega::Thread *MegaCmdShellCommunicationsNamedPipes::listenerThread;
+HANDLE MegaCmdShellCommunicationsNamedPipes::newNamedPipe;
 
 bool MegaCmdShellCommunicationsNamedPipes::namedPipeValid(HANDLE namedPipe)
 {
@@ -309,7 +310,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::doOpenPipe(wstring nameOfPipe)
     return theNamedPipe;
 }
 
-HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
+HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool initializeserver)
 {
     wstring nameOfPipe;
 
@@ -331,7 +332,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
 
     if (!namedPipeValid(theNamedPipe))
     {
-        if (!number)
+        if (!number && initializeserver)
         {
             if (ERRNO == ERROR_PIPE_BUSY)
             {
@@ -437,7 +438,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number)
                 }
             }
         }
-        else
+        else if (initializeserver) // initializeserver=false when closing server. we dont need to state the error
         {
             OUTSTREAM << "ERROR opening namedPipe: " << nameOfPipe << ": " << ERRNO << endl;
         }
@@ -501,7 +502,9 @@ bool outputtobinaryorconsole(void)
 
 int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*readconfirmationloop)(const char *), OUTSTREAMTYPE &output, bool interactiveshell, wstring wcommand)
 {
-    HANDLE theNamedPipe = createNamedPipe();
+    HANDLE theNamedPipe = createNamedPipe(0,command.compare(0,4,"exit")
+                                          && command.compare(0,4,"quit")
+                                          && command.compare(0,7,"sendack"));
     if (!namedPipeValid(theNamedPipe))
     {
         return -1;
@@ -641,7 +644,7 @@ void *MegaCmdShellCommunicationsNamedPipes::listenToStateChangesEntryNamedPipe(v
 
 int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedPipeNum, void (*statechangehandle)(string))
 {
-    HANDLE newNamedPipe = createNamedPipe(receiveNamedPipeNum);
+    newNamedPipe = createNamedPipe(receiveNamedPipeNum);
     if (!namedPipeValid(newNamedPipe))
     {
         return -1;
@@ -674,7 +677,10 @@ int MegaCmdShellCommunicationsNamedPipes::listenToStateChanges(int receiveNamedP
         {
             if (ERRNO == ERROR_BROKEN_PIPE)
             {
-                cerr << "ERROR reading output (state change): The sever problably exited."<< endl;
+                if (!stopListener)
+                {
+                    cerr << "ERROR reading output (state change): The sever problably exited."<< endl;
+                }
             }
             else
             {
@@ -772,6 +778,9 @@ MegaCmdShellCommunicationsNamedPipes::~MegaCmdShellCommunicationsNamedPipes()
     if (listenerThread != NULL) //TODO: use heritage for whatever we can
     {
         stopListener = true;
+
+        executeCommand("sendack");
+
         listenerThread->join();
     }
     delete listenerThread;

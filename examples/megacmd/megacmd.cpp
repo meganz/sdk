@@ -2278,6 +2278,14 @@ static bool process_line(char* l)
                 //                store_line(NULL);
                 return true; // exit
             }
+
+            else  if (!strncmp(l,"sendack",strlen("sendack")) ||
+                      !strncmp(l,"Xsendack",strlen("Xsendack")))
+            {
+                string sack="ack";
+                cm->informStateListeners(sack);
+                break;
+            }
             executecommand(l);
             break;
         }
