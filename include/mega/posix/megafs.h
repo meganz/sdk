@@ -28,6 +28,8 @@
 #define O_DIRECT 0
 #include <sys/param.h>
 #include <sys/mount.h>
+#elif defined(__FreeBSD__)
+#include <sys/mount.h>
 #else
 #include <sys/vfs.h>
 #endif
