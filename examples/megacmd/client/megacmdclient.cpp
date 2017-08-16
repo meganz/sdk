@@ -58,6 +58,9 @@
 #define MSG_NOSIGNAL 0
 #endif
 
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 bool socketValid(int socket)
 {
