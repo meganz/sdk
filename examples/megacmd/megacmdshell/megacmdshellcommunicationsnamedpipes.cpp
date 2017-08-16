@@ -410,7 +410,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
                         COUT << "Unable to execute: " << t << " errno = : " << ERRNO << endl;
                     }
 
-                    Sleep(2000); // Give it a initial while to start.
+//                    Sleep(2000); // Give it a initial while to start.
                 }
 
                 //try again:

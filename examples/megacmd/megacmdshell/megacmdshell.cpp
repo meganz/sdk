@@ -1324,7 +1324,11 @@ void readloop()
     comms->registerForStateChanges(statechangehandle);
 
     //give it a while to communicate the state
+#if defined(_WIN32)
+    sleepMicroSeconds(300);
+#else
     sleepMicroSeconds(1);
+#endif
 
 #if defined(_WIN32) && defined(USE_PORT_COMMS)
     // due to a failure in reconnecting to the socket, if the server was initiated in while registeringForStateChanges
