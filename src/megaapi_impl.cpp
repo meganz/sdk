@@ -10332,16 +10332,23 @@ void MegaApiImpl::openfilelink_result(error result)
 // (it is the application's responsibility to delete n!)
 void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string* fa, int)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
 
-	if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
-	{
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK)
+                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)))
+    {
+        return;
+    }
+
+    if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
+    {
         fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
-		return;
-	}
+        return;
+    }
 
     // no key provided --> check only that the nodehandle is valid
     if (!key && (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE))
@@ -10365,7 +10372,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-    if(buf)
+    if (buf)
     {
         JSON json;
         nameid name;
@@ -10374,21 +10381,32 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
         json.begin((char*)buf+5);
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        {
             JSON::unescape(t);
+        }
 
         delete[] buf;
 
         attr_map::iterator it;
         it = attrs.map.find('n');
-        if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
-        else if (!it->second.size()) fileName = "BLANK";
-        else fileName = it->second.c_str();
+        if (it == attrs.map.end())
+        {
+            fileName = "CRYPTO_ERROR";
+        }
+        else if (!it->second.size())
+        {
+            fileName = "BLANK";
+        }
+        else
+        {
+            fileName = it->second.c_str();
+        }
 
         it = attrs.map.find('c');
-        if(it != attrs.map.end())
+        if (it != attrs.map.end())
         {
             FileFingerprint ffp;
-            if(ffp.unserializefingerprint(&it->second))
+            if (ffp.unserializefingerprint(&it->second))
             {
                 mtime = ffp.mtime;
 
@@ -10413,26 +10431,26 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
 
     if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
-	{
-		NewNode* newnode = new NewNode[1];
+    {
+        NewNode* newnode = new NewNode[1];
 
-		// set up new node as folder node
-		newnode->source = NEW_PUBLIC;
-		newnode->type = FILENODE;
-		newnode->nodehandle = ph;
+        // set up new node as folder node
+        newnode->source = NEW_PUBLIC;
+        newnode->type = FILENODE;
+        newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
+        newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
         newnode->attrstring = new string(*a);
 
-		// add node
+        // add node
         requestMap.erase(request->getTag());
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
         client->putnodes(request->getParentHandle(), newnode, 1);
-	}
+    }
 	else
-	{
+    {
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
                                                            fa, fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
         request->setPublicNode(megaNodePrivate);
