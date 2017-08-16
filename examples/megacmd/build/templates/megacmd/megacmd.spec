@@ -249,6 +249,23 @@ enabled=1
 DATA
 %endif
 
+%if 0%{?sle_version} == 120300
+# openSUSE Leap 42.3
+if [ -d "/etc/zypp/repos.d/" ]; then
+ZYPP_FILE="/etc/zypp/repos.d/megasync.repo"
+cat > "$ZYPP_FILE" << DATA
+[MEGAsync]
+name=MEGAsync
+type=rpm-md
+baseurl=http://mega.nz/linux/MEGAsync/openSUSE_Leap_42.3/
+gpgcheck=1
+autorefresh=1
+gpgkey=http://mega.nz/linux/MEGAsync/openSUSE_Leap_42.3/repodata/repomd.xml.key
+enabled=1
+DATA
+fi
+%endif
+
 %if 0%{?sle_version} == 120200
 # openSUSE Leap 42.2
 if [ -d "/etc/zypp/repos.d/" ]; then
