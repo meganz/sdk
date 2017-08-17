@@ -1061,7 +1061,7 @@ void process_line(char * line)
                     logincommand += " --clientID=";
                     logincommand+=clientID;
                 }
-
+                OUTSTREAM << endl;
                 comms->executeCommand(logincommand.c_str(), readconfirmationloop);
             }
             else
@@ -1072,7 +1072,7 @@ void process_line(char * line)
                 confirmcommand+=loginname;
                 confirmcommand+=" " ;
                 confirmcommand+=line;
-
+                OUTSTREAM << endl;
                 comms->executeCommand(confirmcommand.c_str(), readconfirmationloop);
 
                 confirminglink = false;
