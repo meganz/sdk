@@ -46,6 +46,10 @@
 #include <stdio.h>
 #endif
 
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
+
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
 #endif
@@ -87,7 +91,7 @@ bool MegaCmdShellCommunications::serverinitiatedfromshell;
 bool MegaCmdShellCommunications::registerAgainRequired;
 bool MegaCmdShellCommunications::confirmResponse;
 bool MegaCmdShellCommunications::stopListener;
-mega::Thread *MegaCmdShellCommunications::listenerThread;
+::mega::Thread *MegaCmdShellCommunications::listenerThread;
 int MegaCmdShellCommunications::newsockfd;
 
 #ifdef _WIN32

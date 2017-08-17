@@ -40,8 +40,6 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #endif
-#define MEGACMDINITIALPORTNUMBER 12300
-
 
 using namespace std;
 
