@@ -124,7 +124,8 @@ void ConfigurationManager::saveSession(const char*session)
 
         if (fo.is_open())
         {
-            fo << session;
+            if (session)
+                fo << session;
             fo.close();
         }
     }

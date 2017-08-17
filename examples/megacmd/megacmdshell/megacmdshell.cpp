@@ -326,7 +326,7 @@ static char* line;
 static prompttype prompt = COMMAND;
 
 static char pw_buf[256];
-static int pw_buf_pos;
+static int pw_buf_pos = 0;
 
 string loginname;
 string linktoconfirm;
@@ -1133,6 +1133,11 @@ void process_line(char * line)
         case COMMAND:
         {
             vector<string> words = getlistOfWords(line);
+            bool helprequested = false;
+            for (int i = 1; i< words.size(); i++)
+            {
+                if (words[i]== "--help") helprequested = true;
+            }
             if (words.size())
             {
                 if ( words[0] == "exit" || words[0] == "quit")
@@ -1152,17 +1157,24 @@ void process_line(char * line)
                 }
                 else if (words[0] == "history")
                 {
-                    printHistory();
+                    if (helprequested)
+                    {
+                        OUTSTREAM << " Prints commands history" << endl;
+                    }
+                    else
+                    {
+                        printHistory();
+                    }
                 }
 #ifdef _WIN32
-                else if (words[0] == "unicode" && words.size() == 1)
+                else if (!helprequested && words[0] == "unicode" && words.size() == 1)
                 {
                     rl_getc_function=(rl_getc_function==&getcharacterreadlineUTF16support)?rl_getc:&getcharacterreadlineUTF16support;
                     OUTSTREAM << "Unicode shell input " << ((rl_getc_function==&getcharacterreadlineUTF16support)?"ENABLED":"DISABLED") << endl;
                     return;
                 }
 #endif
-                else if (words[0] == "passwd")
+                else if (!helprequested && words[0] == "passwd")
                 {
 
                     if (isserverloggedin())
@@ -1183,11 +1195,11 @@ void process_line(char * line)
 
                     return;
                 }
-                else if (words[0] == "login")
+                else if (!helprequested && words[0] == "login")
                 {
                     if (!isserverloggedin())
                     {
-                        if (words.size() == 2)
+                        if (words.size() == 2 && words[1].find("#") == string::npos)
                         {
                             loginname = words[1];
                             setprompt(LOGINPASSWORD);
@@ -1210,7 +1222,7 @@ void process_line(char * line)
                     }
                     return;
                 }
-                else if (words[0] == "confirm")
+                else if (!helprequested && words[0] == "confirm")
                 {
                     if (words.size() == 3)
                     {
