@@ -4555,7 +4555,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if (words.size() <= 1)
         {
-            words.push_back(string(""));                  //give at least an empty so that cwd is used
+            words.push_back(string(".")); //cwd
         }
         for (int i = 1; i < (int)words.size(); i++)
         {
@@ -5422,7 +5422,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         if (words.size() <= 1)
         {
-            words.push_back(string("")); //give at least an empty so that cwd is used
+            words.push_back(string(".")); //cwd
         }
 
         for (int i = 1; i < (int)words.size(); i++)
