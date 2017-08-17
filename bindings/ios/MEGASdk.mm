@@ -882,6 +882,14 @@ using namespace mega;
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
 }
 
+- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (BOOL)usingHttpsOnly {
+    return self.megaApi->usingHttpsOnly();
+}
+
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
