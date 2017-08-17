@@ -6,7 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 
 public class MegaUtilsAndroid {
-    private static int THUMBNAIL_SIZE = 120;
+    private static int THUMBNAIL_SIZE = 200;
     private static int AVATAR_SIZE = 250;
     private static int PREVIEW_SIZE = 1000;
 

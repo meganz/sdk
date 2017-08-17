@@ -95,7 +95,7 @@ protected:
     static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
     static MUTEX_CLASS **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
 
@@ -104,7 +104,9 @@ protected:
 #else
     static unsigned long id_function();
 #endif
+#endif
 
+#ifdef USE_OPENSSL
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
