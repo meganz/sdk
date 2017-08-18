@@ -10793,6 +10793,8 @@ public:
  * Afterwards, the award will not be active. Additionally, each award results in a "Reward".
  * The reward is linked to the corresponding award and includes the storage and transfer
  * quota obtained thanks to the unlocked award.
+ *
+ * @note It may take 2-3 days for achievements to show on the account after they have been completed.
  */
 class MegaAchievementsDetails
 {
