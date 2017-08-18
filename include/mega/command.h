@@ -863,7 +863,7 @@ class MEGA_API CommandGetMegaAchievements : public Command
 public:
     void procresult();
 
-    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details);
+    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
 };
 
 } // namespace

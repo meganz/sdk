@@ -1764,6 +1764,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+        void getMegaAchievementsList(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);

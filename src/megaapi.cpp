@@ -2925,6 +2925,11 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
     pImpl->getMegaAchievements(listener);
 }
 
+void MegaApi::getMegaAchievementsList(MegaRequestListener *listener)
+{
+    pImpl->getMegaAchievementsList(listener);
+}
+
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port)
 {

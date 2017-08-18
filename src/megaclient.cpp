@@ -11445,6 +11445,11 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
     reqs.add(new CommandGetMegaAchievements(this, details));
 }
 
+void MegaClient::getmegaachievementslist(AchievementsDetails *details)
+{
+    reqs.add(new CommandGetMegaAchievements(this, details, false));
+}
+
 #endif
 
 FetchNodesStats::FetchNodesStats()

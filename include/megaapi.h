@@ -10113,6 +10113,8 @@ class MegaApi
          * @brief Get the MEGA Achievements of the account logged in
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Always false
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -10121,6 +10123,27 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the list of existing MEGA Achievements
+         *
+         * Simlar to MegaApi::getMegaAchievements, this method returns only the base storage and
+         * the details for the different achievement classes, but not awards or rewards. It can
+         * be used to give an indication of what is available for advertising for unregistered users.
+         *
+         * If the IP address is not achievement enabled, the request will fail with MegaError::API_EACCESS.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Always true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaApi::getMegaAchievements - Details of the list of existing MEGA Achievements
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMegaAchievementsList(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

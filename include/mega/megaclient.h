@@ -523,6 +523,9 @@ public:
     // get mega achievements
     void getmegaachievements(AchievementsDetails *details);
 
+    // get mega achievements list (for advertising for unregistered users)
+    void getmegaachievementslist(AchievementsDetails *details);
+
     // toggle global debug flag
     bool toggledebug();
 

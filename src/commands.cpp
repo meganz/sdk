@@ -5173,13 +5173,20 @@ void CommandRegisterPushNotification::procresult()
 }
 #endif
 
-CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details)
+CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
 {
     this->details = details;
 
-    int version = 0;
+    if (registered_user)
+    {
+        cmd("maf");
+    }
+    else
+    {
+        cmd("mafu");
+    }
 
-    cmd("maf");
+    int version = 0;
     arg("v", version);
 
     tag = client->reqtag;
@@ -5282,7 +5289,7 @@ void CommandGetMegaAchievements::procresult()
                                 case 'm':
                                     if (client->json.enterarray())
                                     {
-                                        while (m = client->json.getvalue())
+                                        while ((m = client->json.getvalue()))
                                         {
                                             award.emails_invited.push_back(m);
                                         }

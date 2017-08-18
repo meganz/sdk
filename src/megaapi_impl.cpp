@@ -6974,6 +6974,14 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getMegaAchievementsList(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -15349,7 +15357,14 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
         {
-            client->getmegaachievements(request->getAchievementsDetails());
+            if (request->getFlag())
+            {
+                client->getmegaachievementslist(request->getAchievementsDetails());
+            }
+            else
+            {
+                client->getmegaachievements(request->getAchievementsDetails());
+            }
             break;
         }
         default:
