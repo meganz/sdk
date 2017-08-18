@@ -1233,7 +1233,7 @@ void process_line(char * line)
                     {
                         discardOptionsAndFlags(&words);
 
-                        if (words.size() == 2 && words[1].find("#") == string::npos)
+                        if (words.size() == 2 && (words[1].find("@") != string::npos))
                         {
                             loginname = words[1];
                             setprompt(LOGINPASSWORD);
@@ -1332,7 +1332,7 @@ void process_line(char * line)
                     if (!strstr (line,"path-display-size"))
                     {
                         u_int width = getNumberOfCols(75);
-                        int pathSize = int((width-45)/2);
+                        int pathSize = int((width-46)/2);
 
                         toexec+="transfers --path-display-size=";
                         toexec+=SSTR(pathSize);

@@ -1533,7 +1533,7 @@ string getHelpStr(const char *command)
         os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
 
         os << endl;
-        os << "Verbosity in non-interactive mode: Regardless of the log level of the" << endl;
+        os << "Regardless of the log level of the" << endl;
         os << " interactive shell, you can increase the amount of information given" <<  endl;
         os << "   by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
 
@@ -1681,6 +1681,8 @@ string getHelpStr(const char *command)
         os << endl;
         os << "HTTPS is not necesary since all data is stored and transfered encrypted." << endl;
         os << "Enabling it will increase CPU usage and add network overhead." << endl;
+        os << endl;
+        os << "Notice that this setting is ephemeral: it will reset for the next time you open MEGAcmd" << endl;
     }
     else if (!strcmp(command, "sync"))
     {
@@ -2179,7 +2181,7 @@ void executecommand(char* ptr)
             OUTSTREAM << endl << "Commands:" << endl;
 
             printAvailableCommands(getFlag(&clflags,"f"));
-            OUTSTREAM << endl << "Verbosity in non-interactive mode: you can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
+            OUTSTREAM << endl << "Verbosity: You can increase the amount of information given by any command by passing \"-v\" (\"-vv\", \"-vvv\", ...)" << endl;
         }
         return;
     }

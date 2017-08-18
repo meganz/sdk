@@ -6,7 +6,8 @@ RM=mega-rm
 CD=mega-cd
 LCD=mega-lcd
 EXPORT=mega-export
-
+MKDIR=mega-mkdir
+IMPORT=mega-import
 ABSPWD=`pwd`
 
 if [ "x$VERBOSE" == "x" ]; then
@@ -108,6 +109,8 @@ for i in `find *`; do echo $i >  $i/fileat`basename $i`.txt; done
 
 mega-put foreign /
 mega-share foreign -a --with=$MEGA_EMAIL
+URIFOREIGNEXPORTEDFOLDER=`$EXPORT foreign/sub01 -a | awk '{print $NF}'`
+URIFOREIGNEXPORTEDFILE=`$EXPORT foreign/sub02/fileatsub02.txt -a | awk '{print $NF}'`
 
 mega-logout
 
@@ -348,6 +351,24 @@ pushd $ABSMEGADLFOLDER > /dev/null
 $GET /cloud01/fileatcloud01.txt
 popd > /dev/null
 cp origin/cloud01/fileatcloud01.txt localDls/
+compare_and_clear
+
+currentTest=36
+
+#Test 36 # imported stuff (to test import folder)
+$RM -rf /imported 2>&1 >/dev/null || :
+$MKDIR -p /imported
+$IMPORT $URIFOREIGNEXPORTEDFOLDER /imported > /dev/null
+$GET /imported/* $ABSMEGADLFOLDER
+cp -r origin/foreign/sub01 localDls/
+compare_and_clear
+
+#Test 37 # imported stuff (to test import file)
+$RM -rf /imported 2>&1 >/dev/null || :
+$MKDIR -p /imported
+$IMPORT $URIFOREIGNEXPORTEDFILE /imported/ > /dev/null
+$GET /imported/fileatsub02.txt $ABSMEGADLFOLDER
+cp origin/foreign/sub02/fileatsub02.txt localDls/
 compare_and_clear
 
 # Clean all

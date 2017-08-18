@@ -2802,7 +2802,7 @@ bool MegaCmdExecuter::IsFolder(string path)
 void MegaCmdExecuter::printTransfersHeader(const u_int PATHSIZE, bool printstate)
 {
     OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
-              << "  " << getFixLengthString("    PROGRESS",20);
+              << "  " << getFixLengthString("    PROGRESS",21);
     if (printstate)
     {
         OUTSTREAM  << "  " << "STATE";
@@ -2895,7 +2895,7 @@ void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE
 
     //progress
     OUTSTREAM << "  " << getFixLengthString(percentageToText(transfer->getTransferredBytes()*1.0/transfer->getTotalBytes()),7,' ',true)
-              << " of " << getFixLengthString(sizeToText(transfer->getTotalBytes()),9,' ',true);
+              << " of " << getFixLengthString(sizeToText(transfer->getTotalBytes()),10,' ',true);
 
     //state
     if (printstate)
@@ -5954,7 +5954,14 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         megaCmdListener->wait();
         if (checkNoErrors(megaCmdListener->getError(), "kill session " + thesession + ". Maybe the session was not valid."))
         {
-            OUTSTREAM << "Session " << thesession << " killed successfully" << endl;
+            if (getFlag(clflags, "a"))
+            {
+               OUTSTREAM << "Session " << thesession << " killed successfully" << endl;
+            }
+            else
+            {
+                OUTSTREAM << "All sessions killed successfully" << endl;
+            }
         }
 
         delete megaCmdListener;
@@ -5973,7 +5980,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             // get screen size for output purposes
             u_int width = getNumberOfCols(75);
-            PATHSIZE = min(60,int((width-45)/2));
+            PATHSIZE = min(60,int((width-46)/2));
         }
 
         if (getFlag(clflags,"c"))
