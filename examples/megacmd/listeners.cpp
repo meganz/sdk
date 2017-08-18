@@ -519,11 +519,23 @@ MegaCmdGlobalTransferListener::MegaCmdGlobalTransferListener(MegaApi *megaApi, M
 void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error)
 {
     completedTransfersMutex.lock();
-    completedTransfers.push_back(transfer->copy());
+    completedTransfers.push_front(transfer->copy());
+
+    // source
+    MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
+    if (node)
+    {
+        char * nodepath = api->getNodePath(node);
+        completedPathsByHandle[transfer->getNodeHandle()]=nodepath;
+        delete []nodepath;
+    }
+
     if (completedTransfers.size()>MAXCOMPLETEDTRANSFERSBUFFER)
     {
-        delete completedTransfers.front();
-        completedTransfers.pop_front();
+        MegaTransfer * todelete = completedTransfers.back();
+        completedPathsByHandle.erase(todelete->getNodeHandle()); //TODO: this can be potentially eliminate a handle that has been added twice
+        delete todelete;
+        completedTransfers.pop_back();
     }
     completedTransfersMutex.unlock();
 }
@@ -553,10 +565,12 @@ bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *t
 
 MegaCmdGlobalTransferListener::~MegaCmdGlobalTransferListener()
 {
+    completedTransfersMutex.lock();
     while (completedTransfers.size())
     {
         delete completedTransfers.front();
         completedTransfers.pop_front();
     }
+    completedTransfersMutex.unlock();
 }
 

@@ -1528,7 +1528,7 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -c" << "\t" << "CMD log level (higher level messages). " << endl;
-        os << "   " << "\t" << " Messages captured by the command line." << endl;
+        os << "   " << "\t" << " Messages captured by MEGAcmd server." << endl;
         os << " -s" << "\t" << "SDK log level (lower level messages)." << endl;
         os << "   " << "\t" << " Messages captured by the engine and libs" << endl;
 
@@ -1871,6 +1871,8 @@ string getHelpStr(const char *command)
     else if(!strcmp(command,"debug") )
     {
         os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
+        os << endl;
+        os << "For a finer control of log level see \"log --help\"" << endl;
     }
     else if (!strcmp(command, "quit") || !strcmp(command, "exit"))
     {

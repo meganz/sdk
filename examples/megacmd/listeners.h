@@ -116,6 +116,7 @@ private:
 public:
     mega::MegaMutex completedTransfersMutex;
     std::deque<mega::MegaTransfer *> completedTransfers;
+    std::map<mega::MegaHandle,std::string> completedPathsByHandle;
 public:
     MegaCmdGlobalTransferListener(mega::MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, mega::MegaTransferListener *parent = NULL);
     virtual ~MegaCmdGlobalTransferListener();

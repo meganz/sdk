@@ -1384,9 +1384,23 @@ void MegaCmdExecuter::dumpNode(MegaNode* n, int extended_info, int depth, const 
                 }
                 break;
             }
-
+            case MegaNode::TYPE_ROOT:
+            {
+                OUTSTREAM << "root node";
+                break;
+            }
+            case MegaNode::TYPE_INCOMING:
+            {
+                OUTSTREAM << "inbox";
+                break;
+            }
+            case MegaNode::TYPE_RUBBISH:
+            {
+                OUTSTREAM << "rubbish";
+                break;
+            }
             default:
-                OUTSTREAM << "unsupported type, please upgrade";
+                OUTSTREAM << "unsupported type: " <<  n->getType() <<" , please upgrade";
         }
         OUTSTREAM << ")" << ( n->isRemoved() ? " (DELETED)" : "" );
     }
@@ -2836,6 +2850,12 @@ void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE
             delete []nodepath;
 
             delete node;
+        }
+        else
+        {
+            globalTransferListener->completedTransfersMutex.lock();
+            OUTSTREAM << getFixLengthString(globalTransferListener->completedPathsByHandle[transfer->getNodeHandle()],PATHSIZE);
+            globalTransferListener->completedTransfersMutex.unlock();
         }
 
         OUTSTREAM << " ";
@@ -5514,7 +5534,18 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     {
                         if (dumpListOfExported(n, words[i]) == 0 )
                         {
-                            OUTSTREAM << "Couldn't find nothing exported" << (words[i].size()?" below ":"") << words[i] << ". Use -a to export " << (words[i].size()?"it":"something") << endl;
+                            OUTSTREAM << "Couldn't find nothing exported below ";
+                            if (words[i] == ".")
+                            {
+                                OUTSTREAM << "current folder";
+                            }
+                            else
+                            {
+                                OUTSTREAM << "<";
+                                OUTSTREAM << words[i];
+                                OUTSTREAM << ">";
+                            }
+                            OUTSTREAM << ". Use -a to export " << (words[i].size()?"it":"something") << endl;
                         }
                     }
                     delete n;
@@ -6112,12 +6143,17 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (showcompleted)
         {
             globalTransferListener->completedTransfersMutex.lock();
-            for (u_int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+            u_int totalcompleted = globalTransferListener->completedTransfers.size();
+            for (u_int i = 0;i < totalcompleted
+                 && shownCompleted < totalcompleted
+                 && shownCompleted < (limit+1); //Note limit+1 to seek for one more to show if there are more to show!
+                 i++)
             {
-                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
+                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(i);
                 if (
-                    ( (transfer->getType() == MegaTransfer::TYPE_UPLOAD && (onlyuploads || (!onlyuploads && !onlydownloads) ))
-                     || (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD && (onlydownloads || (!onlyuploads && !onlydownloads) ) )
+                    (
+                            (transfer->getType() == MegaTransfer::TYPE_UPLOAD && (onlyuploads || (!onlyuploads && !onlydownloads) ))
+                        ||  (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD && (onlydownloads || (!onlyuploads && !onlydownloads) ) )
                     )
                     &&  !(!showsyncs && transfer->isSyncTransfer())
                     )
@@ -6180,6 +6216,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     shownup++;
                 }
             }
+            else
+            {
+                delete transfer;
+            }
             if (shown>limit || transfer == NULL) //we-re done
             {
                 break;
@@ -6224,7 +6264,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             if (i==limit) //we are in the extra one (not to be shown)
             {
                 OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
-                delete transfer;
+                if (deleteTransfer)
+                {
+                    delete transfer;
+                }
                 break;
             }
 
