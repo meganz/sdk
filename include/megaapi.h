@@ -10902,6 +10902,18 @@ public:
     virtual int64_t getAwardExpirationTs(unsigned int index);
 
     /**
+     * @brief Get the list of referred emails for the award
+     *
+     * This function is specific for the achievements of class MEGA_ACHIEVEMENT_INVITE.
+     *
+     * You take ownership of the returned value.
+     *
+     * @param index Position of the award in the list of unlocked awards
+     * @return The list of invited emails for the award in position \c index
+     */
+    virtual MegaStringList* getAwardEmails(unsigned int index);
+
+    /**
      * @brief Get the number of active rewards for this account
      * @return Number of active rewards
      */

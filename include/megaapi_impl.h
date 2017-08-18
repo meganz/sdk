@@ -968,6 +968,7 @@ public:
     virtual int getAwardId(unsigned int index);
     virtual int64_t getAwardTimestamp(unsigned int index);
     virtual int64_t getAwardExpirationTs(unsigned int index);
+    virtual MegaStringList* getAwardEmails(unsigned int index);
     virtual int getRewardsCount();
     virtual long long getRewardStorage(unsigned int index);
     virtual long long getRewardTransfer(unsigned int index);

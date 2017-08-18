@@ -4578,6 +4578,11 @@ int64_t MegaAchievementsDetails::getAwardExpirationTs(unsigned int index)
     return 0;
 }
 
+MegaStringList* MegaAchievementsDetails::getAwardEmails(unsigned int index)
+{
+    return NULL;
+}
+
 int MegaAchievementsDetails::getRewardsCount()
 {
     return 0;
