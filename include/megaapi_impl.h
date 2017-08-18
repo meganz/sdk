@@ -1539,6 +1539,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool is_syncable(const char* name);
         bool is_syncable(long long size);
+        int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
         char *getBlockedPath();
 #endif

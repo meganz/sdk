@@ -7956,6 +7956,22 @@ class MegaApi
         bool isSyncable(const char *name);
 
         /**
+         * @brief Check if it's possible to start synchronizing a folder node.
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         * - MegaError::API_EACCESS if the node doesn't have full access
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         * @param Folder node to check
+         * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
+         */
+        int isNodeSyncable(MegaNode *node);
+
+        /**
          * @brief Get the corresponding local path of a synced node
          * @param Node to check
          * @return Local path of the corresponding file in the local computer. If the node is't synced
