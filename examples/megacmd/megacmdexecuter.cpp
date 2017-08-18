@@ -2736,8 +2736,15 @@ void MegaCmdExecuter::signup(string name, string passwd, string email)
     if (checkNoErrors(megaCmdListener->getError(), "create account <" + email + ">"))
     {
         OUTSTREAM << "Account <" << email << "> created succesfully. You will receive a confirmation link. Use \"confirm\" with the provided link to confirm that account" << endl;
+        MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
+        api->localLogout(megaCmdListener2);
+        megaCmdListener2->wait();
+        checkNoErrors(megaCmdListener2->getError(), "logging out from ephemeral account");
+        delete megaCmdListener2;
     }
     delete megaCmdListener;
+
+
 }
 
 void MegaCmdExecuter::signupWithPassword(string passwd)
@@ -3129,6 +3136,8 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 return;
             }
             cwd = rootNode->getHandle();
+            updateprompt(api, cwd);
+
             delete rootNode;
         }
 
@@ -3455,6 +3464,19 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                         }
                     }
                     delete tn;
+                }
+                if (targetuser.size())
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->sendFileToUser(n,targetuser.c_str(),megaCmdListener);
+                    megaCmdListener->wait();
+                    checkNoErrors(megaCmdListener->getError(), "send file to user");
+                    delete megaCmdListener;
+                }
+                else
+                {
+                    setCurrentOutCode(MCMD_NOTFOUND);
+                    LOG_err << words[2] << " Couldn't find destination";
                 }
                 delete n;
             }

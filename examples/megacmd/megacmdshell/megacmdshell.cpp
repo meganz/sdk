@@ -347,6 +347,8 @@ static char pw_buf[256];
 static int pw_buf_pos = 0;
 
 string loginname;
+bool signingup = false;
+string signupline;
 string linktoconfirm;
 
 bool confirminglink = false;
@@ -1137,12 +1139,23 @@ void process_line(char * line)
             else
             {
                 OUTSTREAM << endl;
-                string changepasscommand("passwd ");
-                changepasscommand+=oldpasswd;
-                changepasscommand+=" " ;
-                changepasscommand+=newpasswd;
 
-                comms->executeCommand(changepasscommand.c_str(), readconfirmationloop);
+                if (signingup)
+                {
+                    signupline += " ";
+                    signupline += newpasswd;
+                    comms->executeCommand(signupline.c_str(), readconfirmationloop);
+
+                    signingup = false;
+                }
+                else
+                {
+                    string changepasscommand("passwd ");
+                    changepasscommand+=oldpasswd;
+                    changepasscommand+=" " ;
+                    changepasscommand+=newpasswd;
+                    comms->executeCommand(changepasscommand.c_str(), readconfirmationloop);
+                }
             }
 
             setprompt(COMMAND);
@@ -1240,6 +1253,30 @@ void process_line(char * line)
                     else
                     {
                         cerr << "Already logged in. Please log out first." << endl;
+                    }
+                    return;
+                }
+                else if (!helprequested && words[0] == "signup")
+                {
+                    if (!isserverloggedin())
+                    {
+                        signupline = line;
+                        discardOptionsAndFlags(&words);
+
+                        if (words.size() == 2)
+                        {
+                            loginname = words[1];
+                            signingup = true;
+                            setprompt(NEWPASSWORD);
+                        }
+                        else
+                        {
+                            comms->executeCommand(line, readconfirmationloop);
+                        }
+                    }
+                    else
+                    {
+                        cerr << "Please loggout first." << endl;
                     }
                     return;
                 }

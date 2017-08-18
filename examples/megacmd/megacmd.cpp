@@ -1671,6 +1671,9 @@ string getHelpStr(const char *command)
         os << endl;
         os << "If the location exists and is a folder, the source will be copied there" << endl;
         os << "If the location doesn't exits, the file/folder will be renamed to the defined destiny" << endl;
+        os << endl;
+        os << "If \"dstemail:\" provided, the file/folder will be sent to that user's inbox (//in)" << endl;
+        os << " Remember the trailing \":\", otherwise a file with the name of that user will be created" << endl;
     }
     else if (!strcmp(command, "https"))
     {
