@@ -9599,8 +9599,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 }
 
 // check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node), return
-// EEXIST otherwise
+// disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
 error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
 {
