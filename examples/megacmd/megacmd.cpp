@@ -1381,9 +1381,13 @@ const char * getUsageStr(const char *command)
     {
         return "chatra chatid nodehandle uid";
     }
+    if (!strcmp(command, "exit"))
+    {
+        return "exit [--only-shell]";
+    }
     if (!strcmp(command, "quit"))
     {
-        return "quit";
+        return "quit [--only-shell]";
     }
     if (!strcmp(command, "history"))
     {
@@ -1417,7 +1421,7 @@ const char * getUsageStr(const char *command)
     {
         return "transfers [-c TAG|-a] | [-r TAG|-a]  | [-p TAG|-a] [--only-downloads | --only-uploads] [SHOWOPTIONS]";
     }
-    return "command not found";
+    return "command not found: ";
 }
 
 bool validCommand(string thecommand)
@@ -1861,7 +1865,7 @@ string getHelpStr(const char *command)
         os << " -l" << "\t" << "Prints file info" << endl;
 
     }
-    if(!strcmp(command,"debug") )
+    else if(!strcmp(command,"debug") )
     {
         os << "Enters debugging mode (HIGHLY VERBOSE)" << endl;
     }
@@ -1939,8 +1943,6 @@ void printAvailableCommands(int extensive = 0)
                     OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
                     for (u_int j = 0; j< width; j++) OUTSTREAM << "-";
                     OUTSTREAM << endl;
-
-
                 }
                 else
                 {

@@ -134,6 +134,24 @@ void sleepMicroSeconds(long microseconds)
 #endif
 }
 
+void discardOptionsAndFlags(vector<string> *ws)
+{
+    for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
+    {
+        /* std::cout << *it; ... */
+        string w = ( string ) * it;
+        if (w.length() && ( w.at(0) == '-' )) //begins with "-"
+        {
+            it = ws->erase(it);
+        }
+        else //not an option/flag
+        {
+            ++it;
+        }
+    }
+}
+
+
 // end utily functions
 
 string clientID; //identifier for a registered state listener
@@ -1179,6 +1197,7 @@ void process_line(char * line)
 
                     if (isserverloggedin())
                     {
+                        discardOptionsAndFlags(&words);
                         if (words.size() == 1)
                         {
                             setprompt(OLDPASSWORD);
@@ -1199,6 +1218,8 @@ void process_line(char * line)
                 {
                     if (!isserverloggedin())
                     {
+                        discardOptionsAndFlags(&words);
+
                         if (words.size() == 2 && words[1].find("#") == string::npos)
                         {
                             loginname = words[1];
@@ -1224,6 +1245,8 @@ void process_line(char * line)
                 }
                 else if (!helprequested && words[0] == "confirm")
                 {
+                    discardOptionsAndFlags(&words);
+
                     if (words.size() == 3)
                     {
                         linktoconfirm = words[1];
@@ -1421,6 +1444,8 @@ void readloop()
 
         // save line
         saved_point = rl_point;
+        if (saved_line != NULL)
+            free(saved_line);
         saved_line = rl_copy_text(0, rl_end);
 
         // remove prompt

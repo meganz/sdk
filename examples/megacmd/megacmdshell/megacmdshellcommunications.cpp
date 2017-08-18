@@ -54,6 +54,11 @@
 #define INVALID_SOCKET -1
 #endif
 
+#ifndef SSTR
+    #define SSTR( x ) static_cast< std::ostringstream & >( \
+        ( std::ostringstream() << std::dec << x ) ).str()
+#endif
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
 #include "mega/thread/win32thread.h"
 class MegaThread : public mega::Win32Thread {};
@@ -355,7 +360,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                 }
                 if (attempts < 0) //TODO: check this whenever attempts is > 0
                 {
-                    cerr << "Unable to connect to " << (number?("response socket N "+number):"server") << ": error=" << ERRNO << endl;
+                    cerr << "Unable to connect to " << (number?("response socket N "+SSTR(number)):"server") << ": error=" << ERRNO << endl;
 #ifdef __linux__
                     cerr << "Please ensure mega-cmd-server is running" << endl;
 #else
@@ -476,7 +481,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                 if (attempts<0)
                 {
 
-                    cerr << "Unable to connect to " << (number?("response socket N "+number):"service") << ": error=" << ERRNO << endl;
+                    cerr << "Unable to connect to " << (number?("response socket N "+SSTR(number)):"service") << ": error=" << ERRNO << endl;
 #ifdef __linux__
                     cerr << "Please ensure mega-cmd-server is running" << endl;
 #else
