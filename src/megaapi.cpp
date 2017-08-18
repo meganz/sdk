@@ -2268,6 +2268,11 @@ bool MegaApi::isSyncable(const char *name)
     return pImpl->is_syncable(name);
 }
 
+int MegaApi::isNodeSyncable(MegaNode *node)
+{
+    return pImpl->isNodeSyncable(node);
+}
+
 void MegaApi::setExcludedNames(vector<string> *excludedNames)
 {
     pImpl->setExcludedNames(excludedNames);

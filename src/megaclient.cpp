@@ -9510,11 +9510,7 @@ void MegaClient::updateputs()
     }
 }
 
-// check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node), return
-// EEXIST otherwise
-// (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -9555,7 +9551,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 return API_EEXIST;
             }
         }
-        
+
         if (n->inshare && !inshare)
         {
             // we need FULL access to sync
@@ -9592,6 +9588,30 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         }
     }
 
+    if (isinshare)
+    {
+        *isinshare = inshare;
+    }
+    return API_OK;
+#else
+    return API_EINCOMPLETE;
+#endif
+}
+
+// check sync path, add sync if folder
+// disallow nested syncs (there is only one LocalNode pointer per node), return
+// EEXIST otherwise
+// (FIXME: perform the same check for local paths!)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+{
+#ifdef ENABLE_SYNC
+    bool inshare = false;
+    error e = isnodesyncable(remotenode, &inshare);
+    if (e)
+    {
+        return e;
+    }
+
     if (rootpath->size() >= fsaccess->localseparator.size()
      && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
@@ -9607,8 +9627,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     FileAccess* fa = fsaccess->newfileaccess();
-    error e;
-
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)

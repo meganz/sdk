@@ -952,6 +952,26 @@ bool MegaApiImpl::is_syncable(long long size)
     return true;
 }
 
+int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
+{
+    if (!megaNode)
+    {
+        return MegaError::API_EARGS;
+    }
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (!node)
+    {
+        sdkMutex.unlock();
+        return MegaError::API_ENOENT;
+    }
+
+    error e = client->isnodesyncable(node);
+    sdkMutex.unlock();
+    return e;
+}
+
 bool MegaApiImpl::isIndexing()
 {
     if(!client || client->syncs.size() == 0)
