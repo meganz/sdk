@@ -5223,17 +5223,18 @@ void CommandGetMegaAchievements::procresult()
 //                        const char *class_id = client->json.getvalue();
 //                        achievement_class_id id = strtol(class_id, NULL, 10);
 
-                        client->json.enterarray();
+                        if (client->json.enterarray())
+                        {
+                            Achievement achievement;
+                            achievement.storage = client->json.getint();
+                            achievement.transfer = client->json.getint();
+                            const char *exp_ts = client->json.getvalue();
+                            achievement.expire = strtol(exp_ts, NULL, 10);
 
-                        Achievement achievement;
-                        achievement.storage = client->json.getint();
-                        achievement.transfer = client->json.getint();
-                        const char *exp_ts = client->json.getvalue();
-                        achievement.expire = strtol(exp_ts, NULL, 10);
+                            details->achievements[id] = achievement;
 
-                        details->achievements[id] = achievement;
-
-                        client->json.leavearray();
+                            client->json.leavearray();
+                        }
                     }
 
                     client->json.leaveobject();
@@ -5259,6 +5260,7 @@ void CommandGetMegaAchievements::procresult()
                             award.ts = 0;
                             award.expire = 0;
                             award.emails_invited.clear();
+                            const char *m = NULL;
 
                             bool finished = false;
                             while (!finished)
@@ -5277,6 +5279,16 @@ void CommandGetMegaAchievements::procresult()
                                 case 'e':
                                     award.expire = client->json.getint();
                                     break;
+                                case 'm':
+                                    if (client->json.enterarray())
+                                    {
+                                        while (m = client->json.getvalue())
+                                        {
+                                            award.emails_invited.push_back(m);
+                                        }
+
+                                        client->json.leavearray();
+                                    }
                                 case EOO:
                                     finished = true;
                                     break;

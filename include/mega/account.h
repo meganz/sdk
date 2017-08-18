@@ -147,13 +147,6 @@ struct MEGA_API Reward
 
 struct MEGA_API AchievementsDetails
 {
-    enum {
-        MEGA_ACHIEVEMENT_WELCOME            = 1,
-        MEGA_ACHIEVEMENT_INVITE             = 3,
-        MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
-        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5
-    };
-
     m_off_t permanent_size;   // permanent base storage value
     achievements_map achievements; // map<class_id, Achievement>
     vector<Award> awards;

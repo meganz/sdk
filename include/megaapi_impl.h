@@ -959,6 +959,21 @@ public:
     static MegaAchievementsDetails *fromAchievementsDetails(AchievementsDetails *details);
     virtual ~MegaAchievementsDetailsPrivate();
 
+    virtual long long getBaseStorage();
+    virtual long long getClassStorage(int class_id);
+    virtual long long getClassTransfer(int class_id);
+    virtual int getClassExpire(int class_id);
+    virtual unsigned int getAwardsCount();
+    virtual int getAwardClass(unsigned int index);
+    virtual int getAwardId(unsigned int index);
+    virtual int64_t getAwardTimestamp(unsigned int index);
+    virtual int64_t getAwardExpirationTs(unsigned int index);
+    virtual int getRewardsCount();
+    virtual long long getRewardStorage(unsigned int index);
+    virtual long long getRewardTransfer(unsigned int index);
+    virtual int getRewardExpire(unsigned int index);
+
+
 private:
     MegaAchievementsDetailsPrivate(AchievementsDetails *details);
     AchievementsDetails details;

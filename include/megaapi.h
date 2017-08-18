@@ -10116,6 +10116,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaApi::getMegaAchievements - Details of the MEGA Achievements of this account
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -10764,10 +10765,168 @@ public:
     virtual MegaPricing *copy();
 };
 
+/**
+ * @brief The MegaAchievementsDetails class
+ *
+ * There are several MEGA Achievements that a user can unlock, resulting in a
+ * temporary extension of the storage and/or transfer quota during a period of
+ * time.
+ *
+ * Currently there are 4 different classes of MEGA Achievements:
+ *
+ *  - Welcome: Create your free account and get 35 GB of complimentary storage space,
+ *      valid for 30 days.
+ *
+ *  - Invite: Invite as many friends or coworkers as you want. For every signup under the
+ *      invited email address, you will receive 10 GB of complimentary storage plus 20 GB
+ *      of transfer quota, both valid for 365 days, provided that the new user installs
+ *      either MEGAsync or a mobile app and starts using MEGA.
+ *
+ *  - Desktop install: When you install MEGAsync you get 20 GB of complimentary storage
+ *      space plus 40 GB of transfer quota, both valid for 180 days.
+ *
+ *  - Mobile install: When you install our mobile app you get 15 GB of complimentary
+ *      storage space plus 30 GB transfer quota, both valid for 180 days.
+ *
+ * When the user unlocks one of the achievements above, it unlocks an "Award". The award
+ * includes a timestamps to indicate when it was unlocked, plus an expiration timestamp.
+ * Afterwards, the award will not be active. Additionally, each award results in a "Reward".
+ * The reward is linked to the corresponding award and includes the storage and transfer
+ * quota obtained thanks to the unlocked award.
+ */
 class MegaAchievementsDetails
 {
 public:
+
+    enum {
+        MEGA_ACHIEVEMENT_WELCOME            = 1,
+        MEGA_ACHIEVEMENT_INVITE             = 3,
+        MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
+        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5
+    };
+
     virtual ~MegaAchievementsDetails();
+
+    /**
+     * @brief Get the base storage value for this account
+     * @return The base storage value, in bytes
+     */
+    virtual long long getBaseStorage();
+
+    /**
+     * @brief Get the storage granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Storage granted by this MEGA achievement class, in bytes
+     */
+    virtual long long getClassStorage(int class_id);
+
+    /**
+     * @brief Get the transfer quota granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Transfer quota granted by this MEGA achievement class, in bytes
+     */
+    virtual long long getClassTransfer(int class_id);
+
+    /**
+     * @brief Get the duration of storage/transfer quota granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * The storage and transfer quota resulting from a MEGA achievement may expire after
+     * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
+     * the granted storage and transfer quota is revoked.
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Number of days for the storage/transfer quota granted by this MEGA achievement class
+     */
+    virtual int getClassExpire(int class_id);
+
+    /**
+     * @brief Get the number of unlocked awards for this account
+     * @return Number of unlocked awards
+     */
+    virtual unsigned int getAwardsCount();
+
+    /**
+     * @brief Get the MEGA achievement class of the award
+     * @param index Position of the award in the list of unlocked awards
+     * @return The achievement class associated to the award in position \c index
+     */
+    virtual int getAwardClass(unsigned int index);
+
+    /**
+     * @brief Get the id of the award
+     * @param index Position of the award in the list of unlocked awards
+     * @return The id of the award in position \c index
+     */
+    virtual int getAwardId(unsigned int index);
+
+    /**
+     * @brief Get the timestamp of the award (when it was unlocked)
+     * @param index Position of the award in the list of unlocked awards
+     * @return The timestamp of the award (when it was unlocked) in position \c index
+     */
+    virtual int64_t getAwardTimestamp(unsigned int index);
+
+    /**
+     * @brief Get the expiration timestamp of the award
+     *
+     * After this moment, the storage and transfer quota granted as result of the award
+     * will not be valid anymore.
+     *
+     * @note The expiration time may not be the \c getAwardTimestamp plus the number of days
+     * returned by \c getClassExpire, since the award can be unlocked but not yet granted. It
+     * typically takes 2 days from unlocking the award until the user is actually rewarded.
+     *
+     * @param index Position of the award in the list of unlocked awards
+     * @return The expiration timestamp of the award in position \c index
+     */
+    virtual int64_t getAwardExpirationTs(unsigned int index);
+
+    /**
+     * @brief Get the number of active rewards for this account
+     * @return Number of active rewards
+     */
+    virtual int getRewardsCount();
+
+    /**
+     * @brief Get the storage rewarded by the award
+     * @param index Position of the reward in the list of active rewards
+     * @return The storage rewarded by the award
+     */
+    virtual long long getRewardStorage(unsigned int index);
+
+    /**
+     * @brief Get the transfer quota rewarded by the award
+     * @param index Position of the reward in the list of active rewards
+     * @return The transfer quota rewarded by the award
+     */
+    virtual long long getRewardTransfer(unsigned int index);
+
+    /**
+     * @brief Get the duration of the reward
+     * @param index Position of the reward in the list of active rewards
+     * @return The duration of the reward, in days
+     */
+    virtual int getRewardExpire(unsigned int index);
 
     /**
      * @brief Creates a copy of this MegaAchievementsDetails object.
