@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <stdio.h>
 
-
 enum
 {
     MCMD_OK = 0,              ///< Everything OK
@@ -56,6 +55,9 @@ enum
 #include <signal.h>
 #include <sys/types.h>
 #include <errno.h>
+#else
+#include <fcntl.h>
+#include <io.h>
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -791,7 +793,13 @@ char* remote_completion(const char* text, int state)
         {
             string where = outputcommand.substr(strlen("MEGACMD_USE_LOCAL_COMPLETION"));
 #ifdef _WIN32
-    int r = SetCurrentDirectoryW((LPCWSTR)where->data());
+            wstring wwhere;
+            stringtolocalw(where.c_str(),&wwhere);
+            int r = SetCurrentDirectoryW((LPCWSTR)wwhere.data());
+            if (!r)
+            {
+                cerr << "Error at SetCurrentDirectoryW before local completion to " << where << ". errno: " << ERRNO << endl;
+            }
 #else
             chdir(where.c_str());
 #endif
@@ -860,9 +868,6 @@ void printHistory()
 }
 
 #ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-
 
 /**
  * @brief getcharacterreadlineUTF16support
@@ -1655,7 +1660,13 @@ void mycompletefunct(char **c, int num_matches, int max_length)
     int nelements_per_col = (cols-1)/(max_length+1);
     for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
     {
-        OUTSTREAM << setw(max_length+1) << left << c[i];
+        string option = c[i];
+
+        OUTSTREAM << setw(max_length+1) << left;
+        int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+        OUTSTREAM << c[i];
+        _setmode(fileno(stdout), oldmode);
+
         if ( (i%nelements_per_col == 0) && (i != num_matches))
         {
             OUTSTREAM << endl;

@@ -405,8 +405,10 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
     }
 
     LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
-    informTransferUpdate(transfer, this->clientID);
-
+    if (!e || e->getErrorCode() == MegaError::API_OK )
+    {
+        informTransferUpdate(transfer, this->clientID);
+    }
 
 }
 
