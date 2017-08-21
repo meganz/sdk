@@ -5699,8 +5699,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "reload")
     {
+        int clientID = getintOption(cloptions, "clientID", -1);
+
         OUTSTREAM << "Reloading account..." << endl;
-        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL, NULL, clientID);
         api->fetchNodes(megaCmdListener);
         actUponFetchNodes(api, megaCmdListener);
         delete megaCmdListener;

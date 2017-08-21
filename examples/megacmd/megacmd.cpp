@@ -502,6 +502,10 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validOptValues->insert("clientID");
     }
+    else if ("reload" == thecommand)
+    {
+        validOptValues->insert("clientID");
+    }
     else if ("transfers" == thecommand)
     {
         validParams->insert("show-completed");

@@ -1368,7 +1368,7 @@ void process_line(char * line)
                 }
                 else
                 {
-                    if ( words[0] == "get" || words[0] == "put")
+                    if ( words[0] == "get" || words[0] == "put" || words[0] == "reload")
                     {
                         string s = line;
                         if (clientID.size())
