@@ -634,6 +634,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     int r = 0;
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
+    if (notifyfd < 0)
+    {
+        return r;
+    }
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
 
@@ -796,11 +800,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     timeval tv = { 0 };
     static char rsrc[] = "/..namedfork/rsrc";
     static unsigned int rsrcsize = sizeof(rsrc) - 1;
-
-    if (notifyfd < 0)
-    {
-        return r;
-    }
 
     for (;;)
     {
