@@ -5296,6 +5296,7 @@ void CommandGetMegaAchievements::procresult()
 
                                         client->json.leavearray();
                                     }
+                                    break;
                                 case EOO:
                                     finished = true;
                                     break;
