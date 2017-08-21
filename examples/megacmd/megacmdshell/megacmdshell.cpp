@@ -787,6 +787,18 @@ char* remote_completion(const char* text, int state)
             return local_completion(text,state); //fallback to local path completion
         }
 
+        if (outputcommand.find("MEGACMD_USE_LOCAL_COMPLETION") == 0)
+        {
+            string where = outputcommand.substr(strlen("MEGACMD_USE_LOCAL_COMPLETION"));
+#ifdef _WIN32
+    int r = SetCurrentDirectoryW((LPCWSTR)where->data());
+#else
+            chdir(where.c_str());
+#endif
+            free(saved_line);
+            return local_completion(text,state); //fallback to local path completion
+        }
+
         char *ptr = (char *)outputcommand.c_str();
 
         char *beginopt = ptr;

@@ -131,6 +131,7 @@ public:
     void printTransfersHeader(const u_int PATHSIZE, bool printstate=true);
     void printTransfer(mega::MegaTransfer *transfer, const u_int PATHSIZE, bool printstate=true);
     void doFind(mega::MegaNode* nodeBase, std::string word, int printfileinfo, std::string pattern, bool usepcre);
+    std::string getLPWD();
 };
 
 #endif // MEGACMDEXECUTER_H

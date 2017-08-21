@@ -1072,7 +1072,16 @@ string getListOfCompletionValues(vector<string> words, char separator = ' ', boo
     completionfunction_t * compfunction = getCompletionFunction(words);
     if (compfunction == local_completion)
     {
-        return "MEGACMD_USE_LOCAL_COMPLETION";
+        if (!interactiveThread())
+        {
+            return "MEGACMD_USE_LOCAL_COMPLETION";
+        }
+        else
+        {
+            string toret="MEGACMD_USE_LOCAL_COMPLETION";
+            toret+=cmdexecuter->getLPWD();
+            return toret;
+        }
     }
     int state=0;
     if (words.size()>1)

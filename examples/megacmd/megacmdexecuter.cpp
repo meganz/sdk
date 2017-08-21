@@ -2950,6 +2950,21 @@ void MegaCmdExecuter::doFind(MegaNode* nodeBase, string word, int printfileinfo,
     listOfMatches.clear();
 }
 
+string MegaCmdExecuter::getLPWD()
+{
+    string relativePath = ".";
+    string absolutePath = "Unknown";
+    string localRelativePath;
+    fsAccessCMD->path2local(&relativePath, &localRelativePath);
+    string localAbsolutePath;
+    if (fsAccessCMD->expanselocalpath(&localRelativePath, &localAbsolutePath))
+    {
+        fsAccessCMD->local2path(&localAbsolutePath, &absolutePath);
+    }
+
+    return absolutePath;
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n = NULL;
@@ -3280,11 +3295,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                                     api->renameNode(n, newname.c_str(), megaCmdListener);
                                     megaCmdListener->wait();
+                                    checkNoErrors(megaCmdListener->getError(), "rename");
                                     delete megaCmdListener;
                                 }
                                 else
                                 {
-                                    LOG_err << "Won't rename, since move failed " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                                    LOG_debug << "Won't rename, since move failed " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
                                 }
                                 delete megaCmdListener;
                             }
@@ -3485,7 +3501,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     }
                     delete tn;
                 }
-                if (targetuser.size())
+                else if (targetuser.size())
                 {
                     MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
                     api->sendFileToUser(n,targetuser.c_str(),megaCmdListener);
@@ -4101,15 +4117,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     }
     else if (words[0] == "lpwd")
     {
-        string relativePath = ".";
-        string absolutePath = "Unknown";
-        string localRelativePath;
-        fsAccessCMD->path2local(&relativePath, &localRelativePath);
-        string localAbsolutePath;
-        if (fsAccessCMD->expanselocalpath(&localRelativePath, &localAbsolutePath))
-        {
-            fsAccessCMD->local2path(&localAbsolutePath, &absolutePath);
-        }
+        string absolutePath = getLPWD();
 
         OUTSTREAM << absolutePath << endl;
         return;
