@@ -886,6 +886,10 @@ using namespace mega;
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)useHttpsOnly:(BOOL)httpsOnly {
+    self.megaApi->useHttpsOnly(httpsOnly);
+}
+
 - (BOOL)usingHttpsOnly {
     return self.megaApi->usingHttpsOnly();
 }

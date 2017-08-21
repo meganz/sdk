@@ -2441,12 +2441,30 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * through HTTP because otherwise it doesn't have any benefit and will cause a
  * higher CPU usage.
  *
- * See MegaApi::usingHttpsOnly
+ * See [MEGASdk usingHttpsOnly]
  *
  * @param httpsOnly True to use HTTPS communications only
- * @param listener MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request.
  */
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Use HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * This feature should only be enabled if there are problems to contact MEGA servers
+ * through HTTP because otherwise it doesn't have any benefit and will cause a
+ * higher CPU usage.
+ *
+ * See [MEGASdk usingHttpsOnly]
+ *
+ * @param httpsOnly True to use HTTPS communications only
+ */
+- (void)useHttpsOnly:(BOOL)httpsOnly;
 
 /**
  * @brief Check if the SDK is using HTTPS communications only
@@ -2456,9 +2474,9 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * all transfer data is already end-to-end encrypted and no data is transmitted
  * over the connection to wait for events (it's just closed when there are new events).
  *
- * See MegaApi::useHttpsOnly
+ * See [MEGASdk useHttpsOnly:]
  *
- * @return True if the SDK is using HTTPS communications only. Otherwise false.
+ * @return YES if the SDK is using HTTPS communications only. Otherwise NO.
  */
 - (BOOL)usingHttpsOnly;
 
