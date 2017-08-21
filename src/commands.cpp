@@ -5289,7 +5289,7 @@ void CommandGetMegaAchievements::procresult()
                                 case 'm':
                                     if (client->json.enterarray())
                                     {
-                                        while ((m = client->json.getvalue()))
+                                        while ((m = client->json.getvalue()) && (*m != ']'))
                                         {
                                             award.emails_invited.push_back(m);
                                         }

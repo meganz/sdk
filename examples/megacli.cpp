@@ -2760,6 +2760,7 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
+                        return;
                     }
                     break;
 
