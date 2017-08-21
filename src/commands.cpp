@@ -995,10 +995,10 @@ void CommandPutNodes::procresult()
         else
         {
 #endif
-        if (source == PUTNODES_APP)
-        {
-            return client->app->putnodes_result(e, type, nn);
-        }
+            if (source == PUTNODES_APP)
+            {
+                return client->app->putnodes_result(e, type, nn);
+            }
 #ifdef ENABLE_SYNC
             else
             {
