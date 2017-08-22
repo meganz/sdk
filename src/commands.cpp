@@ -5267,7 +5267,6 @@ void CommandGetMegaAchievements::procresult()
                             award.ts = 0;
                             award.expire = 0;
                             award.emails_invited.clear();
-                            const char *m = NULL;
 
                             bool finished = false;
                             while (!finished)
@@ -5289,9 +5288,10 @@ void CommandGetMegaAchievements::procresult()
                                 case 'm':
                                     if (client->json.enterarray())
                                     {
-                                        while ((m = client->json.getvalue()) && (*m != ']'))
+                                        string email;
+                                        while(client->json.storeobject(&email))
                                         {
-                                            award.emails_invited.push_back(m);
+                                            award.emails_invited.push_back(email);
                                         }
 
                                         client->json.leavearray();
