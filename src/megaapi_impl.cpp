@@ -19117,6 +19117,8 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
                 buf = new char[it->size()];
                 strcpy(buf, it->c_str());
                 data.push_back(buf);
+
+                it++;
             }
             return new MegaStringListPrivate(data.data(), data.size());
         }
