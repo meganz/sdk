@@ -1140,15 +1140,6 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     *absolutepath = *path;
     return false;
 #else
-    if (!PathIsRelativeW((LPCWSTR)localpath.data()))
-    {
-        *absolutepath = *path;
-        if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
-        {
-            absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
-        }
-        return true;
-    }
 
     int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
     if (len <= 0)
