@@ -1452,7 +1452,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return dirnotify;
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath)
+bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
@@ -1469,6 +1469,15 @@ bool WinFileSystemAccess::issyncsupported(string *localpath)
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
+    }
+
+    if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)
+    {
+        LOG_debug << "Network folder detected";
+        if (isnetwork)
+        {
+            *isnetwork = true;
+        }
     }
 
     string utf8fsname;

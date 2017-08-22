@@ -31,12 +31,14 @@
 namespace mega {
 
 const int Sync::SCANNING_DELAY_DS = 5;
+const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
 {
+    isnetwork = false;
     client = cclient;
     tag = ctag;
     inshare = cinshare;
@@ -738,6 +740,14 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                             statecacheadd(l);
 
                             delete fa;
+
+                            if (isnetwork && l->type == FILENODE)
+                            {
+                                LOG_debug << "Queueing extra fs notification for modified file";
+                                dirnotify->notify(DirNotify::EXTRA, NULL,
+                                                  localname ? localpath->data() : tmppath.data(),
+                                                  localname ? localpath->size() : tmppath.size());
+                            }
                             return l;
                         }
                     }
@@ -888,6 +898,14 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
         if (changed || newnode)
         {
+            if (isnetwork && l->type == FILENODE)
+            {
+                LOG_debug << "Queueing extra fs notification for new file";
+                dirnotify->notify(DirNotify::EXTRA, NULL,
+                                  localname ? localpath->data() : tmppath.data(),
+                                  localname ? localpath->size() : tmppath.size());
+            }
+
             client->syncactivity = true;
         }
     }

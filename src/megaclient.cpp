@@ -762,6 +762,7 @@ void MegaClient::init()
     syncfsopsfailed = false;
     syncdownretry = false;
     syncnagleretry = false;
+    syncextraretry = false;
     faretrying = false;
     syncsup = true;
     syncdownrequired = false;
@@ -1737,6 +1738,12 @@ void MegaClient::exec()
             syncops = true;
         }
 
+        if (syncextraretry && syncextrabt.armed())
+        {
+            syncextraretry = false;
+            syncops = true;
+        }
+
         // sync timer: read lock retry
         if (syncfslockretry && syncfslockretrybt.armed())
         {
@@ -1770,6 +1777,45 @@ void MegaClient::exec()
                 }
 
                 dstime nds = NEVER;
+                dstime mindelay = NEVER;
+                for (it = syncs.begin(); it != syncs.end(); )
+                {
+                    Sync* sync = *it++;
+                    if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+                    {
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
+                        {
+                            dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
+                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
+                            if (notification.timestamp <= dsmin)
+                            {
+                                LOG_debug << "Processing extra fs notification";
+                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
+                                                        notification.path.data(), notification.path.size());
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
+                            }
+                            else
+                            {
+                                dstime delay = (notification.timestamp - dsmin) + 1;
+                                if (delay < mindelay)
+                                {
+                                    mindelay = delay;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (EVER(mindelay))
+                {
+                    syncextrabt.backoff(mindelay);
+                    syncextraretry = true;
+                }
+                else
+                {
+                    syncextraretry = false;
+                }
+
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
                     if (!syncfsopsfailed)
@@ -2327,6 +2373,11 @@ int MegaClient::preparewait()
         if (syncnagleretry)
         {
             syncnaglebt.update(&nds);
+        }
+
+        if (syncextraretry)
+        {
+            syncextrabt.update(&nds);
         }
 #endif
 
@@ -9619,7 +9670,8 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
     }
     
-    if (!fsaccess->issyncsupported(rootpath))
+    bool isnetwork = false;
+    if (!fsaccess->issyncsupported(rootpath, &isnetwork))
     {
         LOG_warn << "Unsupported filesystem";
         return API_EFAILED;
@@ -9635,6 +9687,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             LOG_debug << "Adding sync: " << utf8path;
 
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
+            sync->isnetwork = isnetwork;
 
             if (sync->scan(rootpath, fa))
             {

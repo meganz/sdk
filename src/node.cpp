@@ -1291,7 +1291,7 @@ LocalNode::~LocalNode()
     if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
-        for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
+        for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
         {
             for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
             {

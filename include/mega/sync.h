@@ -116,11 +116,15 @@ public:
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing;
+
+    // true if the local synced folder is a network folder
+    bool isnetwork;
     
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
+    static const int EXTRA_SCANNING_DELAY_DS;
 
 protected :
     bool readstatecache();
