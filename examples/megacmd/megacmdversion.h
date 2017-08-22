@@ -21,6 +21,7 @@ const char * const megacmdchangelog =
         "Uploads and downloads now support background mode with \"-q\"""\n"
         "Added confirmation on folder removal (interactive & non-interactive modes)""\n"
         "PCRE are now optional if available in all the commands with \"--use-pcre\"""\n"
+        "Server initiated automatically in interactive and non-interactive mode""\n"
         "Added unicode support for Windows""\n"
         "Refurbished communications and secured non-interactive mode in Windows""\n"
         "Several fixes"

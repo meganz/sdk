@@ -1651,7 +1651,7 @@ string getHelpStr(const char *command)
         os << endl;
         os << "Options:" << endl;
         os << " -s" << "\tattribute value \t" << "sets an attribute to a value" << endl;
-        os << " --user=user@email" << "\t" << "select the user to query/change" << endl;
+        os << " --user=user@email" << "\t" << "select the user to query" << endl;
     }
     else if (!strcmp(command, "mkdir"))
     {
@@ -1701,14 +1701,15 @@ string getHelpStr(const char *command)
     {
         os << "Controls synchronizations" << endl;
         os << endl;
-        os << "If no argument is provided, it lists current synchronization with their IDs " << endl;
-        os << "                                                             and their state" << endl;
+        os << "If no argument is provided, it lists current configured synchronizations" << endl;
         os << endl;
-        os << "If provided local and remote paths, it will start synchronizing a local folder " << endl;
-        os << "                                                           into a remote folder" << endl;
+        os << "If provided local and remote paths, it will start synchronizing " << endl;
+        os << " a local folder into a remote folder" << endl;
         os << endl;
-        os << "If an ID is provided, it will list such synchronization with its state, " << endl;
-        os << "                                          unless an option is specified:" << endl;
+        os << "If an ID/local path is provided, it will list such synchronization " << endl;
+        os << " unless an option is specified." << endl;
+        os << endl;
+        os << "Options:" << endl;
         os << "-d" << " " << "ID|localpath" << "\t" << "deletes a synchronization" << endl;
         os << "-s" << " " << "ID|localpath" << "\t" << "stops(pauses) or resumes a synchronization" << endl;
     }
@@ -1848,7 +1849,7 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "version"))
     {
-        os << "Prints MEGAcmd versioning and extra  info" << endl;
+        os << "Prints MEGAcmd versioning and extra info" << endl;
         os << endl;
         os << "Options:" << endl;
         os << " -c" << "\t" << "Shows changelog for the current version" << endl;

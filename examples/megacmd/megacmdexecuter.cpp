@@ -2750,15 +2750,15 @@ void MegaCmdExecuter::signup(string name, string passwd, string email)
     if (checkNoErrors(megaCmdListener->getError(), "create account <" + email + ">"))
     {
         OUTSTREAM << "Account <" << email << "> created succesfully. You will receive a confirmation link. Use \"confirm\" with the provided link to confirm that account" << endl;
-        MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
-        api->localLogout(megaCmdListener2);
-        megaCmdListener2->wait();
-        checkNoErrors(megaCmdListener2->getError(), "logging out from ephemeral account");
-        delete megaCmdListener2;
     }
+
     delete megaCmdListener;
 
-
+    MegaCmdListener *megaCmdListener2 = new MegaCmdListener(NULL);
+    api->localLogout(megaCmdListener2);
+    megaCmdListener2->wait();
+    checkNoErrors(megaCmdListener2->getError(), "logging out from ephemeral account");
+    delete megaCmdListener2;
 }
 
 void MegaCmdExecuter::signupWithPassword(string passwd)
@@ -5092,6 +5092,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         int attribute = getAttrNum(words.size() > 1 ? words[1].c_str() : "-1");
         string attrValue = words.size() > 2 ? words[2] : "";
         string user = getOption(cloptions, "user", "");
+        if (settingattr && user.size())
+        {
+            LOG_err << "Can't change other user attributes";
+            return;
+        }
+
 
         if (settingattr)
         {

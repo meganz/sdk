@@ -28,7 +28,7 @@
 set -e
 
 function printusage {
-	echo "$0 [--home] [package=PACKAGE] [user@remoteobsserver] [PROJECTPATH [OSCFOLDER]]"
+	echo "$0 [--home] [user@remoteobsserver] [PROJECTPATH [OSCFOLDER]]"
 	echo "This scripts triggers recompilation of OBS packages using PROJECTPATH as the folder to look for files to deploy. "
 	echo "Notice that the tarball must be created before calling this script (with create_tarball.sh)"
 	echo " Use --home to only update home:Admin project. Otherwise DEB and RPM projects will be updated" 

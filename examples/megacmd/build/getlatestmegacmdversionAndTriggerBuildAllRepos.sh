@@ -70,11 +70,9 @@ if [ -z "$PROJECT_PATH" ]; then
 fi
 
 #checkout master project and submodules
-echo git clone $tagtodl https://github.com/meganz/sdk $PROJECT_PATH
-if ! git clone $tagtodl https://github.com/meganz/sdk $PROJECT_PATH; then exit 1;fi
+echo git clone $tagtodl --depth 1 --recursive https://github.com/meganz/sdk $PROJECT_PATH
+if ! git clone $tagtodl --depth 1 --recursive https://github.com/meganz/sdk $PROJECT_PATH; then exit 1;fi
 pushd $PROJECT_PATH
-git submodule init
-git submodule update
 pushd examples/megacmd/build
 ./create_tarball.sh
 popd
