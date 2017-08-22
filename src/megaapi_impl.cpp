@@ -1043,7 +1043,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
         MegaSyncPrivate* sync = it->second;
 
         std::string syncPath(sync->getLocalFolder());
-        if(path.find(syncPath) != std::string::npos)
+        if(!strcmp(path.c_str(), syncPath.c_str()))
             return sync;
 
         it++;
@@ -6369,6 +6369,15 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
     bool result = false;
     sdkMutex.lock();
+    if (size >= 0)
+    {
+        result = is_syncable(size);
+        if (!result)
+        {
+            return result;
+        }
+    }
+
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
@@ -6378,10 +6387,6 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
             name = localpath.substr(index);
             fsAccess->local2name(&name);
             result = is_syncable(sync, name.c_str(), &localpath);
-            if (result && size >= 0)
-            {
-                result = is_syncable(size);
-            }
             break;
         }
     }
@@ -16286,7 +16291,7 @@ const char * MegaRegExpPrivate::getRegExp(int index)
 }
 
 /**
- * @brief Checks if the given regular expression is
+ * @brief Checks if the given regular expression is correct.
  * @param regExp Regular expression
  * @return True if the regular expression is correct. Otherwise, false.
  */

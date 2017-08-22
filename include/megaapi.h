@@ -7806,7 +7806,7 @@ class MegaApi
         /**
          * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
          *
-         * This function should be used to add a new synchronized folders. To resume a previously
+         * This function should be used to add a new synchronized pair of folders. To resume a previously
          * added synchronized folder, use MegaApi::resumeSync
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
@@ -8058,7 +8058,7 @@ class MegaApi
         MegaSync *getSyncByNode(MegaNode *node);
 
         /**
-         * @brief getSyncByPath Get the syncrhonization associated with a local path
+         * @brief getSyncByPath Get the synchronization associated with a local path
          * @param localPath Root local path of the synchronization
          * @return Synchronization with the specified root local path
          */
