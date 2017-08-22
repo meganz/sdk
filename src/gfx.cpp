@@ -24,8 +24,12 @@
 
 namespace mega {
 const int GfxProc::dimensions[][2] = {
-    { 120, 0 },     // THUMBNAIL120X120: square thumbnail, cropped from near center
-    { 1000, 1000 }  // PREVIEW1000x1000: scaled version inside 1000x1000 bounding square
+    { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
+    { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
+};
+
+const int GfxProc::dimensionsavatar[][2] = {
+    { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
 bool GfxProc::isgfx(string* localfilename)
@@ -162,19 +166,18 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     return numputs;
 }
 
-bool GfxProc::savefa(string *localfilepath, GfxProc::meta_t type, string *localdstpath)
+bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
 {
     if (!isgfx(localfilepath)
             // (this assumes that the width of the largest dimension is max)
-            || !readbitmap(NULL, localfilepath, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+        || !readbitmap(NULL, localfilepath, width > height ? width : height))
     {
         return false;
     }
 
-    int w = dimensions[type][0];
-    int h = dimensions[type][1];
-    if (type == (sizeof dimensions/sizeof dimensions[0] - 1)
-            && this->w < w && this->h < h )
+    int w = width;
+    int h = height;
+    if (this->w < w && this->h < h)
     {
         LOG_debug << "Skipping upsizing of local preview";
         w = this->w;

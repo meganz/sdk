@@ -1,42 +1,62 @@
-#ifdef SWIGJAVA
 #define ENABLE_CHAT
-#endif
 
 %module(directors="1") mega
 %{
 #define ENABLE_CHAT
 #include "megaapi.h"
 
+#ifdef ENABLE_WEBRTC
+#include "webrtc/rtc_base/ssladapter.h"
+#include "webrtc/sdk/android/src/jni/classreferenceholder.h"
+#include "webrtc/sdk/android/src/jni/jni_helpers.h"
+
+namespace webrtc
+{
+    class JVM
+    {
+        public:
+            static void Initialize(JavaVM* jvm, jobject context);
+    };
+};
+#endif
+
 #ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
-
-#ifdef __ANDROID__
 jstring strEncodeUTF8;
 jclass clsString;
 jmethodID ctorString;
-int sdkVersion = 100;
-#endif
+jmethodID getBytes;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
-#ifdef __ANDROID__
     JNIEnv* jenv = NULL;
     jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
-    jclass buildVersionClass = jenv->FindClass("android/os/Build$VERSION");
-    jfieldID sdkVersionField = jenv->GetStaticFieldID(buildVersionClass, "SDK_INT", "I");
-    sdkVersion = jenv->GetStaticIntField(buildVersionClass, sdkVersionField);
-    if (sdkVersion < 23)
-    {
-        jclass clsStringLocal = jenv->FindClass("java/lang/String");
-        clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
-        jenv->DeleteLocalRef(clsStringLocal);
-        ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
-        jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
-        strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
-        jenv->DeleteLocalRef(strEncodeUTF8Local);
-    }
+
+    jclass clsStringLocal = jenv->FindClass("java/lang/String");
+    clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
+    jenv->DeleteLocalRef(clsStringLocal);
+    ctorString = jenv->GetMethodID(clsString, "<init>", "([BLjava/lang/String;)V");
+    getBytes = jenv->GetMethodID(clsString, "getBytes", "(Ljava/lang/String;)[B");
+    jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
+    strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
+    jenv->DeleteLocalRef(strEncodeUTF8Local);
+
+#ifdef ENABLE_WEBRTC
+    // Initialize WebRTC (it doesn't seem to be needed for the example app)
+    // MEGAjvm->AttachCurrentThread(&jenv, NULL);
+    // jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
+    // jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+    // jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+    // webrtc::JVM::Initialize(MEGAjvm, context);
+    // MEGAjvm->DetachCurrentThread();
+
+    // Initialize the JNI and SSL stuff of WebRTC
+    webrtc_jni::InitGlobalJniVariables(jvm);
+    rtc::InitializeSSL();
+    webrtc_jni::LoadGlobalClassReferenceHolder();
 #endif
+
     return JNI_VERSION_1_4;
 }
 #endif
@@ -92,25 +112,41 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %typemap(javaclassmodifiers) mega::ShareList "class";
 %typemap(javaclassmodifiers) mega::UserList "class";
 
-
 %typemap(out) char*
 %{
     if ($1)
     {
-#ifdef __ANDROID__
-        if (sdkVersion < 23)
+        int len = strlen($1);
+        jbyteArray $1_array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+        $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+        jenv->DeleteLocalRef($1_array);
+    }
+%}
+
+%typemap(in) char*
+%{
+    jbyteArray $1_array;
+    $1 = 0;
+    if ($input)
+    {
+        $1_array = (jbyteArray) jenv->CallObjectMethod($input, getBytes, strEncodeUTF8);
+        jsize $1_size = jenv->GetArrayLength($1_array);
+        $1 = new char[$1_size + 1];
+        if ($1_size)
         {
-            int len = strlen($1);
-            jbyteArray $1_array = jenv->NewByteArray(len);
-            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
-            $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
-            jenv->DeleteLocalRef($1_array);
+            jenv->GetByteArrayRegion($1_array, 0, $1_size, (jbyte*)$1);
         }
-        else
-#endif
-        {
-            $result = jenv->NewStringUTF($1);
-        }
+        $1[$1_size] = '\0';
+    }
+%}
+
+%typemap(freearg) char*
+%{
+    if ($1)
+    {
+        delete [] $1;
+        jenv->DeleteLocalRef($1_array);
     }
 %}
 
@@ -119,20 +155,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     $input = 0;
     if ($1)
     {
-#ifdef __ANDROID__
-        if (sdkVersion < 23)
-        {
-            int len = strlen($1);
-            jbyteArray $1_array = jenv->NewByteArray(len);
-            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
-            $input = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
-            jenv->DeleteLocalRef($1_array);
-        }
-        else
-#endif
-        {
-            $input = jenv->NewStringUTF($1);
-        }
+        int len = strlen($1);
+        jbyteArray $1_array = jenv->NewByteArray(len);
+        jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+        $input = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+        jenv->DeleteLocalRef($1_array);
     }
     Swig::LocalRefGuard $1_refguard(jenv, $input);
 %}
@@ -206,21 +233,38 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
+#ifndef SWIGPHP7
 //Disable the management of director parameters
 //to workaround several SWIG bugs
 %typemap(directorin) SWIGTYPE* %{ %}
 %typemap(directorout) SWIGTYPE* %{ %}
+#endif
 
-//Rename some overloaded functions to workaround a bug in SWIG
+//Rename overloaded functions
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
 %rename (getOutSharesAll, fullname=1) mega::MegaApi::getOutShares();
 %rename (getTransfersAll, fullname=1) mega::MegaApi::getTransfers();
+%rename (getRootNodeOf, fullname=1) mega::MegaApi::getRootNode(MegaNode*);
+%rename (searchAll, fullname=1) mega::MegaApi::search(const char*);
+%rename (getNodeByFingerprintInFolder, fullname=1) mega::MegaApi::getNodeByFingerprint(const char*, MegaNode*);
+%rename (getFingerprintByInputStream, fullname=1) mega::MegaApi::getFingerprint(MegaInputStream*, int64_t);
+%rename (pauseTransfersByDirection, fullname=1) mega::MegaApi::pauseTransfers(bool, int, MegaRequestListener*);
+%rename (exportNodeWithTime, fullname=1) mega::MegaApi::exportNode(MegaNode*, int64_t, MegaRequestListener*);
+%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*, MegaRequestListener*);
+%rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*);
+%rename (copyNodeWithName, fullname=1) mega::MegaApi::copyNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t, MegaTransferListener*);
 %rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t);
+%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool, MegaTransferListener*);
+%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool);
+%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*, MegaRequestListener*);
+%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*);
+
 #endif
 
 %ignore mega::MegaApi::MEGA_DEBRIS_FOLDER;
@@ -244,6 +288,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaTransferList::copy;
 %newobject mega::MegaNode::copy;
 %newobject mega::MegaNodeList::copy;
+%newobject mega::MegaChildrenList::copy;
 %newobject mega::MegaShare::copy;
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
@@ -253,6 +298,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
 %newobject mega::MegaNode::getBase64Handle;
+%newobject mega::MegaNode::getFileAttrString;
 %newobject mega::MegaApi::getBase64PwKey;
 %newobject mega::MegaApi::getStringHash;
 %newobject mega::MegaApi::handleToBase64;

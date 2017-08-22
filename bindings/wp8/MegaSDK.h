@@ -52,6 +52,7 @@
 #include "MContactRequestList.h"
 #include "MInputStreamAdapter.h"
 #include "MInputStream.h"
+#include "MChildrenLists.h"
 
 #include <megaapi.h>
 #include <set>
@@ -174,6 +175,12 @@ namespace mega
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
+        void resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener);
+        void resumeCreateAccount(String^ sid);
+        void sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener);
+        void sendSignupLink(String^ email, String^ name, String^ password);
+        void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
+        void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
         void querySignupLink(String^ link);
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
@@ -208,7 +215,8 @@ namespace mega
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
-        static void setLoggerObject(MLoggerInterface^ megaLogger);
+        void addLoggerObject(MLoggerInterface^ logger);
+        void removeLoggerObject(MLoggerInterface^ logger);
         static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
         static void log(MLogLevel logLevel, String^ message, String^ filename);
         static void log(MLogLevel logLevel, String^ message);
@@ -286,6 +294,8 @@ namespace mega
         void fetchNodes();
         void getAccountDetails(MRequestListenerInterface^ listener);
         void getAccountDetails();
+        void queryTransferQuota(int64 size, MRequestListenerInterface^ listener);
+        void queryTransferQuota(int64 size);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
@@ -443,6 +453,8 @@ namespace mega
         int getNumChildFolders(MNode^ parent);
         MNodeList^ getChildren(MNode^ parent, int order);
         MNodeList^ getChildren(MNode^ parent);
+        MChildrenLists^ getFileFolderChildren(MNode^ parent, int order);
+        MChildrenLists^ getFileFolderChildren(MNode^ parent);
         bool hasChildren(MNode^ parent);
         int getIndex(MNode^ node, int order);
         int getIndex(MNode^ node);
@@ -541,9 +553,14 @@ namespace mega
         void freeRequestListener(DelegateMRequestListener *listener);
         void freeTransferListener(DelegateMTransferListener *listener);
 
+        std::set<DelegateMLogger *> activeLoggers;
+        CRITICAL_SECTION loggerMutex;
+
+        MegaLogger *createDelegateMLogger(MLoggerInterface^ logger);
+        void freeLogger(DelegateMLogger *logger);
+
         MegaApi *megaApi;
         DelegateMGfxProcessor *externalGfxProcessor;
-        static DelegateMLogger* externalLogger;
         MegaApi *getCPtr();
     };
 }

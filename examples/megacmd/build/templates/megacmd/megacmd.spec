@@ -34,7 +34,7 @@ BuildRequires: c-ares-devel,
 %endif
 
 %description
-MegaCMD provides non UI access to MEGA services. 
+MEGAcmd provides non UI access to MEGA services. 
 It intends to offer all the functionality 
 with your MEGA account via shell interaction. 
 It features 2 modes of interaction:
@@ -144,6 +144,20 @@ enabled=1
 DATA
 %endif
 
+%if 0%{?fedora_version} == 26
+# Fedora 26
+YUM_FILE="/etc/yum.repos.d/megasync.repo"
+cat > "$YUM_FILE" << DATA
+[MEGAsync]
+name=MEGAsync
+baseurl=http://mega.nz/linux/MEGAsync/Fedora_26/
+gpgkey=https://mega.nz/linux/MEGAsync/Fedora_26/repodata/repomd.xml.key
+gpgcheck=1
+enabled=1
+DATA
+%endif
+
+
 %if 0%{?fedora_version} == 25
 # Fedora 25
 YUM_FILE="/etc/yum.repos.d/megasync.repo"
@@ -233,6 +247,23 @@ gpgkey=https://mega.nz/linux/MEGAsync/Fedora_19/repodata/repomd.xml.key
 gpgcheck=1
 enabled=1
 DATA
+%endif
+
+%if 0%{?sle_version} == 120300
+# openSUSE Leap 42.3
+if [ -d "/etc/zypp/repos.d/" ]; then
+ZYPP_FILE="/etc/zypp/repos.d/megasync.repo"
+cat > "$ZYPP_FILE" << DATA
+[MEGAsync]
+name=MEGAsync
+type=rpm-md
+baseurl=http://mega.nz/linux/MEGAsync/openSUSE_Leap_42.3/
+gpgcheck=1
+autorefresh=1
+gpgkey=http://mega.nz/linux/MEGAsync/openSUSE_Leap_42.3/repodata/repomd.xml.key
+enabled=1
+DATA
+fi
 %endif
 
 %if 0%{?sle_version} == 120200

@@ -40,6 +40,8 @@ TextChat::TextChat()
     ou = UNDEF;
     resetTag();
     ts = 0;
+
+    memset(&changed, 0, sizeof(changed));
 }
 
 TextChat::~TextChat()
@@ -82,7 +84,27 @@ bool TextChat::serialize(string *d)
     d->append((char*)&ou, sizeof ou);
     d->append((char*)&ts, sizeof(ts));
 
-    d->append("\0\0\0\0\0\0\0\0\0", 10); // additional bytes for backwards compatibility
+    char hasAttachments = attachedNodes.size() != 0;
+    d->append((char*)&hasAttachments, 1);
+    d->append("\0\0\0\0\0\0\0\0", 9); // additional bytes for backwards compatibility
+
+    if (hasAttachments)
+    {
+        ll = attachedNodes.size();  // number of nodes with granted access
+        d->append((char*)&ll, sizeof ll);
+
+        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
+        {
+            d->append((char*)&it->first, sizeof it->first); // nodehandle
+
+            ll = it->second.size(); // number of users with granted access to the node
+            d->append((char*)&ll, sizeof ll);
+            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
+            {
+                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
+            }
+        }
+    }
 
     return true;
 }
@@ -97,6 +119,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     string title;   // byte array
     handle ou;
     m_time_t ts;
+    char hasAttachments;
+    attachments_map attachedNodes;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -116,7 +140,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     shard = MemAccess::get<int>(ptr);
     ptr += sizeof shard;
 
-    ll = MemAccess::get<short>(ptr);
+    ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof ll;
     if (ll)
     {
@@ -139,7 +163,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
     }
 
-    if (ptr + sizeof(bool) + sizeof(short) > end)
+    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
     {
         delete userpriv;
         return NULL;
@@ -148,7 +172,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     group = MemAccess::get<bool>(ptr);
     ptr += sizeof group;
 
-    ll = MemAccess::get<short>(ptr);
+    ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof ll;
     if (ll)
     {
@@ -173,11 +197,59 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     ts = MemAccess::get<m_time_t>(ptr);
     ptr += sizeof(m_time_t);
 
-    for (int i = 10; i--;)
+    hasAttachments = MemAccess::get<char>(ptr);
+    ptr += sizeof hasAttachments;
+
+    for (int i = 9; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
             ptr += MemAccess::get<unsigned char>(ptr) + 1;
+        }
+    }
+
+    if (hasAttachments)
+    {
+        unsigned short numNodes = 0;
+        if (ptr + sizeof numNodes > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        numNodes = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof numNodes;
+
+        for (int i = 0; i < numNodes; i++)
+        {
+            handle h = UNDEF;
+            unsigned short numUsers = 0;
+            if (ptr + sizeof h + sizeof numUsers > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            h = MemAccess::get<handle>(ptr);
+            ptr += sizeof h;
+
+            numUsers = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof numUsers;
+
+            handle uh = UNDEF;
+            if (ptr + (numUsers * sizeof(uh)) > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            for (int j = 0; j < numUsers; j++)
+            {
+                uh = MemAccess::get<handle>(ptr);
+                ptr += sizeof uh;
+
+                attachedNodes[h].insert(uh);
+            }
         }
     }
 
@@ -205,6 +277,9 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
+    chat->attachedNodes = attachedNodes;
+
+    memset(&chat->changed, 0, sizeof(chat->changed));
 
     return chat;
 }
@@ -225,6 +300,32 @@ int TextChat::getTag()
 void TextChat::resetTag()
 {
     tag = -1;
+}
+
+bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
+{
+    if (revoke)
+    {
+        attachments_map::iterator uhit = attachedNodes.find(h);
+        if (uhit != attachedNodes.end())
+        {
+            uhit->second.erase(uh);
+            if (uhit->second.empty())
+            {
+                attachedNodes.erase(h);
+                changed.attachments = true;
+            }
+            return true;
+        }
+    }
+    else
+    {
+        attachedNodes[h].insert(uh);
+        changed.attachments = true;
+        return true;
+    }
+
+    return false;
 }
 #endif
 
@@ -409,7 +510,7 @@ unsigned HashSignature::get(AsymmCipher* privk, byte* sigbuf, unsigned sigbuflen
     return privk->rawdecrypt((const byte*)h.data(), h.size(), sigbuf, sigbuflen);
 }
 
-bool HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
+bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned len)
 {
     string h, s;
     unsigned size;

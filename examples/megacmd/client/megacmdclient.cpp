@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/client/megacmdclient.cpp
- * @brief MegaCMDClient: Client application of MEGAcmd
+ * @brief MEGAcmdClient: Client application of MEGAcmd
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -58,6 +58,9 @@
 #define MSG_NOSIGNAL 0
 #endif
 
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 bool socketValid(int socket)
 {
@@ -364,7 +367,7 @@ if (net)
 #ifdef __linux__
             cerr << "Please ensure mega-cmd is running" << endl;
 #else
-            cerr << "Please ensure MegaCMD is running" << endl;
+            cerr << "Please ensure MEGAcmd is running" << endl;
 #endif
 
         }
@@ -408,7 +411,7 @@ else
 #ifdef __linux__
             cerr << "Please ensure mega-cmd is running" << endl;
 #else
-            cerr << "Please ensure MegaCMD is running" << endl;
+            cerr << "Please ensure MEGAcmd is running" << endl;
 #endif
         }
         return INVALID_SOCKET;

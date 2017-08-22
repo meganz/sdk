@@ -394,7 +394,7 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
-string *MegaNode::getFileAttrString()
+char *MegaNode::getFileAttrString()
 {
     return NULL;
 }
@@ -966,6 +966,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Invalid application key";
         case API_ESSL:
             return "SSL verification failed";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1337,9 +1339,19 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
-void MegaApi::setLoggerObject(MegaLogger *megaLogger)
+void MegaApi::setLogToConsole(bool enable)
 {
-    MegaApiImpl::setLoggerClass(megaLogger);
+    MegaApiImpl::setLogToConsole(enable);
+}
+
+void MegaApi::addLoggerObject(MegaLogger *megaLogger)
+{
+    MegaApiImpl::addLoggerClass(megaLogger);
+}
+
+void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
+{
+    MegaApiImpl::removeLoggerClass(megaLogger);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
@@ -1479,9 +1491,24 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
     pImpl->createAccount(email, password, firstname, lastname, listener);
 }
 
+void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
+{
+    pImpl->resumeCreateAccount(sid, listener);
+}
+
 void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
 {
     pImpl->fastCreateAccount(email, base64pwkey, name, listener);
+}
+
+void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
+{
+    pImpl->sendSignupLink(email, name, password, listener);
+}
+
+void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
+{
+    pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
 }
 
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
@@ -1767,6 +1794,11 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
     pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
+}
+
+void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
+{
+    pImpl->queryTransferQuota(size, listener);
 }
 
 void MegaApi::getPricing(MegaRequestListener *listener)
@@ -2243,6 +2275,11 @@ bool MegaApi::isSyncable(const char *name)
     return pImpl->is_syncable(name);
 }
 
+int MegaApi::isNodeSyncable(MegaNode *node)
+{
+    return pImpl->isNodeSyncable(node);
+}
+
 void MegaApi::setExcludedNames(vector<string> *excludedNames)
 {
     pImpl->setExcludedNames(excludedNames);
@@ -2477,6 +2514,21 @@ void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
     pImpl->getLocalSSLCertificate(listener);
 }
 
+void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
+{
+    pImpl->queryDNS(hostname, listener);
+}
+
+void MegaApi::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+{
+    pImpl->queryGeLB(service, timeoutms, maxretries, listener);
+}
+
+void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
+{
+    pImpl->downloadFile(url, dstpath, listener);
+}
+
 MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
     return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
@@ -2515,6 +2567,16 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 bool MegaApi::setLanguage(const char *languageCode)
 {
     return pImpl->setLanguage(languageCode);
+}
+
+void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
+{
+    pImpl->setLanguagePreference(languageCode, listener);
+}
+
+void MegaApi::getLanguagePreference(MegaRequestListener *listener)
+{
+    pImpl->getLanguagePreference(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)
@@ -2758,6 +2820,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
+}
+
+MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
+{
+    return pImpl->getFileFolderChildren(p, order);
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)
@@ -3597,14 +3664,34 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
+void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+{
+    pImpl->sendChatStats(data, listener);
+}
+
+void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
+{
+    pImpl->sendChatLogs(data, aid, listener);
+}
+
 MegaTextChatList* MegaApi::getChatList()
 {
     return pImpl->getChatList();
 }
 
-const char* MegaApi::getFileAttribute(MegaHandle handle)
+MegaHandleList* MegaApi::getAttachmentAccess(MegaHandle chatid, MegaHandle h)
 {
-    return pImpl->getFileAttribute(handle);
+    return pImpl->getAttachmentAccess(chatid, h);
+}
+
+bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh)
+{
+    return pImpl->hasAccessToAttachment(chatid, h, uh);
+}
+
+const char* MegaApi::getFileAttribute(MegaHandle h)
+{
+    return pImpl->getFileAttribute(h);
 }
 
 #endif
@@ -3686,6 +3773,11 @@ bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)
 bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
 {
     return pImpl->createPreview(imagePath, dstPath);
+}
+
+bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
+{
+    return pImpl->createAvatar(imagePath, dstPath);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -4249,6 +4341,16 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+bool MegaTextChat::hasChanged(int) const
+{
+    return false;
+}
+
+int MegaTextChat::getChanges() const
+{
+    return 0;
+}
+
 int MegaTextChat::isOwnChange() const
 {
     return 0;
@@ -4369,6 +4471,56 @@ int MegaEvent::getType() const
 }
 
 const char *MegaEvent::getText() const
+{
+    return NULL;
+}
+
+MegaHandleList *MegaHandleList::createInstance()
+{
+    return new MegaHandleListPrivate();
+}
+
+MegaHandleList::~MegaHandleList()
+{
+
+}
+
+MegaHandleList *MegaHandleList::copy() const
+{
+    return NULL;
+}
+
+MegaHandle MegaHandleList::get(unsigned int i) const
+{
+    return INVALID_HANDLE;
+}
+
+unsigned int MegaHandleList::size() const
+{
+    return 0;
+}
+
+void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
+{
+
+}
+
+MegaChildrenLists::~MegaChildrenLists()
+{
+
+}
+
+MegaChildrenLists *MegaChildrenLists::copy()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFileList()
+{
+    return NULL;
+}
+
+MegaNodeList *MegaChildrenLists::getFolderList()
 {
     return NULL;
 }

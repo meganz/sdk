@@ -63,6 +63,9 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool) { }
     virtual void account_details(AccountDetails*, error) { }
 
+    // query bandwidth quota result
+    virtual void querytransferquota_result(int) { }
+
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
@@ -273,6 +276,12 @@ struct MEGA_API MegaApp
     virtual void notify_retry(dstime) { }
 
     virtual void notify_dbcommit() { }
+
+    // account confirmation via signup link
+    virtual void notify_confirmation(const char* email) { }
+
+    // HTTP request finished
+    virtual void http_result(error, int, byte*, int) { }
 
     virtual ~MegaApp() { }
 };

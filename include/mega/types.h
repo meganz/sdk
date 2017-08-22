@@ -76,6 +76,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -110,6 +111,8 @@ typedef uint32_t dstime;
 typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
+
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
 
 typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
@@ -159,7 +162,8 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23                  ///< SSL verification failed
+    API_ESSL = -23,                 ///< SSL verification failed
+    API_EGOINGOVERQUOTA = -24       ///< Not enough quota
 } error;
 
 // returned by loggedin()
@@ -271,6 +275,9 @@ typedef deque<Transfer*> transfer_list;
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
+
+// map a request tag with a pending dns request
+typedef map<int, GenericHttpReq*> pendinghttp_map;
 
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<string> > pendingfiles_map;
@@ -400,8 +407,7 @@ typedef enum {
     ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
     ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
     ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-//    USER_ATTR_AUTHRSA = 10,
-//    USER_ATTR_AUTHCU255 = 11
+    ATTR_LANGUAGE = 14          // private, non-encrypted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -423,6 +429,7 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
+typedef map <handle, set <handle> > attachments_map;
 struct TextChat : public Cachable
 {
     handle id;
@@ -433,6 +440,7 @@ struct TextChat : public Cachable
     string title;   // byte array
     handle ou;
     m_time_t ts;     // creation time
+    attachments_map attachedNodes;
 
     int tag;    // source tag, to identify own changes
 
@@ -445,6 +453,14 @@ struct TextChat : public Cachable
     void setTag(int tag);
     int getTag();
     void resetTag();
+
+    struct
+    {
+        bool attachments : 1;
+    } changed;
+
+    // return false if failed
+    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

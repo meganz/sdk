@@ -632,6 +632,10 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
+    if (notifyfd < 0)
+    {
+        return r;
+    }
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
@@ -797,11 +801,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     static char rsrc[] = "/..namedfork/rsrc";
     static unsigned int rsrcsize = sizeof(rsrc) - 1;
 
-    if (notifyfd < 0)
-    {
-        return r;
-    }
-
     for (;;)
     {
         FD_ZERO(&rfds);
@@ -921,7 +920,7 @@ void PosixFileSystemAccess::tmpnamelocal(string* localname) const
 
 void PosixFileSystemAccess::path2local(string* path, string* local) const
 {
-#ifdef USE_IOS
+#ifdef __MACH__
     path2localMac(path, local);
 #else
     *local = *path;

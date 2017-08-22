@@ -480,6 +480,14 @@ public:
     CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
 };
 
+class MEGA_API CommandQueryTransferQuota : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryTransferQuota(MegaClient*, m_off_t size);
+};
+
 class MEGA_API CommandGetUserTransactions : public Command
 {
     AccountDetails* details;
@@ -775,6 +783,9 @@ public:
 
 class MEGA_API CommandChatGrantAccess : public Command
 {
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();
@@ -783,7 +794,10 @@ public:
 };
 
 class MEGA_API CommandChatRemoveAccess : public Command
-{
+{    
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();

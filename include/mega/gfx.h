@@ -55,15 +55,17 @@ public:
     int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1, bool checkAccess = true);
 
     // FIXME: read dynamically from API server
-    typedef enum { THUMBNAIL120X120, PREVIEW1000x1000 } meta_t;
+    typedef enum { THUMBNAIL, PREVIEW } meta_t;
+    typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(string*, meta_t, string*);
+    bool savefa(string*, int, int, string*);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
     static const int dimensions[][2];
-    
+    static const int dimensionsavatar[][2];
+
     MegaClient* client;
     int w, h;
 

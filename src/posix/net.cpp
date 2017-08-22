@@ -31,7 +31,7 @@ namespace mega {
 
 MUTEX_CLASS CurlHttpIO::curlMutex(false);
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
@@ -70,20 +70,39 @@ unsigned long CurlHttpIO::id_function()
 CurlHttpIO::CurlHttpIO()
 {
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
-    string curlssl;
+    if (data->version)
+    {
+        LOG_debug << "cURL version: " << data->version;
+    }
+
     if (data->ssl_version)
     {
-        curlssl = data->ssl_version;
-    }
-    std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
+        LOG_debug << "SSL version: " << data->ssl_version;
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
-    if (!strstr(curlssl.c_str(), "openssl"))
-    {
-        LOG_fatal << "cURL built without OpenSSL support. Aborting.";
-        exit(EXIT_FAILURE);
+        string curlssl = data->ssl_version;
+        std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
+        if (strstr(curlssl.c_str(), "gskit"))
+        {
+            LOG_fatal << "Unsupported SSL backend (GSKit). Aborting.";
+            exit(EXIT_FAILURE);
+        }
+
+        if (data->version_num < 0x072c00 // At least cURL 7.44.0
+        #ifdef USE_OPENSSL
+                && !(strstr(curlssl.c_str(), "openssl") && data->version_num > 0x070b00)
+                // or cURL 7.11.0 with OpenSSL
+        #endif
+            )
+        {
+            LOG_fatal << "cURL built without public key pinning support. Aborting.";
+            exit(EXIT_FAILURE);
+        }
     }
-#endif
+
+    if (data->libz_version)
+    {
+        LOG_debug << "libz version: " << data->libz_version;
+    }
 
     int i;
     for (i = 0; data->protocols[i]; i++)
@@ -108,13 +127,14 @@ CurlHttpIO::CurlHttpIO()
     statechange = false;
     maxspeed[GET] = 0;
     maxspeed[PUT] = 0;
+    pkpErrors = 0;
 
     WAIT_CLASS::bumpds();
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
 
     curlMutex.lock();
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
     if (!CRYPTO_get_locking_callback()
 #if OPENSSL_VERSION_NUMBER >= 0x10000000
@@ -356,7 +376,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
         if (!info.mode)
         {
-            break;
+            continue;
         }
 
 #if defined(_WIN32)
@@ -1020,10 +1040,10 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     }
 
     // check for fatal errors
-    if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
+    if ((httpio->proxyurl.size() && !httpio->proxyhost.size() && req->method != METHOD_NONE) //malformed proxy string
             || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
     {
-        if(!httpio->proxyinflight)
+        if (!httpio->proxyinflight || req->method == METHOD_NONE)
         {
             req->status = REQ_FAILURE;
             httpio->statechange = true;
@@ -1065,7 +1085,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
         // if there is no proxy or we already have the IP of the proxy, send the request.
         // otherwise, queue the request until we get the IP of the proxy
-        if (!httpio->proxyurl.size() || httpio->proxyip.size())
+        if (!httpio->proxyurl.size() || httpio->proxyip.size() || req->method == METHOD_NONE)
         {
             send_request(httpctx);
         }
@@ -1164,17 +1184,34 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpio->statechange = true;
         return;
     }
-
+    
     CURL* curl;
     if ((curl = curl_easy_init()))
     {
-        curl_easy_setopt(curl, CURLOPT_POST, 1);
+        switch (req->method)
+        {
+        case METHOD_POST:
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
+            break;
+        case METHOD_GET:
+            curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+            break;
+        case METHOD_NONE:
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+            break;
+        }
+
+        if (req->timeoutms)
+        {
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, req->timeoutms);
+        }
+
         curl_easy_setopt(curl, CURLOPT_URL, httpctx->posturl.c_str());
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
         curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SEEKFUNCTION, seek_data);
         curl_easy_setopt(curl, CURLOPT_SEEKDATA, (void*)req);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
@@ -1196,24 +1233,45 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
-        curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
-        curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
-#else
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        if (!MegaClient::disablepkp)
+        if (!MegaClient::disablepkp && req->protect)
         {
-            if (!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
+        #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
+            if (curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY,
+                  !memcmp(req->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size())
+                    ? "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" //API 1
+                      "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="  //API 2
+                    : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
+                       || !memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
+                                 ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
+                                 : "") ==  CURLE_OK)
             {
-                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "g.api.mega.co.nz.der");
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+                if (httpio->pkpErrors)
+                {
+                    curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
+                }
             }
             else
+        #endif
             {
-                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "unknown_server.der");
+            #ifdef USE_OPENSSL
+                curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
+                curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req);
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
+            #else
+                LOG_fatal << "cURL built without support for public key pinning. Aborting.";
+                exit(EXIT_FAILURE);
+            #endif
             }
         }
-#endif
+        else
+        {
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+            if (MegaClient::disablepkp)
+            {
+                LOG_warn << "Public key pinning disabled.";
+            }
+        }
 
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
@@ -1417,7 +1475,7 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
         {
             *port = 80;
         }
-        else if(!scheme->compare(0, 5, "socks"))
+        else if (!scheme->compare(0, 5, "socks"))
         {
             *port = 1080;
         }
@@ -1463,7 +1521,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->ares_pending = 0;
-    httpctx->d = (req->type == REQ_JSON) ? API : ((data ? len : req->out->size()) ? PUT : GET);
+    httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;    
 
     bool validrequest = true;
@@ -1493,7 +1551,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (reset)
     {
-        LOG_err << "Error in c-ares. Reinitializing...";
+        LOG_debug << "Error in c-ares. Reinitializing...";
         reset = false;
         ares_destroy(ares);
         struct ares_options options;
@@ -1556,7 +1614,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
-    if (proxyip.size())
+    if (proxyip.size() && req->method != METHOD_NONE)
     {
         // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";
@@ -1779,11 +1837,91 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (msg->msg == CURLMSG_DONE)
             {
+                CURLcode errorCode = msg->data.result;
+                if (errorCode != CURLE_OK)
+                {
+                    LOG_debug << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+
+                #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
+                    if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
+                    {
+                        pkpErrors++;
+                        LOG_warn << "Invalid public key?";
+
+                        if (pkpErrors == 3)
+                        {
+                            pkpErrors = 0;
+
+                            LOG_err << "Invalid public key. Possible MITM attack!!";
+                            req->sslcheckfailed = true;
+
+                            struct curl_certinfo *ci;
+                            if (curl_easy_getinfo(msg->easy_handle, CURLINFO_CERTINFO, &ci) == CURLE_OK)
+                            {
+                                LOG_warn << "Fake SSL certificate data:";
+                                for (int i = 0; i < ci->num_of_certs; i++)
+                                {
+                                    struct curl_slist *slist = ci->certinfo[i];
+                                    while (slist)
+                                    {
+                                        LOG_warn << i << ": " << slist->data;
+                                        if (i == 0 && !memcmp("Issuer:", slist->data, 7))
+                                        {
+                                            const char *issuer = NULL;
+                                            if ((issuer = strstr(slist->data, "CN = ")))
+                                            {
+                                                issuer += 5;
+                                            }
+                                            else if ((issuer = strstr(slist->data, "CN=")))
+                                            {
+                                                issuer += 3;
+                                            }
+
+                                            if (issuer)
+                                            {
+                                                req->sslfakeissuer = issuer;
+                                            }
+                                        }
+                                        slist = slist->next;
+                                    }
+                                }
+
+                                if (req->sslfakeissuer.size())
+                                {
+                                    LOG_debug << "Fake certificate issuer: " << req->sslfakeissuer;
+                                }
+                            }
+                        }
+                    }
+                #endif
+                }
+                else if (req->protect)
+                {
+                    pkpErrors = 0;
+                }
+
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
                 LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
                 if (req->httpstatus)
                 {
+                    if (req->method == METHOD_NONE)
+                    {
+                        char *ip = NULL;
+                        CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+                        if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &ip) == CURLE_OK
+                              && ip && !strstr(httpctx->hostip.c_str(), ip))
+                        {
+                            LOG_err << "cURL has changed the original IP! " << httpctx ->hostip << " -> " << ip;
+                            req->in = strstr(ip, ":") ? (string("[") + ip + "]") : string(ip);
+                        }
+                        else
+                        {
+                            req->in = httpctx->hostip;
+                        }
+                        req->httpstatus = 200;
+                    }
+                    
                     if (req->binary)
                     {
                         LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
@@ -2251,7 +2389,7 @@ int CurlHttpIO::upload_timer_callback(CURLM *multi, long timeout_ms, void *userp
     return timer_callback(multi, timeout_ms, userp, PUT);
 }
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
 CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 {
     SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, req);
@@ -2302,14 +2440,14 @@ const BIGNUM *RSA_get0_d(const RSA *rsa)
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 {
     HttpReq *request = (HttpReq *)req;
+    CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
     EVP_PKEY* evp;
-    static int errors = 0;
     int ok = 0;
 
-    if (MegaClient::disablepkp || !request->protect)
+    if (MegaClient::disablepkp)
     {
-        LOG_debug << "Public key pinning disabled. General: " << MegaClient::disablepkp << " Request:" << request->protect;
+        LOG_warn << "Public key pinning disabled.";
         return 1;
     }
 
@@ -2320,8 +2458,11 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         {
             BN_bn2bin(RSA_get0_n(EVP_PKEY_get0_RSA(evp)), buf);
 
-            if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
-                    (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
+            if ((!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size())
+                    && (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
+                || ((!memcmp(request->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
+                     || !memcmp(request->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
+                    && !memcmp(buf, CHATSSLMODULUS, sizeof CHATSSLMODULUS - 1)))
             {
                 BN_bn2bin(RSA_get0_e(EVP_PKEY_get0_RSA(evp)), buf);
 
@@ -2350,12 +2491,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
     if (!ok)
     {
-        errors++;
+        httpio->pkpErrors++;
         LOG_warn << "Invalid public key?";
 
-        if (errors == 3)
+        if (httpio->pkpErrors == 3)
         {
-            errors = 0;
+            httpio->pkpErrors = 0;
 
             LOG_err << "Invalid public key. Possible MITM attack!!";
             request->sslcheckfailed = true;
@@ -2367,10 +2508,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             request->sslfakeissuer.resize(len > 0 ? len : 0);
             LOG_debug << "Fake certificate issuer: " << request->sslfakeissuer;
         }
-    }
-    else
-    {
-        errors = 0;
     }
 
     return ok;

@@ -139,6 +139,8 @@ const char* errorstring(error e)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         default:
             return "Unknown error";
     }
@@ -2020,7 +2022,7 @@ static void process_line(char* l)
                 cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
-                cout << "      reload" << endl;
+                cout << "      reload [nocache]" << endl;
                 cout << "      logout" << endl;
                 cout << "      locallogout" << endl;
                 cout << "      symlink" << endl;
@@ -3848,9 +3850,15 @@ static void process_line(char* l)
                     {
                         cout << "Reloading account..." << endl;
 
+                        bool nocache = false;
+                        if (words.size() == 2 && words[1] == "nocache")
+                        {
+                            nocache = true;
+                        }
+
                         cwd = UNDEF;
                         client->cachedscsn = UNDEF;
-                        client->fetchnodes();
+                        client->fetchnodes(nocache);
 
                         return;
                     }
@@ -4726,6 +4734,26 @@ void DemoApp::nodes_updated(Node** n, int count)
 void DemoApp::nodes_current()
 {
     LOG_debug << "Nodes current.";
+}
+
+void DemoApp::account_updated()
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
+    }
+    else
+    {
+        LOG_debug << "Account has been upgraded/downgraded.";
+    }
+}
+
+void DemoApp::notify_confirmation(const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
