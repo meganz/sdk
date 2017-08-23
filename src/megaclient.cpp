@@ -2183,12 +2183,14 @@ void MegaClient::exec()
 // returns true if an engine-relevant event has occurred, false otherwise
 int MegaClient::wait()
 {
-    int x = preparewait();
-    if (x)
+    int r = preparewait();
+    if (r)
     {
-        return x;
+        return r;
     }
-    return dowait();
+    r |= dowait();
+    r |= checkevents();
+    return r;
 }
 
 int MegaClient::preparewait()
@@ -2407,12 +2409,13 @@ int MegaClient::preparewait()
 
 int MegaClient::dowait()
 {
-    int r = waiter->wait();
+    return waiter->wait();
+}
 
-    // process results
-    r |= httpio->checkevents(waiter);
+int MegaClient::checkevents()
+{
+    int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
-
     return r;
 }
 
@@ -8351,6 +8354,11 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
     }
 }
 
+void MegaClient::querytransferquota(m_off_t size)
+{
+    reqs.add(new CommandQueryTransferQuota(this, size));
+}
+
 // export node link
 error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 {
@@ -9502,11 +9510,7 @@ void MegaClient::updateputs()
     }
 }
 
-// check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node), return
-// EEXIST otherwise
-// (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -9547,7 +9551,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 return API_EEXIST;
             }
         }
-        
+
         if (n->inshare && !inshare)
         {
             // we need FULL access to sync
@@ -9584,6 +9588,29 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         }
     }
 
+    if (isinshare)
+    {
+        *isinshare = inshare;
+    }
+    return API_OK;
+#else
+    return API_EINCOMPLETE;
+#endif
+}
+
+// check sync path, add sync if folder
+// disallow nested syncs (there is only one LocalNode pointer per node)
+// (FIXME: perform the same check for local paths!)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+{
+#ifdef ENABLE_SYNC
+    bool inshare = false;
+    error e = isnodesyncable(remotenode, &inshare);
+    if (e)
+    {
+        return e;
+    }
+
     if (rootpath->size() >= fsaccess->localseparator.size()
      && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
@@ -9599,8 +9626,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     FileAccess* fa = fsaccess->newfileaccess();
-    error e;
-
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
@@ -10241,14 +10266,14 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                     int missingattr = 0;
 
                                     // check for missing imagery
-                                    if (!ll->node->hasfileattribute(GfxProc::THUMBNAIL120X120))
+                                    if (!ll->node->hasfileattribute(GfxProc::THUMBNAIL))
                                     {
-                                        missingattr |= 1 << GfxProc::THUMBNAIL120X120;
+                                        missingattr |= 1 << GfxProc::THUMBNAIL;
                                     }
 
-                                    if (!ll->node->hasfileattribute(GfxProc::PREVIEW1000x1000))
+                                    if (!ll->node->hasfileattribute(GfxProc::PREVIEW))
                                     {
-                                        missingattr |= 1 << GfxProc::PREVIEW1000x1000;
+                                        missingattr |= 1 << GfxProc::PREVIEW;
                                     }
 
                                     if (missingattr && checkaccess(ll->node, OWNER))
@@ -10301,11 +10326,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         ll->getlocalpath(&lpath);
                         string stream = lpath;
                         stream.append((char *)L":$CmdTcID:$DATA", 30);
-                        if(f->fopen(&stream))
+                        if (f->fopen(&stream))
                         {
                             LOG_warn << "COMODO detected";
                             HKEY hKey;
-                            if(RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
                                             L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
                                             0,
                                             KEY_QUERY_VALUE,
@@ -10313,7 +10338,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             {
                                 DWORD value = 0;
                                 DWORD size = sizeof(value);
-                                if(RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
                                 {
                                     if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
                                     {
@@ -10328,6 +10353,15 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                 RegCloseKey(hKey);
                             }
                         }
+
+                        lpath.append((char *)L":OECustomProperty", 34);
+                        if (f->fopen(&lpath))
+                        {
+                            LOG_warn << "Windows Search detected";
+                            delete f;
+                            continue;
+                        }
+
                         delete f;
                     }
 #endif

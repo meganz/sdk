@@ -1422,6 +1422,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener = NULL);
+        void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
@@ -1589,6 +1590,7 @@ class MegaApiImpl : public MegaApp
         bool isSyncable(const char *path, long long size);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
+        int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
@@ -1929,6 +1931,7 @@ protected:
         // account credentials, properties and history
         virtual void account_details(AccountDetails*,  bool, bool, bool, bool, bool, bool);
         virtual void account_details(AccountDetails*, error);
+        virtual void querytransferquota_result(int);
 
         virtual void setattr_result(handle, error);
         virtual void rename_result(handle, error);

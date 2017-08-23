@@ -966,6 +966,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Invalid application key";
         case API_ESSL:
             return "SSL verification failed";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1789,6 +1791,11 @@ void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
 }
 
+void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
+{
+    pImpl->queryTransferQuota(size, listener);
+}
+
 void MegaApi::getPricing(MegaRequestListener *listener)
 {
     pImpl->getPricing(listener);
@@ -2288,6 +2295,11 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
+}
+
+int MegaApi::isNodeSyncable(MegaNode *node)
+{
+    return pImpl->isNodeSyncable(node);
 }
 
 void MegaApi::setExcludedNames(vector<string> *excludedNames)

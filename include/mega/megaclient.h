@@ -197,6 +197,7 @@ public:
     // splitted implementation of wait() for a better thread management
     int preparewait();
     int dowait();
+    int checkevents();
 
     // abort exponential backoff
     bool abortbackoff(bool = true);
@@ -276,6 +277,9 @@ public:
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
+
+    // check if the available bandwidth quota is enough to transfer an amount of bytes
+    void querytransferquota(m_off_t size);
 
     // update node attributes
     error setattr(Node*, const char* prevattr = NULL);
@@ -384,6 +388,7 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
+    error isnodesyncable(Node*, bool* = NULL);
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 

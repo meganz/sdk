@@ -88,8 +88,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
     this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
-    this->thumbnailAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::THUMBNAIL120X120) != 0);
-    this->previewAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::PREVIEW1000x1000) != 0);
+    this->thumbnailAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::THUMBNAIL) != 0);
+    this->previewAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::PREVIEW) != 0);
     this->tag = 0;
     this->isPublicNode = ispublic;
     this->outShares = false;
@@ -981,6 +981,26 @@ bool MegaApiImpl::is_syncable(long long size)
     }
 
     return true;
+}
+
+int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
+{
+    if (!megaNode)
+    {
+        return MegaError::API_EARGS;
+    }
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (!node)
+    {
+        sdkMutex.unlock();
+        return MegaError::API_ENOENT;
+    }
+
+    error e = client->isnodesyncable(node);
+    sdkMutex.unlock();
+    return e;
 }
 
 bool MegaApiImpl::isIndexing()
@@ -2813,6 +2833,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_QUERY_GELB: return "QUERY_GELB";
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
+        case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
     }
     return "UNKNOWN";
 }
@@ -4607,6 +4628,9 @@ void MegaApiImpl::loop()
         if (!r)
         {
             r = client->dowait();
+            sdkMutex.lock();
+            r |= client->checkevents();
+            sdkMutex.unlock();
         }
 
         if (r & Waiter::NEEDEXEC)
@@ -4783,32 +4807,32 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
-    getNodeAttribute(node, GfxProc::THUMBNAIL120X120, dstFilePath, listener);
+    getNodeAttribute(node, GfxProc::THUMBNAIL, dstFilePath, listener);
 }
 
 void MegaApiImpl::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
 {
-    cancelGetNodeAttribute(node, GfxProc::THUMBNAIL120X120, listener);
+    cancelGetNodeAttribute(node, GfxProc::THUMBNAIL, listener);
 }
 
 void MegaApiImpl::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-    setNodeAttribute(node, GfxProc::THUMBNAIL120X120, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::THUMBNAIL, srcFilePath, listener);
 }
 
 void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
-    getNodeAttribute(node, GfxProc::PREVIEW1000x1000, dstFilePath, listener);
+    getNodeAttribute(node, GfxProc::PREVIEW, dstFilePath, listener);
 }
 
 void MegaApiImpl::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
 {
-    cancelGetNodeAttribute(node, GfxProc::PREVIEW1000x1000, listener);
+    cancelGetNodeAttribute(node, GfxProc::PREVIEW, listener);
 }
 
 void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-    setNodeAttribute(node, GfxProc::PREVIEW1000x1000, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::PREVIEW, srcFilePath, listener);
 }
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -5147,6 +5171,14 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 	request->setNumDetails(numDetails);
 
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryTransferQuota(long long size, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_TRANSFER_QUOTA, listener);
+    request->setNumber(size);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -6566,8 +6598,8 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL120X120][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL120X120][1], &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1], &localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -6589,8 +6621,8 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW1000x1000][0],
-            GfxProc::dimensions[GfxProc::PREVIEW1000x1000][1], &localDstPath);
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
+            GfxProc::dimensions[GfxProc::PREVIEW][1], &localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -10524,18 +10556,25 @@ void MegaApiImpl::openfilelink_result(error result)
 
 // the requested link was opened successfully
 // (it is the application's responsibility to delete n!)
-void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string*, int)
+void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string* fa, int)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
 
-	if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
-	{
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK)
+                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)))
+    {
+        return;
+    }
+
+    if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
+    {
         fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
-		return;
-	}
+        return;
+    }
 
     // no key provided --> check only that the nodehandle is valid
     if (!key && (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE))
@@ -10545,7 +10584,6 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
 
     string attrstring;
-    string fileattrstring;
     string fileName;
     string keystring;
     string fingerprint;
@@ -10560,7 +10598,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-    if(buf)
+    if (buf)
     {
         JSON json;
         nameid name;
@@ -10569,21 +10607,32 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
         json.begin((char*)buf+5);
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        {
             JSON::unescape(t);
+        }
 
         delete[] buf;
 
         attr_map::iterator it;
         it = attrs.map.find('n');
-        if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
-        else if (!it->second.size()) fileName = "BLANK";
-        else fileName = it->second.c_str();
+        if (it == attrs.map.end())
+        {
+            fileName = "CRYPTO_ERROR";
+        }
+        else if (!it->second.size())
+        {
+            fileName = "BLANK";
+        }
+        else
+        {
+            fileName = it->second.c_str();
+        }
 
         it = attrs.map.find('c');
-        if(it != attrs.map.end())
+        if (it != attrs.map.end())
         {
             FileFingerprint ffp;
-            if(ffp.unserializefingerprint(&it->second))
+            if (ffp.unserializefingerprint(&it->second))
             {
                 mtime = ffp.mtime;
 
@@ -10607,29 +10656,29 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setFlag(true);
     }
 
-	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
-	{
-		NewNode* newnode = new NewNode[1];
+    if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
+    {
+        NewNode* newnode = new NewNode[1];
 
-		// set up new node as folder node
-		newnode->source = NEW_PUBLIC;
-		newnode->type = FILENODE;
-		newnode->nodehandle = ph;
+        // set up new node as folder node
+        newnode->source = NEW_PUBLIC;
+        newnode->type = FILENODE;
+        newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
+        newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
         newnode->attrstring = new string(*a);
 
-		// add node
+        // add node
         requestMap.erase(request->getTag());
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
         client->putnodes(request->getParentHandle(), newnode, 1);
-	}
+    }
 	else
-	{
+    {
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
-                                                           &fileattrstring, fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
+                                                           fa, fingerprint.size() ? fingerprint.c_str() : NULL, INVALID_HANDLE);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
@@ -10692,6 +10741,18 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
     fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::querytransferquota_result(int code)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_TRANSFER_QUOTA)) return;
+
+    // pre-warn about a possible overquota for codes 2 and 3, like in the webclient
+    request->setFlag((code == 2 || code == 3) ? true : false);
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 void MegaApiImpl::removecontact_result(error e)
@@ -11916,42 +11977,167 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
 {
-    if(i->type < j->type) return 0;
-    if(i->type > j->type) return 1;
-
-    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 1;
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+    {
+        return 1;
+    }
 	return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
-    if(i->type < j->type) return 1;
-    if(i->type > j->type) return 0;
-    if(naturalsorting_compare(i->displayname(), j->displayname())<=0) return 0;
+    if (i->type < j->type)
+    {
+        return 1;
+    }
+    if (i->type > j->type)
+    {
+        return 0;
+    }
+    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+    {
+        return 0;
+    }
     return 1;
 }
 
-bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
-{ if(i->size < j->size) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorSizeDESC (Node *i, Node *j)
-{ if(i->size < j->size) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->size < j->size)
+    {
+        return 1;
+    }
+    return 0;
+}
 
-bool MegaApiImpl::nodeComparatorCreationASC  (Node *i, Node *j)
-{ if(i->ctime < j->ctime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorCreationDESC  (Node *i, Node *j)
-{ if(i->ctime < j->ctime) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->size < j->size)
+    {
+        return 0;
+    }
+    return 1;
+}
 
-bool MegaApiImpl::nodeComparatorModificationASC  (Node *i, Node *j)
-{ if(i->mtime < j->mtime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorModificationDESC  (Node *i, Node *j)
-{ if(i->mtime < j->mtime) return 0; return 1;}
+bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (i->ctime < j->ctime)
+    {
+        return 1;
+    }
+    if (i->ctime > j->ctime)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
 
-bool MegaApiImpl::nodeComparatorAlphabeticalASC  (Node *i, Node *j)
-{ if(strcasecmp(i->displayname(), j->displayname())<=0) return 1; return 0; }
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC  (Node *i, Node *j)
-{ if(strcasecmp(i->displayname(), j->displayname())<=0) return 0; return 1; }
+bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (i->ctime < j->ctime)
+    {
+        return 0;
+    }
+    if (i->ctime > j->ctime)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->mtime < j->mtime)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
+{
+    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i->mtime < j->mtime)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+    {
+        return 0;
+    }
+    return 1;
+}
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
 {
@@ -13532,6 +13718,12 @@ void MegaApiImpl::sendPendingRequests()
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
 		}
+        case MegaRequest::TYPE_QUERY_TRANSFER_QUOTA:
+        {
+            m_off_t size = request->getNumber();
+            client->querytransferquota(size);
+            break;
+        }
 		case MegaRequest::TYPE_CHANGE_PW:
 		{
 			const char* oldPassword = request->getPassword();
@@ -18172,7 +18364,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         web << "<title>MEGA</title>";
 
         //Styles
-        web << "<head><style>"
+        web << "<head><meta charset=\"utf-8\" /><style>"
                ".folder {"
                "padding: 0;"
                "width: 24px;"
@@ -18302,7 +18494,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         string sweb = web.str();
         response << "HTTP/1.1 200 OK\r\n"
-            << "Content-Type: text/html\r\n"
+            << "Content-Type: text/html; charset=utf-8\r\n"
             << "Connection: close\r\n"
             << "Content-Length: " << sweb.size() << "\r\n"
             << "Access-Control-Allow-Origin: *\r\n"

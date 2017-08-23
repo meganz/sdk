@@ -116,7 +116,7 @@ AC_DEFUN([AX_PKG_SWIG],[
                             \+ $available_minor \* 100 \+ $available_patch`
 
                         if test $available_swig_vernum -lt $required_swig_vernum; then
-                                AC_MSG_WARN([SWIG version >= $1 is required.  You have $swig_version.])
+                                AC_MSG_WARN([SWIG version >= $1 might be required.  You have $swig_version.])
                                 SWIG=''
                                 m4_ifval([$3],[$3],[])
                         else
