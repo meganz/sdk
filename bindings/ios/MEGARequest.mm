@@ -22,6 +22,7 @@
 #import "MEGANode+init.h"
 #import "MEGAPricing+init.h"
 #import "MEGAAccountDetails+init.h"
+#import "MEGAAchievementsDetails+init.h"
 
 using namespace mega;
 
@@ -168,6 +169,10 @@ using namespace mega;
 
 - (MEGAPricing *)pricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
+}
+
+- (MEGAAchievementsDetails *)megaAchievementsDetails {
+    return self.megaRequest ? [[MEGAAchievementsDetails alloc] initWithMegaAchievementsDetails:self.megaRequest->getMegaAchievementsDetails() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)transferTag {

@@ -23,7 +23,6 @@
 #import "MEGAChildrenLists.h"
 #import "MEGAChildrenLists+init.h"
 #import "MEGANodeList+init.h"
-#import "megaapi.h"
 
 using namespace mega;
 

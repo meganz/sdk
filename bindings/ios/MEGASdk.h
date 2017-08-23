@@ -37,6 +37,7 @@
 #import "MEGAShareList.h"
 #import "MEGAContactRequestList.h"
 #import "MEGAChildrenLists.h"
+#import "MEGAAchievementsDetails.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
@@ -240,6 +241,12 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * If the MEGASdk object isn't logged in, this property is nil.
  */
 @property (readonly, nonatomic) MEGAUser *myUser;
+
+/**
+ * @brief Returns whether MEGA Achievements are enabled for the open account
+ * YES if enabled, NO otherwise.
+ */
+@property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
 
 #ifdef ENABLE_CHAT
 
@@ -4216,6 +4223,8 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (NSInteger)httpServerGetMaxOutputSize;
 
+#endif
+
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -4244,7 +4253,76 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (void)registeriOSdeviceToken:(NSString *)deviceToken;
 
-#endif
+/**
+ * @brief Get the MEGA Achievements of the account logged in
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always NO
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAchievementsDetails] - Details of the MEGA Achievements of this account
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Get the MEGA Achievements of the account logged in
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always NO
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAchievementsDetails] - Details of the MEGA Achievements of this account
+ *
+ */
+- (void)getMegaAchievements;
+
+/**
+ * @brief Get the list of existing MEGA Achievements
+ *
+ * Similar to [MEGASdk getMegaAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, but not awards or rewards. It can
+ * be used to give an indication of what is available for advertising for unregistered users.
+ *
+ * If the IP address is not achievement enabled, the request will fail with MEGAErrorTypeApiEAccess.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest flag] - Always YES
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMegaAchievementsListWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of existing MEGA Achievements
+ *
+ * Similar to [MEGASdk getMegaAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, but not awards or rewards. It can
+ * be used to give an indication of what is available for advertising for unregistered users.
+ *
+ * If the IP address is not achievement enabled, the request will fail with MEGAErrorTypeApiEAccess.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest flag] - Always YES
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
+ *
+ */
+- (void)getMegaAchievementsList;
 
 #pragma mark - Debug log messages
 
