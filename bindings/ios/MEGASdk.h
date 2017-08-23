@@ -1751,6 +1751,41 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)exportNode:(MEGANode *)node;
 
 /**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime;
+
+/**
  * @brief Stop sharing a file/folder.
  *
  * The associated request type with this request is MEGARequestTypeExport.
