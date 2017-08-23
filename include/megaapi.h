@@ -10118,7 +10118,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaApi::getMegaAchievements - Details of the MEGA Achievements of this account
+         * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -10127,7 +10127,7 @@ class MegaApi
         /**
          * @brief Get the list of existing MEGA Achievements
          *
-         * Simlar to MegaApi::getMegaAchievements, this method returns only the base storage and
+         * Similar to MegaApi::getMegaAchievements, this method returns only the base storage and
          * the details for the different achievement classes, but not awards or rewards. It can
          * be used to give an indication of what is available for advertising for unregistered users.
          *
@@ -10139,7 +10139,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaApi::getMegaAchievements - Details of the list of existing MEGA Achievements
+         * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
          *
          * @param listener MegaRequestListener to track this request
          */
