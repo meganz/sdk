@@ -912,16 +912,15 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
     }
 #endif
 
-    if ((regExp || excludedPaths.size()) && localpath->size() > (sync->localroot.localname.size() + sync->client->fsaccess->localseparator.size()))
+    if (regExp || excludedPaths.size())
     {             
-        string relpath = localpath->substr(sync->localroot.localname.size() + fsAccess->localseparator.size());
-        string utf8relpath;
-        fsAccess->local2path(&relpath, &utf8relpath);
-        const char* relPath = utf8relpath.c_str();
+        string utf8path;
+        fsAccess->local2path(localpath, &utf8path);
+        const char* path = utf8path.c_str();
 
         for (unsigned int i = 0; i < excludedPaths.size(); i++)
         {
-            if (WildcardMatch(relPath, excludedPaths[i].c_str()))
+            if (WildcardMatch(path, excludedPaths[i].c_str()))
             {
                 return false;
             }
@@ -6296,6 +6295,12 @@ void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
     {
         string path = excludedPaths->at(i);
         fsAccess->normalize(&path);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+        {
+            path.insert(0, "\\\\?\\");
+        }
+#endif
         this->excludedPaths.push_back(path);
         LOG_debug << "Excluded path: " << path;
     }
