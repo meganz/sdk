@@ -1342,6 +1342,11 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     if (path->at(0) == '/')
     {
         *absolutepath = *path;
+        char canonical[PATH_MAX];
+        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        {
+            absolutepath->assign(canonical);
+        }
         return true;
     }
     else
