@@ -8070,7 +8070,7 @@ class MegaApi
         * @param sync Synchronization whose rules want to be updated
         * @param regExp List of regular expressions (rules) to exclude file / folders
         */
-        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
 
         /**

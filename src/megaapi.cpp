@@ -2311,9 +2311,9 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 }
 
 #ifdef USE_PCRE
-void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
+void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
-    pImpl->setRegularExpressions(sync, regExp);
+    pImpl->setExcludedRegularExpressions(sync, regExp);
 }
 #endif
 #endif

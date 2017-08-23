@@ -6317,7 +6317,7 @@ void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
     syncUpperSizeLimit = limit;
 }
 
-void MegaApiImpl::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
+void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
     if (!sync)
     {
