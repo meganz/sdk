@@ -8475,9 +8475,9 @@ error MegaClient::openfilelink(const char* link, int op)
  */
 char *MegaClient::decryptlink(const char *link, const char *pwd)
 {
-    if (!pwd)
+    if (!pwd || !link)
     {
-        LOG_err << "Empty password to decrypt link";
+        LOG_err << "Empty link or empty password to decrypt link";
         return NULL;
     }
 

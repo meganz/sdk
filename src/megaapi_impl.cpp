@@ -2740,6 +2740,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
+        case TYPE_DECRYPT_LINK: return "DECRYPT_LINK";
     }
     return "UNKNOWN";
 }
@@ -4703,11 +4704,10 @@ void MegaApiImpl::importFileLink(const char* megaFileLink, MegaNode *parent, Meg
     waiter->notify();
 }
 
-void MegaApiImpl::importFileLinkWithPassword(const char *megaFileLink, MegaNode *parent, const char *password, MegaRequestListener *listener)
+void MegaApiImpl::decryptPasswordProtectedLink(const char *link, const char *password, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_IMPORT_LINK, listener);
-    if(parent) request->setParentHandle(parent->getHandle());
-    request->setLink(megaFileLink);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DECRYPT_LINK, listener);
+    request->setLink(link);
     request->setPassword(password);
     requestQueue.push(request);
     waiter->notify();
@@ -13460,8 +13460,7 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_GET_PUBLIC_NODE:
 		{
 			Node *node = client->nodebyhandle(request->getParentHandle());
-			const char* megaFileLink = request->getLink();
-            const char* password = request->getPassword();
+            const char* megaFileLink = request->getLink();
 
             if (!megaFileLink)
             {
@@ -13474,15 +13473,23 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (password && !(megaFileLink = client->decryptlink(megaFileLink, password)))
-            {
-                e = API_EARGS;
-                break;
-            }
-
             e = client->openfilelink(megaFileLink, 1);
 			break;
 		}
+        case MegaRequest::TYPE_DECRYPT_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+
+            const char *plainLink = client->decryptlink(link, pwd);
+            e = plainLink ? API_OK : API_EARGS;
+
+            request->setText(plainLink);
+            delete [] plainLink;
+
+            fireOnRequestFinish(request, e);
+            break;
+        }
 		case MegaRequest::TYPE_EXPORT:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());
