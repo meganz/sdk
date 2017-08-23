@@ -433,6 +433,16 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+
+    /**
+     * @brief Verify the plain text against a MAC, using the
+     * provided key at initialization.
+     *
+     * @param plain String containing the data to be verified
+     * @param mac String containing the mac to check
+     * @return True if success, false otherwise.
+     */
+    bool verify(const string *plain, const string *mac);
 };
 
 /**

@@ -8475,10 +8475,17 @@ error MegaClient::openfilelink(const char* link, int op)
  */
 char *MegaClient::decryptlink(const char *link, const char *pwd)
 {
+    if (!pwd)
+    {
+        LOG_err << "Empty password to decrypt link";
+        return NULL;
+    }
+
     const char* ptr = NULL;
     const char* end = NULL;
     if (!(ptr = strstr(link, "#P!")))
     {
+        LOG_err << "This link is not password protected";
         return NULL;
     }
     ptr += 3;
@@ -8500,7 +8507,7 @@ char *MegaClient::decryptlink(const char *link, const char *pwd)
     int algorithm = *ptr++;
     if (algorithm != 1)
     {
-        LOG_err << "The algorithm this link was encrypted with is not supported";
+        LOG_err << "The algorithm used to encrypt this link is not supported";
         return NULL;
     }
 
@@ -8511,61 +8518,69 @@ char *MegaClient::decryptlink(const char *link, const char *pwd)
         return NULL;
     }
 
-    size_t keyLen = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    if ((ptr + 38 + keyLen + 32) > end)
+    size_t encKeyLen = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+    if ((ptr + 38 + encKeyLen + 32) > end)
     {
         LOG_err << "This link is too short";
         return NULL;
     }
 
     handle ph = MemAccess::get<handle>(ptr);
-    ptr += sizeof ph;
+    ptr += 6;
 
     byte salt[32];
     memcpy((char*)salt, ptr, 32);
     ptr += sizeof salt;
 
-    byte encKey[FILENODEKEYLENGTH];
-    memcpy((char*)&encKey, ptr, keyLen);
-    ptr += keyLen;
+    byte *encKey = new byte[encKeyLen];
+    memcpy(encKey, ptr, encKeyLen);
+    ptr += encKeyLen;
 
     byte hmac[32];
     memcpy((char*)&hmac, ptr, 32);
     ptr += 32;
 
-    // derive MAC key with salt+pwd
+    // Derive MAC key with salt+pwd
     byte macKey[64];
-    string pwdBin;
-    Base64::atob(pwd, pwdBin);
     unsigned int iterations = 100000;
     PBKDF2_HMAC_SHA512 pbkdf2;
     pbkdf2.deriveKey(macKey, sizeof macKey,
                      (byte*) pwd, strlen(pwd),
-//                     (byte*) pwdBin.data(), pwdBin.size(),
-                     salt, sizeof salt, iterations);
+                     salt, sizeof salt,
+                     iterations);
 
-    // calculate HMAC with macKey(alg, f/F, ph, salt, encKey)
-    byte resHmac[32];
-
+    // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+    string payload((const char*)linkBin, 40 + encKeyLen);
+    string hmacStr((const char*)hmac, 32);
     HMACSHA256 hmacsha256(macKey + 32, 32);
-    hmacsha256.add(linkBin, 40 + keyLen);
-    hmacsha256.get(resHmac);
-
-    // compare resulting hmac
-    if (memcmp(hmac, resHmac, 32))
+    if (hmacsha256.verify(&payload, &hmacStr))
     {
+        LOG_err << "HMAC verification failed. Possible tampered or corrupted link";
         return NULL;
     }
 
-    // decrypt encKey using X-OR with first 32 bytes of macKey
+    // Decrypt encKey using X-OR with first 32 bytes of macKey
     byte key[FILENODEKEYLENGTH];
-
+    for (unsigned int i = 0; i < encKeyLen; i++)
+    {
+        key[i] = encKey[i] ^ macKey[i];
+    }
 
     // generate plain link
+    char phStr[9];
+    char keyStr[FILENODEKEYLENGTH*4/3+3];
 
+    Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
+    Base64::btoa(key, encKeyLen, keyStr);
 
+    string linkStr = "https://mega.nz/#";
+    linkStr += (isFolder ? "F" : "");
+    linkStr += "!";
+    linkStr += phStr;
+    linkStr += "!";
+    linkStr += keyStr;
 
-    return NULL;
+    return strdup(linkStr.c_str());
 }
 
 sessiontype_t MegaClient::loggedin()

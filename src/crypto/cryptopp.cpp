@@ -652,7 +652,6 @@ void HashCRC32::get(byte* out)
 HMACSHA256::HMACSHA256(const byte *key, size_t length)
     : hmac(key, length)
 {
-
 }
 
 void HMACSHA256::add(const byte *data, unsigned len)
@@ -663,6 +662,23 @@ void HMACSHA256::add(const byte *data, unsigned len)
 void HMACSHA256::get(byte *out)
 {
     hmac.Final(out);
+}
+
+bool HMACSHA256::verify(const string *plain, const string *mac)
+{
+    const int flags = HashVerificationFilter::THROW_EXCEPTION | HashVerificationFilter::HASH_AT_END;
+    try
+    {
+        StringSource(*plain + *mac, true,
+            new HashVerificationFilter(hmac, NULL, flags)
+        ); // StringSource
+
+        return true;
+    }
+    catch(const CryptoPP::Exception& e)
+    {
+        return false;
+    }
 }
 
 PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
