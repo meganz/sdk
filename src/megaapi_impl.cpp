@@ -6441,6 +6441,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     {
         if (!is_syncable(size))
         {
+            sdkMutex.unlock();
             return false;
         }
     }
