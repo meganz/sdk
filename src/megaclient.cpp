@@ -8550,16 +8550,17 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
                      iterations);
 
     // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-    string payload((char*)linkBin, 40 + encKeyLen);
-    string hmacStr((char*)hmac, 32);
     HMACSHA256 hmacsha256(derivedKey + 32, 32);
-    if (!hmacsha256.verify(&payload, &hmacStr))
+    hmacsha256.add(linkBin, 40 + encKeyLen);
+    byte hmacComputed[32];
+    hmacsha256.get(hmacComputed);
+    if (memcmp(hmac, hmacComputed, 32))
     {
         LOG_err << "HMAC verification failed. Possible tampered or corrupted link";
         return API_EKEY;
     }
 
-    // Decrypt encKey using X-OR with first 32 bytes of macKey
+    // Decrypt encKey using X-OR with first 16/32 bytes of derivedKey
     byte key[FILENODEKEYLENGTH];
     for (unsigned int i = 0; i < encKeyLen; i++)
     {
@@ -8677,16 +8678,12 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
     payload.append((char*) &ph, NODEHANDLE);
     payload.append((char*) salt, sizeof salt);
     payload.append((char*) encKey, sizeof encKey);  //todo: probar a darle la vuelta a32_to_ab
-    payload.resize(payload.size()+2);
 
     // Prepare HMAC
-    string hmac;
     HMACSHA256 hmacsha256(derivedKey + 32, 32);
-    if (!hmacsha256.sign(&payload, &hmac))
-    {
-        LOG_err << "Failed to create HMAC for public link";
-        return API_EINTERNAL;
-    }
+    hmacsha256.add((const byte*)payload.data(), payload.size());
+    byte hmac[32];
+    hmacsha256.get(hmac);
 
     // Prepare encrypted link
     string encLinkBytes;
@@ -8695,7 +8692,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
     encLinkBytes.append((char*) &ph, NODEHANDLE);
     encLinkBytes.append((char*) salt, sizeof salt);
     encLinkBytes.append((char*) encKey, sizeof encKey);
-    encLinkBytes.append((char*) hmac.data(), hmac.size());
+    encLinkBytes.append((char*) hmac, sizeof hmac);
 
     string encLink;
     Base64::btoa(encLinkBytes, encLink);
