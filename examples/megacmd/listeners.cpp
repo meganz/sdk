@@ -23,6 +23,7 @@
 #include "configurationmanager.h"
 #include "megacmdutils.h"
 
+#define PROGRESS_COMPLETE -2
 
 using namespace mega;
 
@@ -275,6 +276,7 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                 delete node;
             }
 #endif
+            informProgressUpdate(PROGRESS_COMPLETE, request->getTotalBytes(), this->clientID, "Fetching nodes");
 
             break;
         }
@@ -405,10 +407,7 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
     }
 
     LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
-    if (!e || e->getErrorCode() == MegaError::API_OK )
-    {
-        informTransferUpdate(transfer, this->clientID);
-    }
+    informProgressUpdate(PROGRESS_COMPLETE, transfer->getTotalBytes(), clientID);
 
 }
 
@@ -478,6 +477,7 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
 
     informTransferUpdate(transfer, this->clientID);
 }
+
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
 {

@@ -51,6 +51,9 @@ enum
 
 };
 
+#define PROGRESS_COMPLETE -2
+#define SPROGRESS_COMPLETE "-2"
+
 #ifndef _WIN32
 #include <signal.h>
 #include <sys/types.h>
@@ -209,11 +212,26 @@ void statechangehandle(string statestring)
 
             if (title.size())
             {
-                printprogress(charstoll(received.c_str()), charstoll(total.c_str()),title.c_str());
+                if (received==SPROGRESS_COMPLETE)
+                {
+                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()),title.c_str());
+
+                }
+                else
+                {
+                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()),title.c_str());
+                }
             }
             else
             {
-                printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+                if (received==SPROGRESS_COMPLETE)
+                {
+                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()));
+                }
+                else
+                {
+                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+                }
             }
 
         }
@@ -409,7 +427,7 @@ void printprogress(long long completed, long long total, const char *title)
 
     float oldpercent = percentDowloaded;
     percentDowloaded = completed * 1.0 / total * 100.0;
-    if (alreadyFinished || ( ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) ) )
+    if (completed != PROGRESS_COMPLETE && (alreadyFinished || ( ( percentDowloaded == oldpercent ) && ( oldpercent != 0 ) ) ))
     {
         return;
     }
@@ -423,9 +441,15 @@ void printprogress(long long completed, long long total, const char *title)
     {
         return; // after a 100% this happens
     }
-    if (completed < 0.001 * total)
+    if (completed != PROGRESS_COMPLETE  && completed < 0.001 * total)
     {
         return; // after a 100% this happens
+    }
+    if (completed == PROGRESS_COMPLETE)
+    {
+        alreadyFinished = true;
+        completed = total;
+        percentDowloaded = 100;
     }
     sprintf(aux,"||(%lld/%lld MB: %.2f %%) ", completed / 1024 / 1024, total / 1024 / 1024, percentDowloaded);
     sprintf((char *)outputString.c_str() + cols - strlen(aux), "%s",                         aux);
@@ -434,9 +458,8 @@ void printprogress(long long completed, long long total, const char *title)
         *ptr++ = '#';
     }
 
-    if (percentDowloaded == 100 && !alreadyFinished)
+    if (alreadyFinished)
     {
-        alreadyFinished = true;
         cerr << outputString << endl;
     }
     else

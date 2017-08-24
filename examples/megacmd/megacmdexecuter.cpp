@@ -504,7 +504,7 @@ void MegaCmdExecuter::getPathsMatching(MegaNode *parentNode, deque<string> pathP
 
     if (currentPart == "." || currentPart == "")
     {
-         if (!pathParts.size())
+        if (pathParts.size() == 0  /*&& currentPart == "."*/) //last leave.  // for consistency we also take parent when ended in / even if it's not a folder
          {
              pathsMatching->push_back(pathPrefix+currentPart);
          }
@@ -823,9 +823,8 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
 
     if (currentPart == "." || currentPart == "")
     {
-        if (pathParts.size() == 0 && currentPart == ".") //last leave
+        if (pathParts.size() == 0  /*&& currentPart == "."*/) //last leave.  // for consistency we also take parent when ended in / even if it's not a folder
         {
-            //TODO: consider here currentPart == ""
             if (parentNode)
             {
                 nodesMatching->push_back(parentNode->copy());
@@ -845,7 +844,6 @@ void MegaCmdExecuter::getNodesMatching(MegaNode *parentNode, queue<string> pathP
             MegaNode *newparentNode = api->getNodeByHandle(parentNode->getParentHandle());
             if (!pathParts.size()) //last leave
             {
-                //TODO: consider here currentPart == ""
                 if (newparentNode)
                 {
                     nodesMatching->push_back(newparentNode);
@@ -1090,7 +1088,6 @@ vector <MegaNode*> * MegaCmdExecuter::nodesbypath(const char* ptr, bool usepcre,
         LOG_warn << "Trying to get node whose path is \"\"";
         return nodesMatching;
     }
-
 
     // split path by / or :
     do
