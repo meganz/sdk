@@ -27,6 +27,7 @@ HEADERS += ../../../../examples/megacmd/megacmdshell/megacmdshell.h \
 INCLUDEPATH += ../../../../include
 
 win32{
+    RC_FILE = icon.rc
     QMAKE_LFLAGS += /LARGEADDRESSAWARE
     QMAKE_LFLAGS_WINDOWS += /SUBSYSTEM:WINDOWS,5.01
     QMAKE_LFLAGS_CONSOLE += /SUBSYSTEM:CONSOLE,5.01
