@@ -4713,6 +4713,16 @@ void MegaApiImpl::decryptPasswordProtectedLink(const char *link, const char *pas
     waiter->notify();
 }
 
+void MegaApiImpl::encryptLinkWithPassword(const char *link, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
+    request->setLink(link);
+    request->setPassword(password);
+    request->setFlag(true); // encrypt
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PUBLIC_NODE, listener);
@@ -13485,6 +13495,7 @@ void MegaApiImpl::sendPendingRequests()
             char *result = NULL;
             if (encryptLink)
             {
+                e = client->encryptlink(link, pwd, &result);
             }
             else
             {

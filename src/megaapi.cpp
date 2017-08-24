@@ -1656,6 +1656,11 @@ void MegaApi::decryptPasswordProtectedLink(const char *link, const char *passwor
     pImpl->decryptPasswordProtectedLink(link, password, listener);
 }
 
+void MegaApi::encryptLinkWithPassword(const char *link, const char *password, MegaRequestListener *listener)
+{
+    pImpl->encryptLinkWithPassword(link, password, listener);
+}
+
 void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
     pImpl->getPublicNode(megaFileLink, listener);

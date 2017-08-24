@@ -443,6 +443,9 @@ public:
      * @return True if success, false otherwise.
      */
     bool verify(const string *plain, const string *mac);
+
+
+    bool sign(const string *plain, string *mac);
 };
 
 /**

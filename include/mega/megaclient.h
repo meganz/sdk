@@ -264,8 +264,9 @@ public:
     // the caller takes the ownership of the returned value in decryptedLink parameter
     error decryptlink(const char* link, const char* pwd, char **decryptedLink);
 
+    // encrypt public link with password
     // the caller takes the ownership of the returned value
-    char* decryptlink(const char* link, const char* pwd);
+    error encryptlink(const char* link, const char* pwd, char **encryptedLink);
 
     // change login password
     error changepw(const byte*, const byte*);

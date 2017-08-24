@@ -682,6 +682,26 @@ bool HMACSHA256::verify(const string *plain, const string *mac)
     }
 }
 
+bool HMACSHA256::sign(const string *plain, string *mac)
+{
+    try
+    {
+        StringSource(*plain, true,
+                     new HashFilter(hmac,
+                                    new StringSink(*mac)
+                                    ) // HashFilter
+                     ); // StringSource
+
+        return true;
+    }
+    catch(const CryptoPP::Exception& e)
+    {
+        LOG_err << "Cannot create HMAC-SHA256. Error: " << e.what();
+        return false;
+    }
+}
+
+
 PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
 {
 }

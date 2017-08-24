@@ -8585,6 +8585,128 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
     return API_OK;
 }
 
+error MegaClient::encryptlink(const char *link, const char *pwd, char **encryptedLink)
+{
+    if (!pwd || !link)
+    {
+        LOG_err << "Empty link or empty password to encrypt link";
+        return API_EARGS;
+    }
+
+    const char* ptr = NULL;
+    const char* end = link + strlen(link);
+
+    if (!(ptr = strstr(link, "#")) || ptr >= end)
+    {
+        LOG_err << "Invalid format of public link or incomplete";
+        return API_EARGS;
+    }
+    ptr++;  // skip '#'
+
+    int isFolder;
+    if (*ptr == 'F')
+    {
+        isFolder = true;
+        ptr++;  // skip 'F'
+    }
+    else if (*ptr == '!')
+    {
+        isFolder = false;
+    }
+    else
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+    ptr++;  // skip '!' separator
+
+    if (ptr + 8 >= end)
+    {
+        LOG_err << "Incomplete public link";
+        return API_EINCOMPLETE;
+    }
+
+    handle ph;
+    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) != NODEHANDLE)
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+
+    ptr += 8;   // skip public handle
+
+    if (ptr + 1 >= end || *ptr != '!')
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+    ptr++;  // skip '!' separator
+
+    size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+    byte linkKey[linkKeySize];
+    if ((size_t) Base64::atob(ptr, linkKey, sizeof linkKey) != linkKeySize)
+    {
+        LOG_err << "Invalid encryption key in the public link";
+        return API_EKEY;
+    }
+
+    // Derive MAC key with salt+pwd
+    byte derivedKey[64];
+    byte salt[32];
+    PrnGen::genblock(salt, 32);
+    unsigned int iterations = 100000;
+    PBKDF2_HMAC_SHA512 pbkdf2;
+    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
+                     (byte*) pwd, strlen(pwd),
+                     salt, sizeof salt,
+                     iterations);
+
+    // Prepare encryption key
+    byte encKey[linkKeySize];
+    for (unsigned int i = 0; i < linkKeySize; i++)
+    {
+        encKey[i] = derivedKey[i] ^ linkKey[i];
+    }
+
+    // Preapare payload to derive encryption key
+    byte algorithm = 1;
+    byte type = isFolder ? 0 : 1;
+    string payload;
+    payload.append((char*) &algorithm, sizeof algorithm);
+    payload.append((char*) &type, sizeof type);
+    payload.append((char*) &ph, NODEHANDLE);
+    payload.append((char*) salt, sizeof salt);
+    payload.append((char*) encKey, sizeof encKey);  //todo: probar a darle la vuelta a32_to_ab
+    payload.resize(payload.size()+2);
+
+    // Prepare HMAC
+    string hmac;
+    HMACSHA256 hmacsha256(derivedKey + 32, 32);
+    if (!hmacsha256.sign(&payload, &hmac))
+    {
+        LOG_err << "Failed to create HMAC for public link";
+        return API_EINTERNAL;
+    }
+
+    // Prepare encrypted link
+    string encLinkBytes;
+    encLinkBytes.append((char*) &algorithm, sizeof algorithm);
+    encLinkBytes.append((char*) &type, sizeof type);
+    encLinkBytes.append((char*) &ph, NODEHANDLE);
+    encLinkBytes.append((char*) salt, sizeof salt);
+    encLinkBytes.append((char*) encKey, sizeof encKey);
+    encLinkBytes.append((char*) hmac.data(), hmac.size());
+
+    string encLink;
+    Base64::btoa(encLinkBytes, encLink);
+
+    string result;
+    result.append("https://mega.nz/#P!");
+    result.append(encLink);
+
+    *encryptedLink = strdup(result.c_str());
+
+    return API_OK;
 }
 
 sessiontype_t MegaClient::loggedin()
