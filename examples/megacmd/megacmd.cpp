@@ -1905,10 +1905,10 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "transfers"))
     {
-        os << "Lists or operate with transfers" << endl;
+        os << "List or operate with transfers" << endl;
         os << "If executed without option it will list the first 10 tranfers" << endl;
         os << "Options:" << endl;
-        os << " -c (TAG|-a)" << "\t" << "Cancels transfer with TAG (or all with -a)" << endl;
+        os << " -c (TAG|-a)" << "\t" << "Cancel transfer with TAG (or all with -a)" << endl;
         os << " -p (TAG|-a)" << "\t" << "Pause transfer with TAG (or all with -a)" << endl;
         os << " -r (TAG|-a)" << "\t" << "Resume transfer with TAG (or all with -a)" << endl;
         os << " -only-uploads" << "\t" << "Show/Operate only upload transfers" << endl;
@@ -1961,7 +1961,7 @@ void printAvailableCommands(int extensive = 0)
                     u_int width = getNumberOfCols();
 
                     OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
-                    OUTSTREAM <<  "Usage: " << getHelpStr(validCommandsOrdered.at(i).c_str());
+                    OUTSTREAM <<  getHelpStr(validCommandsOrdered.at(i).c_str());
                     for (u_int j = 0; j< width; j++) OUTSTREAM << "-";
                     OUTSTREAM << endl;
                 }
@@ -2687,11 +2687,16 @@ int main(int argc, char* argv[])
     loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_ERROR);
     loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_INFO);
 
-    if (( argc > 1 ) && !( strcmp(argv[1], "--debug")))
+    string loglevelenv;
+#ifndef _WIN32
+    loglevelenv = (getenv ("MEGACMD_LOGLEVEL") == NULL)?"":getenv ("MEGACMD_LOGLEVEL");
+#endif
+
+    if (!loglevelenv.compare("DEBUG") || (( argc > 1 ) && !( strcmp(argv[1], "--debug"))) )
     {
         loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
     }
-    if (( argc > 1 ) && !( strcmp(argv[1], "--debug-full")))
+    if (!loglevelenv.compare("FULLDEBUG") || (( argc > 1 ) && !( strcmp(argv[1], "--debug-full"))) )
     {
         loggerCMD->setApiLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
         loggerCMD->setCmdLoggerLevel(MegaApi::LOG_LEVEL_DEBUG);
