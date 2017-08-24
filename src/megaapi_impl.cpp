@@ -2740,7 +2740,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
-        case TYPE_DECRYPT_LINK: return "DECRYPT_LINK";
+        case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
     }
     return "UNKNOWN";
 }
@@ -4706,7 +4706,7 @@ void MegaApiImpl::importFileLink(const char* megaFileLink, MegaNode *parent, Meg
 
 void MegaApiImpl::decryptPasswordProtectedLink(const char *link, const char *password, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DECRYPT_LINK, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
     request->setLink(link);
     request->setPassword(password);
     requestQueue.push(request);
@@ -13476,16 +13476,23 @@ void MegaApiImpl::sendPendingRequests()
             e = client->openfilelink(megaFileLink, 1);
 			break;
 		}
-        case MegaRequest::TYPE_DECRYPT_LINK:
+        case MegaRequest::TYPE_PASSWORD_LINK:
         {
             const char *link = request->getLink();
             const char *pwd = request->getPassword();
+            bool encryptLink = request->getFlag();
 
-            const char *plainLink = client->decryptlink(link, pwd);
-            e = plainLink ? API_OK : API_EARGS;
+            char *result = NULL;
+            if (encryptLink)
+            {
+            }
+            else
+            {
+                e = client->decryptlink(link, pwd, &result);
+            }
 
-            request->setText(plainLink);
-            delete [] plainLink;
+            request->setText(result);
+            delete [] result;
 
             fireOnRequestFinish(request, e);
             break;

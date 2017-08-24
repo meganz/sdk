@@ -677,6 +677,7 @@ bool HMACSHA256::verify(const string *plain, const string *mac)
     }
     catch(const CryptoPP::Exception& e)
     {
+        LOG_err << "Cannot verify HMAC-SHA256. Error: " << e.what();
         return false;
     }
 }

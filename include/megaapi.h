@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TYPE_DECRYPT_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -5935,7 +5935,7 @@ class MegaApi
         /**
          * @brief Decrypt password-protected public link
          *
-         * The associated request type with this request is MegaRequest::TYPE_DECRYPT_LINK
+         * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
          * - MegaRequest::getPassword - Returns the password to decrypt the link

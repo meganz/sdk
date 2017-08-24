@@ -261,6 +261,9 @@ public:
     error openfilelink(const char*, int);
 
     // decrypt password-protected public link
+    // the caller takes the ownership of the returned value in decryptedLink parameter
+    error decryptlink(const char* link, const char* pwd, char **decryptedLink);
+
     // the caller takes the ownership of the returned value
     char* decryptlink(const char* link, const char* pwd);
 
