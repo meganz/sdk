@@ -388,7 +388,8 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error isnodesyncable(Node*, bool* = NULL);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections

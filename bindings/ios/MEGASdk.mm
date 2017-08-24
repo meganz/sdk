@@ -710,6 +710,14 @@ using namespace mega;
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
 }
 
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970]);
+}
+
 - (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -884,6 +892,18 @@ using namespace mega;
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
+}
+
+- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)useHttpsOnly:(BOOL)httpsOnly {
+    self.megaApi->useHttpsOnly(httpsOnly);
+}
+
+- (BOOL)usingHttpsOnly {
+    return self.megaApi->usingHttpsOnly();
 }
 
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {

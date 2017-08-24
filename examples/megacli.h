@@ -212,8 +212,8 @@ struct DemoApp : public MegaApp
     void syncupdate_remote_rename(Sync*, Node*, const char*);
     void syncupdate_treestate(LocalNode*);
 
-    bool sync_syncable(Node*);
-    bool sync_syncable(const char*, string*, string*);
+    bool sync_syncable(Sync*, const char*, string*, Node*);
+    bool sync_syncable(Sync*, const char*, string*);
 #endif
 
     void changepw_result(error);

@@ -9512,11 +9512,7 @@ void MegaClient::updateputs()
     }
 }
 
-// check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node), return
-// EEXIST otherwise
-// (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -9557,7 +9553,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 return API_EEXIST;
             }
         }
-        
+
         if (n->inshare && !inshare)
         {
             // we need FULL access to sync
@@ -9594,6 +9590,29 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         }
     }
 
+    if (isinshare)
+    {
+        *isinshare = inshare;
+    }
+    return API_OK;
+#else
+    return API_EINCOMPLETE;
+#endif
+}
+
+// check sync path, add sync if folder
+// disallow nested syncs (there is only one LocalNode pointer per node)
+// (FIXME: perform the same check for local paths!)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+{
+#ifdef ENABLE_SYNC
+    bool inshare = false;
+    error e = isnodesyncable(remotenode, &inshare);
+    if (e)
+    {
+        return e;
+    }
+
     if (rootpath->size() >= fsaccess->localseparator.size()
      && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
@@ -9609,8 +9628,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     FileAccess* fa = fsaccess->newfileaccess();
-    error e;
-
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
@@ -9619,7 +9636,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             fsaccess->local2path(rootpath, &utf8path);
             LOG_debug << "Adding sync: " << utf8path;
 
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
+            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
 
             if (sync->scan(rootpath, fa))
             {
@@ -9745,22 +9762,34 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // build child hash - nameclash resolution: use newest/largest version
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
-        attr_map::iterator ait;
+        attr_map::iterator ait;        
 
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(*it)
-             && (*it)->syncdeleted == SYNCDEL_NONE
+        if (((*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
              && ait->second.size())
          && (l->parent || l->sync->debris != ait->second))
         {
-            addchild(&nchildren, &ait->second, *it, &strings);
+            size_t t = localpath->size();
+            string localname = ait->second;
+            fsaccess->name2local(&localname);
+            localpath->append(fsaccess->localseparator);
+            localpath->append(localname);
+            if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
+            {
+                addchild(&nchildren, &ait->second, *it, &strings);
+            }
+            else
+            {
+                LOG_debug << "Node excluded " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
+            }
+            localpath->resize(t);
         }
         else
         {
-            LOG_debug << "Node skipped " << (*it)->nodehandle << "  Name: " << (*it)->displayname();
+            LOG_debug << "Node skipped " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
         }
     }
 
