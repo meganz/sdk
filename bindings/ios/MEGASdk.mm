@@ -706,6 +706,14 @@ using namespace mega;
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
 }
 
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970]);
+}
+
 - (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
