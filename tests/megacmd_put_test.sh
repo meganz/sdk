@@ -62,8 +62,8 @@ function compare_and_clear() {
 		echo "test $currentTest"
 	fi
 		$FIND | sort > megafind.txt
-		(cd localUPs; find | sed "s#\./##g" | sort) > localfind.txt
-		
+		(cd localUPs; find . | sed "s#\./##g" | sort) > localfind.txt
+
 	if diff --side-by-side megafind.txt localfind.txt 2>/dev/null >/dev/null; then
 		if [ "$VERBOSE" == "1" ]; then
 			echo "diff megafind vs localfind:"

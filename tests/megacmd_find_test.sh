@@ -206,7 +206,11 @@ function find_remote(){
 }
 
 function find_local(){
-	(cd localUPs 2>/dev/null; find "$@" | sed "s#\./##g" | sort) > $ABSPWD/localfind.txt
+  if [ "Darwin" == `uname` ]; then
+    (cd localUPs 2>/dev/null; find "$@" | sed "s#\.///#/#g"  | sed "s#\.//#/#g" | sort) > $ABSPWD/localfind.txt
+  else
+    (cd localUPs 2>/dev/null; find "$@" | sed "s#\./##g" | sort) > $ABSPWD/localfind.txt
+  fi
 }
 
 function find_local_append(){
@@ -302,9 +306,9 @@ compare_remote_local
 
 if [ "x$CMDSHELL" != "x1" ]; then #TODO: currently there is no way to know last CMSHELL status code
 
-	#Test 13 #file01.txt/
-	$FIND file01.txt/ >/dev/null 2>/dev/null
-	if [ $? == 0 ]; then echo "test $currentTest failed!"; cd $ABSPWD; exit 1; 
+	#Test 13 #file01.txt/non-existent
+	$FIND file01.txt/non-existent >/dev/null 2>/dev/null
+	if [ $? == 0 ]; then echo "test $currentTest failed!"; cd $ABSPWD; exit 1;
 	else echo "test $currentTest succesful!"; fi
 
 fi

@@ -101,6 +101,12 @@ macx {
     DEFINES += USE_PTHREAD
     INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/FreeImage/Source
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
+    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/pcre
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libpcre.a
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libpcrecpp.a
+    DEFINES += USE_PCRE
+    CONFIG += USE_PCRE
+
     LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
     QMAKE_CXXFLAGS += -g
