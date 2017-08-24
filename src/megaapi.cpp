@@ -2272,7 +2272,7 @@ MegaSync *MegaApi::getSyncByTag(int tag)
     return pImpl->getSyncByTag(tag);
 }
 
-MegaSync *MegaApi::getSyncByNode(mega::MegaNode *node)
+MegaSync *MegaApi::getSyncByNode(MegaNode *node)
 {
     return pImpl->getSyncByNode(node);
 }
