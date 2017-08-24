@@ -8084,6 +8084,9 @@ class MegaApi
 
         /**
          * @brief Get the synchronization identified with a tag
+         *
+         * You take the ownership of the returned value
+         *
          * @param tag Tag that identifies the synchronization
          * @return Synchronization identified by the tag
          */
@@ -8091,6 +8094,9 @@ class MegaApi
 
         /**
          * @brief getSyncByNode Get the synchronization associated with a node
+         *
+         * You take the ownership of the returned value
+         *
          * @param node Root node of the synchronization
          * @return Synchronization with the specified root node
          */
@@ -8098,6 +8104,9 @@ class MegaApi
 
         /**
          * @brief getSyncByPath Get the synchronization associated with a local path
+         *
+         * You take the ownership of the returned value
+         *
          * @param localPath Root local path of the synchronization
          * @return Synchronization with the specified root local path
          */

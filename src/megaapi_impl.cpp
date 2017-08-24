@@ -1034,41 +1034,66 @@ bool MegaApiImpl::isIndexing()
 
 MegaSync *MegaApiImpl::getSyncByTag(int tag)
 {
-    return syncMap.at(tag);
+    sdkMutex.lock();
+    if (syncMap.find(tag) == syncMap.end())
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+    MegaSync *result = syncMap.at(tag)->copy();
+    sdkMutex.unlock();
+    return result;
 }
 
 MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
 {
+    if (!node)
+    {
+        return NULL;
+    }
+
+    MegaSync *result = NULL;
+    MegaHandle nodeHandle = node->getHandle();
+    sdkMutex.lock();
     std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
     while(it != syncMap.end())
     {
         MegaSyncPrivate* sync = it->second;
-        if(sync->getMegaHandle() == node->getHandle())
-            return sync;
-
+        if (sync->getMegaHandle() == nodeHandle)
+        {
+            result = sync->copy();
+            break;
+        }
         it++;
     }
 
-    return NULL;
+    sdkMutex.unlock();
+    return result;
 }
 
 MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
 {
-    std::string path(localPath);
+    if (!localPath)
+    {
+        return NULL;
+    }
 
+    MegaSync *result = NULL;
+    sdkMutex.lock();
     std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
     while(it != syncMap.end())
     {
         MegaSyncPrivate* sync = it->second;
-
-        std::string syncPath(sync->getLocalFolder());
-        if(!strcmp(path.c_str(), syncPath.c_str()))
-            return sync;
-
+        if (!strcmp(localPath, sync->getLocalFolder()))
+        {
+            result = sync->copy();
+            break;
+        }
         it++;
     }
 
-    return NULL;
+    sdkMutex.unlock();
+    return result;
 }
 
 char *MegaApiImpl::getBlockedPath()
@@ -6356,8 +6381,14 @@ void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regE
         return;
     }
 
+    int tag = sync->getTag();
     sdkMutex.lock();
-    MegaSyncPrivate* megaSync = syncMap.at(sync->getTag());
+    if (syncMap.find(tag) == syncMap.end())
+    {
+        sdkMutex.unlock();
+        return;
+    }
+    MegaSyncPrivate* megaSync = syncMap.at(tag);
     megaSync->setRegExp(regExp);
     sdkMutex.unlock();
 }
@@ -6408,10 +6439,9 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     sdkMutex.lock();
     if (size >= 0)
     {
-        result = is_syncable(size);
-        if (!result)
+        if (!is_syncable(size))
         {
-            return result;
+            return false;
         }
     }
 
@@ -9489,7 +9519,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
 {
-    if (!sync || !sync->appData || node->type == FILENODE && !is_syncable(node->size))
+    if (!sync || !sync->appData || (node->type == FILENODE && !is_syncable(node->size)))
     {
         return false;
     }
