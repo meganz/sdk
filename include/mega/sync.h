@@ -29,6 +29,8 @@ namespace mega {
 class MEGA_API Sync
 {
 public:
+    void *appData;
+
     MegaClient* client;
 
     // sync-wide directory notification provider
@@ -117,7 +119,7 @@ public:
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing;
     
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
+    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;

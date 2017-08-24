@@ -3313,6 +3313,42 @@ public:
     virtual MegaHandle getPrevParent() const;
 };
 
+class MegaRegExpPrivate;
+
+/**
+ * @brief Provides a mechanism to handle Regular Expressions
+ */
+class MegaRegExp
+{
+public:
+    MegaRegExp();
+    ~MegaRegExp();
+
+    /**
+     * @brief Creates a copy of this MegaRegExp object
+     *
+     * The resulting object is fully independent of the source MegaRegExp,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaRegExp object
+     */
+    MegaRegExp *copy();
+
+    bool addRegExp(const char *regExp);
+    int getNumRegExp();
+    const char *getRegExp(int index);
+    bool match(const char *s);
+
+    const char *getFullPattern();
+
+private:
+    MegaRegExpPrivate *pImpl;
+    MegaRegExp(MegaRegExpPrivate *pImpl);
+};
+
 /**
  * @brief Provides information about a synchronization
  *
@@ -7761,7 +7797,7 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -7787,7 +7823,60 @@ class MegaApi
          * @param localfp Fingerprint of the local file
          * @param listener MegaRequestListener to track this request
          */
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
+
+#ifdef USE_PCRE
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
+         *
+         * This function should be used to add a new synchronized pair of folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync (MegaApi::resumeSync)
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::resumeSync
+         */
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Resume a previously synced folder, having an exclusion list
+         *
+         * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
+         * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
+         * are correctly applied.
+         *
+         * The third parameter allows to pass a fingerprint of the local folder to check if it has changed since
+         * the previous execution. That fingerprint can be obtained using MegaRequest::getParentHandle in the
+         * onRequestFinish callback if the MegaApi::syncFolder request. If the provided fingerprint doesn't match
+         * the current fingerprint of the local folder, this request will fail with the error code
+         * MegaError::API_EFAILED
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumber - Returns the fingerprint of the local folder
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param localfp Fingerprint of the local file
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Remove a synced folder
@@ -7912,6 +8001,17 @@ class MegaApi
         void setExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
+         * @brief Set a list of excluded paths
+         *
+         * Wildcards (* and ?) are allowed
+         *
+         * @param List of excluded paths
+         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
+         * function will be removed in future updates
+         */
+        void setExcludedPaths(std::vector<std::string> *excludedPaths);
+
+        /**
          * @brief Set a lower limit for synchronized files
          *
          * Files with a size lower than this limit won't be synchronized
@@ -7948,13 +8048,12 @@ class MegaApi
         bool moveToLocalDebris(const char *path);
 
         /**
-         * @brief Check if a name is syncable based on the excluded names
-         * @param name Name to check
-         * @return true if the name is syncable, otherwise false
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed or modified in future updates
+         * @brief Check if a path is syncable based on the excluded names and paths and sizes
+         * @param name Path to check
+         * @param size Size of the file or -1 to ignore the size
+         * @return true if the path is syncable, otherwise false
          */
-        bool isSyncable(const char *name);
+        bool isSyncable(const char *path, long long size);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.
@@ -7982,6 +8081,45 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the synchronization identified with a tag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param tag Tag that identifies the synchronization
+         * @return Synchronization identified by the tag
+         */
+        MegaSync *getSyncByTag(int tag);
+
+        /**
+         * @brief getSyncByNode Get the synchronization associated with a node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Root node of the synchronization
+         * @return Synchronization with the specified root node
+         */
+        MegaSync *getSyncByNode(MegaNode *node);
+
+        /**
+         * @brief getSyncByPath Get the synchronization associated with a local path
+         *
+         * You take the ownership of the returned value
+         *
+         * @param localPath Root local path of the synchronization
+         * @return Synchronization with the specified root local path
+         */
+        MegaSync *getSyncByPath(const char *localPath);
+
+#ifdef USE_PCRE
+        /**
+        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+        * @param sync Synchronization whose rules want to be updated
+        * @param regExp List of regular expressions (rules) to exclude file / folders
+        */
+        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
 
         /**
          * @brief Get the total number of local nodes in the account

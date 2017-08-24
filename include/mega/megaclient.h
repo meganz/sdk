@@ -389,7 +389,7 @@ public:
 
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
