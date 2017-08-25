@@ -564,7 +564,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
-        string name = newname;
+        string name = newname.size() ? newname : l->name;
         client->fsaccess->local2name(&name);
 
         if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
