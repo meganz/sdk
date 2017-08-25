@@ -2962,6 +2962,159 @@ string MegaCmdExecuter::getLPWD()
     return absolutePath;
 }
 
+
+void MegaCmdExecuter::move(MegaNode * n, string destiny)
+{
+    MegaNode* tn; //target node
+    string newname;
+
+    // source node must exist
+    if (!n)
+    {
+        return;
+    }
+
+
+    char * nodepath = api->getNodePath(n);
+    LOG_debug << "Moving : " << nodepath << " to " << destiny;
+    delete []nodepath;
+
+    // we have four situations:
+    // 1. target path does not exist - fail
+    // 2. target node exists and is folder - move
+    // 3. target node exists and is file - delete and rename (unless same)
+    // 4. target path exists, but filename does not - rename
+    if (( tn = nodebypath(destiny.c_str(), NULL, &newname)))
+    {
+        if (tn->getHandle() == n->getHandle())
+        {
+            LOG_err << "Source and destiny are the same";
+        }
+        else
+        {
+            if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
+            {
+                if (tn->getType() == MegaNode::TYPE_FILE)
+                {
+                    setCurrentOutCode(MCMD_INVALIDTYPE);
+                    LOG_err << destiny << ": Not a directory";
+                    delete tn;
+                    delete n;
+                    return;
+                }
+                else //move and rename!
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->moveNode(n, tn, megaCmdListener);
+                    megaCmdListener->wait();
+                    if (checkNoErrors(megaCmdListener->getError(), "move"))
+                    {
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                        api->renameNode(n, newname.c_str(), megaCmdListener);
+                        megaCmdListener->wait();
+                        checkNoErrors(megaCmdListener->getError(), "rename");
+                        delete megaCmdListener;
+                    }
+                    else
+                    {
+                        LOG_debug << "Won't rename, since move failed " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                    }
+                    delete megaCmdListener;
+                }
+            }
+            else //target found
+            {
+                if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
+                {
+                    // (there should never be any orphaned filenodes)
+                    MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
+                    if (tnParentNode)
+                    {
+                        delete tnParentNode;
+
+                        //move into the parent of target node
+                        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                        api->moveNode(n, api->getNodeByHandle(tn->getParentHandle()), megaCmdListener);
+                        megaCmdListener->wait();
+                        if (checkNoErrors(megaCmdListener->getError(), "move node"))
+                        {
+                            const char* name_to_replace = tn->getName();
+
+                            //remove (replaced) target node
+                            if (n != tn) //just in case moving to same location
+                            {
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                                api->remove(tn, megaCmdListener); //remove target node
+                                megaCmdListener->wait();
+                                if (!checkNoErrors(megaCmdListener->getError(), "remove target node"))
+                                {
+                                    LOG_err << "Couldnt move " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
+                                }
+                                delete megaCmdListener;
+                            }
+
+                            // rename moved node with the new name
+                            if (!strcmp(name_to_replace, n->getName()))
+                            {
+                                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                                api->renameNode(n, name_to_replace, megaCmdListener);
+                                megaCmdListener->wait();
+                                if (!checkNoErrors(megaCmdListener->getError(), "rename moved node"))
+                                {
+                                    LOG_err << "Failed to rename moved node: " << megaCmdListener->getError()->getErrorString();
+                                }
+                                delete megaCmdListener;
+                            }
+                        }
+                        delete megaCmdListener;
+                    }
+                    else
+                    {
+                        setCurrentOutCode(MCMD_INVALIDSTATE);
+                        LOG_fatal << "Destiny node is orphan!!!";
+                    }
+                }
+                else // target is a folder
+                {
+                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                    api->moveNode(n, tn, megaCmdListener);
+                    megaCmdListener->wait();
+                    checkNoErrors(megaCmdListener->getError(), "move node");
+                    delete megaCmdListener;
+                }
+            }
+        }
+        delete tn;
+    }
+    else //target not found (not even its folder), cant move
+    {
+        setCurrentOutCode(MCMD_NOTFOUND);
+        LOG_err << destiny << ": No such directory";
+    }
+}
+
+
+bool MegaCmdExecuter::isValidFolder(string destiny)
+{
+    bool isdestinyavalidfolder = true;
+    MegaNode *ncwd = api->getNodeByHandle(cwd);
+    MegaNode *ndestiny = api->getNodeByPath(destiny.c_str(),ncwd);
+    delete ncwd;
+    if (ndestiny)
+    {
+        if (ndestiny->getType() == MegaNode::TYPE_FILE)
+        {
+            isdestinyavalidfolder = false;
+        }
+        delete ndestiny;
+    }
+    else
+    {
+        isdestinyavalidfolder = false;
+    }
+    return isdestinyavalidfolder;
+}
+
 void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clflags, map<string, string> *cloptions)
 {
     MegaNode* n = NULL;
@@ -3251,133 +3404,72 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             LOG_err << "Not logged in.";
             return;
         }
-        MegaNode* tn; //target node
-        string newname;
-
         if (words.size() > 2)
         {
-            // source node must exist
-            if (( n = nodebypath(words[1].c_str())))
+            string destiny = words[words.size()-1];
+
+            if (words.size() > 3 && !isValidFolder(destiny))
             {
-                // we have four situations:
-                // 1. target path does not exist - fail
-                // 2. target node exists and is folder - move
-                // 3. target node exists and is file - delete and rename (unless same)
-                // 4. target path exists, but filename does not - rename
-                if (( tn = nodebypath(words[2].c_str(), NULL, &newname)))
+                setCurrentOutCode(MCMD_INVALIDTYPE);
+                LOG_err << destiny << " must be a valid folder";
+                return;
+            }
+
+            for (int i=1;i<(words.size()-1);i++)
+            {
+                string source = words[i];
+
+                if (isRegExp(source))
                 {
-                    if (tn->getHandle() == n->getHandle())
+                    vector<MegaNode *> *nodesToList = nodesbypath(words[i].c_str(), getFlag(clflags,"use-pcre"));
+                    if (nodesToList)
                     {
-                        LOG_err << "Source and destiny are the same";
+                        if (!nodesToList->size())
+                        {
+                            setCurrentOutCode(MCMD_NOTFOUND);
+                            LOG_err << source << ": No such file or directory";
+                        }
+
+                        bool destinyisok=true;
+                        if (nodesToList->size() > 1 && !isValidFolder(destiny))
+                        {
+                            destinyisok = false;
+                            setCurrentOutCode(MCMD_INVALIDTYPE);
+                            LOG_err << destiny << " must be a valid folder";
+                        }
+
+                        if (destinyisok)
+                        {
+                            for (std::vector< MegaNode * >::iterator it = nodesToList->begin(); it != nodesToList->end(); ++it)
+                            {
+                                MegaNode * n = *it;
+                                if (n)
+                                {
+                                    move(n, destiny);
+                                    delete n;
+                                }
+                            }
+                        }
+
+                        nodesToList->clear();
+                        delete nodesToList;
+                    }
+                }
+                else
+                {
+                    if ( n = nodebypath(source.c_str()))
+                    {
+                        move(n, destiny);
+                        delete n;
                     }
                     else
                     {
-                        if (newname.size()) //target not found, but tn has what was before the last "/" in the path.
-                        {
-                            if (tn->getType() == MegaNode::TYPE_FILE)
-                            {
-                                setCurrentOutCode(MCMD_INVALIDTYPE);
-                                LOG_err << words[2] << ": Not a directory";
-                                delete tn;
-                                delete n;
-                                return;
-                            }
-                            else //move and rename!
-                            {
-                                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                api->moveNode(n, tn, megaCmdListener);
-                                megaCmdListener->wait();
-                                if (checkNoErrors(megaCmdListener->getError(), "move"))
-                                {
-                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                    api->renameNode(n, newname.c_str(), megaCmdListener);
-                                    megaCmdListener->wait();
-                                    checkNoErrors(megaCmdListener->getError(), "rename");
-                                    delete megaCmdListener;
-                                }
-                                else
-                                {
-                                    LOG_debug << "Won't rename, since move failed " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                }
-                                delete megaCmdListener;
-                            }
-                        }
-                        else //target found
-                        {
-                            if (tn->getType() == MegaNode::TYPE_FILE) //move & remove old & rename new
-                            {
-                                // (there should never be any orphaned filenodes)
-                                MegaNode *tnParentNode = api->getNodeByHandle(tn->getParentHandle());
-                                if (tnParentNode)
-                                {
-                                    delete tnParentNode;
-
-                                    //move into the parent of target node
-                                    MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                    api->moveNode(n, api->getNodeByHandle(tn->getParentHandle()), megaCmdListener);
-                                    megaCmdListener->wait();
-                                    if (checkNoErrors(megaCmdListener->getError(), "move node"))
-                                    {
-                                        const char* name_to_replace = tn->getName();
-
-                                        //remove (replaced) target node
-                                        if (n != tn) //just in case moving to same location
-                                        {
-                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                            api->remove(tn, megaCmdListener); //remove target node
-                                            megaCmdListener->wait();
-                                            if (!checkNoErrors(megaCmdListener->getError(), "remove target node"))
-                                            {
-                                                LOG_err << "Couldnt move " << n->getName() << " to " << tn->getName() << " : " << megaCmdListener->getError()->getErrorCode();
-                                            }
-                                            delete megaCmdListener;
-                                        }
-
-                                        // rename moved node with the new name
-                                        if (!strcmp(name_to_replace, n->getName()))
-                                        {
-                                            MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                            api->renameNode(n, name_to_replace, megaCmdListener);
-                                            megaCmdListener->wait();
-                                            if (!checkNoErrors(megaCmdListener->getError(), "rename moved node"))
-                                            {
-                                                LOG_err << "Failed to rename moved node: " << megaCmdListener->getError()->getErrorString();
-                                            }
-                                            delete megaCmdListener;
-                                        }
-                                    }
-                                    delete megaCmdListener;
-                                }
-                                else
-                                {
-                                    setCurrentOutCode(MCMD_INVALIDSTATE);
-                                    LOG_fatal << "Destiny node is orphan!!!";
-                                }
-                            }
-                            else // target is a folder
-                            {
-                                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
-                                api->moveNode(n, tn, megaCmdListener);
-                                megaCmdListener->wait();
-                                checkNoErrors(megaCmdListener->getError(), "move node");
-                                delete megaCmdListener;
-                            }
-                        }
+                        setCurrentOutCode(MCMD_NOTFOUND);
+                        LOG_err << source << ": No such file or directory";
                     }
-                    delete tn;
                 }
-                else //target not found (not even its folder), cant move
-                {
-                    setCurrentOutCode(MCMD_NOTFOUND);
-                    LOG_err << words[2] << ": No such directory";
-                }
-                delete n;
             }
-            else
-            {
-                setCurrentOutCode(MCMD_NOTFOUND);
-                LOG_err << words[1] << ": No such file or directory";
-            }
+
         }
         else
         {

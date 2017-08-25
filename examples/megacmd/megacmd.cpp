@@ -178,10 +178,10 @@ vector<string> remotepatterncommands(aremotepatterncommands, aremotepatterncomma
 string aremotefolderspatterncommands[] = {"cd", "share"};
 vector<string> remotefolderspatterncommands(aremotefolderspatterncommands, aremotefolderspatterncommands + sizeof aremotefolderspatterncommands / sizeof aremotefolderspatterncommands[0]);
 
-string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du", "find"};
+string amultipleremotepatterncommands[] = {"ls", "mkdir", "rm", "du", "find", "mv"};
 vector<string> multipleremotepatterncommands(amultipleremotepatterncommands, amultipleremotepatterncommands + sizeof amultipleremotepatterncommands / sizeof amultipleremotepatterncommands[0]);
 
-string aremoteremotepatterncommands[] = {"mv", "cp"};
+string aremoteremotepatterncommands[] = {"cp"};
 vector<string> remoteremotepatterncommands(aremoteremotepatterncommands, aremoteremotepatterncommands + sizeof aremoteremotepatterncommands / sizeof aremoteremotepatterncommands[0]);
 
 string aremotelocalpatterncommands[] = {"get", "thumbnail", "preview"};
@@ -1268,7 +1268,11 @@ const char * getUsageStr(const char *command)
     }
     if (!strcmp(command, "mv"))
     {
-        return "mv srcremotepath dstremotepath";
+#ifdef USE_PCRE
+        return "mv srcremotepath [--use-pcre] [srcremotepath2 srcremotepath3 ..] dstremotepath";
+#else
+        return "mv srcremotepath [srcremotepath2 srcremotepath3 ..] dstremotepath";
+#endif
     }
     if (!strcmp(command, "cp"))
     {
@@ -1673,10 +1677,14 @@ string getHelpStr(const char *command)
     }
     else if (!strcmp(command, "mv"))
     {
-        os << "Moves a file/folder into a new location (all remotes)" << endl;
+        os << "Moves file(s)/folder(s) into a new location (all remotes)" << endl;
         os << endl;
         os << "If the location exists and is a folder, the source will be moved there" << endl;
         os << "If the location doesn't exits, the source will be renamed to the defined destiny" << endl;
+#ifdef USE_PCRE
+        os << "Options:" << endl;
+        os << " --use-pcre" << "\t" << "use PCRE expressions" << endl;
+#endif
     }
     else if (!strcmp(command, "cp"))
     {
