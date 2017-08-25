@@ -1680,12 +1680,13 @@ void mycompletefunct(char **c, int num_matches, int max_length)
 #endif
 
     OUTSTREAM << endl;
-    int nelements_per_col = (cols-1)/(max_length+1);
+
+    int nelements_per_col = max(1,(cols-1)/(max_length+1));
     for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
     {
         string option = c[i];
 
-        OUTSTREAM << setw(max_length+1) << left;
+        OUTSTREAM << setw(min(cols-1,max_length+1)) << left;
         int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
         OUTSTREAM << c[i];
         _setmode(fileno(stdout), oldmode);
