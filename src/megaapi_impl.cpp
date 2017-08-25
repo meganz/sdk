@@ -6331,8 +6331,15 @@ void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
     {
         string name = excludedNames->at(i);
         fsAccess->normalize(&name);
-        this->excludedNames.push_back(name);
-        LOG_debug << "Excluded name: " << name;
+        if (name.size())
+        {
+            this->excludedNames.push_back(name);
+            LOG_debug << "Excluded name: " << name;
+        }
+        else
+        {
+            LOG_warn << "Invalid excluded name: " << excludedNames->at(i);
+        }
     }
     sdkMutex.unlock();
 }
@@ -6352,14 +6359,21 @@ void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
     {
         string path = excludedPaths->at(i);
         fsAccess->normalize(&path);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+        if (path.size())
         {
-            path.insert(0, "\\\\?\\");
+    #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+            if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            {
+                path.insert(0, "\\\\?\\");
+            }
+    #endif
+            this->excludedPaths.push_back(path);
+            LOG_debug << "Excluded path: " << path;
         }
-#endif
-        this->excludedPaths.push_back(path);
-        LOG_debug << "Excluded path: " << path;
+        else
+        {
+            LOG_warn << "Invalid excluded path: " << excludedPaths->at(i);
+        }
     }
     sdkMutex.unlock();
 }
