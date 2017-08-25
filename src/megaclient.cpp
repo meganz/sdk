@@ -8492,10 +8492,11 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
 
     // Decode the link
     int linkLen = 1 + 1 + 6 + 32 + 32 + 32;   // maximum size in binary, for file links
-    byte linkBin[linkLen];
-    linkLen = Base64::atob(ptr, (byte*)&linkBin, linkLen);
+    string linkBin;
+    linkBin.resize(linkLen);
+    linkLen = Base64::atob(ptr, (byte*)linkBin.data(), linkLen);
 
-    ptr = (char *)linkBin;
+    ptr = (char *)linkBin.data();
     end = ptr + linkLen + 1;
 
     if ((ptr + 2) > end)
@@ -8532,8 +8533,9 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
     memcpy((char*)salt, ptr, 32);
     ptr += sizeof salt;
 
-    byte *encKey = new byte[encKeyLen];
-    memcpy(encKey, ptr, encKeyLen);
+    string encKey;
+    encKey.resize(encKeyLen);
+    memcpy((byte *)encKey.data(), ptr, encKeyLen);
     ptr += encKeyLen;
 
     byte hmac[32];
@@ -8550,8 +8552,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
                      iterations);
 
     // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-    HMACSHA256 hmacsha256(derivedKey + 32, 32);
-    hmacsha256.add(linkBin, 40 + encKeyLen);
+    HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
+    hmacsha256.add(derivedKey + 32, 32);
     byte hmacComputed[32];
     hmacsha256.get(hmacComputed);
     if (memcmp(hmac, hmacComputed, 32))
@@ -8644,8 +8646,9 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
     ptr++;  // skip '!' separator
 
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    byte linkKey[linkKeySize];
-    if ((size_t) Base64::atob(ptr, linkKey, sizeof linkKey) != linkKeySize)
+    string linkKey;
+    linkKey.resize(linkKeySize);
+    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), linkKey.size()) != linkKeySize)
     {
         LOG_err << "Invalid encryption key in the public link";
         return API_EKEY;
@@ -8663,7 +8666,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
                      iterations);
 
     // Prepare encryption key
-    byte encKey[linkKeySize];
+    string encKey;
+    encKey.resize(linkKeySize);
     for (unsigned int i = 0; i < linkKeySize; i++)
     {
         encKey[i] = derivedKey[i] ^ linkKey[i];
@@ -8677,11 +8681,11 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
     payload.append((char*) &type, sizeof type);
     payload.append((char*) &ph, NODEHANDLE);
     payload.append((char*) salt, sizeof salt);
-    payload.append((char*) encKey, sizeof encKey);  //todo: probar a darle la vuelta a32_to_ab
+    payload.append(encKey);
 
     // Prepare HMAC
-    HMACSHA256 hmacsha256(derivedKey + 32, 32);
-    hmacsha256.add((const byte*)payload.data(), payload.size());
+    HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
+    hmacsha256.add(derivedKey + 32, 32);
     byte hmac[32];
     hmacsha256.get(hmac);
 
@@ -8691,7 +8695,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
     encLinkBytes.append((char*) &type, sizeof type);
     encLinkBytes.append((char*) &ph, NODEHANDLE);
     encLinkBytes.append((char*) salt, sizeof salt);
-    encLinkBytes.append((char*) encKey, sizeof encKey);
+    encLinkBytes.append(encKey);
     encLinkBytes.append((char*) hmac, sizeof hmac);
 
     string encLink;
