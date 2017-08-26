@@ -3592,20 +3592,29 @@ ExternalLogger MegaApiImpl::externalLogger;
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
-	init(api, appKey, processor, basePath, userAgent);
+	init(api, appKey, NULL, NULL, NULL, NULL, processor, basePath, userAgent);
 }
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent)
 {
-	init(api, appKey, NULL, basePath, userAgent);
+	init(api, appKey, NULL, NULL, NULL, NULL, NULL, basePath, userAgent);
 }
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
 {
-	init(api, appKey, NULL, basePath, userAgent, fseventsfd);
+	init(api, appKey, NULL, NULL, NULL, NULL, NULL, basePath, userAgent, fseventsfd);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char* appKey, Waiter* waiter, HttpIO* httpio, FileSystemAccess* fileAccess,
+                         DbAccess* dbAccess, MegaGfxProcessor* processor,
+                         const char *basePath, const char *userAgent) {
+    init(api, appKey, waiter, httpio, fileAccess, dbAccess, processor, basePath, userAgent);
+}
+
+void MegaApiImpl::init(MegaApi *api, const char *appKey, Waiter* customWaiter, HttpIO* customHttpIo,
+                       FileSystemAccess* customFileAccess, DbAccess* customDbAccess,
+                       MegaGfxProcessor* processor, const char *basePath,
+                       const char *userAgent, int fseventsfd)
 {
     this->api = api;
 
@@ -3642,15 +3651,19 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerSubtitlesSupportEnabled = false;
 #endif
 
-    httpio = new MegaHttpIO();
-    waiter = new MegaWaiter();
+    httpio = customHttpIo ? customHttpIo : new MegaHttpIO();
+    waiter = customWaiter ? customWaiter : new MegaWaiter();
 
+    if (!customFileAccess)
+    {
 #ifndef __APPLE__
-    (void)fseventsfd;
-    fsAccess = new MegaFileSystemAccess();
+        (void)fseventsfd;
+        fsAccess = new MegaFileSystemAccess();
 #else
-    fsAccess = new MegaFileSystemAccess(fseventsfd);
+        fsAccess = new MegaFileSystemAccess(fseventsfd);
 #endif
+    }
+    else fsAccess = customFileAccess;
 
 	if (basePath)
 	{
@@ -3662,7 +3675,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 			fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
 			sBasePath.append(utf8Separator);
 		}
-		dbAccess = new MegaDbAccess(&sBasePath);
+		dbAccess = customDbAccess ? customDbAccess : new MegaDbAccess(&sBasePath);
 
         this->basePath = basePath;
 	}

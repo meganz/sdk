@@ -1319,6 +1319,10 @@ class MegaApiImpl : public MegaApp
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApiImpl(MegaApi *api, const char* appKey,
+                    Waiter* waiter, HttpIO* http, FileSystemAccess* fileAccess,
+                    DbAccess* dbAccess, MegaGfxProcessor* processor,
+                    const char *basePath = NULL, const char *userAgent = NULL);
         virtual ~MegaApiImpl();
 
         //Multiple listener management.
@@ -1745,7 +1749,10 @@ class MegaApiImpl : public MegaApp
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
+        void init(MegaApi *api, const char *appKey,
+                  Waiter* waiter, HttpIO* httpio, FileSystemAccess* fileAccess,
+                  DbAccess* dbAccess, MegaGfxProcessor* processor,
+                  const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
         static ExternalLogger externalLogger;
@@ -1784,10 +1791,10 @@ protected:
         MegaApi *api;
         MegaThread thread;
         MegaClient *client;
-        MegaHttpIO *httpio;
-        MegaWaiter *waiter;
-        MegaFileSystemAccess *fsAccess;
-        MegaDbAccess *dbAccess;
+        HttpIO *httpio;
+        Waiter *waiter;
+        FileSystemAccess *fsAccess;
+        DbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
