@@ -24,7 +24,6 @@
 
 #include "types.h"
 #include "node.h"
-#include "megaclient.h"
 #include "account.h"
 #include "http.h"
 

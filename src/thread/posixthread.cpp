@@ -17,10 +17,15 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#include "mega.h"
 #include "mega/thread/posixthread.h"
+#include "mega/logging.h"
+#include <sys/time.h>
+#include <errno.h>
 
 #ifdef USE_PTHREAD
 
@@ -41,12 +46,12 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
-uint64_t PosixThread::currentThreadId()
+unsigned long long PosixThread::currentThreadId()
 {
 #if defined(_WIN32) && !defined(__WINPTHREADS_VERSION)
-    return (uint64_t) pthread_self().x;
+    return (unsigned long long) pthread_self().x;
 #else
-    return (uint64_t) pthread_self();
+    return (unsigned long long) pthread_self();
 #endif
 }
 

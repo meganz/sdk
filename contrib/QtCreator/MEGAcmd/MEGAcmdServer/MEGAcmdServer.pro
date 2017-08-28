@@ -1,5 +1,3 @@
-CONFIG -= qt
-
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
@@ -7,19 +5,15 @@ CONFIG(debug, debug|release) {
 CONFIG(release, debug|release) {
     CONFIG -= debug release
     CONFIG += release
+    DEFINES += NDEBUG
 }
+
+CONFIG -= qt
 
 TARGET = MEGAcmd
 TEMPLATE = app
 CONFIG += console
 CONFIG += USE_MEGAAPI
-
-
-win32 {
-DEFINES += USE_READLINE_STATIC
-}
-
-LIBS += -lreadline
 
 packagesExist(libpcrecpp){
 DEFINES += USE_PCRE
@@ -30,16 +24,22 @@ CONFIG += USE_PCRE
 win32 {
     SOURCES += ../../../../src/wincurl/console.cpp
     SOURCES += ../../../../src/wincurl/consolewaiter.cpp
+    SOURCES += ../../../../examples/megacmd/comunicationsmanagernamedpipes.cpp
+    HEADERS += ../../../../examples/megacmd/comunicationsmanagernamedpipes.h
 }
 else {
     SOURCES += ../../../../src/posix/console.cpp
     SOURCES += ../../../../src/posix/consolewaiter.cpp
+
+    DEFINES += USE_PTHREAD
+
 }
 
 SOURCES += ../../../../examples/megacmd/megacmd.cpp \
     ../../../../examples/megacmd/listeners.cpp \
     ../../../../examples/megacmd/megacmdexecuter.cpp \
     ../../../../examples/megacmd/megacmdlogger.cpp \
+    ../../../../examples/megacmd/megacmdsandbox.cpp \
     ../../../../examples/megacmd/configurationmanager.cpp \
     ../../../../examples/megacmd/comunicationsmanager.cpp \
     ../../../../examples/megacmd/megacmdutils.cpp
@@ -49,12 +49,12 @@ HEADERS += ../../../../examples/megacmd/megacmd.h \
     ../../../../examples/megacmd/megacmdexecuter.h \
     ../../../../examples/megacmd/listeners.h \
     ../../../../examples/megacmd/megacmdlogger.h \
+    ../../../../examples/megacmd/megacmdsandbox.h \
     ../../../../examples/megacmd/configurationmanager.h \
     ../../../../examples/megacmd/comunicationsmanager.h \
     ../../../../examples/megacmd/megacmdutils.h \
     ../../../../examples/megacmd/megacmdversion.h \
     ../../../../examples/megacmd/megacmdplatform.h
-
 
     SOURCES +=../../../../examples/megacmd/comunicationsmanagerportsockets.cpp
     HEADERS +=../../../../examples/megacmd/comunicationsmanagerportsockets.h
@@ -100,9 +100,13 @@ macx {
     QMAKE_INFO_PLIST = Info_MEGA.plist
     DEFINES += USE_PTHREAD
     INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/FreeImage/Source
-    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/readline
     LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libfreeimage.a
-    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libreadline.a
+    INCLUDEPATH += ../../../../bindings/qt/3rdparty/include/pcre
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libpcre.a
+    LIBS += $$PWD/../../../../bindings/qt/3rdparty/libs/libpcrecpp.a
+    DEFINES += USE_PCRE
+    CONFIG += USE_PCRE
+
     LIBS += -framework Cocoa -framework SystemConfiguration -framework CoreFoundation -framework Foundation -framework Security
     LIBS += -lncurses
     QMAKE_CXXFLAGS += -g
@@ -115,7 +119,6 @@ win32 {
     QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
     QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
 }
-
-release {
-    DEFINES += NDEBUG
+else {
+    QMAKE_CXXFLAGS_WARN_ON += -Wno-unused-parameter
 }

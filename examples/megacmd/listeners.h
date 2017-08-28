@@ -22,16 +22,18 @@
 #ifndef LISTENERS_H
 #define LISTENERS_H
 
-#include "megacmd.h"
 #include "megacmdlogger.h"
+#include "megacmdsandbox.h"
 
 class MegaCmdListener : public mega::SynchronousRequestListener
 {
 private:
     float percentFetchnodes;
     bool alreadyFinished;
+    int clientID;
+
 public:
-    MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL);
+    MegaCmdListener(mega::MegaApi *megaApi, mega::MegaRequestListener *listener = NULL, int clientID=-1);
     virtual ~MegaCmdListener();
 
     //Request callbacks
@@ -48,10 +50,13 @@ protected:
 class MegaCmdTransferListener : public mega::SynchronousTransferListener
 {
 private:
+    MegaCmdSandbox * sandboxCMD;
     float percentDowloaded;
     bool alreadyFinished;
+    int clientID;
+
 public:
-    MegaCmdTransferListener(mega::MegaApi *megaApi, mega::MegaTransferListener *listener = NULL);
+    MegaCmdTransferListener(mega::MegaApi *megaApi, MegaCmdSandbox * sandboxCMD, mega::MegaTransferListener *listener = NULL, int clientID=-1);
     virtual ~MegaCmdTransferListener();
 
     //Transfer callbacks
@@ -65,19 +70,23 @@ protected:
     mega::MegaTransferListener *listener;
 };
 
+
 class MegaCmdGlobalListener : public mega::MegaGlobalListener
 {
 private:
     MegaCMDLogger *loggerCMD;
+    MegaCmdSandbox *sandboxCMD;
 
 public:
-    MegaCmdGlobalListener(MegaCMDLogger *logger);
+    MegaCmdGlobalListener(MegaCMDLogger *logger, MegaCmdSandbox *sandboxCMD);
     void onNodesUpdate(mega::MegaApi* api, mega::MegaNodeList *nodes);
     void onUsersUpdate(mega::MegaApi* api, mega::MegaUserList *users);
+    void onAccountUpdate(mega::MegaApi *api);
 #ifdef ENABLE_CHAT
     void onChatsUpdate(mega::MegaApi*, mega::MegaTextChatList*);
 #endif
 };
+
 
 class MegaCmdMegaListener : public mega::MegaListener
 {
@@ -96,6 +105,33 @@ public:
 protected:
     mega::MegaApi *megaApi;
     mega::MegaListener *listener;
+};
+
+class MegaCmdGlobalTransferListener : public mega::MegaTransferListener
+{
+private:
+    MegaCmdSandbox *sandboxCMD;
+    static const int MAXCOMPLETEDTRANSFERSBUFFER;
+
+public:
+    mega::MegaMutex completedTransfersMutex;
+    std::deque<mega::MegaTransfer *> completedTransfers;
+    std::map<mega::MegaHandle,std::string> completedPathsByHandle;
+public:
+    MegaCmdGlobalTransferListener(mega::MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, mega::MegaTransferListener *parent = NULL);
+    virtual ~MegaCmdGlobalTransferListener();
+
+    //Transfer callbacks
+    void onTransferStart(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    void onTransferFinish(mega::MegaApi* api, mega::MegaTransfer *transfer, mega::MegaError* error);
+
+    void onTransferUpdate(mega::MegaApi* api, mega::MegaTransfer *transfer);
+    void onTransferTemporaryError(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError* e);
+    bool onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size);
+
+protected:
+    mega::MegaApi *megaApi;
+    mega::MegaTransferListener *listener;
 };
 
 

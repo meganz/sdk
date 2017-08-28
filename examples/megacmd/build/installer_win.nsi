@@ -21,14 +21,14 @@ VIAddVersionKey "LegalCopyright" "MEGA Limited 2017"
 VIAddVersionKey "ProductName" "MEGAcmd"
 
 ; Version info
-VIProductVersion "0.9.3.0"
-VIAddVersionKey "FileVersion" "0.9.3.0"
-VIAddVersionKey "ProductVersion" "0.9.3.0"
-!define PRODUCT_VERSION "0.9.3"
+VIProductVersion "0.9.4.0"
+VIAddVersionKey "FileVersion" "0.9.4.0"
+VIAddVersionKey "ProductVersion" "0.9.4.0"
+!define PRODUCT_VERSION "0.9.4"
 
 !define PRODUCT_PUBLISHER "Mega Limited"
 !define PRODUCT_WEB_SITE "http://www.mega.nz"
-!define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\MEGAcmd.exe"
+!define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\MEGAcmdShell.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_ROOT_KEY "HKLM"
 !define PRODUCT_STARTMENU_REGVAL "NSIS:StartMenuDir"
@@ -78,7 +78,7 @@ VIAddVersionKey "ProductVersion" "0.9.3.0"
 !define MUI_STARTMENUPAGE_REGISTRY_ROOT "${PRODUCT_UNINST_ROOT_KEY}"
 !define MUI_STARTMENUPAGE_REGISTRY_KEY "${PRODUCT_UNINST_KEY}"
 !define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "${PRODUCT_STARTMENU_REGVAL}"
-!define MUI_FINISHPAGE_RUN ;"$INSTDIR\MEGAcmd.exe"
+!define MUI_FINISHPAGE_RUN ;"$INSTDIR\MEGAcmdShell.exe"
 !define MUI_FINISHPAGE_RUN_FUNCTION RunFunction
 
 !define MUI_WELCOMEFINISHPAGE_BITMAP "installer\left_banner.bmp"
@@ -197,7 +197,7 @@ Function RunFunction
 FunctionEnd
 
 Function RunMegaCmd
-  Exec "$INSTDIR\MEGAcmd.exe"
+  Exec "$INSTDIR\MEGAcmdShell.exe"
   Sleep 2000
 FunctionEnd
 
@@ -425,6 +425,7 @@ modeselected:
   AccessControl::GrantOnFile "$INSTDIR\api-ms-win-core-console-l1-1-0.dll" "$USERNAME" "GenericRead + GenericWrite"  
 
   !insertmacro DEBUG_MSG "Closing MEGAcmd"
+  ExecDos::exec /DETAILED /DISABLEFSR "taskkill /f /IM MEGAcmdShell.exe"
   ExecDos::exec /DETAILED /DISABLEFSR "taskkill /f /IM MEGAcmd.exe"
   ExecDos::exec /DETAILED /DISABLEFSR "taskkill /f /IM MEGAclient.exe"
   
@@ -437,10 +438,14 @@ modeselected:
   File "${SRCDIR_MEGACMD}\MEGAcmd.exe"
   AccessControl::SetFileOwner "$INSTDIR\MEGAcmd.exe" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\MEGAcmd.exe" "$USERNAME" "GenericRead + GenericWrite"
-  
+
   File "${SRCDIR_MEGACMD}\..\..\MEGAcmdClient\release\MEGAclient.exe"
   AccessControl::SetFileOwner "$INSTDIR\MEGAclient.exe" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\MEGAclient.exe" "$USERNAME" "GenericRead + GenericWrite"
+
+  File "${SRCDIR_MEGACMD}\..\..\MEGAcmdShell\release\MEGAcmdShell.exe"
+  AccessControl::SetFileOwner "$INSTDIR\MEGAcmdShell.exe" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\MEGAcmdShell.exe" "$USERNAME" "GenericRead + GenericWrite"
 
   File "${SRCDIR_MEGACMD}\libeay32.dll"
   AccessControl::SetFileOwner "$INSTDIR\libeay32.dll" "$USERNAME"
@@ -508,9 +513,13 @@ modeselected:
   AccessControl::SetFileOwner "$INSTDIR\mega-help.bat" "$USERNAME"
   AccessControl::GrantOnFile "$INSTDIR\mega-help.bat" "$USERNAME" "GenericRead + GenericWrite"
 
-  File "${SRCDIR_BATFILES}\mega-history.bat"
-  AccessControl::SetFileOwner "$INSTDIR\mega-history.bat" "$USERNAME"
-  AccessControl::GrantOnFile "$INSTDIR\mega-history.bat" "$USERNAME" "GenericRead + GenericWrite"
+  File "${SRCDIR_BATFILES}\mega-https.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-https.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-https.bat" "$USERNAME" "GenericRead + GenericWrite"
+ 
+  File "${SRCDIR_BATFILES}\mega-transfers.bat"
+  AccessControl::SetFileOwner "$INSTDIR\mega-transfers.bat" "$USERNAME"
+  AccessControl::GrantOnFile "$INSTDIR\mega-transfers.bat" "$USERNAME" "GenericRead + GenericWrite"
 
   File "${SRCDIR_BATFILES}\mega-import.bat"
   AccessControl::SetFileOwner "$INSTDIR\mega-import.bat" "$USERNAME"
@@ -649,10 +658,10 @@ modeselected:
   SetShellVarContext all
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   CreateDirectory "$SMPROGRAMS\$ICONS_GROUP"
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGAcmd.lnk" "$INSTDIR\MEGAcmd.exe"
-  CreateShortCut "$DESKTOP\MEGAcmd.lnk" "$INSTDIR\MEGAcmd.exe"
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGAcmd.lnk" "$INSTDIR\MEGAcmdShell.exe"
+  CreateShortCut "$DESKTOP\MEGAcmd.lnk" "$INSTDIR\MEGAcmdShell.exe"
   WriteIniStr "$INSTDIR\MEGA Website.url" "InternetShortcut" "URL" "${PRODUCT_WEB_SITE}"
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmd.exe" 1
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmdShell.exe" 1
   CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
   !insertmacro MUI_STARTMENU_WRITE_END
   goto modeselected2
@@ -660,11 +669,11 @@ currentuser2:
   SetShellVarContext current
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   CreateDirectory "$SMPROGRAMS\$ICONS_GROUP"
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGAcmd.lnk" "$INSTDIR\MEGAcmd.exe"
-  CreateShortCut "$DESKTOP\MEGAcmd.lnk" "$INSTDIR\MEGAcmd.exe"
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGAcmd.lnk" "$INSTDIR\MEGAcmdShell.exe"
+  CreateShortCut "$DESKTOP\MEGAcmd.lnk" "$INSTDIR\MEGAcmdShell.exe"
 
   WriteIniStr "$INSTDIR\MEGA Website.url" "InternetShortcut" "URL" "${PRODUCT_WEB_SITE}"
-  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmd.exe" 1
+  CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\MEGA Website.lnk" "$INSTDIR\MEGA Website.url" "" "$INSTDIR\MEGAcmdShell.exe" 1
   CreateShortCut "$SMPROGRAMS\$ICONS_GROUP\Uninstall MEGAcmd.lnk" "$INSTDIR\${UNINSTALLER_NAME}"
   !insertmacro MUI_STARTMENU_WRITE_END
 modeselected2:
@@ -676,10 +685,10 @@ Section -AdditionalIcons
 SectionEnd
 
 Section -Post
-  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\MEGAcmd.exe"
+  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\MEGAcmdShell.exe"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "${PRODUCT_NAME}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\${UNINSTALLER_NAME}"
-  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\MEGAcmd.exe"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\MEGAcmdShell.exe"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion" ""
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
@@ -707,8 +716,9 @@ ${EndIf}
 FunctionEnd
 
 Section Uninstall
-  ExecDos::exec /DETAILED "taskkill /f /IM MEGAcmd.exe"
+  ExecDos::exec /DETAILED "taskkill /f /IM MEGAcmdShell.exe"
   ExecDos::exec /DETAILED "taskkill /f /IM MEGAclient.exe"
+  ExecDos::exec /DETAILED "taskkill /f /IM MEGAcmd.exe"
 
   !insertmacro MUI_STARTMENU_GETFOLDER "Application" $ICONS_GROUP
   Delete "$INSTDIR\${PRODUCT_NAME}.url"
@@ -763,6 +773,7 @@ Section Uninstall
   
   ;Common files
   Delete "$INSTDIR\MEGAcmd.exe"
+  Delete "$INSTDIR\MEGAcmdShell.exe"
   Delete "$INSTDIR\MEGAclient.exe"
   Delete "$INSTDIR\libeay32.dll"
   Delete "$INSTDIR\ssleay32.dll"
@@ -782,7 +793,8 @@ Section Uninstall
   Delete "$INSTDIR\mega-find.bat"
   Delete "$INSTDIR\mega-get.bat"
   Delete "$INSTDIR\mega-help.bat"
-  Delete "$INSTDIR\mega-history.bat"
+  Delete "$INSTDIR\mega-https.bat"
+  Delete "$INSTDIR\mega-transfers.bat"
   Delete "$INSTDIR\mega-import.bat"
   Delete "$INSTDIR\mega-invite.bat"
   Delete "$INSTDIR\mega-ipc.bat"

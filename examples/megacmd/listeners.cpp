@@ -23,9 +23,7 @@
 #include "configurationmanager.h"
 #include "megacmdutils.h"
 
-#define USE_VARARGS
-#define PREFER_STDARG
-#include <readline/readline.h>
+#define PROGRESS_COMPLETE -2
 
 using namespace mega;
 
@@ -38,7 +36,6 @@ void MegaCmdGlobalListener::onChatsUpdate(MegaApi*, MegaTextChatList*)
 
 void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
-    static bool initial = true;
     if (users)
     {
         if (users->size() == 1)
@@ -65,21 +62,15 @@ void MegaCmdGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
                 LOG_debug << users->size() << " users received or updated";
             }
 
-            // force reshow display for a first clean prompt
-            if (initial && loggerCMD->getCmdLoggerLevel()>=MegaApi::LOG_LEVEL_DEBUG)
-            {
-                rl_forced_update_display();
-            }
-            initial = false;
-
             delete users;
         }
     }
 }
 
-MegaCmdGlobalListener::MegaCmdGlobalListener(MegaCMDLogger *logger)
+MegaCmdGlobalListener::MegaCmdGlobalListener(MegaCMDLogger *logger, MegaCmdSandbox *sandboxCMD)
 {
     this->loggerCMD = logger;
+    this->sandboxCMD = sandboxCMD;
 }
 
 void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
@@ -175,6 +166,16 @@ void MegaCmdGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
         }
     }
 }
+
+void MegaCmdGlobalListener::onAccountUpdate(MegaApi *api)
+{
+    if (!api->getBandwidthOverquotaDelay())
+    {
+        sandboxCMD->setOverquota(false);
+    }
+    sandboxCMD->temporalbandwidth = 0; //This will cause account details to be queried again
+}
+
 
 ////////////////////////////////////////////
 ///      MegaCmdMegaListener methods     ///
@@ -275,6 +276,7 @@ void MegaCmdListener::doOnRequestFinish(MegaApi* api, MegaRequest *request, Mega
                 delete node;
             }
 #endif
+            informProgressUpdate(PROGRESS_COMPLETE, request->getTotalBytes(), this->clientID, "Fetching nodes");
 
             break;
         }
@@ -298,17 +300,10 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
     {
         case MegaRequest::TYPE_FETCH_NODES:
         {
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-            int rows = 1, cols = 80;
-
-            if (RL_ISSTATE(RL_STATE_INITIALIZED))
-            {
-                rl_resize_terminal();
-                rl_get_screen_size(&rows, &cols);
-            }
+            u_int cols = getNumberOfCols(80);
             string outputString;
             outputString.resize(cols+1);
-            for (int i = 0; i < cols; i++)
+            for (u_int i = 0; i < cols; i++)
             {
                 outputString[i] = '.';
             }
@@ -347,27 +342,19 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
                 *ptr++ = '#';
             }
 
-
+            if (percentFetchnodes == 100 && !alreadyFinished)
             {
-                if (RL_ISSTATE(RL_STATE_INITIALIZED))
-                {
-                    if (percentFetchnodes == 100 && !alreadyFinished)
-                    {
-                        alreadyFinished = true;
-                        rl_message("%s\n", outputString.c_str());
-                    }
-                    else
-                    {
-                        rl_message("%s", outputString.c_str());
-                    }
-                }
-                else
-                {
-                    cout << outputString << endl; //too verbose
-                }
+                alreadyFinished = true;
+                cout << outputString << endl;
+            }
+            else
+            {
+                cout << outputString << '\r' << flush;
             }
 
-#endif
+            informProgressUpdate(request->getTransferredBytes(), request->getTotalBytes(), this->clientID, "Fetching nodes");
+
+
             break;
         }
 
@@ -379,21 +366,20 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
 
 void MegaCmdListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e)
 {
-
 }
 
 
 MegaCmdListener::~MegaCmdListener()
 {
-
 }
 
-MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener)
+MegaCmdListener::MegaCmdListener(MegaApi *megaApi, MegaRequestListener *listener, int clientID)
 {
     this->megaApi = megaApi;
     this->listener = listener;
     percentFetchnodes = 0.0f;
     alreadyFinished = false;
+    this->clientID = clientID;
 }
 
 
@@ -421,6 +407,8 @@ void MegaCmdTransferListener::doOnTransferFinish(MegaApi* api, MegaTransfer *tra
     }
 
     LOG_verbose << "onTransferFinish Transfer->getType(): " << transfer->getType();
+    informProgressUpdate(PROGRESS_COMPLETE, transfer->getTotalBytes(), clientID);
+
 }
 
 
@@ -432,17 +420,11 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         return;
     }
 
-#if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
-    int rows = 1, cols = 80;
+    u_int cols = getNumberOfCols(80);
 
-    if (RL_ISSTATE(RL_STATE_INITIALIZED))
-    {
-        rl_resize_terminal();
-        rl_get_screen_size(&rows, &cols);
-    }
     string outputString;
     outputString.resize(cols + 1);
-    for (int i = 0; i < cols; i++)
+    for (u_int i = 0; i < cols; i++)
     {
         outputString[i] = '.';
     }
@@ -481,32 +463,24 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         *ptr++ = '#';
     }
 
+    if (percentDowloaded == 100 && !alreadyFinished)
     {
-        if (RL_ISSTATE(RL_STATE_INITIALIZED))
-        {
-            if (percentDowloaded == 100 && !alreadyFinished)
-            {
-                alreadyFinished = true;
-                rl_message("%s\n", outputString.c_str());
-            }
-            else
-            {
-                rl_message("%s", outputString.c_str());
-            }
-        }
-        else
-        {
-            cout << outputString << endl; //too verbose
-        }
+        alreadyFinished = true;
+        cout << outputString << endl;
     }
-#endif
+    else
+    {
+        cout << outputString << '\r' << flush;
+    }
 
-    LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType();
+    LOG_verbose << "onTransferUpdate transfer->getType(): " << transfer->getType() << " clientID=" << this->clientID;
+
+    informTransferUpdate(transfer, this->clientID);
 }
+
 
 void MegaCmdTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
 {
-
 }
 
 
@@ -515,16 +489,90 @@ MegaCmdTransferListener::~MegaCmdTransferListener()
 
 }
 
-MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaTransferListener *listener)
+MegaCmdTransferListener::MegaCmdTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *listener, int clientID)
 {
     this->megaApi = megaApi;
+    this->sandboxCMD = sandboxCMD;
     this->listener = listener;
     percentDowloaded = 0.0f;
     alreadyFinished = false;
+    this->clientID = clientID;
 }
 
 bool MegaCmdTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)
 {
     return true;
+}
+
+
+////////////////////////////////////////
+///  MegaCmdGlobalTransferListener   ///
+////////////////////////////////////////
+const int MegaCmdGlobalTransferListener::MAXCOMPLETEDTRANSFERSBUFFER = 10000;
+
+MegaCmdGlobalTransferListener::MegaCmdGlobalTransferListener(MegaApi *megaApi, MegaCmdSandbox *sandboxCMD, MegaTransferListener *parent)
+{
+    this->megaApi = megaApi;
+    this->sandboxCMD = sandboxCMD;
+    this->listener = parent;
+    completedTransfersMutex.init(false);
+};
+
+void MegaCmdGlobalTransferListener::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error)
+{
+    completedTransfersMutex.lock();
+    completedTransfers.push_front(transfer->copy());
+
+    // source
+    MegaNode * node = api->getNodeByHandle(transfer->getNodeHandle());
+    if (node)
+    {
+        char * nodepath = api->getNodePath(node);
+        completedPathsByHandle[transfer->getNodeHandle()]=nodepath;
+        delete []nodepath;
+    }
+
+    if (completedTransfers.size()>MAXCOMPLETEDTRANSFERSBUFFER)
+    {
+        MegaTransfer * todelete = completedTransfers.back();
+        completedPathsByHandle.erase(todelete->getNodeHandle()); //TODO: this can be potentially eliminate a handle that has been added twice
+        delete todelete;
+        completedTransfers.pop_back();
+    }
+    completedTransfersMutex.unlock();
+}
+
+void MegaCmdGlobalTransferListener::onTransferStart(MegaApi* api, MegaTransfer *transfer) {};
+void MegaCmdGlobalTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *transfer) {};
+void MegaCmdGlobalTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e)
+{
+
+    if (e && e->getErrorCode() == MegaError::API_EOVERQUOTA)
+    {
+        if (!sandboxCMD->isOverquota())
+        {
+            LOG_warn  << "Reached bandwidth quota. Your download could not proceed "
+                         "because it would take you over the current free transfer allowance for your IP address. "
+                         "This limit is dynamic and depends on the amount of unused bandwidth we have available. "
+                         "You can change your account plan to increse such bandwidth. "
+                         "See \"help --upgrade\" for further details";
+        }
+        sandboxCMD->setOverquota(true);
+        sandboxCMD->timeOfOverquota=time(NULL);
+        sandboxCMD->secondsOverQuota=e->getValue();
+    }
+};
+
+bool MegaCmdGlobalTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) {return false;};
+
+MegaCmdGlobalTransferListener::~MegaCmdGlobalTransferListener()
+{
+    completedTransfersMutex.lock();
+    while (completedTransfers.size())
+    {
+        delete completedTransfers.front();
+        completedTransfers.pop_front();
+    }
+    completedTransfersMutex.unlock();
 }
 

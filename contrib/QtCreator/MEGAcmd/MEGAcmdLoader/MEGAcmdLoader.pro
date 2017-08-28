@@ -7,6 +7,7 @@ CONFIG(debug, debug|release) {
 CONFIG(release, debug|release) {
     CONFIG -= debug release
     CONFIG += release
+    DEFINES += NDEBUG
 }
 
 TARGET = MEGAcmdLoader
@@ -22,8 +23,4 @@ win32 {
 
 macx {
     QMAKE_CXXFLAGS += -g
-}
-
-release {
-    DEFINES += NDEBUG
 }

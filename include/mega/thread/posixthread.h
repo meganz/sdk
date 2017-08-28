@@ -17,7 +17,14 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
+
+#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
+  #include "mega/config.h"
+#endif
 
 #ifdef USE_PTHREAD
 
@@ -39,7 +46,7 @@ public:
     void join();
     virtual ~PosixThread();
 
-    static uint64_t currentThreadId();
+    static unsigned long long currentThreadId();
 
 protected:
     pthread_t *thread;

@@ -17,16 +17,19 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
 #include "mega/logging.h"
+#include <time.h>
 
 namespace mega {
 
 // static member initialization
 OutputMap SimpleLogger::outputs;
 Logger *SimpleLogger::logger = NULL;
-char SimpleLogger::base64Handle[14];
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;

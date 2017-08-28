@@ -8504,6 +8504,21 @@ void MegaApiImpl::file_added(File *f)
         {
             transfer->setNodeHandle(f->h);
         }
+        else
+        {
+#ifdef ENABLE_SYNC
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll && ll->parent && ll->parent->node)
+            {
+                transfer->setParentHandle(ll->parent->node->nodehandle);
+            }
+            else
+#endif
+            {
+                transfer->setParentHandle(f->h);
+            }
+        }
+
 
         string path;
 #ifdef ENABLE_SYNC
