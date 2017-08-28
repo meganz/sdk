@@ -13502,8 +13502,11 @@ void MegaApiImpl::sendPendingRequests()
                 e = client->decryptlink(link, pwd, &result);
             }
 
-            request->setText(result.c_str());
-            fireOnRequestFinish(request, e);
+            if (!e)
+            {
+                request->setText(result.c_str());
+                fireOnRequestFinish(request, e);
+            }
             break;
         }
 		case MegaRequest::TYPE_EXPORT:
