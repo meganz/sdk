@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_RESTORE, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -5762,7 +5762,6 @@ class MegaApi
          */
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
 
-
         /**
          * @brief Copy a node in the MEGA account changing the file name
          *
@@ -5813,6 +5812,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a version of a file from the MEGA account
+         *
+         * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+         * the node to the Rubbish Bin use MegaApi::moveNode.
+         *
+         * If the node has previous versions, they won't be deleted.
+         *
+         * @param node Node to remove
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeVersion(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Restore a previous version of a file
+         * @param version Node with the version to restore
+         * @param listener MegaRequestListener to track this request
+         */
+        void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Clean the Rubbish Bin in the MEGA account
@@ -8228,6 +8247,13 @@ class MegaApi
 		 * @return List with all child MegaNode objects
 		 */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+
+        /**
+         * @brief Get all versions of a file
+         * @param node Node to check
+         * @return List with all versions of the node, including the current version
+         */
+        MegaNodeList* getVersions(MegaNode *node);
 
         /**
          * @brief Get file and folder children of a MegaNode separatedly

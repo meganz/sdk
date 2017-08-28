@@ -1413,7 +1413,8 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
-        void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+        void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
+        void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
@@ -1565,6 +1566,7 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getVersions(MegaNode *node);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);

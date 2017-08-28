@@ -1611,7 +1611,17 @@ void MegaApi::renameNode(MegaNode *node, const char *newName, MegaRequestListene
 
 void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->remove(node, listener);
+    pImpl->remove(node, false, listener);
+}
+
+void MegaApi::removeVersion(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->remove(node, true, listener);
+}
+
+void MegaApi::restoreVersion(MegaNode *version, MegaRequestListener *listener)
+{
+    pImpl->restoreVersion(version, listener);
 }
 
 void MegaApi::cleanRubbishBin(MegaRequestListener *listener)
@@ -2808,6 +2818,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
+}
+
+MegaNodeList *MegaApi::getVersions(MegaNode *node)
+{
+    return pImpl->getVersions(node);
 }
 
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)

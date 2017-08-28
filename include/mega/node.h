@@ -58,6 +58,7 @@ struct MEGA_API NewNode : public NodeCore
 
     newnodesource_t source;
 
+    handle ovhandle;
     handle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN];
 
@@ -71,6 +72,7 @@ struct MEGA_API NewNode : public NodeCore
         syncid = UNDEF;
         added = false;
         source = NEW_NODE;
+        ovhandle = UNDEF;
         uploadhandle = UNDEF;
         localnode = NULL;
     }

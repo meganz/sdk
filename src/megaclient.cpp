@@ -4061,6 +4061,10 @@ void MegaClient::readtree(JSON* j)
                     readnodes(j, 1);
                     break;
 
+                case MAKENAMEID2('f', '2'):
+                    readnodes(j, 1);
+                    break;
+
                 case 'u':
                     readusers(j);
                     break;
@@ -5653,14 +5657,14 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n)
+error MegaClient::unlink(Node* n, bool keepversions)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
 
-    reqs.add(new CommandDelNode(this, n->nodehandle));
+    reqs.add(new CommandDelNode(this, n->nodehandle, keepversions));
 
     mergenewshares(1);
 
@@ -5840,11 +5844,14 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     }
 
     node_vector dp;
+    node_vector dv;
+    handle_vector dvh;
+
     Node* n;
 
     while (j->enterobject())
     {
-        handle h = UNDEF, ph = UNDEF;
+        handle h = UNDEF, ph = UNDEF, ovh = UNDEF;
         handle u = 0, su = UNDEF;
         nodetype_t t = TYPE_UNKNOWN;
         const char* a = NULL;
@@ -5863,6 +5870,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 case 'h':   // new node: handle
                     h = j->gethandle();
+                    break;
+
+                case MAKENAMEID2('o', 'v'):  // old version
+                    ovh = j->gethandle();
+                    LOG_debug << "Old version handle received: " << LOG_NODEHANDLE(ovh);
                     break;
 
                 case 'p':   // parent node
@@ -6106,6 +6118,30 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
             }
 
+            if (!ISUNDEF(ovh))
+            {
+                Node *ovn = nodebyhandle(ovh);
+                if (ovn)
+                {
+                    if (ovn->changed.removed)
+                    {
+                        // node marked for deletion is being resurrected,
+                        // as an old version
+                        ovn->changed.removed = false;
+                    }
+                    ovn->setparent(n);
+                    if (notify)
+                    {
+                        notifynode(ovn);
+                    }
+                }
+                else
+                {
+                    dv.push_back(n);
+                    dvh.push_back(ovh);
+                }
+            }
+
             if (notify)
             {
                 notifynode(n);
@@ -6119,6 +6155,29 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
+        }
+    }
+
+    // any old version that arrived before the newer?
+    for (int i = dv.size(); i--; )
+    {
+        if ((n = nodebyhandle(dvh[i])))
+        {
+            if (n->changed.removed)
+            {
+                // node marked for deletion is being resurrected,
+                // as an old version
+                n->changed.removed = false;
+            }
+            n->setparent(dv[i]);
+            if (notify)
+            {
+                notifynode(n);
+            }
+        }
+        else
+        {
+            LOG_err << "Old version (" << LOG_NODEHANDLE(dvh[i]) << ") not found for node " << LOG_NODEHANDLE(dv[i]->nodehandle);
         }
     }
 
@@ -10569,10 +10628,10 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? send it to SyncDebris.
+                    // overwriting an existing remote node? tag it as the previous version
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        movetosyncdebris(l->node, l->sync->inshare);
+                        nnp->ovhandle = l->node->nodehandle;
                     }
 
                     // this is a file - copy, use original key & attributes

@@ -294,7 +294,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*);
+    error unlink(Node*, bool = false);
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);

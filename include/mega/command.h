@@ -319,7 +319,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     void procresult();
 
-    CommandDelNode(MegaClient*, handle);
+    CommandDelNode(MegaClient*, handle, bool = false);
 };
 
 class MEGA_API CommandKillSessions : public Command

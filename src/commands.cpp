@@ -881,6 +881,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
+        if (!ISUNDEF(nn[i].ovhandle))
+        {
+            arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
+        }
+
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
 
@@ -1211,12 +1216,17 @@ void CommandMoveNode::procresult()
     }
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th)
+CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
 {
     cmd("d");
     notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
+
+    if (keepversions)
+    {
+        arg("v", 1);
+    }
 
     h = th;
     tag = client->reqtag;
@@ -3764,6 +3774,15 @@ void CommandFetchNodes::procresult()
         {
             case 'f':
                 // nodes
+                if (!client->readnodes(&client->json, 0))
+                {
+                    client->fetchingnodes = false;
+                    return client->app->fetchnodes_result(API_EINTERNAL);
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                // old versions
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;
