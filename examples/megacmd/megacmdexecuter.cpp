@@ -5909,6 +5909,46 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
     else if (words[0] == "version")
     {
         OUTSTREAM << "MEGA CMD version: " << MEGACMD_MAJOR_VERSION << "." << MEGACMD_MINOR_VERSION << "." << MEGACMD_MICRO_VERSION << ": code " << MEGACMD_CODE_VERSION << endl;
+
+        MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+        api->getLastAvailableVersion("BdARkQSQ",megaCmdListener);
+        if (!megaCmdListener->trywait(2000))
+        {
+            if (!megaCmdListener->getError())
+            {
+                LOG_fatal << "No MegaError at getLastAvailableVersion: ";
+            }
+            else if (megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+            {
+                LOG_debug << "Couldn't get latests available version: " << megaCmdListener->getError()->getErrorString();
+            }
+            else
+            {
+                if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                {
+                    OUTSTREAM << "---------------------------------------------------------------------" << endl;
+                    OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
+                    OUTSTREAM << "--        Please, download it from https://mega.nz/cmd             --" << endl;
+#if defined(__APPLE__)
+                    OUTSTREAM << "--        Before installing enter \"exit\" to close MEGAcmd          --" << endl;
+#endif
+                    OUTSTREAM << "---------------------------------------------------------------------" << endl;
+                }
+            }
+            delete megaCmdListener;
+        }
+        else
+        {
+            LOG_debug << "Couldn't get latests available version (petition timed out)";
+
+            api->removeRequestListener(megaCmdListener);
+            delete megaCmdListener;
+        }
+
+
+
+
+
         if (getFlag(clflags,"c"))
         {
             OUTSTREAM << "Changes in the current version:" << endl;

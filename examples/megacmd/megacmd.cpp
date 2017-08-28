@@ -2532,11 +2532,14 @@ void megacmd()
                     }
                     else
                     {
-                        if (true || megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
                         {
                             os << "---------------------------------------------------------------------" << endl;
                             os << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
                             os << "--        Please, download it from https://mega.nz/cmd             --" << endl;
+#if defined(__APPLE__)
+                            os << "--        Before installing enter \"exit\" to close MEGAcmd          --" << endl;
+#endif
                             os << "---------------------------------------------------------------------" << endl;
                         }
                     }
