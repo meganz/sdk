@@ -8497,9 +8497,9 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
     linkLen = Base64::atob(ptr, (byte*)linkBin.data(), linkLen);
 
     ptr = (char *)linkBin.data();
-    end = ptr + linkLen + 1;
+    end = ptr + linkLen;
 
-    if ((ptr + 2) > end)
+    if ((ptr + 2) >= end)
     {
         LOG_err << "This link is too short";
         return API_EINCOMPLETE;
@@ -8635,7 +8635,6 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
         LOG_err << "Invalid format of public link";
         return API_EARGS;
     }
-
     ptr += 8;   // skip public handle
 
     if (ptr + 1 >= end || *ptr != '!')
