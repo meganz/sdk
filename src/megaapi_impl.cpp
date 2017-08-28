@@ -2498,6 +2498,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete [] file;
 	delete accountDetails;
     delete megaPricing;
+    delete achievementsDetails;
     delete [] text;
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -3975,13 +3976,7 @@ char *MegaApiImpl::getMyXMPPJid()
 
 bool MegaApiImpl::isAchievementsEnabled()
 {
-    bool ret;
-
-    sdkMutex.lock();
-    ret = client->achievements_enabled;
-    sdkMutex.unlock();
-
-    return ret;
+    return client->achievements_enabled;
 }
 
 #ifdef ENABLE_CHAT
@@ -9146,11 +9141,6 @@ void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
-
-    if (!e)
-    {
-
-    }
 
     fireOnRequestFinish(request, megaError);
 }
@@ -15645,11 +15635,11 @@ void MegaApiImpl::sendPendingRequests()
         {
             if (request->getFlag())
             {
-                client->getmegaachievementslist(request->getAchievementsDetails());
+                client->getmegaachievements(request->getAchievementsDetails());
             }
             else
             {
-                client->getmegaachievements(request->getAchievementsDetails());
+                client->getaccountachievements(request->getAchievementsDetails());
             }
             break;
         }
@@ -19538,6 +19528,11 @@ MegaAchievementsDetails *MegaAchievementsDetailsPrivate::fromAchievementsDetails
 MegaAchievementsDetailsPrivate::~MegaAchievementsDetailsPrivate()
 { }
 
+MegaAchievementsDetails *MegaAchievementsDetailsPrivate::copy()
+{
+    return new MegaAchievementsDetailsPrivate(&details);
+}
+
 long long MegaAchievementsDetailsPrivate::getBaseStorage()
 {
     return details.permanent_size;
@@ -19628,21 +19623,17 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
         if (details.awards.at(index).achievement_class == MEGA_ACHIEVEMENT_INVITE)
         {
             vector<char*> data;
-            char *buf;
             vector<string>::iterator it = details.awards.at(index).emails_invited.begin();
             while (it != details.awards.at(index).emails_invited.end())
             {
-                buf = new char[it->size()];
-                strcpy(buf, it->c_str());
-                data.push_back(buf);
-
+                data.push_back(strdup(it->c_str()));
                 it++;
             }
             return new MegaStringListPrivate(data.data(), data.size());
         }
     }
 
-    return NULL;
+    return new MegaStringListPrivate();
 }
 
 int MegaAchievementsDetailsPrivate::getRewardsCount()

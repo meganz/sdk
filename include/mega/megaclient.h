@@ -522,10 +522,10 @@ public:
 #endif
 
     // get mega achievements
-    void getmegaachievements(AchievementsDetails *details);
+    void getaccountachievements(AchievementsDetails *details);
 
     // get mega achievements list (for advertising for unregistered users)
-    void getmegaachievementslist(AchievementsDetails *details);
+    void getmegaachievements(AchievementsDetails *details);
 
     // toggle global debug flag
     bool toggledebug();

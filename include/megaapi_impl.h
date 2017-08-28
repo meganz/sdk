@@ -1008,6 +1008,8 @@ public:
     static MegaAchievementsDetails *fromAchievementsDetails(AchievementsDetails *details);
     virtual ~MegaAchievementsDetailsPrivate();
 
+    virtual MegaAchievementsDetails* copy();
+
     virtual long long getBaseStorage();
     virtual long long getClassStorage(int class_id);
     virtual long long getClassTransfer(int class_id);

@@ -11469,12 +11469,12 @@ void MegaClient::registerPushNotification(int deviceType, const char *token)
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
 }
 
-void MegaClient::getmegaachievements(AchievementsDetails *details)
+void MegaClient::getaccountachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details));
 }
 
-void MegaClient::getmegaachievementslist(AchievementsDetails *details)
+void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
