@@ -2028,6 +2028,7 @@ static void process_line(char* l)
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
+                cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
@@ -2760,6 +2761,11 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    else if (words[0] == "test")
+                    {
+                        return;
+                    }
+
                     break;
 
                 case 5:

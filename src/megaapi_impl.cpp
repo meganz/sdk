@@ -2859,6 +2859,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
+        case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
     }
     return "UNKNOWN";
 }
@@ -4819,6 +4820,25 @@ void MegaApiImpl::importFileLink(const char* megaFileLink, MegaNode *parent, Meg
 	if(parent) request->setParentHandle(parent->getHandle());
 	request->setLink(megaFileLink);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::decryptPasswordProtectedLink(const char *link, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
+    request->setLink(link);
+    request->setPassword(password);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::encryptLinkWithPassword(const char *link, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
+    request->setLink(link);
+    request->setPassword(password);
+    request->setFlag(true); // encrypt
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -13693,21 +13713,53 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
 			}
 
-            if(e == API_OK)
+            if (e == API_OK)
                 client->setshare(node, email, a);
-			break;
+            break;
 		}
-		case MegaRequest::TYPE_IMPORT_LINK:
-		case MegaRequest::TYPE_GET_PUBLIC_NODE:
-		{
-			Node *node = client->nodebyhandle(request->getParentHandle());
-			const char* megaFileLink = request->getLink();
-			if(!megaFileLink) { e = API_EARGS; break; }
-			if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node)) { e = API_EARGS; break; }
+        case MegaRequest::TYPE_IMPORT_LINK:
+        case MegaRequest::TYPE_GET_PUBLIC_NODE:
+        {
+            Node *node = client->nodebyhandle(request->getParentHandle());
+            const char* megaFileLink = request->getLink();
 
-			e = client->openfilelink(megaFileLink, 1);
-			break;
-		}
+            if (!megaFileLink)
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK) && !node)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            e = client->openfilelink(megaFileLink, 1);
+            break;
+        }
+        case MegaRequest::TYPE_PASSWORD_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+            bool encryptLink = request->getFlag();
+
+            string result;
+            if (encryptLink)
+            {
+                e = client->encryptlink(link, pwd, &result);
+            }
+            else
+            {
+                e = client->decryptlink(link, pwd, &result);
+            }
+
+            if (!e)
+            {
+                request->setText(result.c_str());
+                fireOnRequestFinish(request, e);
+            }
+            break;
+        }
 		case MegaRequest::TYPE_EXPORT:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());

@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -5967,6 +5967,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Decrypt password-protected public link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+         * - MegaRequest::getPassword - Returns the password to decrypt the link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Decrypted public link
+         *
+         * @param link Password/protected public link to a file/folder in MEGA
+         * @param password Password to decrypt the link
+         * @param listener MegaRequestListener to track this request
+         */
+        void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Encrypt public link with password
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the public link to be encrypted
+         * - MegaRequest::getPassword - Returns the password to encrypt the link
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Encrypted public link
+         *
+         * @param link Public link to be encrypted, including encryption key for the link
+         * @param password Password to encrypt the link
+         * @param listener MegaRequestListener to track this request
+         */
+        void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get a MegaNode from a public link to a file
