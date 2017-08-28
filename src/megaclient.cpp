@@ -7254,9 +7254,9 @@ void MegaClient::resetKeyring()
 #endif
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
+void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
-    if (n->type != FILENODE)
+    if (!skipversions || n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {

@@ -1197,7 +1197,7 @@ public:
     handle getpublicfolderhandle();
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
