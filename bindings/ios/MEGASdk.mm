@@ -690,6 +690,23 @@ using namespace mega;
     self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
+
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->decryptPasswordProtectedLink(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password {
+    self.megaApi->decryptPasswordProtectedLink(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL);
+}
+
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->encryptLinkWithPassword(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password {
+    self.megaApi->encryptLinkWithPassword(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL);
+}
+
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
