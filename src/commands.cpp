@@ -1030,6 +1030,17 @@ void CommandPutNodes::procresult()
                 }
                 break;
 
+            case MAKENAMEID2('f', '2'):
+                if (client->readnodes(&client->json, 1))
+                {
+                    e = API_OK;
+                }
+                else
+                {
+                    LOG_err << "Parse error (readversions)";
+                }
+                break;
+
             default:
                 if (client->json.storeobject())
                 {
