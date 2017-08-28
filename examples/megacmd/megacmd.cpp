@@ -2515,7 +2515,51 @@ void megacmd()
                 s+=dynamicprompt;
                 s+=(char)0x1F;
 
+#if defined(_WIN32) || defined(__APPLE__)
+                string message="";
+                ostringstream os;
+                MegaCmdListener *megaCmdListener = new MegaCmdListener(NULL);
+                api->getLastAvailableVersion("BdARkQSQ",megaCmdListener);
+                if (!megaCmdListener->trywait(2000))
+                {
+                    if (!megaCmdListener->getError())
+                    {
+                        LOG_fatal << "No MegaError at getLastAvailableVersion: ";
+                    }
+                    else if (megaCmdListener->getError()->getErrorCode() != MegaError::API_OK)
+                    {
+                        LOG_debug << "Couldn't get latests available version: " << megaCmdListener->getError()->getErrorString();
+                    }
+                    else
+                    {
+                        if (true || megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                        {
+                            os << "---------------------------------------------------------------------" << endl;
+                            os << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
+                            os << "--        Please, download it from https://mega.nz/cmd             --" << endl;
+                            os << "---------------------------------------------------------------------" << endl;
+                        }
+                    }
+                    message=os.str();
+                    delete megaCmdListener;
+                }
+                else
+                {
+                    LOG_debug << "Couldn't get latests available version (petition timed out)";
+
+                    api->removeRequestListener(megaCmdListener);
+                    delete megaCmdListener;
+                }
+
+                if (message.size())
+                {
+                    s += "message:";
+                    s+=message;
+                    s+=(char)0x1F;
+                }
+#endif
                 cm->informStateListener(inf,s);
+
             }
             else
             { // normal petition

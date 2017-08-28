@@ -2034,7 +2034,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
         {
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
             OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
-            OUTSTREAM << "--        Please, download it from https://mega.nz/cmd        --" << endl;
+            OUTSTREAM << "--        Please, download it from https://mega.nz/cmd             --" << endl;
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
         }
     }
@@ -3415,7 +3415,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 return;
             }
 
-            for (int i=1;i<(words.size()-1);i++)
+            for (u_int i=1;i<(words.size()-1);i++)
             {
                 string source = words[i];
 
@@ -3457,7 +3457,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 else
                 {
-                    if ( n = nodebypath(source.c_str()))
+                    if (( n = nodebypath(source.c_str())) )
                     {
                         move(n, destiny);
                         delete n;
@@ -6256,9 +6256,9 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         {
             globalTransferListener->completedTransfersMutex.lock();
             u_int totalcompleted = globalTransferListener->completedTransfers.size();
-            for (u_int i = 0;i < totalcompleted
-                 && shownCompleted < totalcompleted
-                 && shownCompleted < (limit+1); //Note limit+1 to seek for one more to show if there are more to show!
+            for (u_int i = 0;(i < totalcompleted)
+                 && (shownCompleted < totalcompleted)
+                 && (shownCompleted < (limit+1)); //Note limit+1 to seek for one more to show if there are more to show!
                  i++)
             {
                 MegaTransfer *transfer = globalTransferListener->completedTransfers.at(i);

@@ -173,81 +173,6 @@ long long charstoll(const char *instr)
   return retval;
 }
 
-void statechangehandle(string statestring)
-{
-    char statedelim[2]={(char)0x1F,'\0'};
-    size_t nextstatedelimitpos = statestring.find(statedelim);
-
-    while (nextstatedelimitpos!=string::npos && statestring.size())
-    {
-        string newstate = statestring.substr(0,nextstatedelimitpos);
-        statestring=statestring.substr(nextstatedelimitpos+1);
-        nextstatedelimitpos = statestring.find(statedelim);
-        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
-        {
-            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
-        }
-        else if (newstate.compare(0, strlen("clientID:"), "clientID:") == 0)
-        {
-            clientID = newstate.substr(strlen("clientID:")).c_str();
-        }
-        else if (newstate.compare(0, strlen("progress:"), "progress:") == 0)
-        {
-            string rest = newstate.substr(strlen("progress:"));
-
-            size_t nexdel = rest.find(":");
-            string received = rest.substr(0,nexdel);
-
-            rest = rest.substr(nexdel+1);
-            nexdel = rest.find(":");
-            string total = rest.substr(0,nexdel);
-
-            string title;
-            if ( (nexdel != string::npos) && (nexdel < rest.size() ) )
-            {
-                rest = rest.substr(nexdel+1);
-                nexdel = rest.find(":");
-                title = rest.substr(0,nexdel);
-            }
-
-            if (title.size())
-            {
-                if (received==SPROGRESS_COMPLETE)
-                {
-                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()),title.c_str());
-
-                }
-                else
-                {
-                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()),title.c_str());
-                }
-            }
-            else
-            {
-                if (received==SPROGRESS_COMPLETE)
-                {
-                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()));
-                }
-                else
-                {
-                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
-                }
-            }
-
-        }
-        else if (newstate == "ack")
-        {
-            // do nothing, all good
-        }
-        else
-        {
-            cerr << "received unrecognized state change: [" << newstate << "]" << endl;
-            //sleep a while to avoid continuous looping
-            sleepSeconds(1);
-        }
-    }
-}
-
 // Console related functions:
 void console_readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
 {
@@ -379,6 +304,88 @@ MegaCmdShellCommunications *comms;
 MegaMutex mutexPrompt;
 
 void printWelcomeMsg(u_int width = 0);
+
+
+
+void statechangehandle(string statestring)
+{
+    char statedelim[2]={(char)0x1F,'\0'};
+    size_t nextstatedelimitpos = statestring.find(statedelim);
+
+    while (nextstatedelimitpos!=string::npos && statestring.size())
+    {
+        string newstate = statestring.substr(0,nextstatedelimitpos);
+        statestring=statestring.substr(nextstatedelimitpos+1);
+        nextstatedelimitpos = statestring.find(statedelim);
+        if (newstate.compare(0, strlen("prompt:"), "prompt:") == 0)
+        {
+            changeprompt(newstate.substr(strlen("prompt:")).c_str(),true);
+        }
+        else if (newstate.compare(0, strlen("message:"), "message:") == 0)
+        {
+            OUTSTREAM << endl << newstate.substr(strlen("message:")) << endl;
+        }
+        else if (newstate.compare(0, strlen("clientID:"), "clientID:") == 0)
+        {
+            clientID = newstate.substr(strlen("clientID:")).c_str();
+        }
+        else if (newstate.compare(0, strlen("progress:"), "progress:") == 0)
+        {
+            string rest = newstate.substr(strlen("progress:"));
+
+            size_t nexdel = rest.find(":");
+            string received = rest.substr(0,nexdel);
+
+            rest = rest.substr(nexdel+1);
+            nexdel = rest.find(":");
+            string total = rest.substr(0,nexdel);
+
+            string title;
+            if ( (nexdel != string::npos) && (nexdel < rest.size() ) )
+            {
+                rest = rest.substr(nexdel+1);
+                nexdel = rest.find(":");
+                title = rest.substr(0,nexdel);
+            }
+
+            if (title.size())
+            {
+                if (received==SPROGRESS_COMPLETE)
+                {
+                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()),title.c_str());
+
+                }
+                else
+                {
+                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()),title.c_str());
+                }
+            }
+            else
+            {
+                if (received==SPROGRESS_COMPLETE)
+                {
+                    printprogress(PROGRESS_COMPLETE, charstoll(total.c_str()));
+                }
+                else
+                {
+                    printprogress(charstoll(received.c_str()), charstoll(total.c_str()));
+                }
+            }
+
+        }
+        else if (newstate == "ack")
+        {
+            // do nothing, all good
+        }
+        else
+        {
+            cerr << "received unrecognized state change: [" << newstate << "]" << endl;
+            //sleep a while to avoid continuous looping
+            sleepSeconds(1);
+        }
+    }
+}
+
 
 void sigint_handler(int signum)
 {
@@ -1436,11 +1443,7 @@ void readloop()
     comms->registerForStateChanges(statechangehandle);
 
     //give it a while to communicate the state
-#if defined(_WIN32)
-    sleepMicroSeconds(300);
-#else
-    sleepMicroSeconds(1);
-#endif
+    sleepMicroSeconds(700);
 
 #if defined(_WIN32) && defined(USE_PORT_COMMS)
     // due to a failure in reconnecting to the socket, if the server was initiated in while registeringForStateChanges
