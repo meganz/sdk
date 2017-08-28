@@ -377,6 +377,10 @@ string User::attr2string(attr_t type)
             attrname = "^!lang";
             break;
 
+        case ATTR_PWD_REMINDER:
+            attrname = "^!prd";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -446,6 +450,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_LANGUAGE;
     }
+    else if(!strcmp(name, "^!prd"))
+    {
+        return ATTR_PWD_REMINDER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -464,6 +472,7 @@ bool User::needversioning(attr_t at)
         case ATTR_BIRTHMONTH:
         case ATTR_BIRTHYEAR:
         case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
             return 0;
 
         case ATTR_AUTHRING:
@@ -497,6 +506,7 @@ char User::scope(attr_t at)
             return '+';
 
         case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
             return '^';
 
         default:
@@ -571,6 +581,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_LANGUAGE:
             changed.language = true;
+            break;
+
+        case ATTR_PWD_REMINDER:
+            changed.pwdReminder = true;
             break;
 
         default:

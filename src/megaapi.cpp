@@ -1851,6 +1851,11 @@ char *MegaApi::exportMasterKey()
     return pImpl->exportMasterKey();
 }
 
+void MegaApi::masterKeyExported(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, true, false, false, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

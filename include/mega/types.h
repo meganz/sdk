@@ -407,7 +407,8 @@ typedef enum {
     ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
     ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
     ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-    ATTR_LANGUAGE = 14          // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15      // private, non-encrypted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

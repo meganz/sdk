@@ -63,6 +63,7 @@ struct MEGA_API User : public Cachable
         bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
         bool email : 1;
         bool language : 1;  // preferred language code
+        bool pwdReminder : 1;   // password-reminder-dialog information
     } changed;
 
     // user's public key

@@ -1290,6 +1290,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_LANGUAGE;
     }
+    if(user->changed.pwdReminder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_PWD_REMINDER;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4166,6 +4170,9 @@ string MegaApiImpl::userAttributeToString(int type)
 
         case MegaApi::USER_ATTR_LANGUAGE:
             attrname = "!lang";
+
+        case MegaApi::USER_ATTR_PWD_REMINDER:
+            attrname = "!pwd";
             break;
     }
 
@@ -4198,6 +4205,7 @@ char MegaApiImpl::userAttributeToScope(int type)
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
+        case MegaApi::USER_ATTR_PWD_REMINDER:
             scope = '^';
             break;
 
@@ -5181,6 +5189,69 @@ char *MegaApiImpl::exportMasterKey()
 
     sdkMutex.unlock();
     return buf;
+}
+
+void MegaApiImpl::updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool mkExported, bool dontShowAgain, bool lastLogin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_PWD_REMINDER);
+    int numDetails = 0;
+    if (lastSuccess) numDetails |= 0x01;
+    if (lastSkipped) numDetails |= 0x02;
+    if (mkExported) numDetails |= 0x04;
+    if (dontShowAgain) numDetails |= 0x08;
+    if (lastLogin) numDetails |= 0x10;
+    request->setNumDetails(numDetails);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
+{
+    bool lastSuccess = (numDetails & 0x01) != 0;
+    bool lastSkipped = (numDetails & 0x02) != 0;
+    bool mkExported = (numDetails & 0x04) != 0;
+    bool dontShowAgain = (numDetails & 0x08) != 0;
+    bool lastLogin = (numDetails & 0x10) != 0;
+
+    // format: <lastSuccess>:<lastSkipped>:<mkExported>:<dontShowAgain>:<lastLogin>
+    string oldValue;
+    if (data && size)
+    {
+        oldValue.assign((const char*) data, size);
+    }
+    else    // no existing value, set with default values
+    {
+        oldValue = "0:0:0:0:0";
+    }
+
+    int len = oldValue.find(":");
+    string buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    time_t tsLastSuccess = lastSuccess ? time(NULL) : strtol(buf.data(), NULL, 10);
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    time_t tsLastSkipped = lastSkipped ? time(NULL) : strtol(buf.data(), NULL, 10);
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    bool flagMkExported = mkExported ? true : (buf.at(0) == '1');
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    bool flagDontShowAgain = dontShowAgain ? true : (buf.at(0) == '1');
+
+    time_t tsLastLogin = lastLogin ? time(NULL) : strtol(oldValue.data(), NULL, 10);
+
+    std::stringstream value;
+    value << tsLastSuccess << ":" << tsLastSkipped << ":" << flagMkExported
+        << ":" << flagDontShowAgain << ":" << tsLastLogin;
+
+    *newValue = value.str();
 }
 
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
@@ -10394,6 +10465,16 @@ void MegaApiImpl::login_result(error result)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
 
+    // if login with user+pwd succeed, update lastLogin timestamp
+    if (result == API_OK && request->getEmail() &&
+            (request->getPassword() || request->getPrivateKey()))
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        updatePwdReminderData(false, false, false, false, true);
+        client->reqtag = creqtag;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -10828,6 +10909,20 @@ void MegaApiImpl::getua_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
                     (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
+    // if attempted to get ^!prd attribute but not exists yet...
+    if (e == API_ENOENT &&
+            (request->getType() == MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER) )
+    {
+        string newValue;
+        mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
+        request->setText(newValue.c_str());
+
+        // set the attribute using same request tag
+        client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -10835,9 +10930,28 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    if(!request ||
+            ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
+            (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     int attrType = request->getParamType();
+
+    if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+    {
+        if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
+        {
+            // merge received value with updated items
+            string newValue;
+            mergePwdReminderData(request->getNumDetails(), (const char*) data, len, &newValue);
+            request->setText(newValue.data());
+
+            // update the attribute using same request tag
+            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+        }
+        return;
+    }
+
+    // only for TYPE_GET_ATTR_USER
     switch (attrType)
     {
         case MegaApi::USER_ATTR_AVATAR:
@@ -10878,6 +10992,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
+        case MegaApi::USER_ATTR_PWD_REMINDER:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -13998,23 +14113,46 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (scope == '^')
             {
-                if (!value || type != ATTR_LANGUAGE)
+                if (type == ATTR_LANGUAGE)
+                {
+                    if (!value)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string code;
+                    if (!getLanguageCode(value, &code))
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+
+                    string valueB64;
+                    Base64::btoa(code, valueB64);
+
+                    client->putua(type, (byte *)valueB64.data(), valueB64.length());
+                    break;
+                }
+                else if (type == ATTR_PWD_REMINDER)
+                {
+                    if (request->getNumDetails() == 0)  // nothing to be changed
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    // always get updated value before update it
+                    const char* uh = getMyUserHandle();
+                    client->getua(uh, type);
+                    delete [] uh;
+                    break;
+                }
+                else
                 {
                     e = API_EARGS;
                     break;
                 }
-
-                string code;
-                if (!getLanguageCode(value, &code))
-                {
-                    e = API_ENOENT;
-                    break;
-                }
-
-                string valueB64;
-                Base64::btoa(code, valueB64);
-
-                client->putua(type, (byte *)valueB64.data(), valueB64.length());
             }
             else    // any other type of attribute
             {
