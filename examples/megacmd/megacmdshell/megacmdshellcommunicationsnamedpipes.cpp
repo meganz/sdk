@@ -608,16 +608,16 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
                 // In non-interactive mode, at least in powershell, when outputting to a file/pipe, things get rough
                 // Powershell tries to interpret the output as a string and would meddle with the UTF16 encoding, resulting
                 // in unusable output, So we disable the UTF-16 in such cases (this might cause that the output could be truncated!).
-//                oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+//                oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
 //            }
 
-            oldmode = _setmode(fileno(stdout), _O_U8TEXT);
+            oldmode = _setmode(_fileno(stdout), _O_U8TEXT);
             output << wbuffer << flush;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 
 //            if (interactiveshell || outputtobinaryorconsole() || true)
 //            {
-//                _setmode(fileno(stdout), oldmode);
+//                _setmode(_fileno(stdout), oldmode);
 //            }
         }
     } while(n == BUFFERSIZE && readok);

@@ -913,10 +913,10 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
     while (1)
     {
-        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stream), _O_U16TEXT);
 
         result = read (fileno (stream), &b, 10);
-        _setmode(fileno(stream), oldmode);
+        _setmode(_fileno(stream), oldmode);
 
         if (result == 0)
         {
@@ -1690,9 +1690,9 @@ void mycompletefunct(char **c, int num_matches, int max_length)
         string option = c[i];
 
         OUTSTREAM << setw(min(cols-1,max_length+1)) << left;
-        int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
         OUTSTREAM << c[i];
-        _setmode(fileno(stdout), oldmode);
+        _setmode(_fileno(stdout), oldmode);
 
         if ( (i%nelements_per_col == 0) && (i != num_matches))
         {

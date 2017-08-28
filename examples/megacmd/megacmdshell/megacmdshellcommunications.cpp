@@ -54,6 +54,10 @@
 #define INVALID_SOCKET -1
 #endif
 
+#ifndef ENOTCONN
+#define ENOTCONN 107
+#endif
+
 #ifndef SSTR
     #define SSTR( x ) static_cast< std::ostringstream & >( \
         ( std::ostringstream() << std::dec << x ) ).str()
@@ -746,9 +750,9 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 
             wstring wbuffer;
             stringtolocalw((const char*)&buffer,&wbuffer);
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+            int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
             output << wbuffer;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 #else
             buffer[n]='\0';
             output << buffer;
