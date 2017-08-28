@@ -8474,7 +8474,7 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 // formats supported: ...#!publichandle!key or publichandle!key
 error MegaClient::openfilelink(const char* link, int op)
 {
-    const char* ptr;
+    const char* ptr = NULL;
     handle ph = 0;
     byte key[FILENODEKEYLENGTH];
 
@@ -8482,7 +8482,7 @@ error MegaClient::openfilelink(const char* link, int op)
     {
         ptr += 2;
     }
-    else
+    else    // legacy format without '#'
     {
         ptr = link;
     }
@@ -8520,6 +8520,254 @@ error MegaClient::openfilelink(const char* link, int op)
     }
 
     return API_EARGS;
+}
+
+/* Format of password-protected links
+ *
+ * algorithm        = 1 byte - A byte to identify which algorithm was used (for future upgradability), initially is set to 0
+ * file/folder      = 1 byte - A byte to identify if the link is a file or folder link (0 = folder, 1 = file)
+ * public handle    = 6 bytes - The public folder/file handle
+ * salt             = 32 bytes - A 256 bit randomly generated salt
+ * encrypted key    = 16 or 32 bytes - The encrypted actual folder or file key
+ * MAC tag          = 32 bytes - The MAC of all the previous data to ensure integrity of the link i.e. calculated as:
+ *                      HMAC-SHA256(MAC key, (algorithm || file/folder || public handle || salt || encrypted key))
+ */
+error MegaClient::decryptlink(const char *link, const char *pwd, string* decryptedLink)
+{
+    if (!pwd || !link)
+    {
+        LOG_err << "Empty link or empty password to decrypt link";
+        return API_EARGS;
+    }
+
+    const char* ptr = NULL;
+    const char* end = NULL;
+    if (!(ptr = strstr(link, "#P!")))
+    {
+        LOG_err << "This link is not password protected";
+        return API_EARGS;
+    }
+    ptr += 3;
+
+    // Decode the link
+    int linkLen = 1 + 1 + 6 + 32 + 32 + 32;   // maximum size in binary, for file links
+    string linkBin;
+    linkBin.resize(linkLen);
+    linkLen = Base64::atob(ptr, (byte*)linkBin.data(), linkLen);
+
+    ptr = (char *)linkBin.data();
+    end = ptr + linkLen;
+
+    if ((ptr + 2) >= end)
+    {
+        LOG_err << "This link is too short";
+        return API_EINCOMPLETE;
+    }
+
+    int algorithm = *ptr++;
+    if (algorithm != 1)
+    {
+        LOG_err << "The algorithm used to encrypt this link is not supported";
+        return API_EINTERNAL;
+    }
+
+    int isFolder = !(*ptr++);
+    if (isFolder > 1)
+    {
+        LOG_err << "This link doesn't reference any folder or file";
+        return API_EARGS;
+    }
+
+    size_t encKeyLen = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+    if ((ptr + 38 + encKeyLen + 32) > end)
+    {
+        LOG_err << "This link is too short";
+        return API_EINCOMPLETE;
+    }
+
+    handle ph = MemAccess::get<handle>(ptr);
+    ptr += 6;
+
+    byte salt[32];
+    memcpy((char*)salt, ptr, 32);
+    ptr += sizeof salt;
+
+    string encKey;
+    encKey.resize(encKeyLen);
+    memcpy((byte *)encKey.data(), ptr, encKeyLen);
+    ptr += encKeyLen;
+
+    byte hmac[32];
+    memcpy((char*)&hmac, ptr, 32);
+    ptr += 32;
+
+    // Derive MAC key with salt+pwd
+    byte derivedKey[64];
+    unsigned int iterations = 100000;
+    PBKDF2_HMAC_SHA512 pbkdf2;
+    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
+                     (byte*) pwd, strlen(pwd),
+                     salt, sizeof salt,
+                     iterations);
+
+    // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+    HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
+    hmacsha256.add(derivedKey + 32, 32);
+    byte hmacComputed[32];
+    hmacsha256.get(hmacComputed);
+    if (memcmp(hmac, hmacComputed, 32))
+    {
+        LOG_err << "HMAC verification failed. Possible tampered or corrupted link";
+        return API_EKEY;
+    }
+
+    if (decryptedLink)
+    {
+        // Decrypt encKey using X-OR with first 16/32 bytes of derivedKey
+        byte key[FILENODEKEYLENGTH];
+        for (unsigned int i = 0; i < encKeyLen; i++)
+        {
+            key[i] = encKey[i] ^ derivedKey[i];
+        }
+
+        // generate plain link
+        char phStr[9];
+        char keyStr[FILENODEKEYLENGTH*4/3+3];
+
+        Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
+        Base64::btoa(key, encKeyLen, keyStr);
+
+        decryptedLink->clear();
+        decryptedLink->append("https://mega.nz/#");
+        decryptedLink->append(isFolder ? "F!" : "!");
+        decryptedLink->append(phStr);
+        decryptedLink->append("!");
+        decryptedLink->append(keyStr);
+    }
+
+    return API_OK;
+}
+
+error MegaClient::encryptlink(const char *link, const char *pwd, string *encryptedLink)
+{
+    if (!pwd || !link)
+    {
+        LOG_err << "Empty link or empty password to encrypt link";
+        return API_EARGS;
+    }
+
+    const char* ptr = NULL;
+    const char* end = link + strlen(link);
+
+    if (!(ptr = strstr(link, "#")) || ptr >= end)
+    {
+        LOG_err << "Invalid format of public link or incomplete";
+        return API_EARGS;
+    }
+    ptr++;  // skip '#'
+
+    int isFolder;
+    if (*ptr == 'F')
+    {
+        isFolder = true;
+        ptr++;  // skip 'F'
+    }
+    else if (*ptr == '!')
+    {
+        isFolder = false;
+    }
+    else
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+    ptr++;  // skip '!' separator
+
+    if (ptr + 8 >= end)
+    {
+        LOG_err << "Incomplete public link";
+        return API_EINCOMPLETE;
+    }
+
+    handle ph;
+    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) != NODEHANDLE)
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+    ptr += 8;   // skip public handle
+
+    if (ptr + 1 >= end || *ptr != '!')
+    {
+        LOG_err << "Invalid format of public link";
+        return API_EARGS;
+    }
+    ptr++;  // skip '!' separator
+
+    size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+    string linkKey;
+    linkKey.resize(linkKeySize);
+    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), linkKey.size()) != linkKeySize)
+    {
+        LOG_err << "Invalid encryption key in the public link";
+        return API_EKEY;
+    }
+
+    if (encryptedLink)
+    {
+        // Derive MAC key with salt+pwd
+        byte derivedKey[64];
+        byte salt[32];
+        PrnGen::genblock(salt, 32);
+        unsigned int iterations = 100000;
+        PBKDF2_HMAC_SHA512 pbkdf2;
+        pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
+                         (byte*) pwd, strlen(pwd),
+                         salt, sizeof salt,
+                         iterations);
+
+        // Prepare encryption key
+        string encKey;
+        encKey.resize(linkKeySize);
+        for (unsigned int i = 0; i < linkKeySize; i++)
+        {
+            encKey[i] = derivedKey[i] ^ linkKey[i];
+        }
+
+        // Preapare payload to derive encryption key
+        byte algorithm = 1;
+        byte type = isFolder ? 0 : 1;
+        string payload;
+        payload.append((char*) &algorithm, sizeof algorithm);
+        payload.append((char*) &type, sizeof type);
+        payload.append((char*) &ph, NODEHANDLE);
+        payload.append((char*) salt, sizeof salt);
+        payload.append(encKey);
+
+        // Prepare HMAC
+        HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
+        hmacsha256.add(derivedKey + 32, 32);
+        byte hmac[32];
+        hmacsha256.get(hmac);
+
+        // Prepare encrypted link
+        string encLinkBytes;
+        encLinkBytes.append((char*) &algorithm, sizeof algorithm);
+        encLinkBytes.append((char*) &type, sizeof type);
+        encLinkBytes.append((char*) &ph, NODEHANDLE);
+        encLinkBytes.append((char*) salt, sizeof salt);
+        encLinkBytes.append(encKey);
+        encLinkBytes.append((char*) hmac, sizeof hmac);
+
+        string encLink;
+        Base64::btoa(encLinkBytes, encLink);
+
+        encryptedLink->clear();
+        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(encLink);
+    }
+
+    return API_OK;
 }
 
 sessiontype_t MegaClient::loggedin()
@@ -9569,11 +9817,7 @@ void MegaClient::updateputs()
     }
 }
 
-// check sync path, add sync if folder
-// disallow nested syncs (there is only one LocalNode pointer per node), return
-// EEXIST otherwise
-// (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -9614,7 +9858,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 return API_EEXIST;
             }
         }
-        
+
         if (n->inshare && !inshare)
         {
             // we need FULL access to sync
@@ -9651,6 +9895,29 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         }
     }
 
+    if (isinshare)
+    {
+        *isinshare = inshare;
+    }
+    return API_OK;
+#else
+    return API_EINCOMPLETE;
+#endif
+}
+
+// check sync path, add sync if folder
+// disallow nested syncs (there is only one LocalNode pointer per node)
+// (FIXME: perform the same check for local paths!)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+{
+#ifdef ENABLE_SYNC
+    bool inshare = false;
+    error e = isnodesyncable(remotenode, &inshare);
+    if (e)
+    {
+        return e;
+    }
+
     if (rootpath->size() >= fsaccess->localseparator.size()
      && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
@@ -9666,8 +9933,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     FileAccess* fa = fsaccess->newfileaccess();
-    error e;
-
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
@@ -9676,7 +9941,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             fsaccess->local2path(rootpath, &utf8path);
             LOG_debug << "Adding sync: " << utf8path;
 
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
+            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
 
             if (sync->scan(rootpath, fa))
             {
@@ -9802,22 +10067,34 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // build child hash - nameclash resolution: use newest/largest version
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
-        attr_map::iterator ait;
+        attr_map::iterator ait;        
 
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(*it)
-             && (*it)->syncdeleted == SYNCDEL_NONE
+        if (((*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
              && ait->second.size())
          && (l->parent || l->sync->debris != ait->second))
         {
-            addchild(&nchildren, &ait->second, *it, &strings);
+            size_t t = localpath->size();
+            string localname = ait->second;
+            fsaccess->name2local(&localname);
+            localpath->append(fsaccess->localseparator);
+            localpath->append(localname);
+            if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
+            {
+                addchild(&nchildren, &ait->second, *it, &strings);
+            }
+            else
+            {
+                LOG_debug << "Node excluded " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
+            }
+            localpath->resize(t);
         }
         else
         {
-            LOG_debug << "Node skipped " << (*it)->nodehandle << "  Name: " << (*it)->displayname();
+            LOG_debug << "Node skipped " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
         }
     }
 

@@ -1683,6 +1683,78 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
 
 /**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:]
@@ -1749,6 +1821,41 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param node MEGANode to get the public link.
  */
 - (void)exportNode:(MEGANode *)node;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime;
 
 /**
  * @brief Stop sharing a file/folder.
@@ -2428,6 +2535,57 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param newPassword New password.
  */
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
+
+/**
+ * @brief Use HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * This feature should only be enabled if there are problems to contact MEGA servers
+ * through HTTP because otherwise it doesn't have any benefit and will cause a
+ * higher CPU usage.
+ *
+ * See [MEGASdk usingHttpsOnly]
+ *
+ * @param httpsOnly True to use HTTPS communications only
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Use HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * This feature should only be enabled if there are problems to contact MEGA servers
+ * through HTTP because otherwise it doesn't have any benefit and will cause a
+ * higher CPU usage.
+ *
+ * See [MEGASdk usingHttpsOnly]
+ *
+ * @param httpsOnly True to use HTTPS communications only
+ */
+- (void)useHttpsOnly:(BOOL)httpsOnly;
+
+/**
+ * @brief Check if the SDK is using HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * See [MEGASdk useHttpsOnly:]
+ *
+ * @return YES if the SDK is using HTTPS communications only. Otherwise NO.
+ */
+- (BOOL)usingHttpsOnly;
 
 /**
  * @brief Invite another person to be your MEGA contact

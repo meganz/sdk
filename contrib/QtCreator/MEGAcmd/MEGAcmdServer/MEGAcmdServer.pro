@@ -24,6 +24,7 @@ LIBS += -lreadline
 packagesExist(libpcrecpp){
 DEFINES += USE_PCRE
 LIBS += -lpcrecpp
+CONFIG += USE_PCRE
 }
 
 win32 {
