@@ -1455,6 +1455,64 @@ void MegaSDK::importFileLink(String^ megaFileLink, MNode^ parent)
 		(parent != nullptr) ? parent->getCPtr() : NULL);
 }
 
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
 void MegaSDK::getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener)
 {
 	std::string utf8megaFileLink;
