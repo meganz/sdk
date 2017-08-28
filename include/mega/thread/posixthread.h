@@ -23,7 +23,12 @@
  */
 
 #if defined(HAVE_CONFIG_H) || !(defined _WIN32)
-  #include "mega/config.h"
+// platform dependent constants
+#ifdef __ANDROID__
+#include "mega/config-android.h"
+#else
+#include "mega/config.h"
+#endif
 #endif
 
 #ifdef USE_PTHREAD
