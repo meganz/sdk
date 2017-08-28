@@ -1015,7 +1015,8 @@ void CommandPutNodes::procresult()
 
     e = API_EINTERNAL;
 
-    for (;;)
+    bool noexit = true;
+    while (noexit)
     {
         switch (client->json.getnameid())
         {
@@ -1027,17 +1028,17 @@ void CommandPutNodes::procresult()
                 else
                 {
                     LOG_err << "Parse error (readnodes)";
+                    e = API_EINTERNAL;
+                    noexit = false;
                 }
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (client->readnodes(&client->json, 1))
-                {
-                    e = API_OK;
-                }
-                else
+                if (!client->readnodes(&client->json, 1))
                 {
                     LOG_err << "Parse error (readversions)";
+                    e = API_EINTERNAL;
+                    noexit = false;
                 }
                 break;
 
@@ -1052,29 +1053,31 @@ void CommandPutNodes::procresult()
 
                 // fall through
             case EOO:
-                client->applykeys();
-
-#ifdef ENABLE_SYNC
-                if (source == PUTNODES_SYNC)
-                {
-                    client->app->putnodes_result(e, type, NULL);
-                    client->putnodes_sync_result(e, nn, nnsize);
-                }
-                else
-#endif
-                if (source == PUTNODES_APP)
-                {
-                    client->app->putnodes_result(e, type, nn);
-                }
-#ifdef ENABLE_SYNC
-                else
-                {
-                    client->putnodes_syncdebris_result(e, nn);
-                }
-#endif
-                return;
+                noexit = false;
+                break;
         }
     }
+
+    client->applykeys();
+
+#ifdef ENABLE_SYNC
+    if (source == PUTNODES_SYNC)
+    {
+        client->app->putnodes_result(e, type, NULL);
+        client->putnodes_sync_result(e, nn, nnsize);
+    }
+    else
+#endif
+    if (source == PUTNODES_APP)
+    {
+        client->app->putnodes_result(e, type, nn);
+    }
+#ifdef ENABLE_SYNC
+    else
+    {
+        client->putnodes_syncdebris_result(e, nn);
+    }
+#endif
 }
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
