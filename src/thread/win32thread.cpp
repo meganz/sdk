@@ -24,6 +24,7 @@
 
 #include "mega/thread/win32thread.h"
 #include "mega/logging.h"
+#include <limits.h>
 
 namespace mega {
 //Thread
