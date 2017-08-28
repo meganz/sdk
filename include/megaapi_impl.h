@@ -1503,6 +1503,8 @@ class MegaApiImpl : public MegaApp
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
+        void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
+        void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);

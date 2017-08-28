@@ -1904,6 +1904,86 @@ public class MegaApiJava {
     }
 
     /**
+     * Decrypt password-protected public link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+     * - MegaRequest::getPassword - Returns the password to decrypt the link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Decrypted public link
+     *
+     * @param link Password/protected public link to a file/folder in MEGA
+     * @param password Password to decrypt the link
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void decryptPasswordProtectedLink(String link, String password, MegaRequestListenerInterface listener) {
+        megaApi.decryptPasswordProtectedLink(link, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Decrypt password-protected public link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+     * - MegaRequest::getPassword - Returns the password to decrypt the link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Decrypted public link
+     *
+     * @param link Password/protected public link to a file/folder in MEGA
+     * @param password Password to decrypt the link
+     */
+    public void decryptPasswordProtectedLink(String link, String password){
+        megaApi.decryptPasswordProtectedLink(link, password);
+    }
+
+    /**
+     * Encrypt public link with password
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to be encrypted
+     * - MegaRequest::getPassword - Returns the password to encrypt the link
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Encrypted public link
+     *
+     * @param link Public link to be encrypted, including encryption key for the link
+     * @param password Password to encrypt the link
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void encryptLinkWithPassword(String link, String password, MegaRequestListenerInterface listener) {
+        megaApi.encryptLinkWithPassword(link, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Encrypt public link with password
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to be encrypted
+     * - MegaRequest::getPassword - Returns the password to encrypt the link
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Encrypted public link
+     *
+     * @param link Public link to be encrypted, including encryption key for the link
+     * @param password Password to encrypt the link
+     */
+    public void encryptLinkWithPassword(String link, String password) {
+        megaApi.encryptLinkWithPassword(link, password);
+    }
+
+    /**
      * Get a MegaNode from a public link to a file.
      * <p>
      * A public node can be imported using MegaApiJava.copy() or downloaded using MegaApiJava.startDownload().

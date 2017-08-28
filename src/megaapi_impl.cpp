@@ -2890,6 +2890,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
+        case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
     }
     return "UNKNOWN";
@@ -4859,6 +4860,25 @@ void MegaApiImpl::importFileLink(const char* megaFileLink, MegaNode *parent, Meg
     waiter->notify();
 }
 
+void MegaApiImpl::decryptPasswordProtectedLink(const char *link, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
+    request->setLink(link);
+    request->setPassword(password);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::encryptLinkWithPassword(const char *link, const char *password, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PASSWORD_LINK, listener);
+    request->setLink(link);
+    request->setPassword(password);
+    request->setFlag(true); // encrypt
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PUBLIC_NODE, listener);
@@ -6368,8 +6388,15 @@ void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
     {
         string name = excludedNames->at(i);
         fsAccess->normalize(&name);
-        this->excludedNames.push_back(name);
-        LOG_debug << "Excluded name: " << name;
+        if (name.size())
+        {
+            this->excludedNames.push_back(name);
+            LOG_debug << "Excluded name: " << name;
+        }
+        else
+        {
+            LOG_warn << "Invalid excluded name: " << excludedNames->at(i);
+        }
     }
     sdkMutex.unlock();
 }
@@ -6389,14 +6416,21 @@ void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
     {
         string path = excludedPaths->at(i);
         fsAccess->normalize(&path);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+        if (path.size())
         {
-            path.insert(0, "\\\\?\\");
+    #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+            if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            {
+                path.insert(0, "\\\\?\\");
+            }
+    #endif
+            this->excludedPaths.push_back(path);
+            LOG_debug << "Excluded path: " << path;
         }
-#endif
-        this->excludedPaths.push_back(path);
-        LOG_debug << "Excluded path: " << path;
+        else
+        {
+            LOG_warn << "Invalid excluded path: " << excludedPaths->at(i);
+        }
     }
     sdkMutex.unlock();
 }
@@ -13741,21 +13775,53 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
 			}
 
-            if(e == API_OK)
+            if (e == API_OK)
                 client->setshare(node, email, a);
-			break;
+            break;
 		}
-		case MegaRequest::TYPE_IMPORT_LINK:
-		case MegaRequest::TYPE_GET_PUBLIC_NODE:
-		{
-			Node *node = client->nodebyhandle(request->getParentHandle());
-			const char* megaFileLink = request->getLink();
-			if(!megaFileLink) { e = API_EARGS; break; }
-			if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node)) { e = API_EARGS; break; }
+        case MegaRequest::TYPE_IMPORT_LINK:
+        case MegaRequest::TYPE_GET_PUBLIC_NODE:
+        {
+            Node *node = client->nodebyhandle(request->getParentHandle());
+            const char* megaFileLink = request->getLink();
 
-			e = client->openfilelink(megaFileLink, 1);
-			break;
-		}
+            if (!megaFileLink)
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK) && !node)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            e = client->openfilelink(megaFileLink, 1);
+            break;
+        }
+        case MegaRequest::TYPE_PASSWORD_LINK:
+        {
+            const char *link = request->getLink();
+            const char *pwd = request->getPassword();
+            bool encryptLink = request->getFlag();
+
+            string result;
+            if (encryptLink)
+            {
+                e = client->encryptlink(link, pwd, &result);
+            }
+            else
+            {
+                e = client->decryptlink(link, pwd, &result);
+            }
+
+            if (!e)
+            {
+                request->setText(result.c_str());
+                fireOnRequestFinish(request, e);
+            }
+            break;
+        }
 		case MegaRequest::TYPE_EXPORT:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());

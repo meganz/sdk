@@ -109,6 +109,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeChatStats,
     MEGARequestTypeDownloadFile,
     MEGARequestTypeQueryTransferQuota,
+    MEGARequestTypePasswordLink,
     MEGARequestTypeGetAchievements
 };
 

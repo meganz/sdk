@@ -1690,6 +1690,78 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
 
 /**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:]
