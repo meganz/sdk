@@ -61,16 +61,6 @@ sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/megacmd.spec > m
 sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/megacmd.dsc > megacmd/megacmd.dsc
 sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/PKGBUILD > megacmd/PKGBUILD
 
-#include license as copyright file
-echo "Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" > megacmd/debian.copyright
-echo "Upstream-Name: megacmd" >> megacmd/debian.copyright
-echo "Upstream-Contact: <support@mega.nz>" >> megacmd/debian.copyright
-echo "Source: https://github.com/meganz/sdk" >> megacmd/debian.copyright
-echo "Files: *" >> megacmd/debian.copyright
-echo "Copyright: 2013, Mega Limited" >> megacmd/debian.copyright
-echo -n "License:" >> megacmd/debian.copyright # Some software (e.g: gnome-software) would only recognized these licenses: http://spdx.org/licenses/
-#~ cat ../LICENCE.md | sed 's#^\s*$#\.#g' | sed 's#^# #' >> megacmd/debian.copyright #TODO: deal with LICENCE!
-
 # read the last generated ChangeLog version
 version_file="version"
 
@@ -124,9 +114,10 @@ mkdir -p $megacmd_NAME/examples/megacmd
 for i in $BASEPATH/examples/{include.am,megacli.*,megasimple*}; do 
     ln -s $i $megacmd_NAME/examples/
 done    
-for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client}; do
+for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client,megacmdshell}; do
 	ln -s $i $megacmd_NAME/examples/megacmd/
 done
+
 
 mkdir -p $megacmd_NAME/contrib/
 ln -s $BASEPATH/contrib/build_sdk.sh $megacmd_NAME/contrib/

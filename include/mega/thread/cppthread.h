@@ -17,9 +17,12 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#ifdef WINDOWS_PHONE
+#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
@@ -42,7 +45,7 @@ public:
     virtual void join();
     virtual ~CppThread();
 
-    static uint64_t currentThreadId();
+    static unsigned long long currentThreadId();
 
 protected:
     std::thread *thread;

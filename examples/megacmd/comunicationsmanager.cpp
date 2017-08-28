@@ -24,21 +24,20 @@
 using namespace std;
 using namespace mega;
 
-std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, const CmdPetition& p)
 {
     return os << p.line;
 }
 
+#ifdef _WIN32
+std::ostream &operator<<(std::ostream &os, const CmdPetition& p)
+{
+    return os << p.line;
+}
+#endif
+
 ComunicationsManager::ComunicationsManager()
 {
-}
-
-
-
-
-bool ComunicationsManager::receivedReadlineInput(int readline_fd)
-{
-    return FD_ISSET(readline_fd, &fds);
 }
 
 bool ComunicationsManager::receivedPetition()
@@ -46,33 +45,74 @@ bool ComunicationsManager::receivedPetition()
     return false;
 }
 
-int ComunicationsManager::waitForPetitionOrReadlineInput(int readline_fd)
+void ComunicationsManager::registerStateListener(CmdPetition *inf)
 {
-    FD_ZERO(&fds);
-    FD_SET(readline_fd, &fds);
-
-    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-    if (rc < 0)
+    stateListenersPetitions.push_back(inf);
+    if (stateListenersPetitions.size() >MAXCMDSTATELISTENERS && stateListenersPetitions.size()%10 == 0)
     {
-        if (errno != EINTR)  //syscall
-        {
-#ifdef _WIN32
-            if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
-#endif
-            LOG_fatal << "Error at select: " << errno;
-            return errno;
-        }
+        LOG_debug << " Number of register listeners has grown too much: " << stateListenersPetitions.size() << ". Sending an ACK to discard disconnected ones.";
+        string sack="ack";
+        informStateListeners(sack);
     }
-    return 0;
+    return;
 }
-
 
 int ComunicationsManager::waitForPetition()
 {
     return 0;
 }
 
-void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+
+void ComunicationsManager::stopWaiting()
+{
+}
+
+int ComunicationsManager::get_next_comm_id()
+{
+    return 0;
+}
+
+void ComunicationsManager::informStateListeners(string &s)
+{
+    s+=(char)0x1F;
+
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        if (informStateListener((CmdPetition *)*it, s) <0)
+        {
+            delete *it;
+            it = stateListenersPetitions.erase(it);
+        }
+        else
+        {
+             ++it;
+        }
+    }
+}
+
+void ComunicationsManager::informStateListenerByClientId(string &s, int clientID)
+{
+    s+=(char)0x1F;
+
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        if ((clientID == ((CmdPetition *)*it)->clientID ) && informStateListener((CmdPetition *)*it, s) <0)
+        {
+            delete *it;
+            it = stateListenersPetitions.erase(it);
+        }
+        else
+        {
+             ++it;
+        }
+    }
+}
+int ComunicationsManager::informStateListener(CmdPetition *inf, string &s)
+{
+    return 0;
+}
+
+void ComunicationsManager::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     delete inf;
     return;
@@ -88,6 +128,11 @@ CmdPetition * ComunicationsManager::getPetition()
     return inf;
 }
 
+bool ComunicationsManager::getConfirmation(CmdPetition *inf, string message)
+{
+    return false;
+}
+
 string ComunicationsManager::get_petition_details(CmdPetition *inf)
 {
     return "";
@@ -96,6 +141,11 @@ string ComunicationsManager::get_petition_details(CmdPetition *inf)
 
 ComunicationsManager::~ComunicationsManager()
 {
+    for (std::vector< CmdPetition * >::iterator it = stateListenersPetitions.begin(); it != stateListenersPetitions.end();)
+    {
+        delete *it;
+        it = stateListenersPetitions.erase(it);
+    }
 }
 
 MegaThread *CmdPetition::getPetitionThread() const

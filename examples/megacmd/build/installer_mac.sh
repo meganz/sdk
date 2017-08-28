@@ -33,21 +33,51 @@ cd Release_x64
 $QTBASE/bin/qmake -r ../../../../contrib/QtCreator/MEGAcmd/ -spec macx-g++ CONFIG+=release CONFIG+=x86_64 -nocache
 make -j4
 
+#After building, we will have 4 folders (one per project: MEGAcmdServer, MEGAcmdClient, MEGAcmdLoader & MEGAcmdShell)
+# we will include the stuff from the other 3 into MEGAcmdServer folder
+
+#backup stuff
 cp -R MEGAcmdServer/MEGAcmd.app MEGAcmdServer/MEGAcmd_orig.app
+
+#do macdeploy on the server .app
 $QTBASE/bin/macdeployqt MEGAcmdServer/MEGAcmd.app
+
+#get debug symbols and strip executable for MEGAcmdServer
 dsymutil MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd -o MEGAcmd.app.dSYM
 strip MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
+
+#get debug symbols and strip executable for MEGAClient
 dsymutil MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient -o MEGAclient.dSYM
 strip MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient
+
+#get debug symbols and strip executable for MEGAcmdShell
+dsymutil MEGAcmdShell/MEGAcmdShell.app/Contents/MacOS/MEGAcmdShell -o MEGAcmdShell.dSYM
+strip MEGAcmdShell/MEGAcmdShell.app/Contents/MacOS/MEGAcmdShell
+
+#get debug symbols and strip executable for MEGAcmdLoader
 dsymutil MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader -o MEGAcmdLoader.dSYM
 strip MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader
+
+#copy client scripts and completion into package contents
 cp ../../client/mega-* MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
 cp ../../client/megacmd_completion.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/
+
+#rename exec MEGAcmd (aka: MEGAcmdServer) to mega-cmd and add it to package contents
 mv MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-cmd
+
+#copy initialize script (it will simple launch MEGAcmdLoader in a terminal) as the new main executable: MEGAcmd
 cp ../installer/MEGAcmd.sh  MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmd
 
+#rename MEGAClient to mega-exec and add it to package contents
 mv MEGAcmdClient/MEGAclient.app/Contents/MacOS/MEGAclient MEGAcmdServer/MEGAcmd.app/Contents/MacOS/mega-exec
+
+#add MEGAcmdLoader into package contents
 mv MEGAcmdLoader/MEGAcmdLoader.app/Contents/MacOS/MEGAcmdLoader MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader
+
+#add MEGAcmdShell into package contents
+mv MEGAcmdShell/MEGAcmdShell.app/Contents/MacOS/MEGAcmdShell MEGAcmdServer/MEGAcmd.app/Contents/MacOS/MEGAcmdShell
+
+#move the resulting package to ./
 mv MEGAcmdServer/MEGAcmd.app ./MEGAcmd.app
 
 if [ "$sign" = "1" ]; then
@@ -95,6 +125,7 @@ fi
 echo "Cleaning"
 rm -rf MEGAcmdServer
 rm -rf MEGAcmdClient
+rm -rf MEGAcmdShell
 
 echo "DONE"
 

@@ -8,7 +8,7 @@
 #define MEGACMD_MINOR_VERSION 9
 #endif
 #ifndef MEGACMD_MICRO_VERSION
-#define MEGACMD_MICRO_VERSION 3
+#define MEGACMD_MICRO_VERSION 4
 #endif
 
 #ifndef MEGACMD_CODE_VERSION
@@ -16,13 +16,16 @@
 #endif
 
 const char * const megacmdchangelog =
-        "fixed mkdir in MacOS""\n"
-        "added command \"https\" to force HTTPS for file transfers""\n"
-        "added -n to \"users\" to show users names""\n"
-        "modified greeting""\n"
-        "fixed \"clear\" for Windows""\n"
-        "fixed download >4GB files""\n"
-        "fixed bug in asynchronous transfers""\n"
+        "Separated MEGAcmd into interactive shell (MEGAcmdShell) and server(MEGAcmdServer)""\n"
+        "Added transfers management with \"transfer\" command""\n"
+        "Uploads and downloads now support background mode with \"-q\"""\n"
+        "Added confirmation on folder removal (interactive & non-interactive modes)""\n"
+        "PCRE are now optional if available in all the commands with \"--use-pcre\"""\n"
+        "Server initiated automatically in interactive and non-interactive mode""\n"
+        "Added unicode support for Windows""\n"
+        "Refurbished communications and secured non-interactive mode in Windows""\n"
+        "Implemented copy (cp) to user's inbox""\n"
+        "Several fixes and commands improvements"
         ;
 
 
