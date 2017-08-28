@@ -841,7 +841,7 @@ bool Node::setparent(Node* p)
             p = p->parent;
         }
 
-        if (!p)
+        if (!p || p->type == FILENODE)
         {
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
