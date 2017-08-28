@@ -13787,6 +13787,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            if (keepversions && node->type != FILENODE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             if (node->type == ROOTNODE
                     || node->type == INCOMINGNODE
                     || node->type == RUBBISHNODE) // rootnodes cannot be deleted

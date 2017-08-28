@@ -5664,9 +5664,19 @@ error MegaClient::unlink(Node* n, bool keepversions)
         return API_EACCESS;
     }
 
-    reqs.add(new CommandDelNode(this, n->nodehandle, keepversions));
+    bool kv = (keepversions && n->type == FILENODE);
+    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
 
     mergenewshares(1);
+
+    if (kv)
+    {
+        Node *parent = n->parent;
+        if (n->children.size())
+        {
+            n->children.front()->setparent(parent);
+        }
+    }
 
     TreeProcDel td;
     proctree(n, &td);
