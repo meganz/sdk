@@ -27,7 +27,7 @@ if [ "$#" -ne 2 ]; then
 fi
 
 in_file="$2"
-out1=$(awk -NF ' "|""' ' /megacmdchangelog/ {flag=1;next} /;/{flag=0} flag { print "  * "$2 }' $in_file)
+out1=$(awk -NF '"$| "|""\\\\n' ' /megacmdchangelog/ {flag=1;next} /;/{flag=0} flag { print "  * "$2 }' $in_file)
 
 
 # print ChangeLog entry

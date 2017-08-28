@@ -2175,18 +2175,20 @@ void executecommand(char* ptr)
             OUTSTREAM << "A great effort has been done so as to have MEGAcmd support non-ASCII characters." << endl;
             OUTSTREAM << "However, it might still be consider in an experimantal state. You might experiment some issues." << endl;
             OUTSTREAM << "If that is the case, don´t hesistate to contact us so as to improve our support." << endl;
+            OUTSTREAM << endl;
             OUTSTREAM << "Known issues: " << endl;
+            OUTSTREAM << endl;
             OUTSTREAM << "In Windows, when executing a client command in non-interactive mode or the interactive shell " << endl;
             OUTSTREAM << "Some symbols might not be printed. This is something expected, since your terminal (PowerShell/Command Prompt)" << endl;
-            OUTSTREAM << " is not able to draw those symbols. However you can use the non-interactive mode to have the output " << endl;
+            OUTSTREAM << "is not able to draw those symbols. However you can use the non-interactive mode to have the output " << endl;
             OUTSTREAM << "written into a file and open it with a graphic editor that supports them. The file will be UTF-8 encoded." << endl;
             OUTSTREAM << "To do that, use \"-o outputfile\" with your mega-*.bat commands. (See \"help --non-interactive\")." << endl;
             OUTSTREAM << "Please, restrain using \"> outputfile\" or piping the output into another command if you require unicode support" << endl;
-            OUTSTREAM << " because for instance, when piping your terminal, does not treat the output as binary, it'll meddle with the encoding" << endl;
-            OUTSTREAM << " resulting in unusable output." << endl;
-
+            OUTSTREAM << "because for instance, when piping, your terminal does not treat the output as binary; " << endl;
+            OUTSTREAM << "it will meddle with the encoding, resulting in unusable output." << endl;
+            OUTSTREAM << endl;
             OUTSTREAM << "In the interactive shell, the library used for reading the inputs is not able to capture unicode inputs by default" << endl;
-            OUTSTREAM << "There's a workaround to activate an alternative way to read input. You can activate using \"unicode\" command. " << endl;
+            OUTSTREAM << "There's a workaround to activate an alternative way to read input. You can activate it using \"unicode\" command. " << endl;
             OUTSTREAM << "However, if you do so, arrow keys and hotkeys combinations will be disabled. You can disable this input mode again. " << endl;
             OUTSTREAM << "See \"unicode --help\" for further info." << endl;
         }

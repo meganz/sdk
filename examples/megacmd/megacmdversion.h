@@ -24,7 +24,8 @@ const char * const megacmdchangelog =
         "Server initiated automatically in interactive and non-interactive mode""\n"
         "Added unicode support for Windows""\n"
         "Refurbished communications and secured non-interactive mode in Windows""\n"
-        "Several fixes"
+        "Implemented copy (cp) to user's inbox""\n"
+        "Several fixes and commands improvements"
         ;
 
 

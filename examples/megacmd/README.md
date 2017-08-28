@@ -104,6 +104,13 @@ If that is not you case, include the location for the binaries in your path.
 ## Windows
 Once you have MEGAcmd installed, you just need to execute the main executable to open the shell. 
 This shall open a second window with MEGAcmdServer. Notice that this window will start minimized.
+For a better user experience (specially in WINDOWS 7) we recommend executing MEGAcmd from PowerShell:
+Open PowerShell and execute:
+```
+$env:PATH += ";$env:LOCALAPPDATA\MEGAcmd"
+MEGAcmdShell
+```
+
 For non-interactive usage, there are several `mega-*.bat`  client commands you can 
 use writting their absolute paths, or including their location into your environment PATH
  and execute them normally (`mega-*`).
