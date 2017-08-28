@@ -2763,56 +2763,6 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
-                        string ppLink = "https://mega.nz/#P!AQHRXAcUoNjjrGVimtFhJsMPgvNfPHTH2JkdYiuPfklTmjK4t5Xqst9YvQQRzZ2i0dCvJ9d7XP3AC-e8dKkdLuo6zmKm0Anzk1pz07gVK3gDSpkywmFLIGkHFiEOyY9GXKtMTpsFUVE";
-                        string pLink = "https://mega.nz/#!0VwHFKDY!Q3azFXNB-5MfJ9HBx56XkmxcZ_Q6tnh5a6_1UJ2iaT4";
-                        string pwd = "ppl??";
-
-                        char *link = NULL;
-
-                        error e = client->decryptlink(ppLink.c_str(), pwd.c_str(), &link);
-                        if (e)
-                        {
-                            cerr << "Failed to decrypt link" << endl;
-                            return;
-                        }
-                        else
-                        {
-                            if (strcmp(link, pLink.c_str()))
-                            {
-                                cerr << "Decrypted link doesn't match original link";
-                            }
-                            cout << "Encrypted link: " << ppLink << endl;
-                            cout << "Decrypted link: " << link << endl;
-
-                            delete [] link;
-                            link = NULL;
-                        }
-
-                        e = client->encryptlink(pLink.c_str(), pwd.c_str(), &link);
-                        if (e)
-                        {
-                            cerr << "Failed to encrypt link" << endl;
-                        }
-                        else
-                        {
-                            string ppLink(link);
-
-                            delete [] link;
-                            link = NULL;
-
-                            cout << "Original link: " << pLink << endl;
-                            cout << "Encrypted link: " << ppLink << endl;
-
-                            e = client->decryptlink(ppLink.c_str(), pwd.c_str(), &link);
-                            if (e)
-                            {
-                                cerr << "Failed to decrypt link" << endl;
-                            }
-                            else
-                            {
-                                cout << "Decrypted link: " << link << endl;
-                            }
-                        }
                         return;
                     }
 

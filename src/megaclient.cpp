@@ -8473,7 +8473,7 @@ error MegaClient::openfilelink(const char* link, int op)
  * MAC tag          = 32 bytes - The MAC of all the previous data to ensure integrity of the link i.e. calculated as:
  *                      HMAC-SHA256(MAC key, (algorithm || file/folder || public handle || salt || encrypted key))
  */
-error MegaClient::decryptlink(const char *link, const char *pwd, char **decryptedLink)
+error MegaClient::decryptlink(const char *link, const char *pwd, string* decryptedLink)
 {
     if (!pwd || !link)
     {
@@ -8562,33 +8562,34 @@ error MegaClient::decryptlink(const char *link, const char *pwd, char **decrypte
         return API_EKEY;
     }
 
-    // Decrypt encKey using X-OR with first 16/32 bytes of derivedKey
-    byte key[FILENODEKEYLENGTH];
-    for (unsigned int i = 0; i < encKeyLen; i++)
+    if (decryptedLink)
     {
-        key[i] = encKey[i] ^ derivedKey[i];
+        // Decrypt encKey using X-OR with first 16/32 bytes of derivedKey
+        byte key[FILENODEKEYLENGTH];
+        for (unsigned int i = 0; i < encKeyLen; i++)
+        {
+            key[i] = encKey[i] ^ derivedKey[i];
+        }
+
+        // generate plain link
+        char phStr[9];
+        char keyStr[FILENODEKEYLENGTH*4/3+3];
+
+        Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
+        Base64::btoa(key, encKeyLen, keyStr);
+
+        decryptedLink->clear();
+        decryptedLink->append("https://mega.nz/#");
+        decryptedLink->append(isFolder ? "F!" : "!");
+        decryptedLink->append(phStr);
+        decryptedLink->append("!");
+        decryptedLink->append(keyStr);
     }
-
-    // generate plain link
-    char phStr[9];
-    char keyStr[FILENODEKEYLENGTH*4/3+3];
-
-    Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
-    Base64::btoa(key, encKeyLen, keyStr);
-
-    string linkStr = "https://mega.nz/#";
-    linkStr += (isFolder ? "F" : "");
-    linkStr += "!";
-    linkStr += phStr;
-    linkStr += "!";
-    linkStr += keyStr;
-
-    *decryptedLink = strdup(linkStr.c_str());
 
     return API_OK;
 }
 
-error MegaClient::encryptlink(const char *link, const char *pwd, char **encryptedLink)
+error MegaClient::encryptlink(const char *link, const char *pwd, string *encryptedLink)
 {
     if (!pwd || !link)
     {
@@ -8653,58 +8654,59 @@ error MegaClient::encryptlink(const char *link, const char *pwd, char **encrypte
         return API_EKEY;
     }
 
-    // Derive MAC key with salt+pwd
-    byte derivedKey[64];
-    byte salt[32];
-    PrnGen::genblock(salt, 32);
-    unsigned int iterations = 100000;
-    PBKDF2_HMAC_SHA512 pbkdf2;
-    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                     (byte*) pwd, strlen(pwd),
-                     salt, sizeof salt,
-                     iterations);
-
-    // Prepare encryption key
-    string encKey;
-    encKey.resize(linkKeySize);
-    for (unsigned int i = 0; i < linkKeySize; i++)
+    if (encryptedLink)
     {
-        encKey[i] = derivedKey[i] ^ linkKey[i];
+        // Derive MAC key with salt+pwd
+        byte derivedKey[64];
+        byte salt[32];
+        PrnGen::genblock(salt, 32);
+        unsigned int iterations = 100000;
+        PBKDF2_HMAC_SHA512 pbkdf2;
+        pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
+                         (byte*) pwd, strlen(pwd),
+                         salt, sizeof salt,
+                         iterations);
+
+        // Prepare encryption key
+        string encKey;
+        encKey.resize(linkKeySize);
+        for (unsigned int i = 0; i < linkKeySize; i++)
+        {
+            encKey[i] = derivedKey[i] ^ linkKey[i];
+        }
+
+        // Preapare payload to derive encryption key
+        byte algorithm = 1;
+        byte type = isFolder ? 0 : 1;
+        string payload;
+        payload.append((char*) &algorithm, sizeof algorithm);
+        payload.append((char*) &type, sizeof type);
+        payload.append((char*) &ph, NODEHANDLE);
+        payload.append((char*) salt, sizeof salt);
+        payload.append(encKey);
+
+        // Prepare HMAC
+        HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
+        hmacsha256.add(derivedKey + 32, 32);
+        byte hmac[32];
+        hmacsha256.get(hmac);
+
+        // Prepare encrypted link
+        string encLinkBytes;
+        encLinkBytes.append((char*) &algorithm, sizeof algorithm);
+        encLinkBytes.append((char*) &type, sizeof type);
+        encLinkBytes.append((char*) &ph, NODEHANDLE);
+        encLinkBytes.append((char*) salt, sizeof salt);
+        encLinkBytes.append(encKey);
+        encLinkBytes.append((char*) hmac, sizeof hmac);
+
+        string encLink;
+        Base64::btoa(encLinkBytes, encLink);
+
+        encryptedLink->clear();
+        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(encLink);
     }
-
-    // Preapare payload to derive encryption key
-    byte algorithm = 1;
-    byte type = isFolder ? 0 : 1;
-    string payload;
-    payload.append((char*) &algorithm, sizeof algorithm);
-    payload.append((char*) &type, sizeof type);
-    payload.append((char*) &ph, NODEHANDLE);
-    payload.append((char*) salt, sizeof salt);
-    payload.append(encKey);
-
-    // Prepare HMAC
-    HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
-    hmacsha256.add(derivedKey + 32, 32);
-    byte hmac[32];
-    hmacsha256.get(hmac);
-
-    // Prepare encrypted link
-    string encLinkBytes;
-    encLinkBytes.append((char*) &algorithm, sizeof algorithm);
-    encLinkBytes.append((char*) &type, sizeof type);
-    encLinkBytes.append((char*) &ph, NODEHANDLE);
-    encLinkBytes.append((char*) salt, sizeof salt);
-    encLinkBytes.append(encKey);
-    encLinkBytes.append((char*) hmac, sizeof hmac);
-
-    string encLink;
-    Base64::btoa(encLinkBytes, encLink);
-
-    string result;
-    result.append("https://mega.nz/#P!");
-    result.append(encLink);
-
-    *encryptedLink = strdup(result.c_str());
 
     return API_OK;
 }
