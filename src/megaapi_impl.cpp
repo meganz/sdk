@@ -7222,14 +7222,14 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
     return fileAttributes;
 }
 
-void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
+void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::getMegaAchievementsList(MegaRequestListener *listener)
+void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
     request->setFlag(true);

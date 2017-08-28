@@ -1820,8 +1820,8 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
 #endif
 
+        void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
-        void getMegaAchievementsList(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);

@@ -2965,14 +2965,14 @@ bool MegaApi::isOnline()
     return pImpl->isOnline();
 }
 
+void MegaApi::getAccountAchievements(MegaRequestListener *listener)
+{
+    pImpl->getAccountAchievements(listener);
+}
+
 void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 {
     pImpl->getMegaAchievements(listener);
-}
-
-void MegaApi::getMegaAchievementsList(MegaRequestListener *listener)
-{
-    pImpl->getMegaAchievementsList(listener);
 }
 
 #ifdef HAVE_LIBUV
