@@ -4352,7 +4352,7 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 
 /**
@@ -4367,48 +4367,56 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * - [MEGARequest megaAchievementsDetails] - Details of the MEGA Achievements of this account
  *
  */
-- (void)getMegaAchievements;
+- (void)getAccountAchievements;
 
 /**
  * @brief Get the list of existing MEGA Achievements
  *
- * Similar to [MEGASdk getMegaAchievements], this method returns only the base storage and
- * the details for the different achievement classes, but not awards or rewards. It can
- * be used to give an indication of what is available for advertising for unregistered users.
+ * Similar to [MEGASdk getAccountAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, related to the
+ * account that is logged in.
+ * This function can be used to give an indication of what is available for advertising
+ * for unregistered users, despite it can be used with a logged in account with no difference.
  *
- * If the IP address is not achievement enabled, the request will fail with MEGAErrorTypeApiEAccess.
+ * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+ * Achievements are not enabled), the request will fail with MEGAErrorTypeApiEAccess.
  *
  * The associated request type with this request is MEGARequestTypeGetAchievements
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest flag] - Always YES
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getMegaAchievementsListWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the list of existing MEGA Achievements
  *
- * Similar to [MEGASdk getMegaAchievements], this method returns only the base storage and
- * the details for the different achievement classes, but not awards or rewards. It can
- * be used to give an indication of what is available for advertising for unregistered users.
+ * Similar to [MEGASdk getAccountAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, related to the
+ * account that is logged in.
+ * This function can be used to give an indication of what is available for advertising
+ * for unregistered users, despite it can be used with a logged in account with no difference.
+ *
+ * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+ * Achievements are not enabled), the request will fail with MEGAErrorTypeApiEAccess.
  *
  * If the IP address is not achievement enabled, the request will fail with MEGAErrorTypeApiEAccess.
  *
  * The associated request type with this request is MEGARequestTypeGetAchievements
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest flag] - Always YES
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
  *
  */
-- (void)getMegaAchievementsList;
+- (void)getMegaAchievements;
 
 #pragma mark - Debug log messages
 

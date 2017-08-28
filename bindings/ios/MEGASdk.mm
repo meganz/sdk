@@ -1551,21 +1551,20 @@ using namespace mega;
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
+- (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getAccountAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getAccountAchievements {
+    self.megaApi->getAccountAchievements();
+}
+
 - (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getMegaAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getMegaAchievements {
     self.megaApi->getMegaAchievements();
-}
-
-- (void)getMegaAchievementsListWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getMegaAchievementsList([self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-
-- (void)getMegaAchievementsList {
-    self.megaApi->getMegaAchievementsList();
 }
 
 #pragma mark - Debug log messages
