@@ -114,7 +114,7 @@ wstring getWAbsPath(wstring localpath)
        cerr << " failed to get CWD" << endl;
        return localpath;
    }
-   absolutelocalpath.resize(newlen* sizeof(wchar_t));
+   absolutelocalpath.resize(newlen);
 
    if (absolutelocalpath.find(L"\\\\?\\") != 0)
    {
