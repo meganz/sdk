@@ -164,7 +164,6 @@ string clientID; //identifier for a registered state listener
 long long charstoll(const char *instr)
 {
   long long retval;
-  int i;
 
   retval = 0;
   for (; *instr; instr++) {
@@ -1212,7 +1211,7 @@ void process_line(char * line)
         {
             vector<string> words = getlistOfWords(line);
             bool helprequested = false;
-            for (int i = 1; i< words.size(); i++)
+            for (u_int i = 1; i< words.size(); i++)
             {
                 if (words[i]== "--help") helprequested = true;
             }

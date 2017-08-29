@@ -248,7 +248,7 @@ string createAndRetrieveConfigFolder()
     configFolder = sconfigDir.str();
 
 
-    struct stat st = {0};
+    struct stat st;
     if (stat(configFolder.c_str(), &st) == -1) {
         mkdir(configFolder.c_str(), 0700);
     }
@@ -930,5 +930,5 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
 #endif
         listenerThread->join();
     }
-    delete listenerThread;
+    delete (MegaThread *)listenerThread;
 }

@@ -6286,7 +6286,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         int showndl = 0;
         int shownup = 0;
-        int shownCompleted = 0;
+        u_int shownCompleted = 0;
 
         vector<MegaTransfer *> transfersDLToShow;
         vector<MegaTransfer *> transfersUPToShow;
@@ -6298,7 +6298,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             u_int totalcompleted = globalTransferListener->completedTransfers.size();
             for (u_int i = 0;(i < totalcompleted)
                  && (shownCompleted < totalcompleted)
-                 && (shownCompleted < (limit+1)); //Note limit+1 to seek for one more to show if there are more to show!
+                 && (shownCompleted < (u_int)(limit+1)); //Note limit+1 to seek for one more to show if there are more to show!
                  i++)
             {
                 MegaTransfer *transfer = globalTransferListener->completedTransfers.at(i);
@@ -6384,7 +6384,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         vector<MegaTransfer *>::iterator itDLs = transfersDLToShow.begin();
         vector<MegaTransfer *>::iterator itUPs = transfersUPToShow.begin();
 
-        for (int i=0;i<showndl+shownup+shownCompleted; i++)
+        for (u_int i=0;i<showndl+shownup+shownCompleted; i++)
         {
             MegaTransfer *transfer = NULL;
             bool deleteTransfer = true;
@@ -6413,7 +6413,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 printTransfersHeader(PATHSIZE);
             }
-            if (i==limit) //we are in the extra one (not to be shown)
+            if (i==(u_int)limit) //we are in the extra one (not to be shown)
             {
                 OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
                 if (deleteTransfer)
