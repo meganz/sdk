@@ -2474,11 +2474,6 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
-        if (User::scope(at) == '^') // store in binary format
-        {
-            string avB64 = av;
-            Base64::atob(avB64, av);
-        }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
