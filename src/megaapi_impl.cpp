@@ -65,6 +65,8 @@
 #include <openssl/rand.h>
 #endif
 
+#include "mega/mega_zxcvbn.h"
+
 using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -5257,6 +5259,33 @@ void MegaApiImpl::invalidateCache()
     sdkMutex.lock();
     nocache = true;
     sdkMutex.unlock();
+}
+
+int MegaApiImpl::getPasswordStrength(const char *password)
+{
+    if (!password)
+    {
+        return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
+    }
+
+    double entrophy = ZxcvbnMatch(password, NULL, NULL);
+    if (entrophy > 75)
+    {
+        return MegaApi::PASSWORD_STRENGTH_STRONG;
+    }
+    if (entrophy > 50)
+    {
+        return MegaApi::PASSWORD_STRENGTH_GOOD;
+    }
+    if (entrophy > 40)
+    {
+        return MegaApi::PASSWORD_STRENGTH_MEDIUM;
+    }
+    if (entrophy > 15)
+    {
+        return MegaApi::PASSWORD_STRENGTH_WEAK;
+    }
+    return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
 }
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)

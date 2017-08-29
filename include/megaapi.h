@@ -4609,6 +4609,14 @@ class MegaApi
             PUSH_NOTIFICATION_IOS_STD = 3
         };
 
+        enum {
+            PASSWORD_STRENGTH_VERYWEAK = 0,
+            PASSWORD_STRENGTH_WEAK = 1,
+            PASSWORD_STRENGTH_MEDIUM = 2,
+            PASSWORD_STRENGTH_GOOD = 3,
+            PASSWORD_STRENGTH_STRONG = 4
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -6872,6 +6880,21 @@ class MegaApi
          * @brief Invalidate the existing cache and create a fresh one
          */
         void invalidateCache();
+
+        /**
+         * @brief Estimate the strength of a password
+         *
+         * Possible return values are:
+         * - PASSWORD_STRENGTH_VERYWEAK = 0
+         * - PASSWORD_STRENGTH_WEAK = 1
+         * - PASSWORD_STRENGTH_MEDIUM = 2
+         * - PASSWORD_STRENGTH_GOOD = 3
+         * - PASSWORD_STRENGTH_STRONG = 4
+         *
+         * @param password Password to check
+         * @return Estimated strength of the password
+         */
+        int getPasswordStrength(const char *password);
 
         /**
          * @brief Submit feedback about the app

@@ -1520,6 +1520,7 @@ class MegaApiImpl : public MegaApp
         void logout(MegaRequestListener *listener = NULL);
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
+        int getPasswordStrength(const char *password);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);

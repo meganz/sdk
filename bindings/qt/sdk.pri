@@ -38,7 +38,8 @@ SOURCES += src/attrmap.cpp \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp
+    src/mega_utf8proc.cpp \
+    src/mega_zxcvbn.c
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
@@ -149,7 +150,8 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
-            include/mega/thread/posixthread.h
+            include/mega/thread/posixthread.h \
+            include/mega/mega_zxcvbn.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
