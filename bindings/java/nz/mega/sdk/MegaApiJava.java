@@ -3008,6 +3008,27 @@ public class MegaApiJava {
     }
 
     /**
+     * Notify the user has exported the master key
+     *
+     * This function should be called when the user exports the master key by
+     * clicking on "Copy" or "Save file" options.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember the user has a backup of his/her master key. In consequence,
+     * MEGA will not ask the user to remind the password for the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void masterKeyExported(MegaRequestListenerInterface listener){
+        megaApi.masterKeyExported(createDelegateRequestListener(listener));
+    }
+
+    /**
      * Change the password of the MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
