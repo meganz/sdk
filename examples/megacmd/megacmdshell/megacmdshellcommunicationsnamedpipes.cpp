@@ -37,6 +37,14 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
 #include "mega/thread/win32thread.h"
 class MegaThread : public mega::Win32Thread {};
