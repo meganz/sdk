@@ -63,6 +63,22 @@ using namespace mega;
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getBaseStorage() : -1;
 }
 
+- (long long)currentStorage {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->currentStorage() : -1;
+}
+
+- (long long)currentTransfer {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->currentTransfer() : -1;
+}
+
+- (long long)currentStorageReferrals {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->currentStorageReferrals() : -1;
+}
+
+- (long long)currentTransferReferrals {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->currentTransferReferrals() : -1;
+}
+
 - (NSUInteger)awardsCount {
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getAwardsCount() : 0;
 }

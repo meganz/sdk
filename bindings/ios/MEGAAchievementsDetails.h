@@ -69,6 +69,51 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
 @property (nonatomic, readonly) long long baseStorage;
 
 /**
+ * @brief Returns the actual storage achieved by this account
+ *
+ * This function considers the base storage (permanent) plus all the
+ * storage granted to the logged in account as result of the unlocked
+ * achievements. It does not consider the expired achievements.
+ *
+ * @return The achieved storage for this account
+ */
+@property (nonatomic, readonly) long long currentStorage;
+
+/**
+ * @brief Returns the actual transfer quota achieved by this account
+ *
+ * This function considers all the transfer quota granted to the logged
+ * in account as result of the unlocked achievements. It does not consider
+ * the expired achievements.
+ *
+ * @return The achieved transfer quota for this account
+ */
+@property (nonatomic, readonly) long long currentTransfer;
+
+/**
+ * @brief Returns the actual achieved storage due to referrals
+ *
+ * This function considers all the storage granted to the logged in account
+ * as result of the successful invitations (referrals). It does not consider
+ * the expired achievements.
+ *
+ * @return The achieved storage by this account as result of referrals
+ */
+@property (nonatomic, readonly) long long currentStorageReferrals;
+
+/**
+ * @brief Returns the actual achieved transfer quota due to referrals
+ *
+ * This function considers all the transfer quota granted to the logged
+ * in account as result of the successful invitations (referrals). It
+ * does not consider the expired achievements.
+ *
+ * @return The transfer achieved quota by this account as result of referrals
+ */
+@property (nonatomic, readonly) long long currentTransferReferrals;
+
+
+/**
  * @brief The number of unlocked awards for this account
  */
 @property (nonatomic, readonly) NSUInteger awardsCount;
