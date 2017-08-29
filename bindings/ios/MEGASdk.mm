@@ -451,6 +451,10 @@ using namespace mega;
     self.megaApi->invalidateCache();
 }
 
+- (PasswordStrength)passwordStrength:(NSString *)password {
+    return (PasswordStrength) self.megaApi->getPasswordStrength(password ? [password UTF8String] : NULL);
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
