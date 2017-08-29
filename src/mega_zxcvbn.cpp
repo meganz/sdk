@@ -37,11 +37,6 @@
 #endif
 #endif
 
-/* For pre-compiled headers under windows */
-#ifdef _WIN32
-#include "stdafx.h"
-#endif
-
 /* Minimum number of characters in a incrementing/decrementing sequence match */
 #define MIN_SEQUENCE_LEN 3
 
@@ -222,7 +217,7 @@ static void AddMatchRepeats(ZxcMatch_t **Result, ZxcMatch_t *Match, const uint8_
         {
             /* Found a repeat */
             ZxcMatch_t *p = AllocMatch();
-            p->Entrpy = Match->Entrpy + log(RepeatCount);
+            p->Entrpy = Match->Entrpy + log((double)RepeatCount);
             p->Type = (ZxcTypeMatch_t)(Match->Type + MULTIPLE_MATCH);
             p->Length = Len * RepeatCount;
             p->Begin = Match->Begin;
@@ -1399,7 +1394,7 @@ static void RepeatMatch(ZxcMatch_t **Result, const uint8_t *Passwd, int Start, i
                 /* Found a repeat */
                 int c = Cardinality(Passwd, Len);
                 ZxcMatch_t *p = AllocMatch();
-                p->Entrpy = log((double)c) * Len + log(RepeatCount);
+                p->Entrpy = log((double)c) * Len + log((double)RepeatCount);
                 p->Type = (ZxcTypeMatch_t)(BRUTE_MATCH + MULTIPLE_MATCH);
                 p->Length = Len * RepeatCount;
                 p->Begin = Start;

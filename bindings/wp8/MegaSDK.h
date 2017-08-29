@@ -111,6 +111,14 @@ namespace mega
         PAYMENT_METHOD_WINDOWS_STORE = 13
     };
 
+    public enum class MPasswordStrength{
+        PASSWORD_STRENGTH_VERYWEAK  = 0,
+        PASSWORD_STRENGTH_WEAK      = 1,
+        PASSWORD_STRENGTH_MEDIUM    = 2,
+        PASSWORD_STRENGTH_GOOD      = 3,
+        PASSWORD_STRENGTH_STRONG    = 4
+    };
+
     public ref class MegaSDK sealed
     {
         friend class DelegateMRequestListener;
@@ -343,6 +351,7 @@ namespace mega
         void logout();
         void localLogout(MRequestListenerInterface^ listener);
         void localLogout();
+        int getPasswordStrength(String^ password);
         void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
         void submitFeedback(int rating, String^ comment);
         void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
