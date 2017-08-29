@@ -23,7 +23,7 @@
 
 #ifdef USE_PCRE
 #include <pcrecpp.h>
-#elif __cplusplus >= 201103L
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
 #include <regex>
 #endif
 
@@ -793,7 +793,7 @@ bool isRegExp(string what)
     bool isregex = strcmp(what.c_str(), ns.c_str());
     return isregex;
 
-#elif __cplusplus >= 201103L
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
     //TODO??
 #endif
     return hasWildCards(what);
@@ -863,7 +863,7 @@ bool patternMatches(const char *what, const char *pattern, bool usepcre)
             LOG_warn << "Invalid PCRE regex: " << re.error();
             return false;
         }
-#elif __cplusplus >= 201103L
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
         try
         {
             return std::regex_match(what, std::regex(pattern));

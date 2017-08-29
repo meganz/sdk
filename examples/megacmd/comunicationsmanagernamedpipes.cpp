@@ -86,7 +86,13 @@ HANDLE ComunicationsManagerNamedPipes::create_new_namedPipe(int *pipeId)
 
         if (*pipeId)
         {
+    #ifdef __MINGW32__
+            wostringstream wos;
+            wos << *pipeId;
+            nameOfPipe += wos.str();
+    #else
             nameOfPipe += std::to_wstring(*pipeId);
+    #endif
         }
 
         // Create a pipe to send data
@@ -333,7 +339,12 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
     string receivedutf8;
 
     wbuffer[n]='\0';
+#ifdef __MINGW32__
+    wstring ws = wbuffer;
+    localwtostring(&ws,&receivedutf8);
+#else
     localwtostring(&wstring(wbuffer),&receivedutf8);
+#endif
 
     int namedPipe_id = 0; // this value shouldn't matter
     inf->outNamedPipe = create_new_namedPipe(&namedPipe_id);

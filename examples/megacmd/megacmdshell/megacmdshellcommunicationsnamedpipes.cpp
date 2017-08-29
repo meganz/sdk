@@ -332,7 +332,13 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
     if (number)
     {
+#ifdef __MINGW32__
+        wostringstream wos;
+        wos << number;
+        nameOfPipe += wos.str();
+#else
         nameOfPipe += std::to_wstring(number);
+#endif
     }
 
     // Open the named pipe

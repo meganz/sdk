@@ -604,14 +604,16 @@ wstring escapereadlinebreakers(const wchar_t *what)
             output.reserve( output.size() + 1 );
             output += what[ i ];
         } else {
+#ifndef __MINGW32__
             wchar_t code[ 7 ];
-            swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
+            swprintf( code, 7, L"\\u%0.4X", (what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
             //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
             // NOTICE: I was able to execute a command with a literl \x242ee (which correspond to \uD850\uDEEE in UTF16).
             // So it'll be more interesting to output here the complete unicode char and in unescapeutf16escapedseqs revert it.
             //     or keep here the UTF16 escaped secs and revert them correctly in the unescapeutf16escapedseqs
             output.reserve( output.size() + 7 ); // "\u"(2) + 5(uint max digits capacity)
             output += code;
+#endif
         }
     }
     return output;
@@ -632,13 +634,22 @@ void install_rl_handler(const char *theprompt)
     // give readline something it understands
     what = output.c_str();
     size_t buffer_size;
+#ifdef _TRUNCATE
     wcstombs_s(&buffer_size, NULL, 0, what, _TRUNCATE);
+#else
+    buffer_size=output.size()*sizeof(wchar_t)*2;
+#endif
 
     if (buffer_size) //coversion is ok
     {
         // do the actual conversion
         char *buffer = new char[buffer_size];
-        wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #ifdef _TRUNCATE
+            wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #else
+            wcstombs(buffer, what, buffer_size);
+        #endif
+
         rl_callback_handler_install(buffer, store_line);
     }
     else
@@ -815,7 +826,12 @@ char* remote_completion(const char* text, int state)
         string outputcommand;
 
 #ifdef _WIN32
-        localwtostring(&oss.str(),&outputcommand);
+        #ifdef __MINGW32__
+            wstring soss=oss.str();
+            localwtostring(&soss,&outputcommand);
+        #else
+            localwtostring(&oss.str(),&outputcommand);
+        #endif
 #else
          outputcommand = oss.str();
 #endif
@@ -932,9 +948,18 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         // convert the UTF16 string to widechar
         size_t wbuffer_size;
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
+#else
+        wbuffer_size=10;
+#endif
         wchar_t *wbuffer = new wchar_t[wbuffer_size];
+
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
+#else
+        mbstowcs(wbuffer, b, wbuffer_size);
+#endif
 
         // convert the UTF16 widechar to UTF8 string
         string receivedutf8;
