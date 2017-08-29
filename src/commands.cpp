@@ -5226,11 +5226,7 @@ void CommandGetMegaAchievements::procresult()
                         {
                             break;
                         }
-
-                        id -= 48;   // convert to number
-
-//                        const char *class_id = client->json.getvalue();
-//                        achievement_class_id id = strtol(class_id, NULL, 10);
+                        id -= '0';   // convert to number
 
                         if (client->json.enterarray())
                         {
@@ -5238,7 +5234,16 @@ void CommandGetMegaAchievements::procresult()
                             achievement.storage = client->json.getint();
                             achievement.transfer = client->json.getint();
                             const char *exp_ts = client->json.getvalue();
-                            achievement.expire = strtol(exp_ts, NULL, 10);
+                            char *pEnd = NULL;
+                            achievement.expire = strtol(exp_ts, &pEnd, 10);
+                            if (*pEnd == 'm')
+                            {
+                                achievement.expire *= 30;
+                            }
+                            else if (*pEnd == 'y')
+                            {
+                                achievement.expire *= 365;
+                            }
 
                             details->achievements[id] = achievement;
 
@@ -5268,7 +5273,6 @@ void CommandGetMegaAchievements::procresult()
                             award.award_id = 0;
                             award.ts = 0;
                             award.expire = 0;
-                            award.emails_invited.clear();
 
                             bool finished = false;
                             while (!finished)
@@ -5345,7 +5349,16 @@ void CommandGetMegaAchievements::procresult()
                             reward.storage = client->json.getint();
                             reward.transfer = client->json.getint();
                             const char *exp_ts = client->json.getvalue();
-                            reward.expire = strtol(exp_ts, NULL, 10);
+                            char *pEnd = NULL;
+                            reward.expire = strtol(exp_ts, &pEnd, 10);
+                            if (*pEnd == 'm')
+                            {
+                                reward.expire *= 30;
+                            }
+                            else if (*pEnd == 'y')
+                            {
+                                reward.expire *= 365;
+                            }
 
                             client->json.leavearray();
 

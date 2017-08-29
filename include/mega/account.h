@@ -128,7 +128,7 @@ struct MEGA_API Award
     achievement_class_id achievement_class;
     int award_id;   // not unique, do not use it as key
     m_time_t ts;
-    int expire;    // in days. Not compulsory, some awards don't expire
+    m_time_t expire;    // not compulsory, some awards don't expire
     // int c;  --> always 0, will be removed (obsolete)
 
     // for invites only
