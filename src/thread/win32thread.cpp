@@ -26,6 +26,10 @@
 #include "mega/logging.h"
 #include <limits.h>
 
+#ifdef _WIN32
+#include "windows.h"
+#endif
+
 namespace mega {
 //Thread
 Win32Thread::Win32Thread()

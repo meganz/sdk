@@ -31,6 +31,10 @@
 
 #include "mega/thread.h"
 
+#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
+#define __STDC_LIMIT_MACROS
+#endif
+
 #include <thread>
 #include <mutex>
 #include <condition_variable>
