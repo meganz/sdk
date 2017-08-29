@@ -61,6 +61,13 @@ enum
 #else
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -597,14 +604,16 @@ wstring escapereadlinebreakers(const wchar_t *what)
             output.reserve( output.size() + 1 );
             output += what[ i ];
         } else {
+#ifndef __MINGW32__
             wchar_t code[ 7 ];
-            swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
+            swprintf( code, 7, L"\\u%0.4X", (what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
             //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
             // NOTICE: I was able to execute a command with a literl \x242ee (which correspond to \uD850\uDEEE in UTF16).
             // So it'll be more interesting to output here the complete unicode char and in unescapeutf16escapedseqs revert it.
             //     or keep here the UTF16 escaped secs and revert them correctly in the unescapeutf16escapedseqs
             output.reserve( output.size() + 7 ); // "\u"(2) + 5(uint max digits capacity)
             output += code;
+#endif
         }
     }
     return output;
@@ -625,13 +634,22 @@ void install_rl_handler(const char *theprompt)
     // give readline something it understands
     what = output.c_str();
     size_t buffer_size;
+#ifdef _TRUNCATE
     wcstombs_s(&buffer_size, NULL, 0, what, _TRUNCATE);
+#else
+    buffer_size=output.size()*sizeof(wchar_t)*2;
+#endif
 
     if (buffer_size) //coversion is ok
     {
         // do the actual conversion
         char *buffer = new char[buffer_size];
-        wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #ifdef _TRUNCATE
+            wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #else
+            wcstombs(buffer, what, buffer_size);
+        #endif
+
         rl_callback_handler_install(buffer, store_line);
     }
     else
@@ -808,7 +826,12 @@ char* remote_completion(const char* text, int state)
         string outputcommand;
 
 #ifdef _WIN32
-        localwtostring(&oss.str(),&outputcommand);
+        #ifdef __MINGW32__
+            wstring soss=oss.str();
+            localwtostring(&soss,&outputcommand);
+        #else
+            localwtostring(&oss.str(),&outputcommand);
+        #endif
 #else
          outputcommand = oss.str();
 #endif
@@ -913,10 +936,10 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
     while (1)
     {
-        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stream), _O_U16TEXT);
 
         result = read (fileno (stream), &b, 10);
-        _setmode(fileno(stream), oldmode);
+        _setmode(_fileno(stream), oldmode);
 
         if (result == 0)
         {
@@ -925,9 +948,18 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         // convert the UTF16 string to widechar
         size_t wbuffer_size;
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
+#else
+        wbuffer_size=10;
+#endif
         wchar_t *wbuffer = new wchar_t[wbuffer_size];
+
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
+#else
+        mbstowcs(wbuffer, b, wbuffer_size);
+#endif
 
         // convert the UTF16 widechar to UTF8 string
         string receivedutf8;
@@ -1690,9 +1722,9 @@ void mycompletefunct(char **c, int num_matches, int max_length)
         string option = c[i];
 
         OUTSTREAM << setw(min(cols-1,max_length+1)) << left;
-        int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
         OUTSTREAM << c[i];
-        _setmode(fileno(stdout), oldmode);
+        _setmode(_fileno(stdout), oldmode);
 
         if ( (i%nelements_per_col == 0) && (i != num_matches))
         {

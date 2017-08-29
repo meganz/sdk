@@ -37,6 +37,14 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
 #include "mega/thread/win32thread.h"
 class MegaThread : public mega::Win32Thread {};
@@ -324,7 +332,13 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
     if (number)
     {
+#ifdef __MINGW32__
+        wostringstream wos;
+        wos << number;
+        nameOfPipe += wos.str();
+#else
         nameOfPipe += std::to_wstring(number);
+#endif
     }
 
     // Open the named pipe
@@ -375,9 +389,9 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                if (!SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    if(!SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -608,16 +622,16 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
                 // In non-interactive mode, at least in powershell, when outputting to a file/pipe, things get rough
                 // Powershell tries to interpret the output as a string and would meddle with the UTF16 encoding, resulting
                 // in unusable output, So we disable the UTF-16 in such cases (this might cause that the output could be truncated!).
-//                oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+//                oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
 //            }
 
-            oldmode = _setmode(fileno(stdout), _O_U8TEXT);
+            oldmode = _setmode(_fileno(stdout), _O_U8TEXT);
             output << wbuffer << flush;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 
 //            if (interactiveshell || outputtobinaryorconsole() || true)
 //            {
-//                _setmode(fileno(stdout), oldmode);
+//                _setmode(_fileno(stdout), oldmode);
 //            }
         }
     } while(n == BUFFERSIZE && readok);

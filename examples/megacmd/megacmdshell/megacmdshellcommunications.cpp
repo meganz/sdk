@@ -33,6 +33,13 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
 
 #else
 #include <fcntl.h>
@@ -52,6 +59,10 @@
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
+#endif
+
+#ifndef ENOTCONN
+#define ENOTCONN 107
 #endif
 
 #ifndef SSTR
@@ -313,9 +324,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                if (!SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    if(!SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -746,9 +757,9 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 
             wstring wbuffer;
             stringtolocalw((const char*)&buffer,&wbuffer);
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+            int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
             output << wbuffer;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 #else
             buffer[n]='\0';
             output << buffer;

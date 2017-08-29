@@ -469,7 +469,12 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     if (n != SOCKET_ERROR)
     {
         wbuffer[n]='\0';
+#ifdef __MINGW32__
+        wstring ws=wbuffer;
+        localwtostring(&ws,&receivedutf8);
+#else
         localwtostring(&wstring(wbuffer),&receivedutf8);
+#endif
     }
     else
     {
