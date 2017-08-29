@@ -55,7 +55,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/thread/posixthread.cpp \
     sdk/src/logging.cpp \
     sdk/src/mega_http_parser.cpp \
-    sdk/src/mega_zxcvbn.c
+    sdk/src/mega_zxcvbn.cpp
     
 C_SOURCES = sdk/src/mega_glob.c
 

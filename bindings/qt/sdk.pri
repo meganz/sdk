@@ -39,7 +39,7 @@ SOURCES += src/attrmap.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
     src/mega_utf8proc.cpp \
-    src/mega_zxcvbn.c
+    src/mega_zxcvbn.cpp
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
