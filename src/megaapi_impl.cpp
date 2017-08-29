@@ -19692,7 +19692,7 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
             vector<string>::iterator it = details.awards.at(index).emails_invited.begin();
             while (it != details.awards.at(index).emails_invited.end())
             {
-                data.push_back(strdup(it->c_str()));
+                data.push_back(MegaApi::strdup(it->c_str()));
                 it++;
             }
             return new MegaStringListPrivate(data.data(), data.size());

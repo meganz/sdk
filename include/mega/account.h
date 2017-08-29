@@ -142,7 +142,7 @@ struct MEGA_API Reward
     int award_id;
     m_off_t storage;
     m_off_t transfer;
-    m_time_t expire;    // in days
+    int expire;    // in days
 };
 
 struct MEGA_API AchievementsDetails

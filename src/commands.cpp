@@ -5188,8 +5188,7 @@ CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, Achie
         cmd("mafu");
     }
 
-    int version = 0;
-    arg("v", version);
+    arg("v", (m_off_t)0);
 
     tag = client->reqtag;
 }
@@ -5207,8 +5206,7 @@ void CommandGetMegaAchievements::procresult()
     details->awards.clear();
     details->rewards.clear();
 
-    bool noexit = true;
-    while(noexit)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -5247,6 +5245,7 @@ void CommandGetMegaAchievements::procresult()
 
                             details->achievements[id] = achievement;
 
+                            while(client->json.storeobject());
                             client->json.leavearray();
                         }
                     }
@@ -5263,128 +5262,120 @@ void CommandGetMegaAchievements::procresult()
                 break;
 
             case 'a':
+                if (client->json.enterarray())
                 {
-                    if (client->json.enterarray())
+                    while (client->json.enterobject())
                     {
-                        while (client->json.enterobject())
+                        Award award;
+                        award.achievement_class = 0;
+                        award.award_id = 0;
+                        award.ts = 0;
+                        award.expire = 0;
+
+                        bool finished = false;
+                        while (!finished)
                         {
-                            Award award;
-                            award.achievement_class = 0;
-                            award.award_id = 0;
-                            award.ts = 0;
-                            award.expire = 0;
-
-                            bool finished = false;
-                            while (!finished)
+                            switch (client->json.getnameid())
                             {
-                                switch (client->json.getnameid())
+                            case 'a':
+                                award.achievement_class = client->json.getint();
+                                break;
+                            case 'r':
+                                award.award_id = client->json.getint();
+                                break;
+                            case MAKENAMEID2('t', 's'):
+                                award.ts = client->json.getint();
+                                break;
+                            case 'e':
+                                award.expire = client->json.getint();
+                                break;
+                            case 'm':
+                                if (client->json.enterarray())
                                 {
-                                case 'a':
-                                    award.achievement_class = client->json.getint();
-                                    break;
-                                case 'r':
-                                    award.award_id = client->json.getint();
-                                    break;
-                                case MAKENAMEID2('t', 's'):
-                                    award.ts = client->json.getint();
-                                    break;
-                                case 'e':
-                                    award.expire = client->json.getint();
-                                    break;
-                                case 'm':
-                                    if (client->json.enterarray())
+                                    string email;
+                                    while(client->json.storeobject(&email))
                                     {
-                                        string email;
-                                        while(client->json.storeobject(&email))
-                                        {
-                                            award.emails_invited.push_back(email);
-                                        }
-
-                                        client->json.leavearray();
+                                        award.emails_invited.push_back(email);
                                     }
-                                    break;
-                                case EOO:
-                                    finished = true;
-                                    break;
-                                default:
-                                    client->json.storeobject();
-                                    break;
+
+                                    client->json.leavearray();
                                 }
+                                break;
+                            case EOO:
+                                finished = true;
+                                break;
+                            default:
+                                client->json.storeobject();
+                                break;
                             }
-
-                            details->awards.push_back(award);
-
-                            client->json.leaveobject();
                         }
 
-                        client->json.leavearray();
+                        details->awards.push_back(award);
+
+                        client->json.leaveobject();
                     }
-                    else
-                    {
-                        LOG_err << "Failed to parse Awards of MEGA achievements";
-                        client->json.storeobject();
-                        client->app->getmegaachievements_result(details, API_EINTERNAL);
-                        return;
-                    }
+
+                    client->json.leavearray();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Awards of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
                 }
                 break;
 
             case 'r':
+                if (client->json.enterobject())
                 {
-                    if (client->json.enterobject())
+                    for (;;)
                     {
-                        for (;;)
+                        nameid id = client->json.getnameid();
+                        if (id == EOO)
                         {
-                            nameid id = client->json.getnameid();
-                            if (id == EOO)
-                            {
-                                break;
-                            }
-
-                            Reward reward;
-                            reward.award_id = id - 48;   // convert to number
-
-                            client->json.enterarray();
-
-                            reward.storage = client->json.getint();
-                            reward.transfer = client->json.getint();
-                            const char *exp_ts = client->json.getvalue();
-                            char *pEnd = NULL;
-                            reward.expire = strtol(exp_ts, &pEnd, 10);
-                            if (*pEnd == 'm')
-                            {
-                                reward.expire *= 30;
-                            }
-                            else if (*pEnd == 'y')
-                            {
-                                reward.expire *= 365;
-                            }
-
-                            client->json.leavearray();
-
-                            details->rewards.push_back(reward);
+                            break;
                         }
 
-                        client->json.leaveobject();
+                        Reward reward;
+                        reward.award_id = id - '0';   // convert to number
+
+                        client->json.enterarray();
+
+                        reward.storage = client->json.getint();
+                        reward.transfer = client->json.getint();
+                        const char *exp_ts = client->json.getvalue();
+                        char *pEnd = NULL;
+                        reward.expire = strtol(exp_ts, &pEnd, 10);
+                        if (*pEnd == 'm')
+                        {
+                            reward.expire *= 30;
+                        }
+                        else if (*pEnd == 'y')
+                        {
+                            reward.expire *= 365;
+                        }
+
+                        while(client->json.storeobject());
+                        client->json.leavearray();
+
+                        details->rewards.push_back(reward);
                     }
-                    else
-                    {
-                        LOG_err << "Failed to parse Rewards of MEGA achievements";
-                        client->json.storeobject();
-                        client->app->getmegaachievements_result(details, API_EINTERNAL);
-                        return;
-                    }
-                    break;
+
+                    client->json.leaveobject();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Rewards of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
                 }
                 break;
 
             case EOO:
-                {
-                    noexit = false;
-                    client->app->getmegaachievements_result(details, API_OK);
-                    return;
-                }
-                break;
+                client->app->getmegaachievements_result(details, API_OK);
+                return;
 
             default:
                 if (!client->json.storeobject())
