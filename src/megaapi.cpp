@@ -1883,7 +1883,7 @@ void MegaApi::invalidateCache()
 
 int MegaApi::getPasswordStrength(const char *password)
 {
-    pImpl->getPasswordStrength(password);
+    return pImpl->getPasswordStrength(password);
 }
 
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
