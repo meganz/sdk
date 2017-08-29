@@ -100,6 +100,7 @@ examples_mega_cmd_server_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_L
 
 examples_mega_exec_CXXFLAGS += -D_WIN32=1
 examples_mega_exec_LDADD = $(LIBS_EXTRA)
+examples_mega_cmd_LDADD += $(LIBS_EXTRA)
 
 
 else
