@@ -1595,8 +1595,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
     string pwdReminder = attributeValue;
     int offset = pwdReminder.find(':');
-    offset += pwdReminder.find(':', offset);
-    ASSERT_EQ( pwdReminder.at(offset+1), '1' ) << "Password reminder attribute not updated";
+    offset += pwdReminder.find(':', offset+1);
+    ASSERT_EQ( pwdReminder.at(offset), '1' ) << "Password reminder attribute not updated";
 
     delete u;
 

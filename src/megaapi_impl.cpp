@@ -5206,8 +5206,13 @@ void MegaApiImpl::updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool
     waiter->notify();
 }
 
-void MegaApiImpl::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
+bool MegaApiImpl::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
 {
+    if (numDetails == 0)
+    {
+        return false;
+    }
+
     bool lastSuccess = (numDetails & 0x01) != 0;
     bool lastSkipped = (numDetails & 0x02) != 0;
     bool mkExported = (numDetails & 0x04) != 0;
@@ -5220,38 +5225,78 @@ void MegaApiImpl::mergePwdReminderData(int numDetails, const char *data, unsigne
     {
         oldValue.assign((const char*) data, size);
     }
-    else    // no existing value, set with default values
+    else    // no existing value, set with default values and update it consequently
     {
         oldValue = "0:0:0:0:0";
     }
 
+    bool changed = false;
+    time_t tsLastSuccess, tsLastSkipped, tsLastLogin;
+    bool flagMkExported, flagDontShowAgain;
+
     int len = oldValue.find(":");
     string buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
-    time_t tsLastSuccess = lastSuccess ? time(NULL) : strtol(buf.data(), NULL, 10);
+    if (lastSuccess)
+    {
+        changed = true;
+        tsLastSuccess = time(NULL);
+    }
+    else
+    {
+        tsLastSuccess = strtol(buf.data(), NULL, 10);
+    }
 
     len = oldValue.find(":");
     buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
-    time_t tsLastSkipped = lastSkipped ? time(NULL) : strtol(buf.data(), NULL, 10);
+    if (lastSkipped)
+    {
+        tsLastSkipped = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        tsLastSkipped = strtol(buf.data(), NULL, 10);
+    }
 
     len = oldValue.find(":");
     buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
-    bool flagMkExported = mkExported ? true : (buf.at(0) == '1');
+    flagMkExported = (buf.at(0) == '1');
+    if (mkExported && !flagMkExported)
+    {
+        flagMkExported = true;
+        changed = true;
+    }
 
     len = oldValue.find(":");
     buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
-    bool flagDontShowAgain = dontShowAgain ? true : (buf.at(0) == '1');
+    flagDontShowAgain = (buf.at(0) == '1');
+    if (dontShowAgain && !flagDontShowAgain)
+    {
+        flagDontShowAgain = true;
+        changed = true;
+    }
 
-    time_t tsLastLogin = lastLogin ? time(NULL) : strtol(oldValue.data(), NULL, 10);
+    if (lastLogin)
+    {
+        tsLastLogin = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        tsLastLogin = strtol(oldValue.data(), NULL, 10);
+    }
 
     std::stringstream value;
     value << tsLastSuccess << ":" << tsLastSkipped << ":" << flagMkExported
         << ":" << flagDontShowAgain << ":" << tsLastLogin;
 
     *newValue = value.str();
+
+    return changed;
 }
 
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
@@ -10942,11 +10987,19 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         {
             // merge received value with updated items
             string newValue;
-            mergePwdReminderData(request->getNumDetails(), (const char*) data, len, &newValue);
+            bool changed = mergePwdReminderData(request->getNumDetails(), (const char*) data, len, &newValue);
             request->setText(newValue.data());
 
-            // update the attribute using same request tag
-            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+            if (changed)
+            {
+                // set the attribute using same request tag
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+            }
+            else
+            {
+                LOG_debug << "Password-reminder data not changed, already up to date";
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
         }
         return;
     }
@@ -14128,10 +14181,7 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    string valueB64;
-                    Base64::btoa(code, valueB64);
-
-                    client->putua(type, (byte *)valueB64.data(), valueB64.length());
+                    client->putua(type, (byte *)code.data(), code.length());
                     break;
                 }
                 else if (type == ATTR_PWD_REMINDER)

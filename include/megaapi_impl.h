@@ -1509,7 +1509,7 @@ class MegaApiImpl : public MegaApp
 
         char *exportMasterKey();
         void updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool mkExported, bool dontShowAgain, bool lastLogin, MegaRequestListener *listener = NULL);
-        void mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
+        bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
