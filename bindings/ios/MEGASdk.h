@@ -117,6 +117,14 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
     PushNotificationTokenTypeiOSStandard = 3
 };
 
+typedef NS_ENUM(NSUInteger, PasswordStrength) {
+    PasswordStrengthVeryWeak = 0,
+    PasswordStrengthWeak = 1,
+    PasswordStrengthMedium = 2,
+    PasswordStrengthGood = 3,
+    PasswordStrengthStrong = 4
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -653,6 +661,21 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @brief Invalidate the existing cache and create a fresh one
  */
 - (void)invalidateCache;
+
+/**
+ * @brief Estimate the strength of a password
+ *
+ * Possible return values are:
+ * - PasswordStrengthVeryWeak = 0
+ * - PasswordStrengthWeak = 1
+ * - PasswordStrengthMedium = 2
+ * - PasswordStrengthGood = 3
+ * - PasswordStrengthStrong = 4
+ *
+ * @param password Password to check
+ * @return Estimated strength of the password
+ */
+- (PasswordStrength)passwordStrength:(NSString *)password;
 
 #pragma mark - Create account and confirm account Requests
 
