@@ -559,11 +559,13 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
     while (outcode == MCMD_REQCONFIRM)
     {
         int BUFFERSIZE = 1024;
-        char confirmQuestion[1025];
-        memset(confirmQuestion,'\0',1025);
+        string confirmQuestion;
+        char bufferQuestion[1025];
+        memset(bufferQuestion,'\0',1025);
         BOOL readok;
         do{
-            readok = ReadFile(newNamedPipe, confirmQuestion, BUFFERSIZE, &n, NULL);
+            readok = ReadFile(newNamedPipe, bufferQuestion, BUFFERSIZE, &n, NULL);
+            confirmQuestion.append(bufferQuestion);
         } while(n == BUFFERSIZE && readok);
 
         if (!readok)
@@ -575,7 +577,7 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
 
         if (readconfirmationloop != NULL)
         {
-            response = readconfirmationloop(confirmQuestion);
+            response = readconfirmationloop(confirmQuestion.c_str());
         }
 
         if (!WriteFile(newNamedPipe, (const char *) &response, sizeof(response), &n, NULL))

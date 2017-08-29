@@ -50,7 +50,7 @@ static const char* rootnodepaths[] = { "/", "//in", "//bin" };
  */
 void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
 {
-    static char dynamicprompt[128];
+    static char dynamicprompt[2024]; //TODO: rewrite this function to have prompts with any size (use string)
 
     MegaNode *n = api->getNodeByHandle(handle);
 
@@ -2030,7 +2030,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
     else
     {
-        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
         {
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
             OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -5924,7 +5924,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
                 {
                     OUTSTREAM << "---------------------------------------------------------------------" << endl;
                     OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;

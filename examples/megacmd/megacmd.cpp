@@ -210,7 +210,7 @@ string newpasswd;
 bool doExit = false;
 bool consoleFailed = false;
 
-static char dynamicprompt[128];
+string dynamicprompt;
 
 static prompttype prompt = COMMAND;
 
@@ -307,7 +307,7 @@ void setprompt(prompttype p, string arg)
 
 void changeprompt(const char *newprompt)
 {
-    strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+    dynamicprompt = newprompt;
     string s = "prompt:";
     s+=dynamicprompt;
     cm->informStateListeners(s);
@@ -2532,7 +2532,7 @@ void megacmd()
                     }
                     else
                     {
-                        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
                         {
                             os << "---------------------------------------------------------------------" << endl;
                             os << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -2698,7 +2698,7 @@ void initializeMacOSStuff(int argc, char* argv[])
         {
             execv("/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader",argv);
         }
-        sleep(10); // TODO: remove
+        sleep(10);
         ::exit(0);
     }
 }

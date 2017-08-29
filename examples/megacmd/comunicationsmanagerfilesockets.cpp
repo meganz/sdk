@@ -427,7 +427,7 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
         return inf;
     }
 
-    bzero(buffer, 1024);
+    bzero(buffer, 1024); //TODO: loop for commands longer than 1024!
     int n = read(newsockfd, buffer, 1023);
     if (n < 0)
     {

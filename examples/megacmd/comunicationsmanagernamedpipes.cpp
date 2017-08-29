@@ -323,7 +323,7 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
 
     DWORD n;
     bool readok = ReadFile(pipeGeneral, wbuffer, 1023 * sizeof(wchar_t), &n, NULL );
-    if (!readok)  //TODO: msjs > 1023?
+    if (!readok)  //TODO: loop for messages longer than > 1023?
     {
         LOG_err << "Failed to read petition from named pipe. errno: L" << ERRNO;
         inf->line = strdup("ERROR");

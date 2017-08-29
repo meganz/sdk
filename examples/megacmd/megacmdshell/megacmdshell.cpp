@@ -53,6 +53,7 @@ enum
 
 #define PROGRESS_COMPLETE -2
 #define SPROGRESS_COMPLETE "-2"
+#define PROMPT_MAX_SIZE 128
 
 #ifndef _WIN32
 #include <signal.h>
@@ -281,7 +282,8 @@ bool requirepromptinstall = true;
 
 bool procesingline = false;
 
-static char dynamicprompt[128];
+
+static char dynamicprompt[PROMPT_MAX_SIZE];
 
 static char* line;
 
@@ -653,6 +655,16 @@ void changeprompt(const char *newprompt, bool redisplay)
     mutexPrompt.lock();
 
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+
+    if (strlen(newprompt) >= PROMPT_MAX_SIZE)
+    {
+        strncpy(dynamicprompt, newprompt, PROMPT_MAX_SIZE/2-1);
+        dynamicprompt[PROMPT_MAX_SIZE/2-1] = '.';
+        dynamicprompt[PROMPT_MAX_SIZE/2] = '.';
+
+        strncpy(dynamicprompt+PROMPT_MAX_SIZE/2+1, newprompt+(strlen(newprompt)-PROMPT_MAX_SIZE/2+2), PROMPT_MAX_SIZE/2-2);
+        dynamicprompt[PROMPT_MAX_SIZE-1] = '\0';
+    }
 
     if (redisplay)
     {
