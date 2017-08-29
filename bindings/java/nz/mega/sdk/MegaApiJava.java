@@ -115,6 +115,11 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
 
+    public final static int PASSWORD_STRENGTH_VERYWEAK = MegaApi.PASSWORD_STRENGTH_VERYWEAK;
+    public final static int PASSWORD_STRENGTH_WEAK = MegaApi.PASSWORD_STRENGTH_WEAK;
+    public final static int PASSWORD_STRENGTH_MEDIUM = MegaApi.PASSWORD_STRENGTH_MEDIUM;
+    public final static int PASSWORD_STRENGTH_GOOD = MegaApi.PASSWORD_STRENGTH_GOOD;
+    public final static int PASSWORD_STRENGTH_STRONG = MegaApi.PASSWORD_STRENGTH_STRONG;
 
     MegaApi getMegaApi()
     {
@@ -3266,6 +3271,23 @@ public class MegaApiJava {
      */
     public void invalidateCache(){
         megaApi.invalidateCache();
+    }
+
+    /**
+     * Estimate the strength of a password
+     *
+     * Possible return values are:
+     * - PASSWORD_STRENGTH_VERYWEAK = 0
+     * - PASSWORD_STRENGTH_WEAK = 1
+     * - PASSWORD_STRENGTH_MEDIUM = 2
+     * - PASSWORD_STRENGTH_GOOD = 3
+     * - PASSWORD_STRENGTH_STRONG = 4
+     *
+     * @param password Password to check
+     * @return Estimated strength of the password
+     */
+    public int getPasswordStrength(String password){
+        return megaApi.getPasswordStrength(password);
     }
 
     /**
