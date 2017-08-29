@@ -161,6 +161,7 @@
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
     <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
