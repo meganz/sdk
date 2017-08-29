@@ -1025,6 +1025,10 @@ public:
     virtual long long getRewardTransfer(unsigned int index);
     virtual int getRewardExpire(unsigned int index);
 
+    virtual long long currentStorage();
+    virtual long long currentTransfer();
+    virtual long long currentStorageReferrals();
+    virtual long long currentTransferReferrals();
 
 private:
     MegaAchievementsDetailsPrivate(AchievementsDetails *details);

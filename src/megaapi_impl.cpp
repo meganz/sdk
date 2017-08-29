@@ -19737,6 +19737,94 @@ int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
     return 0;
 }
 
+long long MegaAchievementsDetailsPrivate::currentStorage()
+{
+    long long total = details.permanent_size;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if (it->expire < ts)
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->storage;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentTransfer()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if (it->expire < ts)
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->transfer;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if ( (it->expire < ts) && (it->achievement_class == MEGA_ACHIEVEMENT_INVITE) )
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->storage;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if ( (it->expire < ts) && (it->achievement_class == MEGA_ACHIEVEMENT_INVITE) )
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->transfer;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
 MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
 {
     this->details = (*details);

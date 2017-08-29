@@ -4705,3 +4705,23 @@ MegaAchievementsDetails *MegaAchievementsDetails::copy()
 {
     return NULL;
 }
+
+long long MegaAchievementsDetails::currentStorage()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransfer()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentStorageReferrals()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
+}
