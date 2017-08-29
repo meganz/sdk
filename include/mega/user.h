@@ -104,6 +104,7 @@ public:
     static attr_t string2attr(const char *name);
     static bool needversioning(attr_t at);
     static char scope(attr_t at);
+    static bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
 
     bool setChanged(attr_t at);
 

@@ -514,6 +514,99 @@ char User::scope(attr_t at)
     }
 }
 
+bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
+{
+    if (numDetails == 0)
+    {
+        return false;
+    }
+
+    bool lastSuccess = (numDetails & 0x01) != 0;
+    bool lastSkipped = (numDetails & 0x02) != 0;
+    bool mkExported = (numDetails & 0x04) != 0;
+    bool dontShowAgain = (numDetails & 0x08) != 0;
+    bool lastLogin = (numDetails & 0x10) != 0;
+
+    // format: <lastSuccess>:<lastSkipped>:<mkExported>:<dontShowAgain>:<lastLogin>
+    string oldValue;
+    if (data && size)
+    {
+        oldValue.assign((const char*) data, size);
+    }
+    else    // no existing value, set with default values and update it consequently
+    {
+        oldValue = "0:0:0:0:0";
+    }
+
+    bool changed = false;
+    time_t tsLastSuccess, tsLastSkipped, tsLastLogin;
+    bool flagMkExported, flagDontShowAgain;
+
+    int len = oldValue.find(":");
+    string buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    if (lastSuccess)
+    {
+        changed = true;
+        tsLastSuccess = time(NULL);
+    }
+    else
+    {
+        tsLastSuccess = strtol(buf.data(), NULL, 10);
+    }
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    if (lastSkipped)
+    {
+        tsLastSkipped = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        tsLastSkipped = strtol(buf.data(), NULL, 10);
+    }
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    flagMkExported = (buf.at(0) == '1');
+    if (mkExported && !flagMkExported)
+    {
+        flagMkExported = true;
+        changed = true;
+    }
+
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len);
+    oldValue = oldValue.substr(len+1);
+    flagDontShowAgain = (buf.at(0) == '1');
+    if (dontShowAgain && !flagDontShowAgain)
+    {
+        flagDontShowAgain = true;
+        changed = true;
+    }
+
+    if (lastLogin)
+    {
+        tsLastLogin = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        tsLastLogin = strtol(oldValue.data(), NULL, 10);
+    }
+
+    std::stringstream value;
+    value << tsLastSuccess << ":" << tsLastSkipped << ":" << flagMkExported
+        << ":" << flagDontShowAgain << ":" << tsLastLogin;
+
+    *newValue = value.str();
+
+    return changed;
+}
+
 const string *User::getattrversion(attr_t at)
 {
     userattr_map::iterator it = attrsv.find(at);
