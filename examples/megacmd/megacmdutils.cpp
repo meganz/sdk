@@ -837,6 +837,51 @@ string unquote(string what)
     return what;
 }
 
+bool megacmdWildcardMatch(const char *pszString, const char *pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp;
+    const char *mp;
+
+    while ((*pszString) && (*pszMatch != '*'))
+    {
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
+        {
+            return false;
+        }
+        pszMatch++;
+        pszString++;
+    }
+
+    while (*pszString)
+    {
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
 bool patternMatches(const char *what, const char *pattern, bool usepcre)
 {
     if (usepcre)
@@ -878,30 +923,7 @@ bool patternMatches(const char *what, const char *pattern, bool usepcre)
         return false;
     }
 
-    if (( *pattern == '\0' ) && ( *what == '\0' ))
-    {
-        return true;
-    }
-
-    if (( *pattern == '*' ) && ( *( pattern + 1 ) != '\0' ) && ( *what == '\0' ))
-    {
-        return false;
-    }
-    if (( *pattern == '?' ) || ( *pattern == *what ))
-    {
-        if (*what == '\0')
-        {
-            return false;
-        }
-        return patternMatches(what + 1, pattern + 1, usepcre);
-    }
-
-    if (*pattern == '*')
-    {
-        return patternMatches(what, pattern + 1, usepcre) || patternMatches(what + 1, pattern, usepcre);
-    }
-
-    return false;
+    return megacmdWildcardMatch(what,pattern);
 }
 
 int toInteger(string what, int failValue)
