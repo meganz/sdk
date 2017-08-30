@@ -21,6 +21,7 @@
 
 #include "comunicationsmanagerfilesockets.h"
 #include "megacmdutils.h"
+#include <sys/ioctl.h>
 
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0
@@ -427,8 +428,30 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
         return inf;
     }
 
-    bzero(buffer, 1024); //TODO: loop for commands longer than 1024!
+    string wholepetition;
+
     int n = read(newsockfd, buffer, 1023);
+    while(n == 1023)
+    {
+        DWORD total_available_bytes;
+        if (-1 == ioctl(newsockfd, FIONREAD, &total_available_bytes))
+        {
+            LOG_err << "Failed to PeekNamedPipe. errno: " << errno;
+            break;
+        }
+        if (total_available_bytes == 0)
+        {
+            break;
+        }
+        buffer[n]=0;
+        wholepetition.append(buffer);
+        n = read(newsockfd, buffer, 1023);
+    }
+    if (n >=0 )
+    {
+        buffer[n]=0;
+        wholepetition.append(buffer);
+    }
     if (n < 0)
     {
         LOG_fatal << "ERROR reading from socket at getPetition: " << errno;
@@ -455,7 +478,7 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     close(newsockfd);
 
 
-    inf->line = strdup(buffer);
+    inf->line = strdup(wholepetition.c_str());
 
     return inf;
 }
