@@ -375,7 +375,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
             else
             {
                 //launch server
-                cerr << "Server might not be running. Initiating in the background..." << endl;
+                cerr << "Server not running. Initiating in the background..." << endl;
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -414,7 +414,8 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 #endif
                     LPWSTR t2 = (LPWSTR) t;
                     si.cb = sizeof(si);
-                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+//                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+                    si.wShowWindow = SW_HIDE;
                     si.dwFlags = STARTF_USESHOWWINDOW;
                     if (!CreateProcess( t,t2,NULL,NULL,TRUE,
                                         CREATE_NEW_CONSOLE,

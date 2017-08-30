@@ -309,7 +309,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
             if (!number && initializeserver)
             {
                 //launch server
-                cerr << "[Server not running. ERRNO: "  << ERRNO << ". Initiating in the background]"<< endl;
+                cerr << "[Server not running. Initiating in the background]"<< endl;
 #ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
