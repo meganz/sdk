@@ -636,6 +636,18 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
 //                _setmode(_fileno(stdout), oldmode);
 //            }
         }
+        if (readok && n == BUFFERSIZE)
+        {
+            DWORD total_available_bytes;
+            if (FALSE == PeekNamedPipe(newNamedPipe,0,0,0,&total_available_bytes,0))
+            {
+                break;
+            }
+            if (total_available_bytes == 0)
+            {
+                break;
+            }
+        }
     } while(n == BUFFERSIZE && readok);
 
     if (!readok)
