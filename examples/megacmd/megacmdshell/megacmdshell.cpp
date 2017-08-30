@@ -1446,8 +1446,16 @@ void process_line(char * line)
                         string s = line;
                         if (clientID.size())
                         {
+                            string sline = line;
+                            size_t pspace = sline.find_first_of(" ");
+                            s="";
+                            s=sline.substr(0,pspace);
                             s += " --clientID=";
                             s+=clientID;
+                            if (pspace!=string::npos)
+                            {
+                                s+=sline.substr(pspace);
+                            }
                             words.push_back(s);
                         }
                         comms->executeCommand(s, readconfirmationloop);
