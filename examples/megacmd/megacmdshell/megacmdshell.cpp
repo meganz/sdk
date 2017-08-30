@@ -1459,6 +1459,9 @@ void process_line(char * line)
                             words.push_back(s);
                         }
                         comms->executeCommand(s, readconfirmationloop);
+#ifdef _WIN32
+                        Sleep(200); // give a brief while to print progress ended
+#endif
                     }
                     else
                     {
