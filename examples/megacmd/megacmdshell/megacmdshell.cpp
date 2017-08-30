@@ -607,7 +607,7 @@ wstring escapereadlinebreakers(const wchar_t *what)
         } else {
 #ifndef __MINGW32__
             wchar_t code[ 7 ];
-            swprintf( code, 7, L"\\u%0.4X", (what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
+            swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
             //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
             // NOTICE: I was able to execute a command with a literl \x242ee (which correspond to \uD850\uDEEE in UTF16).
             // So it'll be more interesting to output here the complete unicode char and in unescapeutf16escapedseqs revert it.

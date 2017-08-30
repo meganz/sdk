@@ -379,6 +379,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
         validParams->insert("use-pcre");
 #endif
     }
+    else if ("mv" == thecommand)
+    {
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
+    }
     else if ("speedlimit" == thecommand)
     {
         validParams->insert("u");
