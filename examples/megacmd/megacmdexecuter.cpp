@@ -2329,6 +2329,9 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     if (megaCmdTransferListener)
     {
         megaCmdTransferListener->wait();
+#ifdef _WIN32
+            Sleep(100); //give a while to print end of transfer
+#endif
         if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
         {
             LOG_info << "Download complete: " << megaCmdTransferListener->getTransfer()->getPath();
@@ -2361,6 +2364,10 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     }
     unescapeifRequired(path);
 
+#ifdef _WIN32
+    replaceAll(path,"/","\\");
+#endif
+
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
 
 
@@ -2375,6 +2382,9 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     if (megaCmdTransferListener)
     {
         megaCmdTransferListener->wait();
+#ifdef _WIN32
+            Sleep(100); //give a while to print end of transfer
+#endif
         if (megaCmdTransferListener->getError()->getErrorCode() == API_EREAD)
         {
             setCurrentOutCode(MCMD_NOTFOUND);
