@@ -248,6 +248,10 @@ namespace mega
         void loginToFolder(String^ megaFolderLink);
         void importFileLink(String^ megaFileLink, MNode^ parent, MRequestListenerInterface^ listener);
         void importFileLink(String^ megaFileLink, MNode^ parent);
+        void decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void decryptPasswordProtectedLink(String^ link, String^ password);
+        void encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void encryptLinkWithPassword(String^ link, String^ password);
         void getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener);
         void getPublicNode(String^ megaFileLink);
         void getThumbnail(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);

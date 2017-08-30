@@ -28,6 +28,14 @@
 #include <errno.h>
 
 #ifdef USE_PTHREAD
+#if defined (__MINGW32__) && !defined(__struct_timespec_defined)
+struct timespec
+{
+  long long	tv_sec; 	/* seconds */
+  long  	tv_nsec;	/* nanoseconds */
+};
+# define __struct_timespec_defined  1
+#endif
 
 namespace mega {
 

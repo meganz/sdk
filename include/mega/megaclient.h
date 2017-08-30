@@ -260,6 +260,14 @@ public:
     // open exported file link
     error openfilelink(const char*, int);
 
+    // decrypt password-protected public link
+    // the caller takes the ownership of the returned value in decryptedLink parameter
+    error decryptlink(const char* link, const char* pwd, string *decryptedLink);
+
+    // encrypt public link with password
+    // the caller takes the ownership of the returned value
+    error encryptlink(const char* link, const char* pwd, string *encryptedLink);
+
     // change login password
     error changepw(const byte*, const byte*);
 
@@ -388,7 +396,8 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error isnodesyncable(Node*, bool* = NULL);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections

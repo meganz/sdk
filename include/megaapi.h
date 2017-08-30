@@ -2005,7 +2005,7 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TOTAL_OF_REQUEST_TYPES
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -3313,6 +3313,42 @@ public:
     virtual MegaHandle getPrevParent() const;
 };
 
+class MegaRegExpPrivate;
+
+/**
+ * @brief Provides a mechanism to handle Regular Expressions
+ */
+class MegaRegExp
+{
+public:
+    MegaRegExp();
+    ~MegaRegExp();
+
+    /**
+     * @brief Creates a copy of this MegaRegExp object
+     *
+     * The resulting object is fully independent of the source MegaRegExp,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaRegExp object
+     */
+    MegaRegExp *copy();
+
+    bool addRegExp(const char *regExp);
+    int getNumRegExp();
+    const char *getRegExp(int index);
+    bool match(const char *s);
+
+    const char *getFullPattern();
+
+private:
+    MegaRegExpPrivate *pImpl;
+    MegaRegExp(MegaRegExpPrivate *pImpl);
+};
+
 /**
  * @brief Provides information about a synchronization
  *
@@ -3494,6 +3530,7 @@ public:
         API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
         API_EAPPKEY = -22,      ///< Invalid or missing application key.
         API_ESSL = -23,         ///< SSL verification failed
+        API_EGOINGOVERQUOTA = -24,  ///< Not enough quota
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -5932,6 +5969,43 @@ class MegaApi
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Decrypt password-protected public link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+         * - MegaRequest::getPassword - Returns the password to decrypt the link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Decrypted public link
+         *
+         * @param link Password/protected public link to a file/folder in MEGA
+         * @param password Password to decrypt the link
+         * @param listener MegaRequestListener to track this request
+         */
+        void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Encrypt public link with password
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the public link to be encrypted
+         * - MegaRequest::getPassword - Returns the password to encrypt the link
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Encrypted public link
+         *
+         * @param link Public link to be encrypted, including encryption key for the link
+         * @param password Password to encrypt the link
+         * @param listener MegaRequestListener to track this request
+         */
+        void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get a MegaNode from a public link to a file
          *
          * A public node can be imported using MegaApi::copyNode or downloaded using MegaApi::startDownload
@@ -7760,7 +7834,7 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -7786,7 +7860,60 @@ class MegaApi
          * @param localfp Fingerprint of the local file
          * @param listener MegaRequestListener to track this request
          */
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
+
+#ifdef USE_PCRE
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
+         *
+         * This function should be used to add a new synchronized pair of folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync (MegaApi::resumeSync)
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::resumeSync
+         */
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Resume a previously synced folder, having an exclusion list
+         *
+         * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
+         * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
+         * are correctly applied.
+         *
+         * The third parameter allows to pass a fingerprint of the local folder to check if it has changed since
+         * the previous execution. That fingerprint can be obtained using MegaRequest::getParentHandle in the
+         * onRequestFinish callback if the MegaApi::syncFolder request. If the provided fingerprint doesn't match
+         * the current fingerprint of the local folder, this request will fail with the error code
+         * MegaError::API_EFAILED
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumber - Returns the fingerprint of the local folder
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param localfp Fingerprint of the local file
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Remove a synced folder
@@ -7911,6 +8038,17 @@ class MegaApi
         void setExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
+         * @brief Set a list of excluded paths
+         *
+         * Wildcards (* and ?) are allowed
+         *
+         * @param List of excluded paths
+         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
+         * function will be removed in future updates
+         */
+        void setExcludedPaths(std::vector<std::string> *excludedPaths);
+
+        /**
          * @brief Set a lower limit for synchronized files
          *
          * Files with a size lower than this limit won't be synchronized
@@ -7947,13 +8085,28 @@ class MegaApi
         bool moveToLocalDebris(const char *path);
 
         /**
-         * @brief Check if a name is syncable based on the excluded names
-         * @param name Name to check
-         * @return true if the name is syncable, otherwise false
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed or modified in future updates
+         * @brief Check if a path is syncable based on the excluded names and paths and sizes
+         * @param name Path to check
+         * @param size Size of the file or -1 to ignore the size
+         * @return true if the path is syncable, otherwise false
          */
-        bool isSyncable(const char *name);
+        bool isSyncable(const char *path, long long size);
+
+        /**
+         * @brief Check if it's possible to start synchronizing a folder node.
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         * - MegaError::API_EACCESS if the node doesn't have full access
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         * @param Folder node to check
+         * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
+         */
+        int isNodeSyncable(MegaNode *node);
 
         /**
          * @brief Get the corresponding local path of a synced node
@@ -7965,6 +8118,45 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        /**
+         * @brief Get the synchronization identified with a tag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param tag Tag that identifies the synchronization
+         * @return Synchronization identified by the tag
+         */
+        MegaSync *getSyncByTag(int tag);
+
+        /**
+         * @brief getSyncByNode Get the synchronization associated with a node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Root node of the synchronization
+         * @return Synchronization with the specified root node
+         */
+        MegaSync *getSyncByNode(MegaNode *node);
+
+        /**
+         * @brief getSyncByPath Get the synchronization associated with a local path
+         *
+         * You take the ownership of the returned value
+         *
+         * @param localPath Root local path of the synchronization
+         * @return Synchronization with the specified root local path
+         */
+        MegaSync *getSyncByPath(const char *localPath);
+
+#ifdef USE_PCRE
+        /**
+        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+        * @param sync Synchronization whose rules want to be updated
+        * @param regExp List of regular expressions (rules) to exclude file / folders
+        */
+        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
 
         /**
          * @brief Get the total number of local nodes in the account

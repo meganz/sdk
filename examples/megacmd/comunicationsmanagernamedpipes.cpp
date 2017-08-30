@@ -86,7 +86,13 @@ HANDLE ComunicationsManagerNamedPipes::create_new_namedPipe(int *pipeId)
 
         if (*pipeId)
         {
+    #ifdef __MINGW32__
+            wostringstream wos;
+            wos << *pipeId;
+            nameOfPipe += wos.str();
+    #else
             nameOfPipe += std::to_wstring(*pipeId);
+    #endif
         }
 
         // Create a pipe to send data

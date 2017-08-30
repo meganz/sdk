@@ -24,18 +24,18 @@ examples_megasimplesync_SOURCES = examples/megasimplesync.cpp
 
 if WIN32
 
-examples_megacli_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
-examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS)  $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
+examples_megacli_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS) $(PCRE_CXXFLAGS)
+examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS)  $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA) $(PCRE_LDFLAGS) $(PCRE_LIBS)
 
-examples_megasimplesync_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
-examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
+examples_megasimplesync_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS) $(PCRE_CXXFLAGS)
+examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(top_builddir)/src/libmega.la $(LIBS_EXTRA) $(PCRE_LDFLAGS) $(PCRE_LIBS)
 else
 
-examples_megacli_CXXFLAGS = $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
+examples_megacli_CXXFLAGS = $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS) $(PCRE_CXXFLAGS)
+examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(top_builddir)/src/libmega.la
 
-examples_megasimplesync_CXXFLAGS = $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
+examples_megasimplesync_CXXFLAGS = $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS) $(PCRE_CXXFLAGS)
+examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(top_builddir)/src/libmega.la
 
 if BUILD_FUSE_EXAMPLE
 examples_linux_megafuse_SOURCES =  examples/linux/megafuse.cpp
@@ -93,12 +93,14 @@ if WIN32
 noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.h include/mega/thread.h include/mega/thread/win32thread.h include/mega/logging.h
 examples_mega_cmd_SOURCES += examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp src/thread/win32thread.cpp src/logging.cpp
 examples_mega_exec_SOURCES += examples/megacmd/megacmdshell/megacmdshellcommunicationsnamedpipes.cpp src/thread/win32thread.cpp src/logging.cpp
+examples_mega_cmd_server_SOURCES += examples/megacmd/comunicationsmanagernamedpipes.cpp
 
 examples_mega_cmd_server_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
 examples_mega_cmd_server_LDADD = $(LIBS_EXTRA) $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS)  $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la $(LIBS_EXTRA)
 
 examples_mega_exec_CXXFLAGS += -D_WIN32=1
 examples_mega_exec_LDADD = $(LIBS_EXTRA)
+examples_mega_cmd_LDADD += $(LIBS_EXTRA)
 
 
 else
