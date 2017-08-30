@@ -433,7 +433,7 @@ CmdPetition * ComunicationsManagerFileSockets::getPetition()
     int n = read(newsockfd, buffer, 1023);
     while(n == 1023)
     {
-        DWORD total_available_bytes;
+        unsigned long int total_available_bytes;
         if (-1 == ioctl(newsockfd, FIONREAD, &total_available_bytes))
         {
             LOG_err << "Failed to PeekNamedPipe. errno: " << errno;
