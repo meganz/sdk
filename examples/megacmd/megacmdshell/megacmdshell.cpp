@@ -1736,6 +1736,13 @@ void mycompletefunct(char **c, int num_matches, int max_length)
             }
 #endif
 
+
+    // max_length is not trustworthy
+    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
+    {
+        max_length = max(max_length,(int)strlen(c[i]));
+    }
+
     OUTSTREAM << endl;
 
     int nelements_per_col = max(1,(cols-1)/(max_length+1));
