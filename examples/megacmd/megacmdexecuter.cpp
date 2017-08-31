@@ -4495,7 +4495,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             OUTSTREAM << i << ": " << key << " to " << nodepath;
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
-                            int state = api->syncPathState(&sstate);
+#ifdef _WIN32
+                            sstate = rtrim(sstate, '\\');
+#endif
+                            string psstate;
+                            fsAccessCMD->path2local(&sstate,&psstate);
+                            int state = api->syncPathState(&psstate);
 
                             OUTSTREAM << " - " << ( thesync->active ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state);
                             OUTSTREAM << ", " << sizeToText(api->getSize(n), false) << "yte(s) in ";
@@ -4551,7 +4556,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                     string sstate(( *itr ).first);
                     sstate = rtrim(sstate, '/');
-                    int state = api->syncPathState(&sstate);
+#ifdef _WIN32
+                    sstate = rtrim(sstate, '\\');
+#endif
+                    string psstate;
+                    fsAccessCMD->path2local(&sstate,&psstate);
+                    int state = api->syncPathState(&psstate);
 
                     OUTSTREAM << " - " << (( thesync->active ) ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active";
                     OUTSTREAM << ", " << sizeToText(api->getSize(n), false) << "yte(s) in ";
