@@ -1338,6 +1338,13 @@ public class MegaApiJava {
     	return megaApi.getMyXMPPJid();
     }
 
+    /**
+     * Returns whether MEGA Achievements are enabled for the open account
+     * @return True if enabled, false otherwise.
+     */
+    public boolean isAchievementsEnabled() {
+        return megaApi.isAchievementsEnabled();
+    }
 
     /**
      * Returns the fingerprint of the signing key of the currently open account
@@ -5491,7 +5498,88 @@ public class MegaApiJava {
     public void registerPushNotifications(int deviceType, String token) {
         megaApi.registerPushNotifications(deviceType, token);
     }
-    
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getAccountAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getAccountAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     */
+    public void getAccountAchievements(){
+        megaApi.getAccountAchievements();
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getMegaAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getMegaAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     */
+    public void getMegaAchievements() {
+        megaApi.getMegaAchievements();
+    }
 
     /****************************************************************************************************/
     // INTERNAL METHODS

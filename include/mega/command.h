@@ -856,6 +856,14 @@ public:
 
 #endif
 
+class MEGA_API CommandGetMegaAchievements : public Command
+{
+    AchievementsDetails* details;
+public:
+    void procresult();
+
+    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
+};
 
 } // namespace
 

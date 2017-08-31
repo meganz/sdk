@@ -808,6 +808,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     workinglockcs = NULL;
     scpaused = false;
     asyncfopens = 0;
+    achievements_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3001,6 +3002,7 @@ void MegaClient::locallogout()
     me = UNDEF;
     publichandle = UNDEF;
     cachedscsn = UNDEF;
+    achievements_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -11713,6 +11715,16 @@ void MegaClient::getChatPresenceUrl()
 void MegaClient::registerPushNotification(int deviceType, const char *token)
 {
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
+}
+
+void MegaClient::getaccountachievements(AchievementsDetails *details)
+{
+    reqs.add(new CommandGetMegaAchievements(this, details));
+}
+
+void MegaClient::getmegaachievements(AchievementsDetails *details)
+{
+    reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
 
 #endif

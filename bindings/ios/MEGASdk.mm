@@ -142,6 +142,10 @@ using namespace mega;
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
+- (BOOL)isAchievementsEnabled {
+    return self.megaApi->isAchievementsEnabled();
+}
+
 #ifdef ENABLE_CHAT
 
 - (NSString *)myFingerprint {
@@ -1554,6 +1558,8 @@ using namespace mega;
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
 }
 
+#endif
+
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1562,7 +1568,21 @@ using namespace mega;
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
-#endif
+- (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getAccountAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getAccountAchievements {
+    self.megaApi->getAccountAchievements();
+}
+
+- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getMegaAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getMegaAchievements {
+    self.megaApi->getMegaAchievements();
+}
 
 #pragma mark - Debug log messages
 

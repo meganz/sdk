@@ -662,7 +662,12 @@ MegaAccountDetails *MegaRequest::getMegaAccountDetails() const
 
 MegaPricing *MegaRequest::getPricing() const
 {
-	return NULL;
+    return NULL;
+}
+
+MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
+{
+    return NULL;
 }
 
 int MegaRequest::getTransferTag() const
@@ -1325,6 +1330,11 @@ MegaUser *MegaApi::getMyUser()
 char *MegaApi::getMyXMPPJid()
 {
     return pImpl->getMyXMPPJid();
+}
+
+bool MegaApi::isAchievementsEnabled()
+{
+    return pImpl->isAchievementsEnabled();
 }
 
 #ifdef ENABLE_CHAT
@@ -2963,6 +2973,16 @@ void MegaApi::removeRecursively(const char *path)
 bool MegaApi::isOnline()
 {
     return pImpl->isOnline();
+}
+
+void MegaApi::getAccountAchievements(MegaRequestListener *listener)
+{
+    pImpl->getAccountAchievements(listener);
+}
+
+void MegaApi::getMegaAchievements(MegaRequestListener *listener)
+{
+    pImpl->getMegaAchievements(listener);
 }
 
 #ifdef HAVE_LIBUV
@@ -4604,4 +4624,104 @@ MegaNodeList *MegaChildrenLists::getFileList()
 MegaNodeList *MegaChildrenLists::getFolderList()
 {
     return NULL;
+}
+
+MegaAchievementsDetails::~MegaAchievementsDetails()
+{
+
+}
+
+long long MegaAchievementsDetails::getBaseStorage()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getClassStorage(int class_id)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getClassTransfer(int class_id)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getClassExpire(int class_id)
+{
+    return 0;
+}
+
+unsigned int MegaAchievementsDetails::getAwardsCount()
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getAwardClass(unsigned int index)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getAwardId(unsigned int index)
+{
+    return 0;
+}
+
+int64_t MegaAchievementsDetails::getAwardTimestamp(unsigned int index)
+{
+    return 0;
+}
+
+int64_t MegaAchievementsDetails::getAwardExpirationTs(unsigned int index)
+{
+    return 0;
+}
+
+MegaStringList* MegaAchievementsDetails::getAwardEmails(unsigned int index)
+{
+    return NULL;
+}
+
+int MegaAchievementsDetails::getRewardsCount()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardStorage(unsigned int index)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardTransfer(unsigned int index)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getRewardExpire(unsigned int index)
+{
+    return 0;
+}
+
+MegaAchievementsDetails *MegaAchievementsDetails::copy()
+{
+    return NULL;
+}
+
+long long MegaAchievementsDetails::currentStorage()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransfer()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentStorageReferrals()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
 }

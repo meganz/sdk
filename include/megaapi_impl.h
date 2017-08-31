@@ -774,6 +774,8 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
         AccountDetails * getAccountDetails() const;
+        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
+        AchievementsDetails *getAchievementsDetails() const;
 
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
@@ -794,6 +796,7 @@ class MegaRequestPrivate : public MegaRequest
     protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
+        AchievementsDetails *achievementsDetails;
         int type;
         MegaHandle nodeHandle;
         const char* link;
@@ -925,7 +928,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
         static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
-        virtual ~MegaAccountDetailsPrivate() ;
+        virtual ~MegaAccountDetailsPrivate();
 
         virtual int getProLevel();
         virtual int64_t getProExpiration();
@@ -997,6 +1000,39 @@ private:
     vector<const char *> description;
     vector<const char *> iosId;
     vector<const char *> androidId;
+};
+
+class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
+{
+public:
+    static MegaAchievementsDetails *fromAchievementsDetails(AchievementsDetails *details);
+    virtual ~MegaAchievementsDetailsPrivate();
+
+    virtual MegaAchievementsDetails* copy();
+
+    virtual long long getBaseStorage();
+    virtual long long getClassStorage(int class_id);
+    virtual long long getClassTransfer(int class_id);
+    virtual int getClassExpire(int class_id);
+    virtual unsigned int getAwardsCount();
+    virtual int getAwardClass(unsigned int index);
+    virtual int getAwardId(unsigned int index);
+    virtual int64_t getAwardTimestamp(unsigned int index);
+    virtual int64_t getAwardExpirationTs(unsigned int index);
+    virtual MegaStringList* getAwardEmails(unsigned int index);
+    virtual int getRewardsCount();
+    virtual long long getRewardStorage(unsigned int index);
+    virtual long long getRewardTransfer(unsigned int index);
+    virtual int getRewardExpire(unsigned int index);
+
+    virtual long long currentStorage();
+    virtual long long currentTransfer();
+    virtual long long currentStorageReferrals();
+    virtual long long currentTransferReferrals();
+
+private:
+    MegaAchievementsDetailsPrivate(AchievementsDetails *details);
+    AchievementsDetails details;
 };
 
 #ifdef ENABLE_CHAT
@@ -1447,6 +1483,7 @@ class MegaApiImpl : public MegaApp
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         char* getMyXMPPJid();
+        bool isAchievementsEnabled();
 #ifdef ENABLE_CHAT
         char* getMyFingerprint();
 #endif
@@ -1791,6 +1828,9 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
 #endif
 
+        void getAccountAchievements(MegaRequestListener *listener = NULL);
+        void getMegaAchievements(MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2037,6 +2077,7 @@ protected:
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
+        virtual void getmegaachievements_result(AchievementsDetails*, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

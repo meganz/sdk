@@ -2265,7 +2265,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transferredBytes = 0;
     this->number = 0;
 
-    if(type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
         this->accountDetails = new AccountDetails();
     }
@@ -2274,7 +2274,16 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->accountDetails = NULL;
     }
 
-    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
+    if (type == MegaRequest::TYPE_GET_ACHIEVEMENTS)
+    {
+        this->achievementsDetails = new AchievementsDetails();
+    }
+    else
+    {
+        this->achievementsDetails = NULL;
+    }
+
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
     {
         this->megaPricing = new MegaPricingPrivate();
     }
@@ -2284,7 +2293,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     }
 
 #ifdef ENABLE_CHAT
-    if(type == MegaRequest::TYPE_CHAT_CREATE)
+    if (type == MegaRequest::TYPE_CHAT_CREATE)
     {
         this->chatPeerList = new MegaTextChatPeerListPrivate();
     }
@@ -2293,7 +2302,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->chatPeerList = NULL;
     }
 
-    if(type == MegaRequest::TYPE_CHAT_FETCH)
+    if (type == MegaRequest::TYPE_CHAT_FETCH)
     {
         this->chatList = new MegaTextChatListPrivate();
     }
@@ -2358,6 +2367,13 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->accountDetails) = *(request->getAccountDetails());
 	}
 
+    this->achievementsDetails = NULL;
+    if(request->getAchievementsDetails())
+    {
+        this->achievementsDetails = new AchievementsDetails();
+        *(this->achievementsDetails) = *(request->getAchievementsDetails());
+    }
+
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
@@ -2369,6 +2385,20 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
 {
     return accountDetails;
+}
+
+MegaAchievementsDetails *MegaRequestPrivate::getMegaAchievementsDetails() const
+{
+    if (achievementsDetails)
+    {
+        return MegaAchievementsDetailsPrivate::fromAchievementsDetails(achievementsDetails);
+    }
+    return NULL;
+}
+
+AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
+{
+    return achievementsDetails;
 }
 
 #ifdef ENABLE_CHAT
@@ -2468,6 +2498,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete [] file;
 	delete accountDetails;
     delete megaPricing;
+    delete achievementsDetails;
     delete [] text;
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -2860,6 +2891,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
+        case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
     }
     return "UNKNOWN";
 }
@@ -3941,6 +3973,11 @@ char *MegaApiImpl::getMyXMPPJid()
 
     sdkMutex.unlock();
     return result;
+}
+
+bool MegaApiImpl::isAchievementsEnabled()
+{
+    return client->achievements_enabled;
 }
 
 #ifdef ENABLE_CHAT
@@ -7211,7 +7248,22 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     sdkMutex.unlock();
 
-     return fileAttributes;
+    return fileAttributes;
+}
+
+void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 #endif
@@ -9129,6 +9181,16 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
         request->setMegaStringMap(datamap);
         delete datamap;
     }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -15650,6 +15712,18 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_GET_ACHIEVEMENTS:
+        {
+            if (request->getFlag())
+            {
+                client->getmegaachievements(request->getAchievementsDetails());
+            }
+            else
+            {
+                client->getaccountachievements(request->getAchievementsDetails());
+            }
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -19525,4 +19599,248 @@ MegaChildrenListsPrivate::MegaChildrenListsPrivate()
 {
     files = new MegaNodeListPrivate();
     folders = new MegaNodeListPrivate();
+}
+
+MegaAchievementsDetails *MegaAchievementsDetailsPrivate::fromAchievementsDetails(AchievementsDetails *details)
+{
+    return new MegaAchievementsDetailsPrivate(details);
+}
+
+MegaAchievementsDetailsPrivate::~MegaAchievementsDetailsPrivate()
+{ }
+
+MegaAchievementsDetails *MegaAchievementsDetailsPrivate::copy()
+{
+    return new MegaAchievementsDetailsPrivate(&details);
+}
+
+long long MegaAchievementsDetailsPrivate::getBaseStorage()
+{
+    return details.permanent_size;
+}
+
+long long MegaAchievementsDetailsPrivate::getClassStorage(int class_id)
+{
+    achievements_map::iterator it = details.achievements.find(class_id);
+    if (it != details.achievements.end())
+    {
+        return it->second.storage;
+    }
+
+    return 0;
+}
+
+long long MegaAchievementsDetailsPrivate::getClassTransfer(int class_id)
+{
+    achievements_map::iterator it = details.achievements.find(class_id);
+    if (it != details.achievements.end())
+    {
+        return it->second.transfer;
+    }
+
+    return 0;
+}
+
+int MegaAchievementsDetailsPrivate::getClassExpire(int class_id)
+{
+    achievements_map::iterator it = details.achievements.find(class_id);
+    if (it != details.achievements.end())
+    {
+        return it->second.expire;
+    }
+
+    return 0;
+}
+
+unsigned int MegaAchievementsDetailsPrivate::getAwardsCount()
+{
+    return details.awards.size();
+}
+
+int MegaAchievementsDetailsPrivate::getAwardClass(unsigned int index)
+{
+    if (index < details.awards.size())
+    {
+        return details.awards.at(index).achievement_class;
+    }
+
+    return 0;
+}
+
+int MegaAchievementsDetailsPrivate::getAwardId(unsigned int index)
+{
+    if (index < details.awards.size())
+    {
+        return details.awards.at(index).award_id;
+    }
+
+    return 0;
+}
+
+int64_t MegaAchievementsDetailsPrivate::getAwardTimestamp(unsigned int index)
+{
+    if (index < details.awards.size())
+    {
+        return details.awards.at(index).ts;
+    }
+
+    return 0;
+}
+
+int64_t MegaAchievementsDetailsPrivate::getAwardExpirationTs(unsigned int index)
+{
+    if (index < details.awards.size())
+    {
+        return details.awards.at(index).expire;
+    }
+
+    return 0;
+}
+
+MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int index)
+{
+    if (index < details.awards.size())
+    {
+        if (details.awards.at(index).achievement_class == MEGA_ACHIEVEMENT_INVITE)
+        {
+            vector<char*> data;
+            vector<string>::iterator it = details.awards.at(index).emails_invited.begin();
+            while (it != details.awards.at(index).emails_invited.end())
+            {
+                data.push_back(MegaApi::strdup(it->c_str()));
+                it++;
+            }
+            return new MegaStringListPrivate(data.data(), data.size());
+        }
+    }
+
+    return new MegaStringListPrivate();
+}
+
+int MegaAchievementsDetailsPrivate::getRewardsCount()
+{
+    return details.rewards.size();
+}
+
+long long MegaAchievementsDetailsPrivate::getRewardStorage(unsigned int index)
+{
+    if (index < details.rewards.size())
+    {
+        return details.rewards.at(index).storage;
+    }
+
+    return 0;
+}
+
+long long MegaAchievementsDetailsPrivate::getRewardTransfer(unsigned int index)
+{
+    if (index < details.rewards.size())
+    {
+        return details.rewards.at(index).transfer;
+    }
+
+    return 0;
+}
+
+int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
+{
+    if (index < details.rewards.size())
+    {
+        return details.rewards.at(index).expire;
+    }
+
+    return 0;
+}
+
+long long MegaAchievementsDetailsPrivate::currentStorage()
+{
+    long long total = details.permanent_size;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if (it->expire > ts)
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->storage;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentTransfer()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if (it->expire > ts)
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->transfer;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if ( (it->expire > ts) && (it->achievement_class == MEGA_ACHIEVEMENT_INVITE) )
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->storage;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
+{
+    long long total = 0;
+    m_time_t ts = time(NULL);
+
+    for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
+    {
+        if ( (it->expire > ts) && (it->achievement_class == MEGA_ACHIEVEMENT_INVITE) )
+        {
+            for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+            {
+                if (itr->award_id == it->award_id)
+                {
+                    total += itr->transfer;
+                }
+            }
+        }
+    }
+
+    return total;
+}
+
+MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
+{
+    this->details = (*details);
 }

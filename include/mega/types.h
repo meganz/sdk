@@ -93,6 +93,7 @@ struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
 class TransferList;
+struct Achievement;
 
 #define EOO 0
 
@@ -469,6 +470,9 @@ typedef map<handle, TextChat*> textchat_map;
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
+
+typedef unsigned int achievement_class_id;
+typedef map<achievement_class_id, Achievement> achievements_map;
 
 } // namespace
 
