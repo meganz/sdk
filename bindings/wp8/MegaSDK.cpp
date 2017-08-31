@@ -2250,6 +2250,15 @@ void MegaSDK::localLogout()
     megaApi->localLogout();
 }
 
+int MegaSDK::getPasswordStrength(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->getPasswordStrength((password != nullptr) ? utf8password.c_str() : NULL);
+}
+
 void MegaSDK::submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener)
 {
     std::string utf8comment;
