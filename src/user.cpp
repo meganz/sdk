@@ -521,22 +521,28 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         return false;
     }
 
-    bool lastSuccess = (numDetails & 0x01) != 0;
-    bool lastSkipped = (numDetails & 0x02) != 0;
-    bool mkExported = (numDetails & 0x04) != 0;
-    bool dontShowAgain = (numDetails & 0x08) != 0;
-    bool lastLogin = (numDetails & 0x10) != 0;
-
     // format: <lastSuccess>:<lastSkipped>:<mkExported>:<dontShowAgain>:<lastLogin>
     string oldValue;
     if (data && size)
     {
-        oldValue.assign((const char*) data, size);
+        oldValue.assign(data, size);
+
+        // ensure the old value has a valid format
+        if (std::count(oldValue.begin(), oldValue.end(), ':') != 4)
+        {
+            return false;
+        }
     }
     else    // no existing value, set with default values and update it consequently
     {
         oldValue = "0:0:0:0:0";
     }
+
+    bool lastSuccess = (numDetails & 0x01) != 0;
+    bool lastSkipped = (numDetails & 0x02) != 0;
+    bool mkExported = (numDetails & 0x04) != 0;
+    bool dontShowAgain = (numDetails & 0x08) != 0;
+    bool lastLogin = (numDetails & 0x10) != 0;
 
     bool changed = false;
     time_t tsLastSuccess, tsLastSkipped, tsLastLogin;
@@ -553,6 +559,10 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         tsLastSuccess = strtol(buf.data(), NULL, 10);
+        if (tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        {
+            return false;
+        }
     }
 
     len = oldValue.find(":");
@@ -566,9 +576,17 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         tsLastSkipped = strtol(buf.data(), NULL, 10);
+        if (tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        {
+            return false;
+        }
     }
 
     len = oldValue.find(":");
+    if (len != 1)
+    {
+        return false;
+    }
     buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
     flagMkExported = (buf.at(0) == '1');
@@ -579,6 +597,10 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     len = oldValue.find(":");
+    if (len != 1)
+    {
+        return false;
+    }
     buf = oldValue.substr(0, len);
     oldValue = oldValue.substr(len+1);
     flagDontShowAgain = (buf.at(0) == '1');
@@ -596,6 +618,10 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         tsLastLogin = strtol(oldValue.data(), NULL, 10);
+        if (tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        {
+            return false;
+        }
     }
 
     std::stringstream value;
