@@ -2324,6 +2324,9 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     {
         megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL, clientID);
     }
+#ifdef _WIN32
+    replaceAll(path,"/","\\");
+#endif
     LOG_debug << "Starting download: " << node->getName() << " to : " << path;
     api->startDownload(node, path.c_str(), megaCmdTransferListener);
     if (megaCmdTransferListener)
