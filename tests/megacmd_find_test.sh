@@ -111,7 +111,7 @@ function initialize () {
 		exit 1
 	fi
 
-	if [ $($FIND / | wc  -l) != 1 ]; then 
+	if [ $($FIND / | grep -v "^$" |wc  -l) != 1 ]; then
 		echo "REMOTE Not empty, please clear it before starting!"
 		#~ $FIND /
 		cd $ABSPWD
@@ -179,16 +179,16 @@ function compare_find(){
 	
 	
 		
-	if diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt 2>/dev/null >/dev/null; then
+	if diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt 2>/dev/null >/dev/null; then
 		if [ "$VERBOSE" == "1" ]; then
 			echo "diff megafind vs localfind:"
-			diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
+			diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
 		fi
 		echo "test $currentTest succesful!"
 	else
 		echo "test $currentTest failed!"
 		echo "diff megafind vs localfind:"
-		diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
+		diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
 		cd $ABSPWD
 		exit 1
 	fi
@@ -219,16 +219,16 @@ function find_local_append(){
 
 function compare_remote_local(){
 	
-		if diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt 2>/dev/null >/dev/null; then
+		if diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt 2>/dev/null >/dev/null; then
 		if [ "$VERBOSE" == "1" ]; then
 			echo "diff megafind vs localfind:"
-			diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
+			diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
 		fi
 		echo "test $currentTest succesful!"
 	else
 		echo "test $currentTest failed!"
 		echo "diff megafind vs localfind:"
-		diff --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
+		diff -B --side-by-side $ABSPWD/megafind.txt $ABSPWD/localfind.txt
 		cd $ABSPWD
 		exit 1
 	fi
