@@ -10422,10 +10422,7 @@ void MegaApiImpl::login_result(error result)
     if (result == API_OK && request->getEmail() &&
             (request->getPassword() || request->getPrivateKey()))
     {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
         updatePwdReminderData(false, false, false, false, true);
-        client->reqtag = creqtag;
     }
 
     fireOnRequestFinish(request, megaError);
