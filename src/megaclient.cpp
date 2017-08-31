@@ -11717,6 +11717,8 @@ void MegaClient::registerPushNotification(int deviceType, const char *token)
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
 }
 
+#endif
+
 void MegaClient::getaccountachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details));
@@ -11726,8 +11728,6 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
-
-#endif
 
 FetchNodesStats::FetchNodesStats()
 {

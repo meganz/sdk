@@ -7250,6 +7250,7 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     return fileAttributes;
 }
+#endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
 {
@@ -7266,7 +7267,6 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
-#endif
 
 MegaUserList* MegaApiImpl::getContacts()
 {
