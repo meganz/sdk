@@ -110,9 +110,9 @@ int toInteger(std::string what, int failValue = -1);
 
 std::string joinStrings(const std::vector<std::string>& vec, const char* delim = " ", bool quoted=true);
 
-std::string getFixLengthString(const std::string origin, u_int size, const char delimm=' ', bool alignedright = false);
+std::string getFixLengthString(const std::string origin, unsigned int size, const char delimm=' ', bool alignedright = false);
 
-std::string getRightAlignedString(const std::string origin, u_int minsize);
+std::string getRightAlignedString(const std::string origin, unsigned int minsize);
 
 
 
@@ -133,7 +133,7 @@ std::string secondsToText(time_t seconds, bool humanreadable = true);
 
 std::string percentageToText(float percentage);
 
-u_int getNumberOfCols(u_int defaultwidth = 90);
+unsigned int getNumberOfCols(unsigned int defaultwidth = 90);
 
 void sleepSeconds(int seconds);
 void sleepMicroSeconds(long microseconds);

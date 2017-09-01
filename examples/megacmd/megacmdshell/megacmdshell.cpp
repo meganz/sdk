@@ -251,9 +251,9 @@ void console_setecho(bool echo)
 #endif
 }
 
-int getNumberOfCols(u_int defaultwidth=0)
+int getNumberOfCols(unsigned int defaultwidth=0)
 {
-    u_int width = defaultwidth;
+    unsigned int width = defaultwidth;
     int rows = 1, cols = width;
 #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
 
@@ -311,7 +311,7 @@ MegaCmdShellCommunications *comms;
 
 MegaMutex mutexPrompt;
 
-void printWelcomeMsg(u_int width = 0);
+void printWelcomeMsg(unsigned int width = 0);
 
 
 
@@ -598,7 +598,7 @@ bool validwcharforeadline(const wchar_t thewchar)
 wstring escapereadlinebreakers(const wchar_t *what)
 {
     wstring output;
-    for( u_int i = 0; i < wcslen( what ) ; i++ )
+    for( unsigned int i = 0; i < wcslen( what ) ; i++ )
     {
         if(validwcharforeadline(what[ i ] ))
         {
@@ -978,7 +978,7 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
         {
-            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
+            for (unsigned int i=0;i< strlen(receivedutf8.c_str());i++)
             {
                 rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
                 rl_point=rl_end;
@@ -1255,7 +1255,7 @@ void process_line(char * line)
         {
             vector<string> words = getlistOfWords(line);
             bool helprequested = false;
-            for (u_int i = 1; i< words.size(); i++)
+            for (unsigned int i = 1; i< words.size(); i++)
             {
                 if (words[i]== "--help") helprequested = true;
             }
@@ -1421,7 +1421,7 @@ void process_line(char * line)
 
                     if (!strstr (line,"path-display-size"))
                     {
-                        u_int width = getNumberOfCols(75);
+                        unsigned int width = getNumberOfCols(75);
                         int pathSize = int((width-46)/2);
 
                         toexec+="transfers --path-display-size=";
@@ -1631,7 +1631,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, u_int width, bool encapsulated = true)
+void printCenteredLine(string msj, unsigned int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1639,17 +1639,17 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
     }
     if (encapsulated)
         COUT << "|";
-    for (u_int i = 0; i < (width-msj.size())/2; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2; i++)
         COUT << " ";
     COUT << msj;
-    for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
         COUT << " ";
     if (encapsulated)
         COUT << "|";
     COUT << endl;
 }
 
-void printWelcomeMsg(u_int width)
+void printWelcomeMsg(unsigned int width)
 {
     if (!width)
     {
@@ -1658,7 +1658,7 @@ void printWelcomeMsg(u_int width)
 
     COUT << endl;
     COUT << ".";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << ".";
     COUT << endl;
@@ -1669,7 +1669,7 @@ void printWelcomeMsg(u_int width)
     printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
 
     COUT << "|";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << " " ;
     COUT << "|";
     COUT << endl;
@@ -1687,7 +1687,7 @@ void printWelcomeMsg(u_int width)
 #endif
 
     COUT << "`";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << "´";
     COUT << endl;

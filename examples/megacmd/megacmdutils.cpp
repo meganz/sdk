@@ -975,10 +975,10 @@ string joinStrings(const vector<string>& vec, const char* delim, bool quoted)
 
 }
 
-string getFixLengthString(const string origin, u_int size, const char delim, bool alignedright)
+string getFixLengthString(const string origin, unsigned int size, const char delim, bool alignedright)
 {
     string toret;
-    u_int origsize = origin.size();
+    unsigned int origsize = origin.size();
     if (origsize <= size){
         if (alignedright)
         {
@@ -1002,7 +1002,7 @@ string getFixLengthString(const string origin, u_int size, const char delim, boo
     return toret;
 }
 
-string getRightAlignedString(const string origin, u_int minsize)
+string getRightAlignedString(const string origin, unsigned int minsize)
 {
     ostringstream os;
     os << std::setw(minsize) << origin;
@@ -1045,7 +1045,7 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
         {
             if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
             {
-                for (u_int i = 1; i < w.length(); i++)
+                for (unsigned int i = 1; i < w.length(); i++)
                 {
                     string optname = w.substr(i, 1);
                     if (vvalidOptions.find(optname) != vvalidOptions.end())
@@ -1158,7 +1158,7 @@ string percentageToText(float percentage)
     return os.str();
 }
 
-u_int getNumberOfCols(u_int defaultwidth)
+unsigned int getNumberOfCols(unsigned int defaultwidth)
 {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO csbi;

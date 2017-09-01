@@ -300,10 +300,10 @@ void MegaCmdListener::onRequestUpdate(MegaApi* api, MegaRequest *request)
     {
         case MegaRequest::TYPE_FETCH_NODES:
         {
-            u_int cols = getNumberOfCols(80);
+            unsigned int cols = getNumberOfCols(80);
             string outputString;
             outputString.resize(cols+1);
-            for (u_int i = 0; i < cols; i++)
+            for (unsigned int i = 0; i < cols; i++)
             {
                 outputString[i] = '.';
             }
@@ -420,11 +420,11 @@ void MegaCmdTransferListener::onTransferUpdate(MegaApi* api, MegaTransfer *trans
         return;
     }
 
-    u_int cols = getNumberOfCols(80);
+    unsigned int cols = getNumberOfCols(80);
 
     string outputString;
     outputString.resize(cols + 1);
-    for (u_int i = 0; i < cols; i++)
+    for (unsigned int i = 0; i < cols; i++)
     {
         outputString[i] = '.';
     }
