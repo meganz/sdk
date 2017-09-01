@@ -259,7 +259,7 @@ string createAndRetrieveConfigFolder()
     configFolder = sconfigDir.str();
 
 
-    struct stat st = {0};
+    struct stat st;
     if (stat(configFolder.c_str(), &st) == -1) {
         mkdir(configFolder.c_str(), 0700);
     }
@@ -309,7 +309,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
             if (!number && initializeserver)
             {
                 //launch server
-                cerr << "[Server not running. ERRNO: "  << ERRNO << ". Initiating in the background]"<< endl;
+                cerr << "[Server not running. Initiating in the background]"<< endl;
 #ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
@@ -324,9 +324,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
+                if (S_OK != SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
+                    if(S_OK != SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -483,7 +483,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                 waitimet=waitimet*(relaunchnumber++);
 #endif
 
-                usleep(waitimet*100); //TODO: check again deleting this
+                usleep(waitimet*100);
                 while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
                 {
                     usleep(waitimet);
@@ -715,12 +715,14 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     while (outcode == MCMD_REQCONFIRM)
     {
         int BUFFERSIZE = 1024;
-        char confirmQuestion[1025];
+        string confirmQuestion;
+        char buffer[1025];
         do{
-            n = recv(newsockfd, confirmQuestion, BUFFERSIZE, MSG_NOSIGNAL);
+            n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
             if (n)
             {
-                confirmQuestion[n]='\0'; //TODO: review this and test long confirmQuestions
+                buffer[n]='\0';
+                confirmQuestion.append(buffer);
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
@@ -728,7 +730,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 
         if (readconfirmationloop != NULL)
         {
-            response = readconfirmationloop(confirmQuestion);
+            response = readconfirmationloop(confirmQuestion.c_str());
         }
 
         n = send(newsockfd, (const char *) &response, sizeof(response), MSG_NOSIGNAL);
@@ -941,5 +943,5 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
 #endif
         listenerThread->join();
     }
-    delete listenerThread;
+    delete (MegaThread *)listenerThread;
 }

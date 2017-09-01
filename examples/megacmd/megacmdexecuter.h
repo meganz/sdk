@@ -128,8 +128,8 @@ public:
     void confirmDelete();
     void discardDelete();
 
-    void printTransfersHeader(const u_int PATHSIZE, bool printstate=true);
-    void printTransfer(mega::MegaTransfer *transfer, const u_int PATHSIZE, bool printstate=true);
+    void printTransfersHeader(const unsigned int PATHSIZE, bool printstate=true);
+    void printTransfer(mega::MegaTransfer *transfer, const unsigned int PATHSIZE, bool printstate=true);
     void doFind(mega::MegaNode* nodeBase, std::string word, int printfileinfo, std::string pattern, bool usepcre);
 
     void move(mega::MegaNode *n, std::string destiny);

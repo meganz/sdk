@@ -53,6 +53,7 @@ enum
 
 #define PROGRESS_COMPLETE -2
 #define SPROGRESS_COMPLETE "-2"
+#define PROMPT_MAX_SIZE 128
 
 #ifndef _WIN32
 #include <signal.h>
@@ -171,7 +172,6 @@ string clientID; //identifier for a registered state listener
 long long charstoll(const char *instr)
 {
   long long retval;
-  int i;
 
   retval = 0;
   for (; *instr; instr++) {
@@ -251,9 +251,9 @@ void console_setecho(bool echo)
 #endif
 }
 
-int getNumberOfCols(u_int defaultwidth=0)
+int getNumberOfCols(unsigned int defaultwidth=0)
 {
-    u_int width = defaultwidth;
+    unsigned int width = defaultwidth;
     int rows = 1, cols = width;
 #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
 
@@ -289,7 +289,8 @@ bool requirepromptinstall = true;
 
 bool procesingline = false;
 
-static char dynamicprompt[128];
+
+static char dynamicprompt[PROMPT_MAX_SIZE];
 
 static char* line;
 
@@ -310,7 +311,7 @@ MegaCmdShellCommunications *comms;
 
 MegaMutex mutexPrompt;
 
-void printWelcomeMsg(u_int width = 0);
+void printWelcomeMsg(unsigned int width = 0);
 
 
 
@@ -597,7 +598,7 @@ bool validwcharforeadline(const wchar_t thewchar)
 wstring escapereadlinebreakers(const wchar_t *what)
 {
     wstring output;
-    for( u_int i = 0; i < wcslen( what ) ; i++ )
+    for( unsigned int i = 0; i < wcslen( what ) ; i++ )
     {
         if(validwcharforeadline(what[ i ] ))
         {
@@ -606,7 +607,7 @@ wstring escapereadlinebreakers(const wchar_t *what)
         } else {
 #ifndef __MINGW32__
             wchar_t code[ 7 ];
-            swprintf( code, 7, L"\\u%0.4X", (what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
+            swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
             //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
             // NOTICE: I was able to execute a command with a literl \x242ee (which correspond to \uD850\uDEEE in UTF16).
             // So it'll be more interesting to output here the complete unicode char and in unescapeutf16escapedseqs revert it.
@@ -672,6 +673,16 @@ void changeprompt(const char *newprompt, bool redisplay)
     mutexPrompt.lock();
 
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+
+    if (strlen(newprompt) >= PROMPT_MAX_SIZE)
+    {
+        strncpy(dynamicprompt, newprompt, PROMPT_MAX_SIZE/2-1);
+        dynamicprompt[PROMPT_MAX_SIZE/2-1] = '.';
+        dynamicprompt[PROMPT_MAX_SIZE/2] = '.';
+
+        strncpy(dynamicprompt+PROMPT_MAX_SIZE/2+1, newprompt+(strlen(newprompt)-PROMPT_MAX_SIZE/2+2), PROMPT_MAX_SIZE/2-2);
+        dynamicprompt[PROMPT_MAX_SIZE-1] = '\0';
+    }
 
     if (redisplay)
     {
@@ -967,7 +978,7 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
         {
-            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
+            for (unsigned int i=0;i< strlen(receivedutf8.c_str());i++)
             {
                 rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
                 rl_point=rl_end;
@@ -1244,7 +1255,7 @@ void process_line(char * line)
         {
             vector<string> words = getlistOfWords(line);
             bool helprequested = false;
-            for (int i = 1; i< words.size(); i++)
+            for (unsigned int i = 1; i< words.size(); i++)
             {
                 if (words[i]== "--help") helprequested = true;
             }
@@ -1410,7 +1421,7 @@ void process_line(char * line)
 
                     if (!strstr (line,"path-display-size"))
                     {
-                        u_int width = getNumberOfCols(75);
+                        unsigned int width = getNumberOfCols(75);
                         int pathSize = int((width-46)/2);
 
                         toexec+="transfers --path-display-size=";
@@ -1435,11 +1446,22 @@ void process_line(char * line)
                         string s = line;
                         if (clientID.size())
                         {
+                            string sline = line;
+                            size_t pspace = sline.find_first_of(" ");
+                            s="";
+                            s=sline.substr(0,pspace);
                             s += " --clientID=";
                             s+=clientID;
+                            if (pspace!=string::npos)
+                            {
+                                s+=sline.substr(pspace);
+                            }
                             words.push_back(s);
                         }
                         comms->executeCommand(s, readconfirmationloop);
+#ifdef _WIN32
+                        Sleep(200); // give a brief while to print progress ended
+#endif
                     }
                     else
                     {
@@ -1609,7 +1631,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, u_int width, bool encapsulated = true)
+void printCenteredLine(string msj, unsigned int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1617,17 +1639,17 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
     }
     if (encapsulated)
         COUT << "|";
-    for (u_int i = 0; i < (width-msj.size())/2; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2; i++)
         COUT << " ";
     COUT << msj;
-    for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
         COUT << " ";
     if (encapsulated)
         COUT << "|";
     COUT << endl;
 }
 
-void printWelcomeMsg(u_int width)
+void printWelcomeMsg(unsigned int width)
 {
     if (!width)
     {
@@ -1636,7 +1658,7 @@ void printWelcomeMsg(u_int width)
 
     COUT << endl;
     COUT << ".";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << ".";
     COUT << endl;
@@ -1647,7 +1669,7 @@ void printWelcomeMsg(u_int width)
     printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
 
     COUT << "|";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << " " ;
     COUT << "|";
     COUT << endl;
@@ -1665,7 +1687,7 @@ void printWelcomeMsg(u_int width)
 #endif
 
     COUT << "`";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << "´";
     COUT << endl;
@@ -1713,6 +1735,13 @@ void mycompletefunct(char **c, int num_matches, int max_length)
                 rl_get_screen_size(&rows, &cols);
             }
 #endif
+
+
+    // max_length is not trustworthy
+    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
+    {
+        max_length = max(max_length,(int)strlen(c[i]));
+    }
 
     OUTSTREAM << endl;
 

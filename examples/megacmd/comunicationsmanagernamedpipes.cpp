@@ -325,11 +325,36 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
 {
     CmdPetitionNamedPipes *inf = new CmdPetitionNamedPipes();
 
+    wstring wread;
     wchar_t wbuffer[1024]= {};
 
     DWORD n;
-    bool readok = ReadFile(pipeGeneral, wbuffer, 1023 * sizeof(wchar_t), &n, NULL );
-    if (!readok)  //TODO: msjs > 1023?
+    //ZeroMemory( wbuffer, sizeof(wbuffer));
+    bool readok = ReadFile(pipeGeneral, wbuffer, 1023*sizeof(wchar_t), &n, NULL );
+    while(readok && n == 1023*sizeof(wchar_t))
+    {
+        DWORD total_available_bytes;
+        if (FALSE == PeekNamedPipe(pipeGeneral,0,0,0,&total_available_bytes,0))
+        {
+            LOG_err << "Failed to PeekNamedPipe. errno: L" << ERRNO;
+            break;
+        }
+        if (total_available_bytes == 0)
+        {
+            break;
+        }
+        wbuffer[n/sizeof(wchar_t)]=0;
+        wread.append(wbuffer);
+
+        readok = ReadFile(pipeGeneral, wbuffer, 1023*sizeof(wchar_t), &n, NULL );
+    }
+    if (readok)
+    {
+        wbuffer[n/sizeof(wchar_t)]=0;
+        wread.append(wbuffer);
+    }
+
+    if (!readok)
     {
         LOG_err << "Failed to read petition from named pipe. errno: L" << ERRNO;
         inf->line = strdup("ERROR");
@@ -338,13 +363,7 @@ CmdPetition * ComunicationsManagerNamedPipes::getPetition()
 
     string receivedutf8;
 
-    wbuffer[n]='\0';
-#ifdef __MINGW32__
-    wstring ws = wbuffer;
-    localwtostring(&ws,&receivedutf8);
-#else
-    localwtostring(&wstring(wbuffer),&receivedutf8);
-#endif
+    localwtostring(&wread,&receivedutf8);
 
     int namedPipe_id = 0; // this value shouldn't matter
     inf->outNamedPipe = create_new_namedPipe(&namedPipe_id);

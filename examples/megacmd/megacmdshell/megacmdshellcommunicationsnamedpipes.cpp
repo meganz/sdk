@@ -375,7 +375,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
             else
             {
                 //launch server
-                cerr << "Server might not be running. Initiating in the background..." << endl;
+                cerr << "Server not running. Initiating in the background..." << endl;
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -389,9 +389,9 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
+                if (S_OK != SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
+                    if(S_OK != SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -414,7 +414,8 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 #endif
                     LPWSTR t2 = (LPWSTR) t;
                     si.cb = sizeof(si);
-                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+//                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+                    si.wShowWindow = SW_HIDE;
                     si.dwFlags = STARTF_USESHOWWINDOW;
                     if (!CreateProcess( t,t2,NULL,NULL,TRUE,
                                         CREATE_NEW_CONSOLE,
@@ -573,11 +574,13 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
     while (outcode == MCMD_REQCONFIRM)
     {
         int BUFFERSIZE = 1024;
-        char confirmQuestion[1025];
-        memset(confirmQuestion,'\0',1025);
+        string confirmQuestion;
+        char bufferQuestion[1025];
+        memset(bufferQuestion,'\0',1025);
         BOOL readok;
         do{
-            readok = ReadFile(newNamedPipe, confirmQuestion, BUFFERSIZE, &n, NULL);
+            readok = ReadFile(newNamedPipe, bufferQuestion, BUFFERSIZE, &n, NULL);
+            confirmQuestion.append(bufferQuestion);
         } while(n == BUFFERSIZE && readok);
 
         if (!readok)
@@ -589,7 +592,7 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
 
         if (readconfirmationloop != NULL)
         {
-            response = readconfirmationloop(confirmQuestion);
+            response = readconfirmationloop(confirmQuestion.c_str());
         }
 
         if (!WriteFile(newNamedPipe, (const char *) &response, sizeof(response), &n, NULL))
@@ -633,6 +636,18 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
 //            {
 //                _setmode(_fileno(stdout), oldmode);
 //            }
+        }
+        if (readok && n == BUFFERSIZE)
+        {
+            DWORD total_available_bytes;
+            if (FALSE == PeekNamedPipe(newNamedPipe,0,0,0,&total_available_bytes,0))
+            {
+                break;
+            }
+            if (total_available_bytes == 0)
+            {
+                break;
+            }
         }
     } while(n == BUFFERSIZE && readok);
 
@@ -797,6 +812,6 @@ MegaCmdShellCommunicationsNamedPipes::~MegaCmdShellCommunicationsNamedPipes()
 
         listenerThread->join();
     }
-    delete listenerThread;
+    delete (MegaThread *)listenerThread;
 }
 #endif

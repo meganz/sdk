@@ -50,7 +50,7 @@ static const char* rootnodepaths[] = { "/", "//in", "//bin" };
  */
 void MegaCmdExecuter::updateprompt(MegaApi *api, MegaHandle handle)
 {
-    static char dynamicprompt[128];
+    static char dynamicprompt[2024]; //TODO: rewrite this function to have prompts with any size (use string)
 
     MegaNode *n = api->getNodeByHandle(handle);
 
@@ -2030,7 +2030,7 @@ void MegaCmdExecuter::actUponLogin(SynchronousRequestListener *srl, int timeout)
     }
     else
     {
-        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
         {
             OUTSTREAM << "---------------------------------------------------------------------" << endl;
             OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -2324,11 +2324,17 @@ void MegaCmdExecuter::downloadNode(string path, MegaApi* api, MegaNode *node, bo
     {
         megaCmdTransferListener = new MegaCmdTransferListener(api, sandboxCMD, NULL, clientID);
     }
+#ifdef _WIN32
+    replaceAll(path,"/","\\");
+#endif
     LOG_debug << "Starting download: " << node->getName() << " to : " << path;
     api->startDownload(node, path.c_str(), megaCmdTransferListener);
     if (megaCmdTransferListener)
     {
         megaCmdTransferListener->wait();
+#ifdef _WIN32
+            Sleep(100); //give a while to print end of transfer
+#endif
         if (checkNoErrors(megaCmdTransferListener->getError(), "download node"))
         {
             LOG_info << "Download complete: " << megaCmdTransferListener->getTransfer()->getPath();
@@ -2361,6 +2367,10 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     }
     unescapeifRequired(path);
 
+#ifdef _WIN32
+    replaceAll(path,"/","\\");
+#endif
+
     LOG_debug << "Starting upload: " << path << " to : " << node->getName() << (newname.size()?"/":"") << newname;
 
 
@@ -2375,6 +2385,9 @@ void MegaCmdExecuter::uploadNode(string path, MegaApi* api, MegaNode *node, stri
     if (megaCmdTransferListener)
     {
         megaCmdTransferListener->wait();
+#ifdef _WIN32
+            Sleep(100); //give a while to print end of transfer
+#endif
         if (megaCmdTransferListener->getError()->getErrorCode() == API_EREAD)
         {
             setCurrentOutCode(MCMD_NOTFOUND);
@@ -2796,7 +2809,7 @@ bool MegaCmdExecuter::IsFolder(string path)
     return destinyIsFolder;
 }
 
-void MegaCmdExecuter::printTransfersHeader(const u_int PATHSIZE, bool printstate)
+void MegaCmdExecuter::printTransfersHeader(const unsigned int PATHSIZE, bool printstate)
 {
     OUTSTREAM << "DIR/SYNC TAG  " << getFixLengthString("SOURCEPATH ",PATHSIZE) << getFixLengthString("DESTINYPATH ",PATHSIZE)
               << "  " << getFixLengthString("    PROGRESS",21);
@@ -2807,7 +2820,7 @@ void MegaCmdExecuter::printTransfersHeader(const u_int PATHSIZE, bool printstate
     OUTSTREAM << endl;
 }
 
-void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const u_int PATHSIZE, bool printstate)
+void MegaCmdExecuter::printTransfer(MegaTransfer *transfer, const unsigned int PATHSIZE, bool printstate)
 {
     //Direction
 #ifdef _WIN32
@@ -3348,7 +3361,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 nodesToConfirmDelete.clear();
             }
 
-            for (u_int i = 1; i < words.size(); i++)
+            for (unsigned int i = 1; i < words.size(); i++)
             {
                 unescapeifRequired(words[i]);
                 if (isRegExp(words[i]))
@@ -3415,7 +3428,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 return;
             }
 
-            for (u_int i=1;i<(words.size()-1);i++)
+            for (unsigned int i=1;i<(words.size()-1);i++)
             {
                 string source = words[i];
 
@@ -3637,7 +3650,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         bool humanreadable = getFlag(clflags, "h");
 
-        for (u_int i = 1; i < words.size(); i++)
+        for (unsigned int i = 1; i < words.size(); i++)
         {
             unescapeifRequired(words[i]);
             if (isRegExp(words[i]))
@@ -4482,7 +4495,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                             OUTSTREAM << i << ": " << key << " to " << nodepath;
                             string sstate(key);
                             sstate = rtrim(sstate, '/');
-                            int state = api->syncPathState(&sstate);
+#ifdef _WIN32
+                            sstate = rtrim(sstate, '\\');
+#endif
+                            string psstate;
+                            fsAccessCMD->path2local(&sstate,&psstate);
+                            int state = api->syncPathState(&psstate);
 
                             OUTSTREAM << " - " << ( thesync->active ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state);
                             OUTSTREAM << ", " << sizeToText(api->getSize(n), false) << "yte(s) in ";
@@ -4538,7 +4556,12 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
                     string sstate(( *itr ).first);
                     sstate = rtrim(sstate, '/');
-                    int state = api->syncPathState(&sstate);
+#ifdef _WIN32
+                    sstate = rtrim(sstate, '\\');
+#endif
+                    string psstate;
+                    fsAccessCMD->path2local(&sstate,&psstate);
+                    int state = api->syncPathState(&psstate);
 
                     OUTSTREAM << " - " << (( thesync->active ) ? "Active" : "Disabled" ) << " - " << getSyncStateStr(state); // << "Active";
                     OUTSTREAM << ", " << sizeToText(api->getSize(n), false) << "yte(s) in ";
@@ -4977,7 +5000,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             globalstatus = MCMD_EARGS;
         }
         bool printusage = false;
-        for (u_int i = 1; i < words.size(); i++)
+        for (unsigned int i = 1; i < words.size(); i++)
         {
             unescapeifRequired(words[i]);
             //git first existing node in the asked path:
@@ -5924,7 +5947,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
             }
             else
             {
-                if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
                 {
                     OUTSTREAM << "---------------------------------------------------------------------" << endl;
                     OUTSTREAM << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -6124,7 +6147,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (!PATHSIZE)
         {
             // get screen size for output purposes
-            u_int width = getNumberOfCols(75);
+            unsigned int width = getNumberOfCols(75);
             PATHSIZE = min(60,int((width-46)/2));
         }
 
@@ -6164,7 +6187,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     LOG_err << "      " << getUsageStr("transfers");
                     return;
                 }
-                for (u_int i = 1; i < words.size(); i++)
+                for (unsigned int i = 1; i < words.size(); i++)
                 {
                     MegaTransfer *transfer = api->getTransferByTag(toInteger(words[i],-1));
                     if (transfer)
@@ -6233,7 +6256,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                     LOG_err << "      " << getUsageStr("transfers");
                     return;
                 }
-                for (u_int i = 1; i < words.size(); i++)
+                for (unsigned int i = 1; i < words.size(); i++)
                 {
                     MegaTransfer *transfer = api->getTransferByTag(toInteger(words[i],-1));
                     if (transfer)
@@ -6286,7 +6309,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
 
         int showndl = 0;
         int shownup = 0;
-        int shownCompleted = 0;
+        unsigned int shownCompleted = 0;
 
         vector<MegaTransfer *> transfersDLToShow;
         vector<MegaTransfer *> transfersUPToShow;
@@ -6295,10 +6318,10 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         if (showcompleted)
         {
             globalTransferListener->completedTransfersMutex.lock();
-            u_int totalcompleted = globalTransferListener->completedTransfers.size();
-            for (u_int i = 0;(i < totalcompleted)
+            unsigned int totalcompleted = globalTransferListener->completedTransfers.size();
+            for (unsigned int i = 0;(i < totalcompleted)
                  && (shownCompleted < totalcompleted)
-                 && (shownCompleted < (limit+1)); //Note limit+1 to seek for one more to show if there are more to show!
+                 && (shownCompleted < (unsigned int)(limit+1)); //Note limit+1 to seek for one more to show if there are more to show!
                  i++)
             {
                 MegaTransfer *transfer = globalTransferListener->completedTransfers.at(i);
@@ -6384,7 +6407,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
         vector<MegaTransfer *>::iterator itDLs = transfersDLToShow.begin();
         vector<MegaTransfer *>::iterator itUPs = transfersUPToShow.begin();
 
-        for (int i=0;i<showndl+shownup+shownCompleted; i++)
+        for (unsigned int i=0;i<showndl+shownup+shownCompleted; i++)
         {
             MegaTransfer *transfer = NULL;
             bool deleteTransfer = true;
@@ -6413,7 +6436,7 @@ void MegaCmdExecuter::executecommand(vector<string> words, map<string, int> *clf
                 }
                 printTransfersHeader(PATHSIZE);
             }
-            if (i==limit) //we are in the extra one (not to be shown)
+            if (i==(unsigned int)limit) //we are in the extra one (not to be shown)
             {
                 OUTSTREAM << " ...  Showing first " << limit << " transfers ..." << endl;
                 if (deleteTransfer)
