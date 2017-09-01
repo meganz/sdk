@@ -9647,15 +9647,13 @@ void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prev
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 {
-    string local;
-    string path;
-    l->getlocalpath(&local, true);
-    fsAccess->local2path(&local, &path);
+    string localpath;
+    l->getlocalpath(&localpath, true);
 
     if(syncMap.find(l->sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
-    fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
+    fireOnFileSyncStateChanged(megaSync, &localpath, (int)l->ts);
 }
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
@@ -11806,22 +11804,22 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
     }
 }
 
-void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState)
+void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onSyncFileStateChanged(api, sync, filePath, newState);
+        (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
     }
 
     for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
     {
-        (*it++)->onSyncFileStateChanged(api, sync, filePath, newState);
+        (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
     }
 
     MegaSyncListener* listener = sync->getListener();
     if(listener)
     {
-        listener->onSyncFileStateChanged(api, sync, filePath, newState);
+        listener->onSyncFileStateChanged(api, sync, localPath, newState);
     }
 }
 

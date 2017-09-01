@@ -3385,7 +3385,7 @@ class MegaSyncListener
 {
 public:
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -3399,10 +3399,10 @@ public:
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object related that manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -4427,7 +4427,7 @@ class MegaListener
 
 #ifdef ENABLE_SYNC
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -4441,10 +4441,10 @@ class MegaListener
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when there is a synchronization event
