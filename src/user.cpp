@@ -528,9 +528,10 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         oldValue.assign(data, size);
 
         // ensure the old value has a valid format
-        if (std::count(oldValue.begin(), oldValue.end(), ':') != 4)
+        if ( (std::count(oldValue.begin(), oldValue.end(), ':') != 4) ||
+             (oldValue.length() < 9) )
         {
-            return false;
+            oldValue = "0:0:0:0:0";
         }
     }
     else    // no existing value, set with default values and update it consequently
@@ -545,12 +546,16 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     bool lastLogin = (numDetails & 0x10) != 0;
 
     bool changed = false;
-    time_t tsLastSuccess, tsLastSkipped, tsLastLogin;
-    bool flagMkExported, flagDontShowAgain;
 
-    int len = oldValue.find(":");
-    string buf = oldValue.substr(0, len);
-    oldValue = oldValue.substr(len+1);
+    // Timestamp for last successful validation of password in PRD
+    time_t tsLastSuccess;
+    size_t len = oldValue.find(":");
+    if (len == string::npos || len + 1 >= oldValue.length())
+    {
+        return false;
+    }
+    string buf = oldValue.substr(0, len) + "#"; // add character control '#' for conversion
+    oldValue = oldValue.substr(len + 1);    // skip ':'
     if (lastSuccess)
     {
         changed = true;
@@ -558,16 +563,24 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
     else
     {
-        tsLastSuccess = strtol(buf.data(), NULL, 10);
-        if (tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        char *pEnd = NULL;
+        tsLastSuccess = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
         {
-            return false;
+            tsLastSuccess = 0;
+            changed = true;
         }
     }
 
+    // Timestamp for last time the PRD was skipped
+    time_t tsLastSkipped;
     len = oldValue.find(":");
-    buf = oldValue.substr(0, len);
-    oldValue = oldValue.substr(len+1);
+    if (len == string::npos || len + 1 >= oldValue.length())
+    {
+        return false;
+    }
+    buf = oldValue.substr(0, len) + "#";
+    oldValue = oldValue.substr(len + 1);
     if (lastSkipped)
     {
         tsLastSkipped = time(NULL);
@@ -575,41 +588,81 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
     else
     {
-        tsLastSkipped = strtol(buf.data(), NULL, 10);
-        if (tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        char *pEnd = NULL;
+        tsLastSkipped = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
         {
-            return false;
+            tsLastSkipped = 0;
+            changed = true;
         }
     }
 
+    // Flag for Recovery Key exported
+    bool flagMkExported;
     len = oldValue.find(":");
-    if (len != 1)
+    if (len != 1 || len + 1 == oldValue.length())
     {
         return false;
     }
-    buf = oldValue.substr(0, len);
-    oldValue = oldValue.substr(len+1);
-    flagMkExported = (buf.at(0) == '1');
-    if (mkExported && !flagMkExported)
+    buf = oldValue.substr(0, len) + "#";
+    oldValue = oldValue.substr(len + 1);
+    if (mkExported && !(buf.at(0) == '1'))
     {
         flagMkExported = true;
         changed = true;
     }
+    else
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagMkExported = false;
+            changed = true;
+        }
+        else
+        {
+            flagMkExported = tmp;
+        }
+    }
 
+    // Flag for "Don't show again" the PRD
+    bool flagDontShowAgain;
     len = oldValue.find(":");
-    if (len != 1)
+    if (len != 1 || len + 1 == oldValue.length())
     {
         return false;
     }
     buf = oldValue.substr(0, len);
-    oldValue = oldValue.substr(len+1);
-    flagDontShowAgain = (buf.at(0) == '1');
-    if (dontShowAgain && !flagDontShowAgain)
+    oldValue = oldValue.substr(len + 1);
+    if (dontShowAgain && !(buf.at(0) == '1'))
     {
         flagDontShowAgain = true;
         changed = true;
     }
+    else
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagDontShowAgain = false;
+            changed = true;
+        }
+        else
+        {
+            flagDontShowAgain = tmp;
+        }
+    }
 
+    // Timestamp for last time user logged in
+     time_t tsLastLogin;
+    len = oldValue.length();
+    if (len < 1)
+    {
+        return false;
+    }
+    buf = oldValue.substr(0, len) + "#";
     if (lastLogin)
     {
         tsLastLogin = time(NULL);
@@ -617,10 +670,12 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
     else
     {
-        tsLastLogin = strtol(oldValue.data(), NULL, 10);
-        if (tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        char *pEnd = NULL;
+        tsLastLogin = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
         {
-            return false;
+            tsLastLogin = 0;
+            changed = true;
         }
     }
 
