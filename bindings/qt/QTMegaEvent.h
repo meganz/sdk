@@ -54,8 +54,8 @@ public:
 #ifdef ENABLE_SYNC
     MegaSync *getSync();
     void setSync(MegaSync *sync);
-    const char* getFilePath();
-    void setFilePath(const char* filePath);
+    std::string *getLocalPath();
+    void setLocalPath(std::string *localPath);
     int getNewState();
     void setNewState(int newState);
 #endif
@@ -71,7 +71,7 @@ private:
 
 #ifdef ENABLE_SYNC
     MegaSync *sync;
-    const char* filePath;
+    std::string* localPath;
     int newState;
 #endif
 };

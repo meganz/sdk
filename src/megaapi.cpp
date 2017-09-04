@@ -1257,7 +1257,7 @@ void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 #ifdef ENABLE_SYNC
 void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
-void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char* /*filePath*/, int /*newState*/)
+void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
@@ -4139,7 +4139,7 @@ int MegaSync::getState() const
 }
 
 
-void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char *, int )
+void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 
 void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)

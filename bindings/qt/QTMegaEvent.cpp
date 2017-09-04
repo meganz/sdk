@@ -1,6 +1,7 @@
 #include "QTMegaEvent.h"
 
 using namespace mega;
+using namespace std;
 
 QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
 {
@@ -14,7 +15,7 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
 
 #ifdef ENABLE_SYNC
     sync = NULL;
-    filePath = NULL;
+    localPath = NULL;
     newState = 0;
 #endif
 }
@@ -30,7 +31,7 @@ QTMegaEvent::~QTMegaEvent()
 
 #ifdef ENABLE_SYNC
     delete sync;
-    delete [] filePath;
+    delete localPath;
 #endif
 }
 
@@ -105,9 +106,9 @@ MegaSync *QTMegaEvent::getSync()
     return sync;
 }
 
-const char *QTMegaEvent::getFilePath()
+string *QTMegaEvent::getLocalPath()
 {
-    return filePath;
+    return localPath;
 }
 
 int QTMegaEvent::getNewState()
@@ -120,9 +121,9 @@ void QTMegaEvent::setSync(MegaSync *sync)
     this->sync = sync;
 }
 
-void QTMegaEvent::setFilePath(const char *filePath)
+void QTMegaEvent::setLocalPath(string *localPath)
 {
-    this->filePath = filePath;
+    this->localPath = localPath;
 }
 
 void QTMegaEvent::setNewState(int newState)

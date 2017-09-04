@@ -1869,7 +1869,7 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
-        void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState);
+        void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
 #ifdef ENABLE_CHAT
