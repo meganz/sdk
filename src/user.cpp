@@ -528,8 +528,8 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         oldValue.assign(data, size);
 
         // ensure the old value has a valid format
-        if ( (std::count(oldValue.begin(), oldValue.end(), ':') != 4) ||
-             (oldValue.length() < 9) )
+        if (std::count(oldValue.begin(), oldValue.end(), ':') != 4
+                || oldValue.length() < 9)
         {
             oldValue = "0:0:0:0:0";
         }
@@ -550,10 +550,6 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     // Timestamp for last successful validation of password in PRD
     time_t tsLastSuccess;
     size_t len = oldValue.find(":");
-    if (len == string::npos || len + 1 >= oldValue.length())
-    {
-        return false;
-    }
     string buf = oldValue.substr(0, len) + "#"; // add character control '#' for conversion
     oldValue = oldValue.substr(len + 1);    // skip ':'
     if (lastSuccess)
@@ -575,10 +571,6 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     // Timestamp for last time the PRD was skipped
     time_t tsLastSkipped;
     len = oldValue.find(":");
-    if (len == string::npos || len + 1 >= oldValue.length())
-    {
-        return false;
-    }
     buf = oldValue.substr(0, len) + "#";
     oldValue = oldValue.substr(len + 1);
     if (lastSkipped)
@@ -600,7 +592,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     // Flag for Recovery Key exported
     bool flagMkExported;
     len = oldValue.find(":");
-    if (len != 1 || len + 1 == oldValue.length())
+    if (len != 1)
     {
         return false;
     }
@@ -656,12 +648,8 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     // Timestamp for last time user logged in
-     time_t tsLastLogin;
+    time_t tsLastLogin = 0;
     len = oldValue.length();
-    if (len < 1)
-    {
-        return false;
-    }
     if (lastLogin)
     {
         tsLastLogin = time(NULL);
