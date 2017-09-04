@@ -453,7 +453,7 @@ else
 		echo " reinstalling/updating megacmd ... attempts left="$attempts
 		BEFOREINSTALL=`$sshpasscommand ssh root@$IP_GUEST rpm -q megacmd`
 		$sshpasscommand ssh root@$IP_GUEST $YUM -y --disableplugin=refresh-packagekit $nogpgchecksYUM install megacmd  2> tmp$VMNAME
-		resultINSTALL=$(($? + 0$resultINSTALL)) #TODO: yum might fail and still say "IT IS OK!"
+		resultINSTALL=$(expr $? + 0$resultINSTALL) #TODO: yum might fail and still say "IT IS OK!"
 		#Doing simple stderr checking will give false FAILS, since yum outputs non failure stuff in stderr
 		if cat tmp$VMNAME | grep $REPO; then
 		 resultINSTALL=$(expr 1000 + 0$resultINSTALL); cat tmp$VMNAME; 
