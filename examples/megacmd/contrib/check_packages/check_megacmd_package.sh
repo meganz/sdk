@@ -158,6 +158,7 @@ echo " checking existing mega-cmd running ..."
 $sshpasscommand ssh root@$IP_GUEST ps aux | grep megacmd
 echo " killing mega-cmd ..."
 $sshpasscommand ssh root@$IP_GUEST killall mega-cmd
+$sshpasscommand ssh root@$IP_GUEST killall mega-cmd-server
 
 
 #DEPENDENT ON SYSTEM
@@ -479,7 +480,7 @@ theDisplay="DISPLAY=:0.0"
 
 echo " relaunching megacmd as user ..."
 
-$sshpasscommand ssh -oStrictHostKeyChecking=no  mega@$IP_GUEST $theDisplay mega-cmd &
+$sshpasscommand ssh -oStrictHostKeyChecking=no  mega@$IP_GUEST $theDisplay mega-cmd 2>/dev/null &
 
 sleep 5 #TODO: sleep longer?
 
