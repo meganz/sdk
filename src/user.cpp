@@ -633,7 +633,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     {
         return false;
     }
-    buf = oldValue.substr(0, len);
+    buf = oldValue.substr(0, len) + "#";
     oldValue = oldValue.substr(len + 1);
     if (dontShowAgain && !(buf.at(0) == '1'))
     {
