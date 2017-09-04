@@ -662,7 +662,6 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     {
         return false;
     }
-    buf = oldValue.substr(0, len) + "#";
     if (lastLogin)
     {
         tsLastLogin = time(NULL);
@@ -670,6 +669,8 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
     else
     {
+        buf = oldValue.substr(0, len) + "#";
+
         char *pEnd = NULL;
         tsLastLogin = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
