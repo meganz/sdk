@@ -85,12 +85,13 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeLastname          = 2, // public - char array
     MEGAUserAttributeAuthRing          = 3, // private - byte array
     MEGAUserAttributeLastInteraction   = 4, // private - byte array
-    MEGAUserAttributeED25519PublicKey  = 5, // public - char array
-    MEGAUserAttributeCU25519PublicKey  = 6, // public - char array
+    MEGAUserAttributeED25519PublicKey  = 5, // public - byte array
+    MEGAUserAttributeCU25519PublicKey  = 6, // public - byte array
     MEGAUserAttributeKeyring           = 7, // private - byte array
-    MEGAUserAttributeSigRsaPublicKey   = 8, // public - char array
-    MEGAUserAttributeSigCU255PublicKey = 9, // public - char array
-    MEGAUserAttributeLanguage          = 14 // private - byte array
+    MEGAUserAttributeSigRsaPublicKey   = 8, // public - byte array
+    MEGAUserAttributeSigCU255PublicKey = 9, // public - byte array
+    MEGAUserAttributeLanguage          = 14, // private - char array
+    MEGAUserAttributePwdReminder       = 15  // private- char array
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -2257,6 +2258,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * Get the lastname of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -2285,6 +2288,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * Get the lastname of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2311,6 +2316,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * Get the lastname of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
@@ -2335,6 +2342,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * Get the lastname of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2565,6 +2574,42 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param newPassword New password.
  */
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
+
+/**
+ * @brief Notify the user has exported the master key
+ *
+ * This function should be called when the user exports the master key by
+ * clicking on "Copy" or "Save file" options.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember the user has a backup of his/her master key. In consequence,
+ * MEGA will not ask the user to remind the password for the account.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest: text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)masterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has exported the master key
+ *
+ * This function should be called when the user exports the master key by
+ * clicking on "Copy" or "Save file" options.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember the user has a backup of his/her master key. In consequence,
+ * MEGA will not ask the user to remind the password for the account.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest: text] - Returns the new value for the attribute
+ */
+- (void)masterKeyExported;
 
 /**
  * @brief Use HTTPS communications only

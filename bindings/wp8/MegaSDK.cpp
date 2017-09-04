@@ -2150,6 +2150,16 @@ String^ MegaSDK::exportMasterKey()
 	return ref new String((wchar_t *)utf16key.data());
 }
 
+void MegaSDK::masterKeyExported(MRequestListenerInterface^ listener)
+{
+    megaApi->masterKeyExported(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::masterKeyExported()
+{
+    megaApi->masterKeyExported();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;

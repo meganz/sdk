@@ -42,7 +42,8 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypePubKeyEd255    = 0x400,
     MEGAUserChangeTypeSigPubKeyRsa   = 0x800,
     MEGAUserChangeTypeSigPubKeyCu255 = 0x1000,
-    MEGAUserChangeTypeLanguage       = 0x2000
+    MEGAUserChangeTypeLanguage       = 0x2000,
+    MEGAUserChangeTypePwdReminder    = 0x4000
 };
 
 /**
@@ -148,6 +149,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeLanguage        = 0x2000
  * Check if the user has modified the preferred language
+ *
+ * - MEGAUserChangeTypePwdReminder     = 0x4000
+ * Check if the data related to the password reminder dialog has changed
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -214,8 +218,14 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
  * Check if the user has new or modified signature for RSA public key
  *
- * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1600
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1000
  * Check if the user has new or modified signature for Cu25519 public key
+ *
+ * - MEGAUserChangeTypeLanguage        = 0x2000
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypePwdReminder     = 0x4000
+ * Check if the data related to the password reminder dialog has changed
  *
  * @return YES if this user has an specific change
  */

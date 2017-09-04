@@ -915,6 +915,14 @@ using namespace mega;
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
 }
 
+- (void)masterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->masterKeyExported([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)masterKeyExported {
+    self.megaApi->masterKeyExported();
+}
+
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
