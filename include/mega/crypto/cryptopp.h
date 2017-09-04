@@ -36,6 +36,7 @@
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
 #include <cryptopp/hmac.h>
+#include <cryptopp/pwdbased.h>
 
 namespace mega {
 using namespace std;
@@ -420,7 +421,6 @@ public:
      */
     HMACSHA256(const byte *key, size_t length);
 
-
     /**
      * @brief Add data to the HMAC
      * @param data Data to add
@@ -433,6 +433,20 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+};
+
+/**
+ * @brief HMAC-SHA512 generator
+ */
+class MEGA_API PBKDF2_HMAC_SHA512
+{
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+
+public:
+    PBKDF2_HMAC_SHA512();
+    void deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                   byte* pwd, size_t pwdLen,
+                   byte* salt, size_t saltLen, unsigned int iterations);
 };
 
 } // namespace

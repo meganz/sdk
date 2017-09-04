@@ -115,6 +115,11 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
 
+    public final static int PASSWORD_STRENGTH_VERYWEAK = MegaApi.PASSWORD_STRENGTH_VERYWEAK;
+    public final static int PASSWORD_STRENGTH_WEAK = MegaApi.PASSWORD_STRENGTH_WEAK;
+    public final static int PASSWORD_STRENGTH_MEDIUM = MegaApi.PASSWORD_STRENGTH_MEDIUM;
+    public final static int PASSWORD_STRENGTH_GOOD = MegaApi.PASSWORD_STRENGTH_GOOD;
+    public final static int PASSWORD_STRENGTH_STRONG = MegaApi.PASSWORD_STRENGTH_STRONG;
 
     MegaApi getMegaApi()
     {
@@ -1338,6 +1343,13 @@ public class MegaApiJava {
     	return megaApi.getMyXMPPJid();
     }
 
+    /**
+     * Returns whether MEGA Achievements are enabled for the open account
+     * @return True if enabled, false otherwise.
+     */
+    public boolean isAchievementsEnabled() {
+        return megaApi.isAchievementsEnabled();
+    }
 
     /**
      * Returns the fingerprint of the signing key of the currently open account
@@ -1901,6 +1913,86 @@ public class MegaApiJava {
      */
     public void importFileLink(String megaFileLink, MegaNode parent) {
         megaApi.importFileLink(megaFileLink, parent);
+    }
+
+    /**
+     * Decrypt password-protected public link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+     * - MegaRequest::getPassword - Returns the password to decrypt the link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Decrypted public link
+     *
+     * @param link Password/protected public link to a file/folder in MEGA
+     * @param password Password to decrypt the link
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void decryptPasswordProtectedLink(String link, String password, MegaRequestListenerInterface listener) {
+        megaApi.decryptPasswordProtectedLink(link, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Decrypt password-protected public link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the encrypted public link to the file/folder
+     * - MegaRequest::getPassword - Returns the password to decrypt the link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Decrypted public link
+     *
+     * @param link Password/protected public link to a file/folder in MEGA
+     * @param password Password to decrypt the link
+     */
+    public void decryptPasswordProtectedLink(String link, String password){
+        megaApi.decryptPasswordProtectedLink(link, password);
+    }
+
+    /**
+     * Encrypt public link with password
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to be encrypted
+     * - MegaRequest::getPassword - Returns the password to encrypt the link
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Encrypted public link
+     *
+     * @param link Public link to be encrypted, including encryption key for the link
+     * @param password Password to encrypt the link
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void encryptLinkWithPassword(String link, String password, MegaRequestListenerInterface listener) {
+        megaApi.encryptLinkWithPassword(link, password, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Encrypt public link with password
+     *
+     * The associated request type with this request is MegaRequest::TYPE_PASSWORD_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to be encrypted
+     * - MegaRequest::getPassword - Returns the password to encrypt the link
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Encrypted public link
+     *
+     * @param link Public link to be encrypted, including encryption key for the link
+     * @param password Password to encrypt the link
+     */
+    public void encryptLinkWithPassword(String link, String password) {
+        megaApi.encryptLinkWithPassword(link, password);
     }
 
     /**
@@ -3186,6 +3278,23 @@ public class MegaApiJava {
      */
     public void invalidateCache(){
         megaApi.invalidateCache();
+    }
+
+    /**
+     * Estimate the strength of a password
+     *
+     * Possible return values are:
+     * - PASSWORD_STRENGTH_VERYWEAK = 0
+     * - PASSWORD_STRENGTH_WEAK = 1
+     * - PASSWORD_STRENGTH_MEDIUM = 2
+     * - PASSWORD_STRENGTH_GOOD = 3
+     * - PASSWORD_STRENGTH_STRONG = 4
+     *
+     * @param password Password to check
+     * @return Estimated strength of the password
+     */
+    public int getPasswordStrength(String password){
+        return megaApi.getPasswordStrength(password);
     }
 
     /**
@@ -5411,7 +5520,88 @@ public class MegaApiJava {
     public void registerPushNotifications(int deviceType, String token) {
         megaApi.registerPushNotifications(deviceType, token);
     }
-    
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getAccountAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getAccountAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     */
+    public void getAccountAchievements(){
+        megaApi.getAccountAchievements();
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getMegaAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getMegaAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     */
+    public void getMegaAchievements() {
+        megaApi.getMegaAchievements();
+    }
 
     /****************************************************************************************************/
     // INTERNAL METHODS

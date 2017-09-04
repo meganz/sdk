@@ -14,4 +14,4 @@ CLEANFILES += bindings/php/php_mega.h
 CLEANFILES += bindings/php/mega.php
 
 bindings/php/megaapi_wrap.cpp: $(top_srcdir)/bindings/megaapi.i
-	$(SWIG) $(SWIG_FLAGS_PHP) -I$(top_srcdir)/include -o $@ $<
+	$(SWIG) $(SWIG_FLAGS_PHP) -I$(top_srcdir)/include -o $@ $(top_srcdir)/bindings/megaapi.i

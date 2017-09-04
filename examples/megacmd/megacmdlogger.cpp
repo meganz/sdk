@@ -28,16 +28,18 @@ using namespace std;
 using namespace mega;
 
 // different outstreams for every thread. to gather all the output data
-map<uint64_t, ostream *> outstreams;
+map<uint64_t, OUTSTREAMTYPE *> outstreams;
 map<uint64_t, int> threadLogLevel;
 map<uint64_t, int> threadoutCode;
+map<uint64_t, CmdPetition *> threadpetition;
+map<uint64_t, bool> threadIsCmdShell;
 
-ostream &getCurrentOut()
+OUTSTREAMTYPE &getCurrentOut()
 {
     uint64_t currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
-        return cout;
+        return COUT;
     }
     else
     {
@@ -47,7 +49,12 @@ ostream &getCurrentOut()
 
 bool interactiveThread()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    if (getCurrentThreadIsCmdShell())
+    {
+        return true;
+    }
+
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (outstreams.find(currentThread) == outstreams.end())
     {
         return true;
@@ -60,7 +67,7 @@ bool interactiveThread()
 
 int getCurrentOutCode()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadoutCode.find(currentThread) == threadoutCode.end())
     {
         return 0; //default OK
@@ -72,9 +79,22 @@ int getCurrentOutCode()
 }
 
 
+CmdPetition * getCurrentPetition()
+{
+    unsigned long long currentThread = MegaThread::currentThreadId();
+    if (threadpetition.find(currentThread) == threadpetition.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return threadpetition[currentThread];
+    }
+}
+
 int getCurrentThreadLogLevel()
 {
-    uint64_t currentThread = MegaThread::currentThreadId();
+    unsigned long long currentThread = MegaThread::currentThreadId();
     if (threadLogLevel.find(currentThread) == threadLogLevel.end())
     {
         return -1;
@@ -85,19 +105,43 @@ int getCurrentThreadLogLevel()
     }
 }
 
+bool getCurrentThreadIsCmdShell()
+{
+    unsigned long long currentThread = MegaThread::currentThreadId();
+    if (threadIsCmdShell.find(currentThread) == threadIsCmdShell.end())
+    {
+        return false; //default not
+    }
+    else
+    {
+        return threadIsCmdShell[currentThread];
+    }
+}
+
+
 void setCurrentThreadLogLevel(int level)
 {
     threadLogLevel[MegaThread::currentThreadId()] = level;
 }
 
-void setCurrentThreadOutStream(ostream *s)
+void setCurrentThreadOutStream(OUTSTREAMTYPE *s)
 {
     outstreams[MegaThread::currentThreadId()] = s;
+}
+
+void setCurrentThreadIsCmdShell(bool isit)
+{
+    threadIsCmdShell[MegaThread::currentThreadId()] = isit;
 }
 
 void setCurrentOutCode(int outCode)
 {
     threadoutCode[MegaThread::currentThreadId()] = outCode;
+}
+
+void setCurrentPetition(CmdPetition *petition)
+{
+    threadpetition[MegaThread::currentThreadId()] = petition;
 }
 
 void MegaCMDLogger::log(const char *time, int loglevel, const char *source, const char *message)

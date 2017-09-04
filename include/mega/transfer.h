@@ -25,6 +25,7 @@
 #include "filefingerprint.h"
 #include "backofftimer.h"
 #include "http.h"
+#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)

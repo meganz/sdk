@@ -5,10 +5,12 @@ CONFIG(debug, debug|release) {
 CONFIG(release, debug|release) {
     CONFIG -= debug release
     CONFIG += release
+    DEFINES += NDEBUG
 }
 
 TEMPLATE = subdirs
-SUBDIRS = MEGAcmdServer MEGAcmdClient
+SUBDIRS =  MEGAcmdShell MEGAcmdClient \
+     MEGAcmdServer
 
 macx {
     SUBDIRS += MEGAcmdLoader

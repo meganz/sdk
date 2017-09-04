@@ -49,6 +49,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/external.h \
 	mega/gfx/qt.h \
 	mega/mega_utf8proc.h \
+	mega/mega_zxcvbn.h \
+	mega/mega_dict-src.h \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h
 

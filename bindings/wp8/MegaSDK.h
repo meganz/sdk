@@ -111,6 +111,14 @@ namespace mega
         PAYMENT_METHOD_WINDOWS_STORE = 13
     };
 
+    public enum class MPasswordStrength{
+        PASSWORD_STRENGTH_VERYWEAK  = 0,
+        PASSWORD_STRENGTH_WEAK      = 1,
+        PASSWORD_STRENGTH_MEDIUM    = 2,
+        PASSWORD_STRENGTH_GOOD      = 3,
+        PASSWORD_STRENGTH_STRONG    = 4
+    };
+
     public ref class MegaSDK sealed
     {
         friend class DelegateMRequestListener;
@@ -248,6 +256,10 @@ namespace mega
         void loginToFolder(String^ megaFolderLink);
         void importFileLink(String^ megaFileLink, MNode^ parent, MRequestListenerInterface^ listener);
         void importFileLink(String^ megaFileLink, MNode^ parent);
+        void decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void decryptPasswordProtectedLink(String^ link, String^ password);
+        void encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void encryptLinkWithPassword(String^ link, String^ password);
         void getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener);
         void getPublicNode(String^ megaFileLink);
         void getThumbnail(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);
@@ -339,6 +351,7 @@ namespace mega
         void logout();
         void localLogout(MRequestListenerInterface^ listener);
         void localLogout();
+        int getPasswordStrength(String^ password);
         void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
         void submitFeedback(int rating, String^ comment);
         void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);

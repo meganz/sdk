@@ -20,6 +20,7 @@
  */
 
 #include "comunicationsmanagerportsockets.h"
+#include "megacmdutils.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -38,6 +39,13 @@
 
 using namespace mega;
 
+void closeSocket(int socket){
+#ifdef _WIN32
+    closesocket(socket);
+#else
+    close(socket);
+#endif
+}
 
 bool socketValid(int socket)
 {
@@ -48,21 +56,12 @@ bool socketValid(int socket)
 #endif
 }
 
-void closeSocket(int socket){
 #ifdef _WIN32
-    closesocket(socket);
-#else
-    close(socket);
-#endif
-}
-
-#ifdef _WIN32
-    HANDLE ComunicationsManagerPortSockets::readlinefd_event_handle;
     bool ComunicationsManagerPortSockets::ended;
 #endif
 
 
-int ComunicationsManagerPortSockets::get_next_outSocket_id()
+int ComunicationsManagerPortSockets::get_next_comm_id()
 {
     mtx->lock();
     ++count;
@@ -72,16 +71,40 @@ int ComunicationsManagerPortSockets::get_next_outSocket_id()
 
 int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 {
-    int thesock = socket(AF_INET, SOCK_STREAM, 0);
+    int thesock;
+    int attempts = 10;
+    bool socketsucceded = false;
+    while (--attempts && !socketsucceded)
+    {
+        thesock = socket(AF_INET, SOCK_STREAM, 0);
 
+        if (!socketValid(thesock))
+        {
+            if (errno == EMFILE)
+            {
+                LOG_verbose << " Trying to reduce number of used files by sending ACK to listeners to discard disconnected ones.";
+                string sack="ack";
+                informStateListeners(sack);
+            }
+            if (attempts !=10)
+            {
+                LOG_fatal << "ERROR opening socket ID=" << sockId << " errno: " << errno << ". Attempts: " << attempts;
+            }
+            sleepMicroSeconds(500);
+        }
+        else
+        {
+            socketsucceded = true;
+        }
+    }
     if (!socketValid(thesock))
     {
-        LOG_fatal << "ERROR opening socket: " << ERRNO ;
+        return -1;
     }
 
     int portno=MEGACMDINITIALPORTNUMBER;
 
-    *sockId = get_next_outSocket_id();
+    *sockId = get_next_comm_id();
     portno += *sockId;
 
     struct sockaddr_in addr;
@@ -93,19 +116,30 @@ int ComunicationsManagerPortSockets::create_new_socket(int *sockId)
 
     socklen_t saddrlength = sizeof( addr );
 
-    if (::bind(thesock, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
+    bool bindsucceeded = false;
+
+    attempts = 10;
+    while (--attempts && !bindsucceeded)
     {
-        if (ERRNO == EADDRINUSE)
+        if (::bind(thesock, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
         {
-            LOG_warn << "ERROR on binding socket: Already in use.";
+            if (errno == EADDRINUSE)
+            {
+                LOG_warn << "ERROR on binding socket: Already in use. Attempts: " << attempts;
+            }
+            else
+            {
+                LOG_fatal << "ERROR on binding socket port " << portno << " errno: " << errno << ". Attempts: " << attempts;
+            }
+            sleepMicroSeconds(500);
         }
         else
         {
-            LOG_fatal << "ERROR on binding socket: " << ERRNO;
-            thesock = 0;
+            bindsucceeded = true;
         }
     }
-    else
+
+    if (bindsucceeded)
     {
         if (thesock)
         {
@@ -129,42 +163,6 @@ ComunicationsManagerPortSockets::ComunicationsManagerPortSockets()
     initialize();
 }
 
-#ifdef _WIN32
-void * ComunicationsManagerPortSockets::watchReadlineFd(void *vfd)
-{
-    fd_set fds2;
-    int fd = *(int *)vfd;
-
-    while (!ended)
-    {
-        FD_ZERO(&fds2);
-        FD_SET(fd, &fds2);
-
-        int rc = select(FD_SETSIZE, &fds2, NULL, NULL, NULL);
-        if (rc < 0)
-        {
-            if (errno != EINTR)  //syscall
-            {
-                if (errno != ENOENT) // unexpectedly enters here, although works fine TODO: review this
-                {
-                    //LOG_fatal << "Error at select: " << errno;
-                    Sleep(20);
-                    if (_kbhit()) //check if a key has been pressed
-                    {
-                        SetEvent(readlinefd_event_handle);
-                    }
-                    continue;
-                }
-                continue;
-            }
-        }
-        LOG_info << "signaling readline event";
-
-        SetEvent(readlinefd_event_handle);
-    }
-    return 0;
-}
-#endif
 int ComunicationsManagerPortSockets::initialize()
 {
     mtx->init(false);
@@ -200,6 +198,13 @@ int ComunicationsManagerPortSockets::initialize()
 
     socklen_t saddrlength = sizeof( addr );
 
+#ifdef _WIN32
+    DWORD reuse = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) != 0) {
+         printf("SO_REUSEADDR setsockopt failed with: %d\n", WSAGetLastError());
+    }
+#endif
+
     if (::bind(sockfd, (struct sockaddr*)&addr, saddrlength) == SOCKET_ERROR)
     {
         if (ERRNO == EADDRINUSE)
@@ -231,90 +236,17 @@ int ComunicationsManagerPortSockets::initialize()
 
 
     ended=false;
-    readlinefd_event_handle = NULL;
 
 #endif
     }
 
     return 0;
-}
-
-bool ComunicationsManagerPortSockets::receivedReadlineInput(int readline_fd)
-{
-    return FD_ISSET(readline_fd, &fds);
 }
 
 bool ComunicationsManagerPortSockets::receivedPetition()
 {
     return FD_ISSET(sockfd, &fds);
 }
-
-int ComunicationsManagerPortSockets::waitForPetitionOrReadlineInput(int readline_fd)
-{
-
-    FD_ZERO(&fds);
-
-#ifdef _WIN32
-    if (readlinefd_event_handle == NULL)
-    {
-        readlinefd_event_handle = WSACreateEvent();
-        WSAResetEvent(readlinefd_event_handle);
-        MegaThread *readlineWatcherThread = new MegaThread();
-        readlineWatcherThread->start(&ComunicationsManagerPortSockets::watchReadlineFd,(void *)&readline_fd);
-    }
-    HANDLE handles[2];
-
-    handles[0] = sockfd_event_handle;
-    handles[1] = readlinefd_event_handle;
-
-    DWORD result = WSAWaitForMultipleEvents(2, handles, false, WSA_INFINITE, false);
-
-    WSAResetEvent(handles[result - WSA_WAIT_EVENT_0]);
-
-    switch(result) {
-    case WSA_WAIT_TIMEOUT:
-        break;
-
-    case WSA_WAIT_EVENT_0 + 0:
-        FD_SET(sockfd, &fds);
-        break;
-
-    case WSA_WAIT_EVENT_0 + 1:
-        FD_SET(readline_fd, &fds);
-        break;
-
-    default: // handle the other possible conditions
-        LOG_fatal << "Error at WaitForMultipleObjects: " << GetLastError();
-        Sleep(300);
-        break;
-    }
-
-#else
-    FD_SET(readline_fd, &fds);
-
-    if (socketValid(sockfd))
-    {
-        FD_SET(sockfd, &fds);
-    }
-    else
-    {
-        LOG_warn << "invalid socket to select: " << sockfd  << " readline_fd="  << readline_fd;
-    }
-
-    int rc = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
-    if (rc == SOCKET_ERROR)
-    {
-        if (ERRNO != EINTR)  //syscall
-        {
-            LOG_fatal << "Error at select: " << ERRNO;
-            return ERRNO;
-        }
-    }
-#endif
-
-    return 0;
-}
-
 
 int ComunicationsManagerPortSockets::waitForPetition()
 {
@@ -335,23 +267,48 @@ int ComunicationsManagerPortSockets::waitForPetition()
     return 0;
 }
 
+void ComunicationsManagerPortSockets::stopWaiting()
+{
+#ifdef _WIN32
+    shutdown(sockfd,SD_BOTH);
+#else
+    shutdown(sockfd,SHUT_RDWR);
+#endif
+}
+
+void ComunicationsManagerPortSockets::registerStateListener(CmdPetition *inf)
+{
+    LOG_debug << "Registering state listener petition with socket: " << ((CmdPetitionPortSockets *) inf)->outSocket;
+    ComunicationsManager::registerStateListener(inf);
+}
+
+//TODO: implement unregisterStateListener, not 100% necesary, since when a state listener is not accessible it is unregistered (to deal with sudden deaths).
+// also, unregistering might not be straight forward since we need to correlate the thread doing the unregistration with the one who registered.
+
+
 /**
  * @brief returnAndClosePetition
  * I will clean struct and close the socket within
  */
-void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int outCode)
+void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int outCode)
 {
     LOG_verbose << "Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s->str() << ">>";
     sockaddr_in cliAddr;
     socklen_t cliLength = sizeof( cliAddr );
-    int connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+    int connectedsocket = ((CmdPetitionPortSockets *)inf)->acceptedOutSocket;
     if (connectedsocket == SOCKET_ERROR)
     {
-        LOG_fatal << "Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << ERRNO;
+        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+        ((CmdPetitionPortSockets *)inf)->acceptedOutSocket = connectedsocket; //So that it gets closed in destructor
+    }
+    if (connectedsocket == SOCKET_ERROR)
+    {
+        LOG_fatal << "Return and close: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << ERRNO;
         delete inf;
         return;
     }
-    string sout = s->str();
+
+    OUTSTRING sout = s->str();
 #ifdef __MACH__
 #define MSG_NOSIGNAL 0
 #elif _WIN32
@@ -362,7 +319,15 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
     {
         LOG_err << "ERROR writing output Code to socket: " << ERRNO;
     }
-    n = send(connectedsocket, sout.data(), sout.size(), MSG_NOSIGNAL);
+
+#ifdef _WIN32
+   string sutf8;
+   localwtostring(&sout,&sutf8);
+   n = send(connectedsocket, sutf8.data(), sutf8.size(), MSG_NOSIGNAL);
+#else
+   n = send(connectedsocket, sout.data(), max(1,(int)sout.size()), MSG_NOSIGNAL); //TODO: test this max and do it for windows
+#endif
+
     if (n == SOCKET_ERROR)
     {
         LOG_err << "ERROR writing to socket: " << ERRNO;
@@ -370,6 +335,92 @@ void ComunicationsManagerPortSockets::returnAndClosePetition(CmdPetition *inf, s
     closeSocket(connectedsocket);
     closeSocket(((CmdPetitionPortSockets *)inf)->outSocket);
     delete inf;
+}
+
+int ComunicationsManagerPortSockets::informStateListener(CmdPetition *inf, string &s)
+{
+    LOG_verbose << "Inform State Listener: Output to write in socket " << ((CmdPetitionPortSockets *)inf)->outSocket << ": <<" << s << ">>";
+
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof( cliAddr );
+
+    static map<int,int> connectedsockets;
+
+    int connectedsocket = -1;
+    if (connectedsockets.find(((CmdPetitionPortSockets *)inf)->outSocket) == connectedsockets.end())
+    {
+        //select with timeout and accept non-blocking, so that things don't get stuck
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(((CmdPetitionPortSockets *)inf)->outSocket, &set);
+
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 4000000;
+        int rv = select(((CmdPetitionPortSockets *)inf)->outSocket+1, &set, NULL, NULL, &timeout);
+        if(rv == -1)
+        {
+            LOG_err << "Informing state listener: Unable to select on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+            return -1;
+        }
+        else if(rv == 0)
+        {
+            LOG_warn << "Informing state listener: timeout in select on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket;
+        }
+        else
+        {
+#ifndef _WIN32
+            int oldfl = fcntl(sockfd, F_GETFL);
+            fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl | O_NONBLOCK);
+#endif
+            connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+#ifndef _WIN32
+            fcntl(((CmdPetitionPortSockets *)inf)->outSocket, F_SETFL, oldfl);
+#endif
+        }
+        connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket] = connectedsocket;
+    }
+    else
+    {
+        connectedsocket = connectedsockets[((CmdPetitionPortSockets *)inf)->outSocket];
+    }
+
+    if (connectedsocket == -1)
+    {
+        if (errno == 32) //socket closed
+        {
+            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
+            closeSocket(connectedsocket);
+            connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
+            return -1;
+        }
+        else
+        {
+            LOG_err << "Informing state listener: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+        }
+        return 0;
+    }
+
+#ifdef __MACH__
+#define MSG_NOSIGNAL 0
+#endif
+
+    int n = send(connectedsocket, s.data(), s.size(), MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        if (errno == 32) //socket closed
+        {
+            LOG_debug << "Unregistering no longer listening client. Original petition: " << *inf;
+            connectedsockets.erase(((CmdPetitionPortSockets *)inf)->outSocket);
+            return -1;
+        }
+        else
+        {
+            LOG_err << "ERROR writing to socket: " << errno;
+        }
+    }
+
+    return 0;
 }
 
 /**
@@ -386,22 +437,57 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (!socketValid(newsockfd))
     {
-        LOG_fatal << "ERROR on accept";
-#if _WIN32
-        Sleep(1000);
-#else
-        sleep(1);
-#endif
+        if (ERRNO == EMFILE)
+        {
+            LOG_fatal << "ERROR on accept at getPetition: TOO many open files.";
+            //send state listeners an ACK command to see if they are responsive and close them otherwise
+            string sack = "ack";
+            informStateListeners(sack);
+        }
+        else
+        {
+            LOG_fatal << "ERROR on accept at getPetition: " << errno;
+        }
+
+        sleepSeconds(1);
         inf->line = strdup("ERROR");
         return inf;
     }
 
     memset(buffer, 0, 1024);
 
+#ifdef _WIN32
+    wchar_t wbuffer[1024]= {};
+    int n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
+    while (n == SOCKET_ERROR && ERRNO == WSAEWOULDBLOCK)
+    {
+        LOG_verbose << "Unexpected WSAEWOULDBLOCK in socket at getPetition: . Retrying ...";
+        Sleep(10);
+        n = recv(newsockfd, (char *)wbuffer, 1023, MSG_NOSIGNAL);
+    }
+    string receivedutf8;
+    if (n != SOCKET_ERROR)
+    {
+        wbuffer[n]='\0';
+#ifdef __MINGW32__
+        wstring ws=wbuffer;
+        localwtostring(&ws,&receivedutf8);
+#else
+        localwtostring(&wstring(wbuffer),&receivedutf8);
+#endif
+    }
+    else
+    {
+        LOG_warn << "Received empty command from client at getPetition: ";
+    }
+
+#else
     int n = recv(newsockfd, buffer, 1023, MSG_NOSIGNAL);
+#endif
+
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR reading from socket";
+        LOG_fatal << "ERROR reading from socket at getPetition: " << newsockfd << " errno: " << ERRNO;
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -410,7 +496,7 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
     inf->outSocket = create_new_socket(&socket_id);
     if (!socketValid(inf->outSocket) || !socket_id)
     {
-        LOG_fatal << "ERROR creating output socket";
+        LOG_fatal << "ERROR creating output socket at getPetition";
         inf->line = strdup("ERROR");
         return inf;
     }
@@ -419,15 +505,49 @@ CmdPetition * ComunicationsManagerPortSockets::getPetition()
 
     if (n == SOCKET_ERROR)
     {
-        LOG_fatal << "ERROR writing to socket: ERRNO = " << ERRNO;
+        LOG_fatal << "ERROR writing to socket at getPetition: ERRNO = " << ERRNO;
         inf->line = strdup("ERROR");
         return inf;
     }
     closeSocket(newsockfd);
-
+#if _WIN32
+    inf->line = strdup(receivedutf8.c_str());
+#else
     inf->line = strdup(buffer);
-
+#endif
     return inf;
+}
+
+bool ComunicationsManagerPortSockets::getConfirmation(CmdPetition *inf, string message)
+{
+    sockaddr_in cliAddr;
+    socklen_t cliLength = sizeof( cliAddr );
+    int connectedsocket = ((CmdPetitionPortSockets *)inf)->acceptedOutSocket;
+    if (connectedsocket == -1)
+        connectedsocket = accept(((CmdPetitionPortSockets *)inf)->outSocket, (struct sockaddr*)&cliAddr, &cliLength);
+     ((CmdPetitionPortSockets *)inf)->acceptedOutSocket = connectedsocket;
+    if (connectedsocket == -1)
+    {
+        LOG_fatal << "Getting Confirmation: Unable to accept on outsocket " << ((CmdPetitionPortSockets *)inf)->outSocket << " error: " << errno;
+        delete inf;
+        return false;
+    }
+
+    int outCode = MCMD_REQCONFIRM;
+    int n = send(connectedsocket, (const char *)&outCode, sizeof( outCode ), MSG_NOSIGNAL);
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing output Code to socket: " << errno;
+    }
+    n = send(connectedsocket, message.data(), max(1,(int)message.size()), MSG_NOSIGNAL); // for some reason without the max recv never quits in the client for empty responses
+    if (n < 0)
+    {
+        LOG_err << "ERROR writing to socket: " << errno;
+    }
+
+    bool response;
+    n = recv(connectedsocket,(char *)&response, sizeof(response), MSG_NOSIGNAL);
+    return response;
 }
 
 string ComunicationsManagerPortSockets::get_petition_details(CmdPetition *inf)

@@ -21,8 +21,18 @@
 
 #include "mega/utils.h"
 #include "mega/logging.h"
+#include "mega/megaclient.h"
+#include "mega/base64.h"
 
 namespace mega {
+
+string toNodeHandle(handle nodeHandle)
+{
+    char base64Handle[14];
+    Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
+    return string(base64Handle);
+}
+
 Cachable::Cachable()
 {
     dbid = 0;

@@ -142,6 +142,10 @@ using namespace mega;
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
+- (BOOL)isAchievementsEnabled {
+    return self.megaApi->isAchievementsEnabled();
+}
+
 #ifdef ENABLE_CHAT
 
 - (NSString *)myFingerprint {
@@ -451,6 +455,10 @@ using namespace mega;
     self.megaApi->invalidateCache();
 }
 
+- (PasswordStrength)passwordStrength:(NSString *)password {
+    return (PasswordStrength) self.megaApi->getPasswordStrength(password ? [password UTF8String] : NULL);
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -690,6 +698,23 @@ using namespace mega;
     self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
+
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->decryptPasswordProtectedLink(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password {
+    self.megaApi->decryptPasswordProtectedLink(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL);
+}
+
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->encryptLinkWithPassword(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password {
+    self.megaApi->encryptLinkWithPassword(link ? [link UTF8String] : NULL, password ? [password UTF8String] : NULL);
+}
+
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -704,6 +729,14 @@ using namespace mega;
 
 - (void)exportNode:(MEGANode *)node {
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
+}
+
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, (int64_t)[expireTime timeIntervalSince1970]);
 }
 
 - (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
@@ -880,6 +913,18 @@ using namespace mega;
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
+}
+
+- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)useHttpsOnly:(BOOL)httpsOnly {
+    self.megaApi->useHttpsOnly(httpsOnly);
+}
+
+- (BOOL)usingHttpsOnly {
+    return self.megaApi->usingHttpsOnly();
 }
 
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {
@@ -1517,6 +1562,8 @@ using namespace mega;
     return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
 }
 
+#endif
+
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1525,7 +1572,21 @@ using namespace mega;
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
-#endif
+- (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getAccountAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getAccountAchievements {
+    self.megaApi->getAccountAchievements();
+}
+
+- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getMegaAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getMegaAchievements {
+    self.megaApi->getMegaAchievements();
+}
 
 #pragma mark - Debug log messages
 

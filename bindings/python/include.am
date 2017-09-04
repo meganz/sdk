@@ -15,7 +15,7 @@ bindings_python__mega_la_LDFLAGS = -module $(PYTHON_LDFLAGS) $(PYTHON_EXTRA_LDFL
 bindings_python__mega_la_LIBADD = $(top_builddir)/src/libmega.la $(PYTHON_EXTRA_LDFLAGS)
 
 bindings/python/megaapi_wrap.cpp: $(top_srcdir)/bindings/megaapi.i
-	$(SWIG) -threads -python $(SWIG_FLAGS) -I$(top_srcdir)/include -o $@ $<
+	$(SWIG) -threads -python $(SWIG_FLAGS) -I$(top_srcdir)/include -o $@ $(top_srcdir)/bindings/megaapi.i
 
 bindings/python/__init__.py: bindings/python/megaapi_wrap.cpp
 	touch $@
