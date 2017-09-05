@@ -671,7 +671,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                                 && (fp2 = it->second->sync->dirnotify->fsfingerprint())
                                                 && (fp1 == fp2)
                                             #ifdef _WIN32
-                                                // only consider fsid matches betweek different syncs for local drives with the
+                                                // only consider fsid matches between different syncs for local drives with the
                                                 // same drive letter, to prevent problems with cloned Volume IDs
                                                 && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
                                                 && !memcmp(parent->sync->localroot.name.c_str(),
