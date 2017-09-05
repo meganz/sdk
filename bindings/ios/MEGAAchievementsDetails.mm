@@ -119,12 +119,24 @@ using namespace mega;
     return self.megaAchievementsDetails ? [[MEGAStringList alloc] initWithMegaStringList:self.megaAchievementsDetails->getAwardEmails((unsigned int)index) cMemoryOwn:YES] : nil;
 }
 
+- (NSInteger)rewardAwardIdAtIndex:(NSUInteger)index {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardAwardId((unsigned int)index) : -1;
+}
+
 - (long long)rewardStorageAtIndex:(NSUInteger)index {
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardStorage((unsigned int)index) : -1;
 }
 
 - (long long)rewardTransferAtIndex:(NSUInteger)index {
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardTransfer((unsigned int)index) : -1;
+}
+
+- (long long)rewardStorageByAwardId:(NSInteger)awardId {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardStorageByAwardId((int)awardId) : -1;
+}
+
+- (long long)rewardTransferByAwardId:(NSInteger)awardId {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardTransferByAwardId((int)awardId) : -1;
 }
 
 - (NSInteger)rewardExpireAtIndex:(NSUInteger)index {
