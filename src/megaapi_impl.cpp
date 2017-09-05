@@ -19849,7 +19849,7 @@ int MegaAchievementsDetailsPrivate::getRewardAwardId(unsigned int index)
         return details.rewards.at(index).award_id;
     }
     
-    return 0;
+    return -1;
 }
 
 long long MegaAchievementsDetailsPrivate::getRewardStorage(unsigned int index)

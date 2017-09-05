@@ -120,7 +120,7 @@ using namespace mega;
 }
 
 - (NSInteger)rewardAwardIdAtIndex:(NSUInteger)index {
-    return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardAwardId((unsigned int)index) : 0;
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardAwardId((unsigned int)index) : -1;
 }
 
 - (long long)rewardStorageAtIndex:(NSUInteger)index {
