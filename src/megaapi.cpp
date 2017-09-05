@@ -4696,12 +4696,27 @@ int MegaAchievementsDetails::getRewardsCount()
     return 0;
 }
 
+int MegaAchievementsDetails::getRewardAwardId(unsigned int index)
+{
+    return 0;
+}
+
 long long MegaAchievementsDetails::getRewardStorage(unsigned int index)
 {
     return 0;
 }
 
 long long MegaAchievementsDetails::getRewardTransfer(unsigned int index)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardStorageByAwardId(int award_id)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardTransferByAwardId(int award_id)
 {
     return 0;
 }

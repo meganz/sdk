@@ -11195,28 +11195,49 @@ public:
      * @return Number of active rewards
      */
     virtual int getRewardsCount();
-
+    
+    /**
+     * @brief Get the id of the award associated with the reward
+     * @param index Position of the reward in the list of active rewards
+     * @return The id of the award associated with the reward
+     */
+    virtual int getRewardAwardId(unsigned int index);
+    
     /**
      * @brief Get the storage rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The storage rewarded by the award
      */
     virtual long long getRewardStorage(unsigned int index);
-
+    
     /**
      * @brief Get the transfer quota rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The transfer quota rewarded by the award
      */
     virtual long long getRewardTransfer(unsigned int index);
-
+    
+    /**
+     * @brief Get the storage rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The storage rewarded by the award_id
+     */
+    virtual long long getRewardStorageByAwardId(int award_id);
+    
+    /**
+     * @brief Get the transfer rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The transfer rewarded by the award_id
+     */
+    virtual long long getRewardTransferByAwardId(int award_id);
+    
     /**
      * @brief Get the duration of the reward
      * @param index Position of the reward in the list of active rewards
      * @return The duration of the reward, in days
      */
     virtual int getRewardExpire(unsigned int index);
-
+    
     /**
      * @brief Creates a copy of this MegaAchievementsDetails object.
      *

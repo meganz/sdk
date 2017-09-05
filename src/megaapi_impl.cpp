@@ -19842,6 +19842,16 @@ int MegaAchievementsDetailsPrivate::getRewardsCount()
     return details.rewards.size();
 }
 
+int MegaAchievementsDetailsPrivate::getRewardAwardId(unsigned int index)
+{
+    if (index < details.rewards.size())
+    {
+        return details.rewards.at(index).award_id;
+    }
+    
+    return 0;
+}
+
 long long MegaAchievementsDetailsPrivate::getRewardStorage(unsigned int index)
 {
     if (index < details.rewards.size())
@@ -19859,6 +19869,32 @@ long long MegaAchievementsDetailsPrivate::getRewardTransfer(unsigned int index)
         return details.rewards.at(index).transfer;
     }
 
+    return 0;
+}
+
+long long MegaAchievementsDetailsPrivate::getRewardStorageByAwardId(int award_id)
+{
+    for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+    {
+        if (itr->award_id == award_id)
+        {
+            return itr->storage;
+        }
+    }
+    
+    return 0;
+}
+
+long long MegaAchievementsDetailsPrivate::getRewardTransferByAwardId(int award_id)
+{
+    for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
+    {
+        if (itr->award_id == award_id)
+        {
+            return itr->transfer;
+        }
+    }
+    
     return 0;
 }
 
