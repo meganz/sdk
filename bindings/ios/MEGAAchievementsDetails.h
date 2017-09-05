@@ -216,6 +216,13 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
 - (MEGAStringList *)awardEmailsAtIndex:(NSUInteger)index;
 
 /**
+ * @brief Get the id of the award associated with the reward
+ * @param index Position of the reward in the list of active rewards
+ * @return The id of the award associated with the reward
+ */
+- (NSInteger)rewardAwardIdAtIndex:(NSUInteger)index;
+
+/**
  * @brief Get the storage rewarded by the award
  * @param index Position of the reward in the list of active rewards
  * @return The storage rewarded by the award
@@ -228,6 +235,20 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  * @return The transfer quota rewarded by the award
  */
 - (long long)rewardTransferAtIndex:(NSUInteger)index;
+
+/**
+ * @brief Get the storage rewarded by the awardId
+ * @param awardId The id of the award
+ * @return The storage rewarded by the awardId
+ */
+- (long long)rewardStorageByAwardId:(NSInteger)awardId;
+
+/**
+ * @brief Get the transfer rewarded by the awardId
+ * @param awardId The id of the award
+ * @return The transfer rewarded by the awardId
+ */
+- (long long)rewardTransferByAwardId:(NSInteger)awardId;
 
 /**
  * @brief Get the duration of the reward
