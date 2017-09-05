@@ -667,7 +667,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                                 // was the file overwritten by moving an existing file over it?
                                 if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-                                        && l->sync == it->second->sync
+                                        && (l->sync == it->second->sync
                                             || ((fp1 = l->sync->dirnotify->fsfingerprint())
                                                 && (fp2 = it->second->sync->dirnotify->fsfingerprint())
                                                 && (fp1 == fp2)
@@ -680,6 +680,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                                        colon - parent->sync->localroot.name.c_str())
                                             #endif
                                                 )
+                                            )
                                     )
                                 {
                                     // catch the not so unlikely case of a false fsid match due to
