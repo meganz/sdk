@@ -7556,6 +7556,13 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
     }
 
     User *u = ownuser();
+    assert(u);
+    if (!u)
+    {
+        LOG_err << "Own user not found when attempting to set user attributes";
+        app->putua_result(API_EACCESS);
+        return;
+    }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
