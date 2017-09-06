@@ -9849,6 +9849,7 @@ void MegaApiImpl::fetchnodes_result(error e)
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
             updatePwdReminderData(false, false, false, false, true);
+            client->tsLogin = 0;
         }
 
         return;
@@ -9886,6 +9887,7 @@ void MegaApiImpl::fetchnodes_result(error e)
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
             updatePwdReminderData(false, false, false, false, true);
+            client->tsLogin = 0;
         }
     }
     else    // TYPE_CREATE_ACCOUNT
