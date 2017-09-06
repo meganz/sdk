@@ -2396,7 +2396,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
    #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
    #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
    #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)
@@ -2405,7 +2405,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 
 const BIGNUM *RSA_get0_n(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->n;
 #else
     const BIGNUM *result;
@@ -2416,7 +2416,7 @@ const BIGNUM *RSA_get0_n(const RSA *rsa)
 
 const BIGNUM *RSA_get0_e(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->e;
 #else
     const BIGNUM *result;
@@ -2427,7 +2427,7 @@ const BIGNUM *RSA_get0_e(const RSA *rsa)
 
 const BIGNUM *RSA_get0_d(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->d;
 #else
     const BIGNUM *result;
