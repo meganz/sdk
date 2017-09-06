@@ -82,6 +82,16 @@ public class MegaApiJava {
     public final static int USER_ATTR_LASTNAME = MegaApi.USER_ATTR_LASTNAME;
     public final static int USER_ATTR_AUTHRING = MegaApi.USER_ATTR_AUTHRING;
     public final static int USER_ATTR_LAST_INTERACTION = MegaApi.USER_ATTR_LAST_INTERACTION;
+    public final static int USER_ATTR_ED25519_PUBLIC_KEY = MegaApi.USER_ATTR_ED25519_PUBLIC_KEY;
+    public final static int USER_ATTR_CU25519_PUBLIC_KEY = MegaApi.USER_ATTR_CU25519_PUBLIC_KEY;
+    public final static int USER_ATTR_KEYRING = MegaApi.USER_ATTR_KEYRING;
+    public final static int USER_ATTR_SIG_RSA_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_RSA_PUBLIC_KEY;
+    public final static int USER_ATTR_SIG_CU255_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_CU255_PUBLIC_KEY;
+    public final static int USER_ATTR_LANGUAGE = MegaApi.USER_ATTR_LANGUAGE;
+    public final static int USER_ATTR_PWD_REMINDER = MegaApi.USER_ATTR_PWD_REMINDER;
+
+    public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
+    public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
 
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
