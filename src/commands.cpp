@@ -2484,7 +2484,7 @@ void CommandPutUA::procresult()
         if (!u)
         {
             LOG_err << "Own user not found when attempting to set user attributes";
-            app->putua_result(API_EACCESS);
+            client->app->putua_result(API_EACCESS);
             return;
         }
         u->setattr(at, &av, NULL);
