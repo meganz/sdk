@@ -2480,6 +2480,13 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
+        assert(u);
+        if (!u)
+        {
+            LOG_err << "Own user not found when attempting to set user attributes";
+            client->app->putua_result(API_EACCESS);
+            return;
+        }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);

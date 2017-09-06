@@ -809,6 +809,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     scpaused = false;
     asyncfopens = 0;
     achievements_enabled = false;
+    tsLogin = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3003,6 +3004,7 @@ void MegaClient::locallogout()
     publichandle = UNDEF;
     cachedscsn = UNDEF;
     achievements_enabled = false;
+    tsLogin = 0;
 
     freeq(GET);
     freeq(PUT);
@@ -7554,6 +7556,13 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
     }
 
     User *u = ownuser();
+    assert(u);
+    if (!u)
+    {
+        LOG_err << "Own user not found when attempting to set user attributes";
+        app->putua_result(API_EACCESS);
+        return;
+    }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
