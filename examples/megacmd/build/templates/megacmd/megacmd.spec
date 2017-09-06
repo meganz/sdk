@@ -87,7 +87,7 @@ bash -x ./contrib/build_sdk.sh %{flag_cryptopp} -o archives \
   -g %{flag_disablezlib} -b -l -c -s -u -a -p deps/
 
 ./configure --disable-shared --enable-static --disable-silent-rules \
-  --disable-curl-checks %{with_cryptopp} --with-sodium=deps \
+  --disable-curl-checks %{with_cryptopp} --with-sodium=deps --with-pcre \
   %{with_zlib} --with-sqlite=deps --with-cares=deps \
   --with-curl=deps --with-freeimage=deps --with-readline=deps \
   --with-termcap=deps --prefix=$PWD/deps --disable-examples
