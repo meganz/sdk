@@ -270,7 +270,7 @@ bool MegaCmdShellCommunicationsNamedPipes::isFileOwnerCurrentUser(HANDLE hFile)
 
     if (wcscmp(username, AcctName) )
     {
-        wcerr << L"Unmatched owner - current user" << AcctName << L" - " << username << endl;
+        wcerr << L"Unmatched owner - current user: " << AcctName << L" - " << username << endl;
         return false;
     }
     else
