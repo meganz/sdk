@@ -1243,7 +1243,7 @@ public:
     // achievements enabled for the account
     bool achievements_enabled;
 
-    m_time_t tsLogin;
+    bool tsLogin;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
