@@ -27,13 +27,12 @@ if [ "$#" -ne 2 ]; then
 fi
 
 in_file="$2"
-out1=$(awk -NF '"' ' /megacmdchangelog/ {flag=1;next} /;/{flag=0} flag { print "  * "$2 }' $in_file)
-
+out1=$(awk -NF '"$| "|""\\\\n' ' /megacmdchangelog/ {flag=1;next} /;/{flag=0} flag { print "  * "$2 }' $in_file)
 
 # print ChangeLog entry
 NOW=$(LANG=en_us_8859_1;date)
 echo $NOW - linux@mega.co.nz
 echo "- Update to version $1:"
-echo "$out1"
+echo "$out1" | sed 's#\\"#"#g'
 echo ""
 echo "-------------------------------------------------------------------"

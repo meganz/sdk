@@ -31,13 +31,28 @@
 #endif
 #define MEGACMDINITIALPORTNUMBER 12300
 
+
+void closeSocket(int socket);
+
 class CmdPetitionPortSockets: public CmdPetition
 {
 public:
     int outSocket;
+    int acceptedOutSocket;
+    CmdPetitionPortSockets(){
+        acceptedOutSocket = -1;
+    }
+    virtual ~CmdPetitionPortSockets()
+    {
+        closeSocket(outSocket);
+        if (acceptedOutSocket != -1)
+        {
+            closeSocket(acceptedOutSocket);
+        }
+    }
 };
 
-std::ostream &operator<<(std::ostream &os, CmdPetitionPortSockets &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPortSockets &p);
 
 class ComunicationsManagerPortSockets : public ComunicationsManager
 {
@@ -48,7 +63,6 @@ private:
     int sockfd, newsockfd;
 #ifdef _WIN32
     HANDLE sockfd_event_handle;
-    static HANDLE readlinefd_event_handle;
     static bool ended;
 #endif
     socklen_t clilen;
@@ -59,8 +73,6 @@ private:
     int count;
     mega::MegaMutex *mtx;
 
-    int get_next_outSocket_id();
-
     /**
      * @brief create_new_socket
      * The caller is responsible for deleting the newly created socket
@@ -70,25 +82,26 @@ private:
 
 public:
     ComunicationsManagerPortSockets();
-#ifdef _WIN32
-    static void * watchReadlineFd(void *);
-#endif
 
     int initialize();
 
-    bool receivedReadlineInput(int readline_fd);
-
     bool receivedPetition();
 
-    int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
+
+    virtual void stopWaiting();
+
+    int get_next_comm_id();
+
+    void registerStateListener(CmdPetition *inf);
 
     /**
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
+    void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
 
+    int informStateListener(CmdPetition *inf, std::string &s);
 
     /**
      * @brief getPetition
@@ -96,11 +109,13 @@ public:
      */
     CmdPetition *getPetition();
 
+    virtual bool getConfirmation(CmdPetition *inf, std::string message);
+
     /**
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
+    std::string get_petition_details(CmdPetition *inf);
 
     ~ComunicationsManagerPortSockets();
 };

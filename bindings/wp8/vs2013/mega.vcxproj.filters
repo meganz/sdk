@@ -494,5 +494,8 @@
     <ClCompile Include="..\MChildrenLists.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

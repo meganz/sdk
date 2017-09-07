@@ -23,9 +23,16 @@
 
 #ifdef USE_PCRE
 #include <pcrecpp.h>
-#elif __cplusplus >= 201103L
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
 #include <regex>
 #endif
+
+#ifdef _WIN32
+#else
+#include <sys/ioctl.h> // console size
+#endif
+
+#include <iomanip>
 
 using namespace std;
 using namespace mega;
@@ -406,6 +413,42 @@ int getShareLevelNum(const char* level)
     return atoi(level);
 }
 
+const char * getTransferStateStr(int transferState)
+{
+    switch (transferState)
+    {
+    case MegaTransfer::STATE_QUEUED:
+        return "QUEUED";
+        break;
+    case MegaTransfer::STATE_ACTIVE:
+        return "ACTIVE";
+        break;
+    case MegaTransfer::STATE_PAUSED:
+        return "PAUSED";
+        break;
+    case MegaTransfer::STATE_RETRYING:
+        return "RETRYING";
+        break;
+    case MegaTransfer::STATE_COMPLETING:
+        return "COMPLETING";
+        break;
+    case MegaTransfer::STATE_COMPLETED:
+        return "COMPLETED";
+        break;
+    case MegaTransfer::STATE_CANCELLED:
+        return "CANCELLED";
+        break;
+    case MegaTransfer::STATE_FAILED:
+        return "FAILED";
+        break;
+    default:
+        return "";
+        break;
+    }
+
+}
+
+
 /**
  * @brief tests if a path is writable
  * @param path
@@ -561,7 +604,7 @@ std::string &rtrim(std::string &s, const char &c)
     return s;
 }
 
-vector<string> getlistOfWords(char *ptr)
+vector<string> getlistOfWords(char *ptr, bool ignoreTrailingSpaces)
 {
     vector<string> words;
 
@@ -571,7 +614,7 @@ vector<string> getlistOfWords(char *ptr)
     for (;; )
     {
         // skip leading blank space
-        while (*ptr > 0 && *ptr <= ' ')
+        while (*ptr > 0 && *ptr <= ' ' && (ignoreTrailingSpaces || *(ptr+1)))
         {
             ptr++;
         }
@@ -634,6 +677,8 @@ vector<string> getlistOfWords(char *ptr)
         }
         else
         {
+            while (*ptr == ' ') ptr++;// only possible if ptr+1 is the end
+
             wptr = ptr;
 
             char *prev = ptr;
@@ -649,7 +694,7 @@ vector<string> getlistOfWords(char *ptr)
                 ptr++;
             }
 
-            words.push_back(string(wptr, ptr - wptr));
+                words.push_back(string(wptr, ptr - wptr));
         }
     }
 
@@ -748,7 +793,7 @@ bool isRegExp(string what)
     bool isregex = strcmp(what.c_str(), ns.c_str());
     return isregex;
 
-#elif __cplusplus >= 201103L
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
     //TODO??
 #endif
     return hasWildCards(what);
@@ -792,64 +837,93 @@ string unquote(string what)
     return what;
 }
 
-bool patternMatches(const char *what, const char *pattern)
+bool megacmdWildcardMatch(const char *pszString, const char *pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
 {
-#ifdef USE_PCRE
-    pcrecpp::RE re(pattern);
-    if (re.error().length())
-    {
-        //In case the user supplied non-pcre regexp with * or ? in it.
-        string newpattern(pattern);
-        replaceAll(newpattern,"*",".*");
-        replaceAll(newpattern,"?",".");
-        re=pcrecpp::RE(newpattern);
-    }
+    const char *cp;
+    const char *mp;
 
-    if (!re.error().length())
+    while ((*pszString) && (*pszMatch != '*'))
     {
-        bool toret = re.FullMatch(what);
-
-        return toret;
-    }
-    else
-    {
-        LOG_verbose << "Invalid PCRE regex: " << re.error();
-    }
-#elif __cplusplus >= 201103L
-    try
-    {
-        return std::regex_match(what, std::regex(pattern));
-    }
-    catch (std::regex_error e)
-    {
-        LOG_warn << "Couldn't compile regex: " << pattern;
-    }
-#endif
-
-    if (( *pattern == '\0' ) && ( *what == '\0' ))
-    {
-        return true;
-    }
-
-    if (( *pattern == '*' ) && ( *( pattern + 1 ) != '\0' ) && ( *what == '\0' ))
-    {
-        return false;
-    }
-    if (( *pattern == '?' ) || ( *pattern == *what ))
-    {
-        if (*what == '\0')
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
         {
             return false;
         }
-        return patternMatches(what + 1, pattern + 1);
+        pszMatch++;
+        pszString++;
     }
 
-    if (*pattern == '*')
+    while (*pszString)
     {
-        return patternMatches(what, pattern + 1) || patternMatches(what + 1, pattern);
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
+bool patternMatches(const char *what, const char *pattern, bool usepcre)
+{
+    if (usepcre)
+    {
+#ifdef USE_PCRE
+        pcrecpp::RE re(pattern);
+        if (re.error().length())
+        {
+            //In case the user supplied non-pcre regexp with * or ? in it.
+            string newpattern(pattern);
+            replaceAll(newpattern,"*",".*");
+            replaceAll(newpattern,"?",".");
+            re=pcrecpp::RE(newpattern);
+        }
+
+        if (!re.error().length())
+        {
+            bool toret = re.FullMatch(what);
+
+            return toret;
+        }
+        else
+        {
+            LOG_warn << "Invalid PCRE regex: " << re.error();
+            return false;
+        }
+#elif __cplusplus >= 201103L && !defined(__MINGW32__)
+        try
+        {
+            return std::regex_match(what, std::regex(pattern));
+        }
+        catch (std::regex_error e)
+        {
+            LOG_warn << "Couldn't compile regex: " << pattern;
+            return false;
+        }
+#endif
+        LOG_warn << " PCRE not supported";
+        return false;
     }
 
-    return false;
+    return megacmdWildcardMatch(what,pattern);
 }
 
 int toInteger(string what, int failValue)
@@ -901,6 +975,40 @@ string joinStrings(const vector<string>& vec, const char* delim, bool quoted)
 
 }
 
+string getFixLengthString(const string origin, unsigned int size, const char delim, bool alignedright)
+{
+    string toret;
+    unsigned int origsize = origin.size();
+    if (origsize <= size){
+        if (alignedright)
+        {
+            toret.insert(0,size-origsize,delim);
+            toret.insert(size-origsize,origin,0,origsize);
+
+        }
+        else
+        {
+            toret.insert(0,origin,0,origsize);
+            toret.insert(origsize,size-origsize,delim);
+        }
+    }
+    else
+    {
+        toret.insert(0,origin,0,(size+1)/2-2);
+        toret.insert((size+1)/2-2,3,'.');
+        toret.insert((size+1)/2+1,origin,origsize-(size)/2+1,(size)/2-1);
+    }
+
+    return toret;
+}
+
+string getRightAlignedString(const string origin, unsigned int minsize)
+{
+    ostringstream os;
+    os << std::setw(minsize) << origin;
+    return os.str();
+}
+
 int getFlag(map<string, int> *flags, const char * optname)
 {
     return flags->count(optname) ? ( *flags )[optname] : 0;
@@ -932,13 +1040,12 @@ bool setOptionsAndFlags(map<string, string> *opts, map<string, int> *flags, vect
 
     for (std::vector<string>::iterator it = ws->begin(); it != ws->end(); )
     {
-        /* std::cout << *it; ... */
         string w = ( string ) * it;
         if (w.length() && ( w.at(0) == '-' )) //begins with "-"
         {
             if (( w.length() > 1 ) && ( w.at(1) != '-' ))  //single character flags!
             {
-                for (u_int i = 1; i < w.length(); i++)
+                for (unsigned int i = 1; i < w.length(); i++)
                 {
                     string optname = w.substr(i, 1);
                     if (vvalidOptions.find(optname) != vvalidOptions.end())
@@ -1015,3 +1122,80 @@ string sizeToText(long long totalSize, bool equalizeUnitsLength, bool humanreada
 
     return os.str();
 }
+
+string secondsToText(time_t seconds, bool humanreadable)
+{
+    ostringstream os;
+    os.precision(2);
+    if (humanreadable)
+    {
+        time_t reducedSize = ( seconds > 3600 * 2 ? seconds / 3600.0 : ( seconds > 60 * 2 ? seconds / 60.0 : seconds ));
+        os << fixed << reducedSize;
+        os << ( seconds > 3600 * 2 ? " hours" : ( seconds > 60 * 2 ? " minutes" : " seconds" ));
+    }
+    else
+    {
+        os << seconds;
+    }
+
+    return os.str();
+}
+
+
+string percentageToText(float percentage)
+{
+    ostringstream os;
+    os.precision(2);
+    if (percentage != percentage) //NaN
+    {
+        os << "----%";
+    }
+    else
+    {
+        os << fixed << percentage*100.0 << "%";
+    }
+
+    return os.str();
+}
+
+unsigned int getNumberOfCols(unsigned int defaultwidth)
+{
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    int columns;
+
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    columns = csbi.srWindow.Right - csbi.srWindow.Left - 1;
+
+    return columns;
+#else
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO,TIOCGWINSZ,&size) != -1)
+    {
+        if (size.ws_col > 2)
+        {
+            return size.ws_col - 2;
+        }
+    }
+#endif
+    return defaultwidth;
+}
+
+void sleepSeconds(int seconds)
+{
+#ifdef _WIN32
+    Sleep(1000*seconds);
+#else
+    sleep(seconds);
+#endif
+}
+
+void sleepMicroSeconds(long microseconds)
+{
+#ifdef _WIN32
+    Sleep(microseconds);
+#else
+    usleep(microseconds*1000);
+#endif
+}
+

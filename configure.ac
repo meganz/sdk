@@ -191,7 +191,7 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
     CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
@@ -529,6 +529,9 @@ AC_ARG_WITH(pcre,
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
             AC_MSG_ERROR([Could not find libpcrecpp])
     ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
     pcre=true
      ;;
    *)
@@ -559,6 +562,9 @@ AC_ARG_WITH(pcre,
     fi
 
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
             AC_MSG_ERROR([Could not find libpcre])
     ])
 
@@ -571,10 +577,7 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])
-      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
-    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
-  ])
+)
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)

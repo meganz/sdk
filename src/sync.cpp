@@ -36,12 +36,13 @@ const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
+           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
 {
     isnetwork = false;
     client = cclient;
     tag = ctag;
     inshare = cinshare;
+    appData = cappdata;
     errorcode = API_OK;
     tmpfa = NULL;
     initializing = true;
@@ -438,16 +439,16 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 name = localname;
                 client->fsaccess->local2name(&name);
 
-                // check if this record is to be ignored
-                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                if (t)
                 {
-                    if (t)
-                    {
-                        localpath->append(client->fsaccess->localseparator);
-                    }
+                    localpath->append(client->fsaccess->localseparator);
+                }
 
-                    localpath->append(localname);
+                localpath->append(localname);
 
+                // check if this record is to be ignored
+                if (client->app->sync_syncable(this, name.c_str(), localpath))
+                {
                     // skip the sync's debris folder
                     if (localpath->size() < localdebris.size()
                      || memcmp(localpath->data(), localdebris.data(), localdebris.size())
@@ -469,13 +470,13 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                             dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
                         }
                     }
-
-                    localpath->resize(t);
                 }
                 else
                 {
                     LOG_debug << "Excluded: " << name;
                 }
+
+                localpath->resize(t);
             }
         }
 
@@ -565,10 +566,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
-        string name = newname;
+        string name = newname.size() ? newname : l->name;
         client->fsaccess->local2name(&name);
 
-        if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
+        if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {
             LOG_debug << "Excluded: " << path;
             return NULL;
@@ -663,24 +664,35 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                             if (l->fsid != fa->fsid)
                             {
                                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
+                                const char *colon;
+#endif
+                                fsfp_t fp1, fp2;
 
                                 // was the file overwritten by moving an existing file over it?
-                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                                        && (l->sync == it->second->sync
+                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
+                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                                && (fp1 == fp2)
+                                            #ifdef _WIN32
+                                                // only consider fsid matches between different syncs for local drives with the
+                                                // same drive letter, to prevent problems with cloned Volume IDs
+                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
+                                                && !memcmp(parent->sync->localroot.name.c_str(),
+                                                       it->second->sync->localroot.name.c_str(),
+                                                       colon - parent->sync->localroot.name.c_str())
+                                            #endif
+                                                )
+                                            )
+                                    )
                                 {
                                     // catch the not so unlikely case of a false fsid match due to
                                     // e.g. a file deletion/creation cycle that reuses the same inode
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
-                                        // do not delete the LocalNode if it is in a different filesystem
-                                        // because it could be a file with the same fsid in another drive
-                                        fsfp_t fp1, fp2;
-                                        if (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
-                                                && (fp1 == fp2)))
-                                        {
-                                            delete it->second;
-                                        }
+                                        l->mtime = -1;  // trigger change detection
+                                        delete it->second;   // delete old LocalNode
                                     }
                                     else
                                     {
@@ -775,6 +787,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
+                const char *colon;
+#endif
                 fsfp_t fp1, fp2;
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                     // additional checks to prevent wrong fsid matches
@@ -783,7 +798,17 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         || (it->second->sync == parent->sync)
                         || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
                             && (fp2 = parent->sync->dirnotify->fsfingerprint())
-                            && (fp1 == fp2)))
+                            && (fp1 == fp2)
+                        #ifdef _WIN32
+                            // allow moves between different syncs only for local drives with the
+                            // same drive letter, to prevent problems with cloned Volume IDs
+                            && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
+                            && !memcmp(parent->sync->localroot.name.c_str(),
+                                   it->second->sync->localroot.name.c_str(),
+                                   colon - parent->sync->localroot.name.c_str())
+                        #endif
+                            )
+                       )
                     && ((it->second->type != FILENODE)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
