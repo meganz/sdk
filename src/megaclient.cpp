@@ -8711,14 +8711,14 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         byte hmac[32];
         if (algorithm == 1)
         {
-            HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
+            HMACSHA256 hmacsha256((byte *)payload.data(), payload.size());
             hmacsha256.add(derivedKey + 32, 32);
             hmacsha256.get(hmac);
         }
         else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
         {
             HMACSHA256 hmacsha256(derivedKey + 32, 32);
-            hmacsha256.add((byte *)linkBin.data(), 40 + encKeyLen);
+            hmacsha256.add((byte *)payload.data(), payload.size());
             hmacsha256.get(hmac);
         }
         else
