@@ -8517,7 +8517,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     }
 
     int algorithm = *ptr++;
-    if (algorithm != 1)
+    if (algorithm != 1 && algorithm != 2)
     {
         LOG_err << "The algorithm used to encrypt this link is not supported";
         return API_EINTERNAL;
@@ -8562,11 +8562,21 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
                      salt, sizeof salt,
                      iterations);
 
-    // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-    HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
-    hmacsha256.add(derivedKey + 32, 32);
     byte hmacComputed[32];
-    hmacsha256.get(hmacComputed);
+    if (algorithm == 1)
+    {
+        // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+        HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
+        hmacsha256.add(derivedKey + 32, 32);
+        hmacsha256.get(hmacComputed);
+    }
+    else // algorithm == 2 (fix legacy Webclient bug: swap data and key
+    {
+        // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        hmacsha256.add((byte *)linkBin.data(), 40 + encKeyLen);
+        hmacsha256.get(hmacComputed);
+    }
     if (memcmp(hmac, hmacComputed, 32))
     {
         LOG_err << "HMAC verification failed. Possible tampered or corrupted link";
@@ -8687,7 +8697,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         }
 
         // Preapare payload to derive encryption key
-        byte algorithm = 1;
+        byte algorithm = 2;
         byte type = isFolder ? 0 : 1;
         string payload;
         payload.append((char*) &algorithm, sizeof algorithm);
@@ -8696,9 +8706,9 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         payload.append((char*) salt, sizeof salt);
         payload.append(encKey);
 
-        // Prepare HMAC
-        HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
-        hmacsha256.add(derivedKey + 32, 32);
+        // Prepare HMAC (using algorithm = 2, right order for key & data)
+        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        hmacsha256.add((const byte*)payload.data(), payload.size());
         byte hmac[32];
         hmacsha256.get(hmac);
 
