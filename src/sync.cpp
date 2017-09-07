@@ -662,7 +662,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                             if (l->fsid != fa->fsid)
                             {
                                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
                                 const char *colon;
+#endif
                                 fsfp_t fp1, fp2;
 
                                 // was the file overwritten by moving an existing file over it?
@@ -775,7 +777,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
                 const char *colon;
+#endif
                 fsfp_t fp1, fp2;
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                     // additional checks to prevent wrong fsid matches
