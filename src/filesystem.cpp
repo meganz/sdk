@@ -201,7 +201,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         delete fa;
     }
 
-    if (q <= DirNotify::DIREVENTS)
+    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {
         sync->client->syncactivity = true;
     }
