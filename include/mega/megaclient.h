@@ -984,6 +984,11 @@ public:
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
 
+    // timer for extra notifications
+    // (workaround for buggy network filesystems)
+    bool syncextraretry;
+    BackoffTimer syncextrabt;
+
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
     BackoffTimer syncscanbt;
