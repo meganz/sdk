@@ -270,21 +270,24 @@ bool MegaCmdShellCommunicationsNamedPipes::isFileOwnerCurrentUser(HANDLE hFile)
     GetUserNameW(username, &username_len);
 
 
-    LPTSTR stringSIDOwner;
-    if (ConvertSidToStringSid(pSidOwner, &stringSIDOwner))
+    LPWSTR stringSIDOwner;
+    if (ConvertSidToStringSidW(pSidOwner, &stringSIDOwner))
     {
+        if (!wcscmp(username, AcctName) || ( IsUserAnAdmin() && !wcscmp(stringSIDOwner, L"S-1-5-32-544"))) // owner == user  or   owner == administrators and current process running as admin
+        {
+            return true;
+        }
+        else
+        {
+            wcerr << L"Unmatched owner - current user -> " << AcctName << L" - " << username << L" IsUserAdmin=" << IsUserAnAdmin() << L" SIDOwner=" << stringSIDOwner << endl;
+            return false;
+        }
+
         LocalFree(stringSIDOwner);
     }
+    return false;
 
-    if (!wcscmp(username, AcctName) || ( IsUserAnAdmin() && !wcscmp(stringSIDOwner, L"S-1-5-32-544"))) // owner == user  or   owner == administrators and current process running as admin
-    {
-        return true;
-    }
-    else
-    {
-        wcerr << L"Unmatched owner - current user -> " << AcctName << L" - " << username << endl;
-        return false;
-    }
+
 }
 
 HANDLE MegaCmdShellCommunicationsNamedPipes::doOpenPipe(wstring nameOfPipe)
