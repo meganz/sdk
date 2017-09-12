@@ -235,7 +235,7 @@ struct MEGA_API LocalNode : public File
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string slocalname;
+    string *slocalname;
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection

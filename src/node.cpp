@@ -937,9 +937,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // remove existing child linkage
         parent->children.erase(&localname);
 
-        if (slocalname.size())
+        if (slocalname)
         {
-            parent->schildren.erase(&slocalname);
+            parent->schildren.erase(slocalname);
+            delete slocalname;
+            slocalname = NULL;
         }
     }
 
@@ -1047,9 +1049,18 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // (we don't construct a UTF-8 or sname for the root path)
         parent->children[&localname] = this;
 
-        if (sync->client->fsaccess->getsname(newlocalpath, &slocalname))
+        if (!slocalname)
         {
-            parent->schildren[&slocalname] = this;
+            slocalname = new string();
+        }
+        if (sync->client->fsaccess->getsname(newlocalpath, slocalname) && slocalname->size() && *slocalname != localname)
+        {
+            parent->schildren[slocalname] = this;
+        }
+        else
+        {
+            delete slocalname;
+            slocalname = NULL;
         }
 
         treestate(TREESTATE_NONE);
@@ -1105,6 +1116,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
+    slocalname = NULL;
 
     ts = TREESTATE_NONE;
     dts = TREESTATE_NONE;
@@ -1349,6 +1361,12 @@ LocalNode::~LocalNode()
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
+
+    if (slocalname)
+    {
+        delete slocalname;
+        slocalname = NULL;
+    }
 }
 
 void LocalNode::getlocalpath(string* path, bool sdisable) const
@@ -1361,9 +1379,9 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
     {
         // use short name, if available (less likely to overflow MAXPATH,
         // perhaps faster?) and sdisable not set
-        if (!sdisable && l->slocalname.size())
+        if (!sdisable && l->slocalname)
         {
-            path->insert(0, l->slocalname);
+            path->insert(0, *(l->slocalname));
         }
         else
         {
@@ -1575,6 +1593,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
+    l->slocalname = NULL;
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
