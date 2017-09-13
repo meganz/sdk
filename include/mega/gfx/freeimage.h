@@ -29,6 +29,17 @@ namespace mega {
 // bitmap graphics processor
 class MEGA_API GfxProcFreeImage : public GfxProc
 {
+    enum {
+        ROTATION_UP             = 1,    // No rotation (top-left)
+        ROTATION_UP_MIRRORED    = 2,    // Horizontal mirrored (top-right)
+        ROTATION_DOWN           = 3,    // Rotated 180 degrees (bottom-right)
+        ROTATION_DOWN_MIRRORED  = 4,    // Vertical mirrored (bottom-left)
+        ROTATION_LEFT_MIRRORED  = 5,    // Rotated and mirrored (left-top)
+        ROTATION_LEFT           = 6,    // Rotated 270 degrees (left-bottom)
+        ROTATION_RIGHT_MIRRORED = 7,    // Rotated and mirrored (right-bottom)
+        ROTATION_RIGHT          = 8     // Rotated 90 degrees (right-top)
+    };
+
     FIBITMAP* dib;
 
     bool readbitmap(FileAccess*, string*, int);

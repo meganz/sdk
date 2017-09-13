@@ -90,10 +90,45 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
             return false;
         }
+        
+        int rotation = 0; // Image rotation degrees. Default value: no rotation
+        if (FreeImage_GetMetadata(FIMD_EXIF_MAIN, dib, "Orientation", &tag))
+        {
+            switch (tag == NULL ? 0 : *((short *)FreeImage_GetTagValue(tag)))
+            {
+                case ROTATION_DOWN:
+                case ROTATION_DOWN_MIRRORED:
+                    rotation = 180;
+                    break;                
+                
+                case ROTATION_LEFT:
+                case ROTATION_LEFT_MIRRORED:
+                    rotation = 270;
+                    break;                
+
+                case ROTATION_RIGHT:
+                case ROTATION_RIGHT_MIRRORED:
+                    rotation = 90;
+                    break;
+
+                case ROTATION_UP:
+                case ROTATION_UP_MIRRORED:
+                default:
+                    rotation = 0;
+                    break;
+            }
+        }
 
         if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGWidth", &tag))
         {
-            w = atoi((char*)FreeImage_GetTagValue(tag));
+            if (rotation == 90 || rotation == 270)
+            {
+                h = atoi((char*)FreeImage_GetTagValue(tag));
+            }
+            else
+            {
+                w = atoi((char*)FreeImage_GetTagValue(tag));
+            }
         }
         else
         {
@@ -102,7 +137,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 
         if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGHeight", &tag))
         {
-            h = atoi((char*)FreeImage_GetTagValue(tag));
+            if (rotation == 90 || rotation == 270)
+                w = atoi((char*)FreeImage_GetTagValue(tag));
+            else
+                h = atoi((char*)FreeImage_GetTagValue(tag));
         }
         else
         {
