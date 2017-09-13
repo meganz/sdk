@@ -1053,7 +1053,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         {
             slocalname = new string();
         }
-        if (sync->client->fsaccess->getsname(newlocalpath, slocalname) && slocalname->size() && *slocalname != localname)
+        if (sync->client->fsaccess->getsname(newlocalpath, slocalname) && *slocalname != localname)
         {
             parent->schildren[slocalname] = this;
         }
@@ -1424,7 +1424,7 @@ LocalNode* LocalNode::childbyname(string* localname)
 {
     localnode_map::iterator it;
 
-    if ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end())
+    if (!localname || ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end()))
     {
         return NULL;
     }

@@ -779,7 +779,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
         sname->erase(0, (char*)ptr - sname->data() + sizeof(wchar_t));
     }
 
-    return true;
+    return sname->size();
 #endif
 }
 
