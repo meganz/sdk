@@ -527,7 +527,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 MegaCmdShellCommunications::MegaCmdShellCommunications()
 {
 #ifdef _WIN32
-    setlocale(LC_ALL, ""); // en_US.utf8 could do?
+    setlocale(LC_ALL, "en-US");
 #endif
 
 

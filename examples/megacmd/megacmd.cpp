@@ -40,6 +40,9 @@
 
 #ifndef _WIN32
 #include "signal.h"
+#else
+#include <fcntl.h>
+#include <io.h>
 #endif
 
 
@@ -2180,7 +2183,7 @@ void executecommand(char* ptr)
         {
             OUTSTREAM << "A great effort has been done so as to have MEGAcmd support non-ASCII characters." << endl;
             OUTSTREAM << "However, it might still be consider in an experimantal state. You might experiment some issues." << endl;
-            OUTSTREAM << "If that is the case, don´t hesistate to contact us so as to improve our support." << endl;
+            OUTSTREAM << "If that is the case, do not hesistate to contact us so as to improve our support." << endl;
             OUTSTREAM << endl;
             OUTSTREAM << "Known issues: " << endl;
             OUTSTREAM << endl;
@@ -2733,7 +2736,7 @@ int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
-    setlocale(LC_ALL, "");
+    setlocale(LC_ALL, "en-US");
 #endif
 
 #ifdef __MACH__
