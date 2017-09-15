@@ -441,6 +441,14 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
+                            if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
+                            {
+                                LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+                                return transfer->failed(API_EAGAIN);
+                            }
+
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
