@@ -571,6 +571,14 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
+                            if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
+                            {
+                                LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+                                return transfer->failed(API_EAGAIN);
+                            }
+
                             int creqtag = client->reqtag;
                             client->reqtag = 0;
                             client->sendevent(99430, "Invalid chunk size");
@@ -709,6 +717,13 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_FAILURE:
                     LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
+                    if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
+                    {
+                        LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
+                        client->usehttps = true;
+                        client->app->notify_change_to_https();
+                        return transfer->failed(API_EAGAIN);
+                    }
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)

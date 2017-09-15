@@ -229,6 +229,9 @@ struct MEGA_API HttpReq
     // time left related to a bandwidth overquota
     m_time_t timeleft;
 
+    // Content-Type of the response
+    string contenttype;
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 
