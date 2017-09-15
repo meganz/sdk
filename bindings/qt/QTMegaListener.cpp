@@ -114,18 +114,9 @@ void QTMegaListener::onReloadNeeded(MegaApi *api)
 
 void QTMegaListener::onEvent(MegaApi *api, MegaEvent *e)
 {
-    switch (e->getType())
-    {
-        case MegaEvent::EVENT_ACCOUNT_CONFIRMATION:
-        {
-            QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnEvent);
-            event->setEvent(e->copy());
-            QCoreApplication::postEvent(this, event, INT_MIN);
-            break;
-        }
-        default:
-            break;
-    }
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnEvent);
+    event->setEvent(e->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
 #ifdef ENABLE_SYNC
