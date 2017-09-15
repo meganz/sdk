@@ -273,13 +273,21 @@ bool MegaCmdShellCommunicationsNamedPipes::isFileOwnerCurrentUser(HANDLE hFile)
     LPWSTR stringSIDOwner;
     if (ConvertSidToStringSidW(pSidOwner, &stringSIDOwner))
     {
-        if (!wcscmp(username, AcctName) || ( IsUserAnAdmin() && !wcscmp(stringSIDOwner, L"S-1-5-32-544"))) // owner == user  or   owner == administrators and current process running as admin
+        if (!wcscmp(username, AcctName) || ( 
+#ifndef __MINGW32__
+            IsUserAnAdmin() && 
+#endif
+            !wcscmp(stringSIDOwner, L"S-1-5-32-544"))) // owner == user  or   owner == administrators and current process running as admin
         {
             return true;
         }
         else
         {
-            wcerr << L"Unmatched owner - current user -> " << AcctName << L" - " << username << L" IsUserAdmin=" << IsUserAnAdmin() << L" SIDOwner=" << stringSIDOwner << endl;
+            wcerr << L"Unmatched owner - current user -> " << AcctName << L" - " << username;
+#ifndef __MINGW32__
+            wcerr << L" IsUserAdmin=" << IsUserAnAdmin();
+#endif
+            wcerr << L" SIDOwner=" << stringSIDOwner << endl;
             return false;
         }
 
