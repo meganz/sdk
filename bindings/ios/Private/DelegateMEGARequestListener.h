@@ -28,6 +28,8 @@ public:
     
     DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener = true);
     id<MEGARequestDelegate>getUserListener();
+    bool isValidListener();
+    void setValidListener(bool validListener);
     
     void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
     void onRequestFinish(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
@@ -38,4 +40,6 @@ private:
     MEGASdk *megaSDK;
     id<MEGARequestDelegate>listener;
     bool singleListener;
+    bool validListener;
+    
 };

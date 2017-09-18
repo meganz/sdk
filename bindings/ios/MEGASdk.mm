@@ -217,6 +217,7 @@ using namespace mega;
     while (it != _activeMegaListeners.end()) {
         DelegateMEGAListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
+            delegateListener->setValidListener(false);
             listenersToRemove.push_back(delegateListener);
             _activeMegaListeners.erase(it++);
         }
@@ -241,6 +242,7 @@ using namespace mega;
     while (it != _activeRequestListeners.end()) {
         DelegateMEGARequestListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
+            delegateListener->setValidListener(false);
             listenersToRemove.push_back(delegateListener);
             _activeRequestListeners.erase(it++);
         }
@@ -265,6 +267,7 @@ using namespace mega;
     while (it != _activeTransferListeners.end()) {
         DelegateMEGATransferListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
+            delegateListener->setValidListener(false);
             listenersToRemove.push_back(delegateListener);
             _activeTransferListeners.erase(it++);
         }
@@ -289,6 +292,7 @@ using namespace mega;
     while (it != _activeGlobalListeners.end()) {
         DelegateMEGAGlobalListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
+            delegateListener->setValidListener(false);
             listenersToRemove.push_back(delegateListener);
             _activeGlobalListeners.erase(it++);
         }

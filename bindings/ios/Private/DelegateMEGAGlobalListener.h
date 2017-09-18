@@ -27,6 +27,8 @@ public:
     
     DelegateMEGAGlobalListener(MEGASdk *megaSDK, id<MEGAGlobalDelegate> listener);
     id<MEGAGlobalDelegate> getUserListener();
+    bool isValidListener();
+    void setValidListener(bool validListener);
     
     void onUsersUpdate(mega::MegaApi* api, mega::MegaUserList* userList);
     void onNodesUpdate(mega::MegaApi* api, mega::MegaNodeList* nodeList);
@@ -38,4 +40,5 @@ public:
 private:
     MEGASdk *megaSDK;
     id<MEGAGlobalDelegate> listener;
+    bool validListener;
 };

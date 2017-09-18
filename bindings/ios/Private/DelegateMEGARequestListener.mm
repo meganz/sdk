@@ -29,10 +29,19 @@ DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<ME
     this->megaSDK = megaSDK;
     this->listener = listener;
     this->singleListener = singleListener;
+    this->validListener = true;
 }
 
 id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
     return listener;
+}
+
+bool DelegateMEGARequestListener::isValidListener(){
+    return this->validListener;
+}
+
+void DelegateMEGARequestListener::setValidListener(bool validListener) {
+    this->validListener = validListener;
 }
 
 void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *request) {
@@ -40,8 +49,11 @@ void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *requ
         MegaRequest *tempRequest = request->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
+        bool tempValidListener = validListener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onRequestStart:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (tempValidListener) {
+                [tempListener onRequestStart:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            }
         });
     }
 }
@@ -53,8 +65,11 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
         bool tempSingleListener = singleListener;
+        bool tempValidListener = validListener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onRequestFinish:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (tempValidListener) {
+                [tempListener onRequestFinish:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            }
             if (tempSingleListener) {
                 [megaSDK freeRequestListener:this];
             }
@@ -67,8 +82,11 @@ void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *req
         MegaRequest *tempRequest = request->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
+        bool tempValidListener = validListener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onRequestUpdate:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (tempValidListener) {
+                [tempListener onRequestUpdate:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            }
         });
     }
 }
@@ -79,8 +97,11 @@ void DelegateMEGARequestListener::onRequestTemporaryError(MegaApi *api, MegaRequ
         MegaError *tempError = e->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
+        bool tempValidListener = validListener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onRequestTemporaryError:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (tempValidListener) {
+                [tempListener onRequestTemporaryError:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            }
         });
     }
 }
