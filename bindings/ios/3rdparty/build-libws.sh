@@ -34,9 +34,9 @@ esac
 
 set -e
 
-if [ ! -d "karere-native" ]
+if [ ! -d "libws" ]
 then
-git clone --recursive -b develop https://code.developers.mega.co.nz/messenger/karere-native
+git clone --recursive -b master https://github.com/meganz/libws
 fi
 
 for ARCH in ${ARCHS}
@@ -59,7 +59,7 @@ IOSC_CMAKE_TOOLCHAIN="../ios.toolchain.cmake"
 IOSC_SYSROOT=`xcrun -sdk $IOSC_TARGET -show-sdk-path`
 # the same as SDKROOT
 
-pushd karere-native/third-party/libws
+pushd libws
 git reset --hard && git clean -dfx
 
 export BUILD_TOOLS="${DEVELOPER}"
@@ -116,7 +116,7 @@ mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libws.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libws.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libws.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libws.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libws.a -output ${CURRENTPATH}/lib/libws.a
 
 mkdir -p include/libws || true
-cp -f -R karere-native/third-party/libws/src/*.h include/libws/
-cp -f -R karere-native/third-party/libws/libws_config.h include/libws/
+cp -f -R libws/src/*.h include/libws/
+cp -f -R libws/libws_config.h include/libws/
 
 echo "Done."
