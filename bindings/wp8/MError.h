@@ -54,6 +54,7 @@ namespace mega
         API_EREAD               = -21,  // file could not be read from
         API_EAPPKEY             = -22,  // invalid or missing application key
         API_ESSL                = -23,  // SSL verification failed
+        API_EGOINGOVERQUOTA     = -24,  // Not enough quota
 
         PAYMENT_ECARD           = -101,
         PAYMENT_EBILLING        = -102,
