@@ -28,7 +28,6 @@ public:
     
     DelegateMEGATransferListener(MEGASdk *megaSDK, id<MEGATransferDelegate>listener, bool singleListener = true);
     id<MEGATransferDelegate>getUserListener();
-    bool isValidListener();
     void setValidListener(bool validListener);
     
     void onTransferStart(mega::MegaApi *api, mega::MegaTransfer *transfer);

@@ -39,10 +39,6 @@ id<MEGADelegate>DelegateMEGAListener::getUserListener() {
     return listener;
 }
 
-bool DelegateMEGAListener::isValidListener(){
-    return this->validListener;
-}
-
 void DelegateMEGAListener::setValidListener(bool validListener) {
     this->validListener = validListener;
 }

@@ -36,10 +36,6 @@ id<MEGATransferDelegate>DelegateMEGATransferListener::getUserListener() {
     return listener;
 }
 
-bool DelegateMEGATransferListener::isValidListener(){
-    return this->validListener;
-}
-
 void DelegateMEGATransferListener::setValidListener(bool validListener) {
     this->validListener = validListener;
 }

@@ -36,10 +36,6 @@ id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
     return listener;
 }
 
-bool DelegateMEGARequestListener::isValidListener(){
-    return this->validListener;
-}
-
 void DelegateMEGARequestListener::setValidListener(bool validListener) {
     this->validListener = validListener;
 }

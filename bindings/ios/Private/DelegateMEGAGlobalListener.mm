@@ -36,10 +36,6 @@ id<MEGAGlobalDelegate> DelegateMEGAGlobalListener::getUserListener() {
     return listener;
 }
 
-bool DelegateMEGAGlobalListener::isValidListener(){
-    return this->validListener;
-}
-
 void DelegateMEGAGlobalListener::setValidListener(bool validListener) {
     this->validListener = validListener;
 }
