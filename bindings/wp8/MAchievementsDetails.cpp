@@ -43,17 +43,17 @@ MegaAchievementsDetails* MAchievementsDetails::getCPtr()
 
 int64 MAchievementsDetails::getBaseStorage()
 {
-    return achievementsDetails ? achievementsDetails->getBaseStorage() : 0;
+    return achievementsDetails ? achievementsDetails->getBaseStorage() : -1;
 }
 
 int64 MAchievementsDetails::getClassStorage(int class_id)
 {
-    return achievementsDetails ? achievementsDetails->getClassStorage(class_id) : 0;
+    return achievementsDetails ? achievementsDetails->getClassStorage(class_id) : -1;
 }
 
 int64 MAchievementsDetails::getClassTransfer(int class_id)
 {
-    return achievementsDetails ? achievementsDetails->getClassTransfer(class_id) : 0;
+    return achievementsDetails ? achievementsDetails->getClassTransfer(class_id) : -1;
 }
 
 int MAchievementsDetails::getClassExpire(int class_id)
@@ -78,12 +78,12 @@ int MAchievementsDetails::getAwardId(unsigned int index)
 
 int64 MAchievementsDetails::getAwardTimestamp(unsigned int index)
 {
-    return achievementsDetails ? achievementsDetails->getAwardTimestamp(index) : 0;
+    return achievementsDetails ? achievementsDetails->getAwardTimestamp(index) : -1;
 }
 
 int64 MAchievementsDetails::getAwardExpirationTs(unsigned int index)
 {
-    return achievementsDetails ? achievementsDetails->getAwardExpirationTs(index) : 0;
+    return achievementsDetails ? achievementsDetails->getAwardExpirationTs(index) : -1;
 }
 
 MStringList^ MAchievementsDetails::getAwardEmails(unsigned int index)
@@ -93,32 +93,32 @@ MStringList^ MAchievementsDetails::getAwardEmails(unsigned int index)
 
 int MAchievementsDetails::getRewardsCount()
 {
-    return achievementsDetails ? achievementsDetails->getRewardsCount() : 0;
+    return achievementsDetails ? achievementsDetails->getRewardsCount() : -1;
 }
 
 int MAchievementsDetails::getRewardAwardId(unsigned int index)
 {
-    return achievementsDetails ? achievementsDetails->getRewardAwardId(index) : 0;
+    return achievementsDetails ? achievementsDetails->getRewardAwardId(index) : -1;
 }
 
 int64 MAchievementsDetails::getRewardStorage(unsigned int index)
 {
-    return achievementsDetails ? achievementsDetails->getRewardStorage(index) : 0;
+    return achievementsDetails ? achievementsDetails->getRewardStorage(index) : -1;
 }
 
 int64 MAchievementsDetails::getRewardTransfer(unsigned int index)
 {
-    return achievementsDetails ? achievementsDetails->getRewardTransfer(index) : 0;
+    return achievementsDetails ? achievementsDetails->getRewardTransfer(index) : -1;
 }
 
 int64 MAchievementsDetails::getRewardStorageByAwardId(int award_id)
 {
-    return achievementsDetails ? achievementsDetails->getRewardStorageByAwardId(award_id) : 0;
+    return achievementsDetails ? achievementsDetails->getRewardStorageByAwardId(award_id) : -1;
 }
 
 int64 MAchievementsDetails::getRewardTransferByAwardId(int award_id)
 {
-    return achievementsDetails ? achievementsDetails->getRewardTransferByAwardId(award_id) : 0;
+    return achievementsDetails ? achievementsDetails->getRewardTransferByAwardId(award_id) : -1;
 }
 
 int MAchievementsDetails::getRewardExpire(unsigned int index)
@@ -133,20 +133,20 @@ MAchievementsDetails^ MAchievementsDetails::copy()
 
 int64 MAchievementsDetails::currentStorage()
 {
-    return achievementsDetails ? achievementsDetails->currentStorage() : 0;
+    return achievementsDetails ? achievementsDetails->currentStorage() : -1;
 }
 
 int64 MAchievementsDetails::currentTransfer()
 {
-    return achievementsDetails ? achievementsDetails->currentTransfer() : 0;
+    return achievementsDetails ? achievementsDetails->currentTransfer() : -1;
 }
 
 int64 MAchievementsDetails::currentStorageReferrals()
 {
-    return achievementsDetails ? achievementsDetails->currentStorageReferrals() : 0;
+    return achievementsDetails ? achievementsDetails->currentStorageReferrals() : -1;
 }
 
 int64 MAchievementsDetails::currentTransferReferrals()
 {
-    return achievementsDetails ? achievementsDetails->currentTransferReferrals() : 0;
+    return achievementsDetails ? achievementsDetails->currentTransferReferrals() : -1;
 }
