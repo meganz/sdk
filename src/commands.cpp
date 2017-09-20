@@ -2480,10 +2480,12 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
-        if (User::scope(at) == '^') // store in binary format
+        assert(u);
+        if (!u)
         {
-            string avB64 = av;
-            Base64::atob(avB64, av);
+            LOG_err << "Own user not found when attempting to set user attributes";
+            client->app->putua_result(API_EACCESS);
+            return;
         }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);

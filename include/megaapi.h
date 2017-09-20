@@ -1100,7 +1100,8 @@ class MegaUser
             CHANGE_TYPE_PUBKEY_ED255    = 0x400,
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
-            CHANGE_TYPE_LANGUAGE        = 0x2000
+            CHANGE_TYPE_LANGUAGE        = 0x2000,
+            CHANGE_TYPE_PWD_REMINDER    = 0x4000
         };
 
         /**
@@ -1155,6 +1156,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
          * Check if the user has modified the preferred language
          *
+         * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
+         * Check if the data related to the password reminder dialog has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1208,6 +1212,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
          * Check if the user has modified the preferred language
+         *
+         * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
+         * Check if the data related to the password reminder dialog has changed
          */
         virtual int getChanges();
 
@@ -3385,7 +3392,7 @@ class MegaSyncListener
 {
 public:
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -3399,10 +3406,10 @@ public:
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object related that manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -4427,7 +4434,7 @@ class MegaListener
 
 #ifdef ENABLE_SYNC
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -4441,10 +4448,10 @@ class MegaListener
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when there is a synchronization event
@@ -4595,7 +4602,8 @@ class MegaApi
             USER_ATTR_KEYRING = 7,              // private - byte array
             USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
-            USER_ATTR_LANGUAGE = 14             // private - char array
+            USER_ATTR_LANGUAGE = 14,            // private - char array
+            USER_ATTR_PWD_REMINDER = 15         // private - char array
         };
 
         enum {
@@ -6229,6 +6237,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6276,6 +6286,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6320,6 +6332,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6810,6 +6824,25 @@ class MegaApi
          * @return Base64-encoded master key
          */
         char *exportMasterKey();
+
+        /**
+         * @brief Notify the user has exported the master key
+         *
+         * This function should be called when the user exports the master key by
+         * clicking on "Copy" or "Save file" options.
+         *
+         * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+         * to remember the user has a backup of his/her master key. In consequence,
+         * MEGA will not ask the user to remind the password for the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         * - MegaRequest::getText - Returns the new value for the attribute
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void masterKeyExported(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account
@@ -11162,28 +11195,49 @@ public:
      * @return Number of active rewards
      */
     virtual int getRewardsCount();
-
+    
+    /**
+     * @brief Get the id of the award associated with the reward
+     * @param index Position of the reward in the list of active rewards
+     * @return The id of the award associated with the reward
+     */
+    virtual int getRewardAwardId(unsigned int index);
+    
     /**
      * @brief Get the storage rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The storage rewarded by the award
      */
     virtual long long getRewardStorage(unsigned int index);
-
+    
     /**
      * @brief Get the transfer quota rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The transfer quota rewarded by the award
      */
     virtual long long getRewardTransfer(unsigned int index);
-
+    
+    /**
+     * @brief Get the storage rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The storage rewarded by the award_id
+     */
+    virtual long long getRewardStorageByAwardId(int award_id);
+    
+    /**
+     * @brief Get the transfer rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The transfer rewarded by the award_id
+     */
+    virtual long long getRewardTransferByAwardId(int award_id);
+    
     /**
      * @brief Get the duration of the reward
      * @param index Position of the reward in the list of active rewards
      * @return The duration of the reward, in days
      */
     virtual int getRewardExpire(unsigned int index);
-
+    
     /**
      * @brief Creates a copy of this MegaAchievementsDetails object.
      *

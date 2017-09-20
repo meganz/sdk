@@ -82,6 +82,16 @@ public class MegaApiJava {
     public final static int USER_ATTR_LASTNAME = MegaApi.USER_ATTR_LASTNAME;
     public final static int USER_ATTR_AUTHRING = MegaApi.USER_ATTR_AUTHRING;
     public final static int USER_ATTR_LAST_INTERACTION = MegaApi.USER_ATTR_LAST_INTERACTION;
+    public final static int USER_ATTR_ED25519_PUBLIC_KEY = MegaApi.USER_ATTR_ED25519_PUBLIC_KEY;
+    public final static int USER_ATTR_CU25519_PUBLIC_KEY = MegaApi.USER_ATTR_CU25519_PUBLIC_KEY;
+    public final static int USER_ATTR_KEYRING = MegaApi.USER_ATTR_KEYRING;
+    public final static int USER_ATTR_SIG_RSA_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_RSA_PUBLIC_KEY;
+    public final static int USER_ATTR_SIG_CU255_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_CU255_PUBLIC_KEY;
+    public final static int USER_ATTR_LANGUAGE = MegaApi.USER_ATTR_LANGUAGE;
+    public final static int USER_ATTR_PWD_REMINDER = MegaApi.USER_ATTR_PWD_REMINDER;
+
+    public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
+    public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
 
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
@@ -3097,6 +3107,27 @@ public class MegaApiJava {
      */
     public String exportMasterKey() {
         return megaApi.exportMasterKey();
+    }
+
+    /**
+     * Notify the user has exported the master key
+     *
+     * This function should be called when the user exports the master key by
+     * clicking on "Copy" or "Save file" options.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember the user has a backup of his/her master key. In consequence,
+     * MEGA will not ask the user to remind the password for the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void masterKeyExported(MegaRequestListenerInterface listener){
+        megaApi.masterKeyExported(createDelegateRequestListener(listener));
     }
 
     /**

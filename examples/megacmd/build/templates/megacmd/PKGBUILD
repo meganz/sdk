@@ -59,7 +59,7 @@ build() {
 	  -e -g -b -l -c -s -u -a -q -p deps/
 
 	./configure --disable-shared --enable-static --disable-silent-rules \
-	  --disable-curl-checks --with-sodium=deps --with-cryptopp=deps\
+	  --disable-curl-checks --with-sodium=deps --with-pcre --with-cryptopp=deps\
 	  --with-curl=deps --with-freeimage=deps --with-readline=deps \
 	  --with-cares=deps \
 	  --with-termcap=deps --prefix=$PWD/deps --disable-examples

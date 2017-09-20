@@ -1021,8 +1021,11 @@ public:
     virtual int64_t getAwardExpirationTs(unsigned int index);
     virtual MegaStringList* getAwardEmails(unsigned int index);
     virtual int getRewardsCount();
+    virtual int getRewardAwardId(unsigned int index);
     virtual long long getRewardStorage(unsigned int index);
     virtual long long getRewardTransfer(unsigned int index);
+    virtual long long getRewardStorageByAwardId(int award_id);
+    virtual long long getRewardTransferByAwardId(int award_id);
     virtual int getRewardExpire(unsigned int index);
 
     virtual long long currentStorage();
@@ -1547,6 +1550,7 @@ class MegaApiImpl : public MegaApp
         void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
+        void updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool mkExported, bool dontShowAgain, bool lastLogin, MegaRequestListener *listener = NULL);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
@@ -1868,7 +1872,7 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
-        void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState);
+        void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
 #ifdef ENABLE_CHAT

@@ -91,11 +91,18 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_AVATAR            = 0,
-        USER_ATTR_FIRSTNAME         = 1,
-        USER_ATTR_LASTNAME          = 2,
-        USER_ATTR_AUTHRING          = 3,
-        USER_ATTR_LAST_INTERACTION  = 4
+        USER_ATTR_AVATAR                = 0,    // public - char array
+        USER_ATTR_FIRSTNAME             = 1,    // public - char array
+        USER_ATTR_LASTNAME              = 2,    // public - char array
+        USER_ATTR_AUTHRING              = 3,    // private - byte array
+        USER_ATTR_LAST_INTERACTION      = 4,    // private - byte array
+        USER_ATTR_ED25519_PUBLIC_KEY    = 5,    // public - byte array
+        USER_ATTR_CU25519_PUBLIC_KEY    = 6,    // public - byte array
+        USER_ATTR_KEYRING               = 7,    // private - byte array
+        USER_ATTR_SIG_RSA_PUBLIC_KEY    = 8,    // public - byte array
+        USER_ATTR_SIG_CU255_PUBLIC_KEY  = 9,    // public - byte array
+        USER_ATTR_LANGUAGE              = 14,   // private - char array
+        USER_ATTR_PWD_REMINDER          = 15    // private - char array
     };
 
     public enum class MPaymentMethod {
@@ -337,6 +344,8 @@ namespace mega
         void getPaymentMethods();
 
         String^ exportMasterKey();
+        void masterKeyExported(MRequestListenerInterface^ listener);
+        void masterKeyExported();
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);

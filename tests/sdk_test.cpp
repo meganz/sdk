@@ -1394,6 +1394,8 @@ TEST_F(SdkTest, SdkTestTransfers)
  *
  * - Modify firstname
  * = Check firstname of a contact
+ * = Set master key as exported
+ * = Get preferred language
  * - Load avatar
  * = Check avatar of a contact
  * - Delete avatar
@@ -1582,6 +1584,23 @@ TEST_F(SdkTest, SdkTestContacts)
     delete u;
 
 
+    // --- Set master key already as exported
+
+    u = megaApi[0]->getMyUser();
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER] = false;
+    megaApi[0]->masterKeyExported();
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER]) );
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
+    string pwdReminder = attributeValue;
+    int offset = pwdReminder.find(':');
+    offset += pwdReminder.find(':', offset+1);
+    ASSERT_EQ( pwdReminder.at(offset), '1' ) << "Password reminder attribute not updated";
+
+    delete u;
+
+
     // --- Get language preference
 
     u = megaApi[0]->getMyUser();
@@ -1591,6 +1610,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
     string language = attributeValue;
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
+
+    delete u;
 
 
     // --- Load avatar ---
