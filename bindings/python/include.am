@@ -1,4 +1,4 @@
-pkgpython_PYTHON = bindings/python/mega.py
+pkgpython_PYTHON = bindings/python/__init__.py
 nodist_pkgpython_PYTHON = bindings/python/__init__.py
 pkgpyexec_LTLIBRARIES = bindings/python/_mega.la
 dist_noinst_PYTHON = bindings/python/test_libmega.py
@@ -16,6 +16,7 @@ bindings_python__mega_la_LIBADD = $(top_builddir)/src/libmega.la $(PYTHON_EXTRA_
 
 bindings/python/megaapi_wrap.cpp: $(top_srcdir)/bindings/megaapi.i
 	$(SWIG) -threads -python $(SWIG_FLAGS) -I$(top_srcdir)/include -o $@ $(top_srcdir)/bindings/megaapi.i
+	mv $(top_srcdir)/bindings/python/mega.py $(top_srcdir)/bindings/python/__init__.py
 
 bindings/python/__init__.py: bindings/python/megaapi_wrap.cpp
 	touch $@
