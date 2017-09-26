@@ -209,7 +209,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @deprecated Property related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -218,7 +218,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
 
 /**
  * @brief The total number of nodes in the account
@@ -804,7 +804,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate;
@@ -829,7 +829,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
