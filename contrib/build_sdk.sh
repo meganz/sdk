@@ -326,9 +326,9 @@ cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="563"
+    local cryptopp_ver="565"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="3c5b70e2ec98b7a24988734446242d07"
+    local cryptopp_md5="df5ef4647b4e978bba0cac79a83aaed5"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
