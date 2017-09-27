@@ -43,12 +43,10 @@ void DelegateMEGARequestListener::setValidListener(bool validListener) {
 void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *request) {
     if (listener != nil && [listener respondsToSelector:@selector(onRequestStart:request:)]) {
         MegaRequest *tempRequest = request->copy();
-        MEGASdk *tempMegaSDK = this->megaSDK;
-        id<MEGARequestDelegate> tempListener = this->listener;
-        bool tempValidListener = validListener;
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (tempValidListener) {
-                [tempListener onRequestStart:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestStart:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
             }
         });
     }
@@ -58,15 +56,12 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
     if (listener != nil && [listener respondsToSelector:@selector(onRequestFinish:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
-        MEGASdk *tempMegaSDK = this->megaSDK;
-        id<MEGARequestDelegate> tempListener = this->listener;
-        bool tempSingleListener = singleListener;
-        bool tempValidListener = validListener;
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (tempValidListener) {
-                [tempListener onRequestFinish:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestFinish:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
             }
-            if (tempSingleListener) {
+            if (this->singleListener) {
                 [megaSDK freeRequestListener:this];
             }
         });
@@ -76,12 +71,10 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
 void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
     if (listener != nil && [listener respondsToSelector:@selector(onRequestUpdate:request:)]) {
         MegaRequest *tempRequest = request->copy();
-        MEGASdk *tempMegaSDK = this->megaSDK;
-        id<MEGARequestDelegate> tempListener = this->listener;
-        bool tempValidListener = validListener;
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (tempValidListener) {
-                [tempListener onRequestUpdate:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestUpdate:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
             }
         });
     }
@@ -91,12 +84,10 @@ void DelegateMEGARequestListener::onRequestTemporaryError(MegaApi *api, MegaRequ
     if (listener != nil && [listener respondsToSelector:@selector(onRequestTemporaryError:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
-        MEGASdk *tempMegaSDK = this->megaSDK;
-        id<MEGARequestDelegate> tempListener = this->listener;
-        bool tempValidListener = validListener;
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (tempValidListener) {
-                [tempListener onRequestTemporaryError:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestTemporaryError:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
             }
         });
     }

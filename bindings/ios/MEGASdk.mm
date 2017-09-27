@@ -230,8 +230,14 @@ using namespace mega;
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeListener(listenersToRemove[i]);
-        delete listenersToRemove[i];
     }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (int i = 0; i < listenersToRemove.size(); i++)
+        {
+            delete listenersToRemove[i];
+        }
+    });
 }
 
 - (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
@@ -255,8 +261,14 @@ using namespace mega;
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeRequestListener(listenersToRemove[i]);
-        delete listenersToRemove[i];
     }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (int i = 0; i < listenersToRemove.size(); i++)
+        {
+            delete listenersToRemove[i];
+        }
+    });
 }
 
 - (void)removeMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
@@ -280,8 +292,14 @@ using namespace mega;
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeTransferListener(listenersToRemove[i]);
-        delete listenersToRemove[i];
     }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (int i = 0; i < listenersToRemove.size(); i++)
+        {
+            delete listenersToRemove[i];
+        }
+    });
 }
 
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
@@ -302,13 +320,17 @@ using namespace mega;
     }
     pthread_mutex_unlock(&listenerMutex);
     
-    
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         self.megaApi->removeGlobalListener(listenersToRemove[i]);
-        delete listenersToRemove[i];
     }
-
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (int i = 0; i < listenersToRemove.size(); i++)
+        {
+            delete listenersToRemove[i];
+        }
+    });
 }
 
 - (void)addLoggerDelegate:(id<MEGALoggerDelegate>)delegate {
@@ -335,8 +357,14 @@ using namespace mega;
     for (int i = 0; i < listenersToRemove.size(); i++)
     {
         MegaApi::removeLoggerObject(listenersToRemove[i]);        
-        delete listenersToRemove[i];
     }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (int i = 0; i < listenersToRemove.size(); i++)
+        {
+            delete listenersToRemove[i];
+        }
+    });
 }
 
 #pragma mark - Utils
