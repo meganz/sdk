@@ -138,7 +138,5 @@ mkdir -p include || true
 cp -f karere-native/src/megachatapi.h include/
 
 #rm -rf bin
-#rm -rf expat-${EXPAT_VERSION}
-#rm -rf expat-${EXPAT_VERSION}.tar.bz2
 
 echo "Done."
