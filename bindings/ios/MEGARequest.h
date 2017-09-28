@@ -22,6 +22,7 @@
 #import "MEGANode.h"
 #import "MEGAAccountDetails.h"
 #import "MEGAPricing.h"
+#import "MEGAAchievementsDetails.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -108,7 +109,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeChatStats,
     MEGARequestTypeDownloadFile,
     MEGARequestTypeQueryTransferQuota,
-    MEGARequestTypePasswordLink
+    MEGARequestTypePasswordLink,
+    MEGARequestTypeGetAchievements
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -406,6 +408,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;
+
+/**
+ * @brief Details related to the MEGA Achievements of this account
+ *
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getMegaAchievements] - Details of the MEGA Achievements of this account
+ *
+ */
+@property (readonly, nonatomic) MEGAAchievementsDetails *megaAchievementsDetails;
 
 /**
  * @brief Tag of a transfer related to the request.

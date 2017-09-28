@@ -295,6 +295,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaUserList::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
+%newobject mega::MegaStringList::copy;
+%newobject mega::MegaAchievementsDetails::copy;
+%newobject mega::MegaAchievementsDetails::getAwardEmails;
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
 %newobject mega::MegaNode::getBase64Handle;
@@ -351,6 +354,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
+%newobject mega::MegaRequest::getMegaAchievementsDetails;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
 

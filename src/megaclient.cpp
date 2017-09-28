@@ -762,6 +762,7 @@ void MegaClient::init()
     syncfsopsfailed = false;
     syncdownretry = false;
     syncnagleretry = false;
+    syncextraretry = false;
     faretrying = false;
     syncsup = true;
     syncdownrequired = false;
@@ -808,6 +809,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     workinglockcs = NULL;
     scpaused = false;
     asyncfopens = 0;
+    achievements_enabled = false;
+    tsLogin = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1737,6 +1740,12 @@ void MegaClient::exec()
             syncops = true;
         }
 
+        if (syncextraretry && syncextrabt.armed())
+        {
+            syncextraretry = false;
+            syncops = true;
+        }
+
         // sync timer: read lock retry
         if (syncfslockretry && syncfslockretrybt.armed())
         {
@@ -1770,6 +1779,45 @@ void MegaClient::exec()
                 }
 
                 dstime nds = NEVER;
+                dstime mindelay = NEVER;
+                for (it = syncs.begin(); it != syncs.end(); )
+                {
+                    Sync* sync = *it++;
+                    if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+                    {
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
+                        {
+                            dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
+                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
+                            if (notification.timestamp <= dsmin)
+                            {
+                                LOG_debug << "Processing extra fs notification";
+                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
+                                                        notification.path.data(), notification.path.size());
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
+                            }
+                            else
+                            {
+                                dstime delay = (notification.timestamp - dsmin) + 1;
+                                if (delay < mindelay)
+                                {
+                                    mindelay = delay;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (EVER(mindelay))
+                {
+                    syncextrabt.backoff(mindelay);
+                    syncextraretry = true;
+                }
+                else
+                {
+                    syncextraretry = false;
+                }
+
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
                     if (!syncfsopsfailed)
@@ -2327,6 +2375,11 @@ int MegaClient::preparewait()
         if (syncnagleretry)
         {
             syncnaglebt.update(&nds);
+        }
+
+        if (syncextraretry)
+        {
+            syncextrabt.update(&nds);
         }
 #endif
 
@@ -3001,6 +3054,8 @@ void MegaClient::locallogout()
     me = UNDEF;
     publichandle = UNDEF;
     cachedscsn = UNDEF;
+    achievements_enabled = false;
+    tsLogin = false;
 
     freeq(GET);
     freeq(PUT);
@@ -7566,6 +7621,13 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
     }
 
     User *u = ownuser();
+    assert(u);
+    if (!u)
+    {
+        LOG_err << "Own user not found when attempting to set user attributes";
+        app->putua_result(API_EACCESS);
+        return;
+    }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
@@ -8520,7 +8582,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     }
 
     int algorithm = *ptr++;
-    if (algorithm != 1)
+    if (algorithm != 1 && algorithm != 2)
     {
         LOG_err << "The algorithm used to encrypt this link is not supported";
         return API_EINTERNAL;
@@ -8565,11 +8627,21 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
                      salt, sizeof salt,
                      iterations);
 
-    // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-    HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
-    hmacsha256.add(derivedKey + 32, 32);
     byte hmacComputed[32];
-    hmacsha256.get(hmacComputed);
+    if (algorithm == 1)
+    {
+        // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+        HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
+        hmacsha256.add(derivedKey + 32, 32);
+        hmacsha256.get(hmacComputed);
+    }
+    else // algorithm == 2 (fix legacy Webclient bug: swap data and key
+    {
+        // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
+        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        hmacsha256.add((byte *)linkBin.data(), 40 + encKeyLen);
+        hmacsha256.get(hmacComputed);
+    }
     if (memcmp(hmac, hmacComputed, 32))
     {
         LOG_err << "HMAC verification failed. Possible tampered or corrupted link";
@@ -8699,11 +8771,26 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         payload.append((char*) salt, sizeof salt);
         payload.append(encKey);
 
+
         // Prepare HMAC
-        HMACSHA256 hmacsha256((const byte*)payload.data(), payload.size());
-        hmacsha256.add(derivedKey + 32, 32);
         byte hmac[32];
-        hmacsha256.get(hmac);
+        if (algorithm == 1)
+        {
+            HMACSHA256 hmacsha256((byte *)payload.data(), payload.size());
+            hmacsha256.add(derivedKey + 32, 32);
+            hmacsha256.get(hmac);
+        }
+        else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
+        {
+            HMACSHA256 hmacsha256(derivedKey + 32, 32);
+            hmacsha256.add((byte *)payload.data(), payload.size());
+            hmacsha256.get(hmac);
+        }
+        else
+        {
+            LOG_err << "Invalid algorithm to encrypt link";
+            return API_EINTERNAL;
+        }
 
         // Prepare encrypted link
         string encLinkBytes;
@@ -9881,7 +9968,8 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
     }
     
-    if (!fsaccess->issyncsupported(rootpath))
+    bool isnetwork = false;
+    if (!fsaccess->issyncsupported(rootpath, &isnetwork))
     {
         LOG_warn << "Unsupported filesystem";
         return API_EFAILED;
@@ -9897,6 +9985,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             LOG_debug << "Adding sync: " << utf8path;
 
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
+            sync->isnetwork = isnetwork;
 
             if (sync->scan(rootpath, fa))
             {
@@ -11730,6 +11819,16 @@ void MegaClient::registerPushNotification(int deviceType, const char *token)
 }
 
 #endif
+
+void MegaClient::getaccountachievements(AchievementsDetails *details)
+{
+    reqs.add(new CommandGetMegaAchievements(this, details));
+}
+
+void MegaClient::getmegaachievements(AchievementsDetails *details)
+{
+    reqs.add(new CommandGetMegaAchievements(this, details, false));
+}
 
 FetchNodesStats::FetchNodesStats()
 {

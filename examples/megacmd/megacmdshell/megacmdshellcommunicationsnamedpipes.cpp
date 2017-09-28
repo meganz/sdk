@@ -37,6 +37,14 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
 #include "mega/thread/win32thread.h"
 class MegaThread : public mega::Win32Thread {};
@@ -258,17 +266,36 @@ bool MegaCmdShellCommunicationsNamedPipes::isFileOwnerCurrentUser(HANDLE hFile)
 
     wchar_t username[UNLEN+1];
     DWORD username_len = UNLEN+1;
+
     GetUserNameW(username, &username_len);
 
-    if (wcscmp(username, AcctName) )
+
+    LPWSTR stringSIDOwner;
+    if (ConvertSidToStringSidW(pSidOwner, &stringSIDOwner))
     {
-        wcerr << L"Unmatched owner - current user" << AcctName << L" - " << username << endl;
-        return false;
+        if (!wcscmp(username, AcctName) || ( 
+#ifndef __MINGW32__
+            IsUserAnAdmin() && 
+#endif
+            !wcscmp(stringSIDOwner, L"S-1-5-32-544"))) // owner == user  or   owner == administrators and current process running as admin
+        {
+            return true;
+        }
+        else
+        {
+            wcerr << L"Unmatched owner - current user -> " << AcctName << L" - " << username;
+#ifndef __MINGW32__
+            wcerr << L" IsUserAdmin=" << IsUserAnAdmin();
+#endif
+            wcerr << L" SIDOwner=" << stringSIDOwner << endl;
+            return false;
+        }
+
+        LocalFree(stringSIDOwner);
     }
-    else
-    {
-        return true;
-    }
+    return false;
+
+
 }
 
 HANDLE MegaCmdShellCommunicationsNamedPipes::doOpenPipe(wstring nameOfPipe)
@@ -324,7 +351,13 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
     if (number)
     {
+#ifdef __MINGW32__
+        wostringstream wos;
+        wos << number;
+        nameOfPipe += wos.str();
+#else
         nameOfPipe += std::to_wstring(number);
+#endif
     }
 
     // Open the named pipe
@@ -361,7 +394,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
             else
             {
                 //launch server
-                cerr << "Server might not be running. Initiating in the background..." << endl;
+                cerr << "Server not running. Initiating in the background..." << endl;
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
                 ZeroMemory( &si, sizeof(si) );
@@ -375,9 +408,9 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                if (S_OK != SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    if(S_OK != SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -400,7 +433,8 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 #endif
                     LPWSTR t2 = (LPWSTR) t;
                     si.cb = sizeof(si);
-                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+//                    si.wShowWindow = SW_SHOWNOACTIVATE | SW_SHOWMINIMIZED;
+                    si.wShowWindow = SW_HIDE;
                     si.dwFlags = STARTF_USESHOWWINDOW;
                     if (!CreateProcess( t,t2,NULL,NULL,TRUE,
                                         CREATE_NEW_CONSOLE,
@@ -450,7 +484,7 @@ HANDLE MegaCmdShellCommunicationsNamedPipes::createNamedPipe(int number, bool in
 MegaCmdShellCommunicationsNamedPipes::MegaCmdShellCommunicationsNamedPipes()
 {
 #ifdef _WIN32
-    setlocale(LC_ALL, ""); // en_US.utf8 could do?
+    setlocale(LC_ALL, "en-US");
 #endif
 
     serverinitiatedfromshell = false;
@@ -559,11 +593,13 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
     while (outcode == MCMD_REQCONFIRM)
     {
         int BUFFERSIZE = 1024;
-        char confirmQuestion[1025];
-        memset(confirmQuestion,'\0',1025);
+        string confirmQuestion;
+        char bufferQuestion[1025];
+        memset(bufferQuestion,'\0',1025);
         BOOL readok;
         do{
-            readok = ReadFile(newNamedPipe, confirmQuestion, BUFFERSIZE, &n, NULL);
+            readok = ReadFile(newNamedPipe, bufferQuestion, BUFFERSIZE, &n, NULL);
+            confirmQuestion.append(bufferQuestion);
         } while(n == BUFFERSIZE && readok);
 
         if (!readok)
@@ -575,7 +611,7 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
 
         if (readconfirmationloop != NULL)
         {
-            response = readconfirmationloop(confirmQuestion);
+            response = readconfirmationloop(confirmQuestion.c_str());
         }
 
         if (!WriteFile(newNamedPipe, (const char *) &response, sizeof(response), &n, NULL))
@@ -608,17 +644,29 @@ int MegaCmdShellCommunicationsNamedPipes::executeCommand(string command, bool (*
                 // In non-interactive mode, at least in powershell, when outputting to a file/pipe, things get rough
                 // Powershell tries to interpret the output as a string and would meddle with the UTF16 encoding, resulting
                 // in unusable output, So we disable the UTF-16 in such cases (this might cause that the output could be truncated!).
-//                oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+//                oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
 //            }
 
-            oldmode = _setmode(fileno(stdout), _O_U8TEXT);
+            oldmode = _setmode(_fileno(stdout), _O_U8TEXT);
             output << wbuffer << flush;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 
 //            if (interactiveshell || outputtobinaryorconsole() || true)
 //            {
-//                _setmode(fileno(stdout), oldmode);
+//                _setmode(_fileno(stdout), oldmode);
 //            }
+        }
+        if (readok && n == BUFFERSIZE)
+        {
+            DWORD total_available_bytes;
+            if (FALSE == PeekNamedPipe(newNamedPipe,0,0,0,&total_available_bytes,0))
+            {
+                break;
+            }
+            if (total_available_bytes == 0)
+            {
+                break;
+            }
         }
     } while(n == BUFFERSIZE && readok);
 
@@ -783,6 +831,6 @@ MegaCmdShellCommunicationsNamedPipes::~MegaCmdShellCommunicationsNamedPipes()
 
         listenerThread->join();
     }
-    delete listenerThread;
+    delete (MegaThread *)listenerThread;
 }
 #endif

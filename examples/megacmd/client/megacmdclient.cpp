@@ -90,7 +90,6 @@ wstring getWAbsPath(wstring localpath)
     wstring utf8absolutepath;
 
     wstring absolutelocalpath;
-    localpath.append(L"", 1);
 
    if (!PathIsRelativeW((LPCWSTR)localpath.data()))
    {
@@ -107,7 +106,7 @@ wstring getWAbsPath(wstring localpath)
       return localpath;
    }
 
-   absolutelocalpath.resize(len * sizeof(wchar_t));
+   absolutelocalpath.resize(len);
    int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutelocalpath.data(), NULL);
    if (newlen <= 0 || newlen >= len)
    {
@@ -535,7 +534,7 @@ bool readconfirmationloop(const char *question)
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
-    setlocale(LC_ALL, ""); // en_US.utf8 could do?
+    setlocale(LC_ALL, "en-US");
 
     //Redirect stdout to a file
     for (int i=1;i<argc;i++)

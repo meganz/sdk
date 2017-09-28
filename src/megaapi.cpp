@@ -662,7 +662,12 @@ MegaAccountDetails *MegaRequest::getMegaAccountDetails() const
 
 MegaPricing *MegaRequest::getPricing() const
 {
-	return NULL;
+    return NULL;
+}
+
+MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
+{
+    return NULL;
 }
 
 int MegaRequest::getTransferTag() const
@@ -1252,7 +1257,7 @@ void MegaListener::onEvent(MegaApi *api, MegaEvent *event)
 #ifdef ENABLE_SYNC
 void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
-void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char* /*filePath*/, int /*newState*/)
+void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
@@ -1325,6 +1330,11 @@ MegaUser *MegaApi::getMyUser()
 char *MegaApi::getMyXMPPJid()
 {
     return pImpl->getMyXMPPJid();
+}
+
+bool MegaApi::isAchievementsEnabled()
+{
+    return pImpl->isAchievementsEnabled();
 }
 
 #ifdef ENABLE_CHAT
@@ -1871,6 +1881,11 @@ char *MegaApi::exportMasterKey()
     return pImpl->exportMasterKey();
 }
 
+void MegaApi::masterKeyExported(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, true, false, false, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -1889,6 +1904,11 @@ void MegaApi::localLogout(MegaRequestListener *listener)
 void MegaApi::invalidateCache()
 {
     pImpl->invalidateCache();
+}
+
+int MegaApi::getPasswordStrength(const char *password)
+{
+    return pImpl->getPasswordStrength(password);
 }
 
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
@@ -2978,6 +2998,16 @@ void MegaApi::removeRecursively(const char *path)
 bool MegaApi::isOnline()
 {
     return pImpl->isOnline();
+}
+
+void MegaApi::getAccountAchievements(MegaRequestListener *listener)
+{
+    pImpl->getAccountAchievements(listener);
+}
+
+void MegaApi::getMegaAchievements(MegaRequestListener *listener)
+{
+    pImpl->getMegaAchievements(listener);
 }
 
 #ifdef HAVE_LIBUV
@@ -4134,7 +4164,7 @@ int MegaSync::getState() const
 }
 
 
-void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char *, int )
+void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 
 void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
@@ -4629,4 +4659,119 @@ MegaNodeList *MegaChildrenLists::getFileList()
 MegaNodeList *MegaChildrenLists::getFolderList()
 {
     return NULL;
+}
+
+MegaAchievementsDetails::~MegaAchievementsDetails()
+{
+
+}
+
+long long MegaAchievementsDetails::getBaseStorage()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getClassStorage(int class_id)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getClassTransfer(int class_id)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getClassExpire(int class_id)
+{
+    return 0;
+}
+
+unsigned int MegaAchievementsDetails::getAwardsCount()
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getAwardClass(unsigned int index)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getAwardId(unsigned int index)
+{
+    return 0;
+}
+
+int64_t MegaAchievementsDetails::getAwardTimestamp(unsigned int index)
+{
+    return 0;
+}
+
+int64_t MegaAchievementsDetails::getAwardExpirationTs(unsigned int index)
+{
+    return 0;
+}
+
+MegaStringList* MegaAchievementsDetails::getAwardEmails(unsigned int index)
+{
+    return NULL;
+}
+
+int MegaAchievementsDetails::getRewardsCount()
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getRewardAwardId(unsigned int index)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardStorage(unsigned int index)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardTransfer(unsigned int index)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardStorageByAwardId(int award_id)
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::getRewardTransferByAwardId(int award_id)
+{
+    return 0;
+}
+
+int MegaAchievementsDetails::getRewardExpire(unsigned int index)
+{
+    return 0;
+}
+
+MegaAchievementsDetails *MegaAchievementsDetails::copy()
+{
+    return NULL;
+}
+
+long long MegaAchievementsDetails::currentStorage()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransfer()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentStorageReferrals()
+{
+    return 0;
+}
+
+long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
 }

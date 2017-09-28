@@ -29,9 +29,6 @@ m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
-#override default /usr/local prefix
-AC_PREFIX_DEFAULT([/])
-
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
@@ -48,6 +45,8 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -191,7 +190,7 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
     CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
@@ -577,11 +576,7 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])
-      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
-    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
-    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[])
-  ])
+)
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)

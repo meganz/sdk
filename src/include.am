@@ -57,6 +57,7 @@ src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += src/mega_utf8proc.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
+src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c
 

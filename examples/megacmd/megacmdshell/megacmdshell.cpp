@@ -53,6 +53,7 @@ enum
 
 #define PROGRESS_COMPLETE -2
 #define SPROGRESS_COMPLETE "-2"
+#define PROMPT_MAX_SIZE 128
 
 #ifndef _WIN32
 #include <signal.h>
@@ -61,6 +62,13 @@ enum
 #else
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -164,7 +172,6 @@ string clientID; //identifier for a registered state listener
 long long charstoll(const char *instr)
 {
   long long retval;
-  int i;
 
   retval = 0;
   for (; *instr; instr++) {
@@ -244,9 +251,9 @@ void console_setecho(bool echo)
 #endif
 }
 
-int getNumberOfCols(u_int defaultwidth=0)
+int getNumberOfCols(unsigned int defaultwidth=0)
 {
-    u_int width = defaultwidth;
+    unsigned int width = defaultwidth;
     int rows = 1, cols = width;
 #if defined( RL_ISSTATE ) && defined( RL_STATE_INITIALIZED )
 
@@ -282,7 +289,8 @@ bool requirepromptinstall = true;
 
 bool procesingline = false;
 
-static char dynamicprompt[128];
+
+static char dynamicprompt[PROMPT_MAX_SIZE];
 
 static char* line;
 
@@ -303,7 +311,7 @@ MegaCmdShellCommunications *comms;
 
 MegaMutex mutexPrompt;
 
-void printWelcomeMsg(u_int width = 0);
+void printWelcomeMsg(unsigned int width = 0);
 
 
 
@@ -590,13 +598,14 @@ bool validwcharforeadline(const wchar_t thewchar)
 wstring escapereadlinebreakers(const wchar_t *what)
 {
     wstring output;
-    for( u_int i = 0; i < wcslen( what ) ; i++ )
+    for( unsigned int i = 0; i < wcslen( what ) ; i++ )
     {
         if(validwcharforeadline(what[ i ] ))
         {
             output.reserve( output.size() + 1 );
             output += what[ i ];
         } else {
+#ifndef __MINGW32__
             wchar_t code[ 7 ];
             swprintf( code, 7, L"\\u%0.4X", what[ i ] ); //while this does not work (yet) as what, at least it shows something and does not break
             //TODO: ideally we would do the conversion from escaped unicode chars \uXXXX back to wchar_t in the server
@@ -605,6 +614,7 @@ wstring escapereadlinebreakers(const wchar_t *what)
             //     or keep here the UTF16 escaped secs and revert them correctly in the unescapeutf16escapedseqs
             output.reserve( output.size() + 7 ); // "\u"(2) + 5(uint max digits capacity)
             output += code;
+#endif
         }
     }
     return output;
@@ -625,13 +635,22 @@ void install_rl_handler(const char *theprompt)
     // give readline something it understands
     what = output.c_str();
     size_t buffer_size;
+#ifdef _TRUNCATE
     wcstombs_s(&buffer_size, NULL, 0, what, _TRUNCATE);
+#else
+    buffer_size=output.size()*sizeof(wchar_t)*2;
+#endif
 
     if (buffer_size) //coversion is ok
     {
         // do the actual conversion
         char *buffer = new char[buffer_size];
-        wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #ifdef _TRUNCATE
+            wcstombs_s(&buffer_size, buffer, buffer_size,what, _TRUNCATE);
+        #else
+            wcstombs(buffer, what, buffer_size);
+        #endif
+
         rl_callback_handler_install(buffer, store_line);
     }
     else
@@ -654,6 +673,16 @@ void changeprompt(const char *newprompt, bool redisplay)
     mutexPrompt.lock();
 
     strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+
+    if (strlen(newprompt) >= PROMPT_MAX_SIZE)
+    {
+        strncpy(dynamicprompt, newprompt, PROMPT_MAX_SIZE/2-1);
+        dynamicprompt[PROMPT_MAX_SIZE/2-1] = '.';
+        dynamicprompt[PROMPT_MAX_SIZE/2] = '.';
+
+        strncpy(dynamicprompt+PROMPT_MAX_SIZE/2+1, newprompt+(strlen(newprompt)-PROMPT_MAX_SIZE/2+2), PROMPT_MAX_SIZE/2-2);
+        dynamicprompt[PROMPT_MAX_SIZE-1] = '\0';
+    }
 
     if (redisplay)
     {
@@ -808,7 +837,12 @@ char* remote_completion(const char* text, int state)
         string outputcommand;
 
 #ifdef _WIN32
-        localwtostring(&oss.str(),&outputcommand);
+        #ifdef __MINGW32__
+            wstring soss=oss.str();
+            localwtostring(&soss,&outputcommand);
+        #else
+            localwtostring(&oss.str(),&outputcommand);
+        #endif
 #else
          outputcommand = oss.str();
 #endif
@@ -913,10 +947,10 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
     while (1)
     {
-        int oldmode = _setmode(fileno(stream), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stream), _O_U16TEXT);
 
         result = read (fileno (stream), &b, 10);
-        _setmode(fileno(stream), oldmode);
+        _setmode(_fileno(stream), oldmode);
 
         if (result == 0)
         {
@@ -925,9 +959,18 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         // convert the UTF16 string to widechar
         size_t wbuffer_size;
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, NULL, 0, b, _TRUNCATE);
+#else
+        wbuffer_size=10;
+#endif
         wchar_t *wbuffer = new wchar_t[wbuffer_size];
+
+#ifdef _TRUNCATE
         mbstowcs_s(&wbuffer_size, wbuffer, wbuffer_size, b, _TRUNCATE);
+#else
+        mbstowcs(wbuffer, b, wbuffer_size);
+#endif
 
         // convert the UTF16 widechar to UTF8 string
         string receivedutf8;
@@ -935,7 +978,7 @@ int getcharacterreadlineUTF16support (FILE *stream)
 
         if (strlen(receivedutf8.c_str()) > 1) //multi byte utf8 sequence: place the UTF8 characters into rl buffer one by one
         {
-            for (u_int i=0;i< strlen(receivedutf8.c_str());i++)
+            for (unsigned int i=0;i< strlen(receivedutf8.c_str());i++)
             {
                 rl_line_buffer[rl_end++] = receivedutf8.c_str()[i];
                 rl_point=rl_end;
@@ -1212,7 +1255,7 @@ void process_line(char * line)
         {
             vector<string> words = getlistOfWords(line);
             bool helprequested = false;
-            for (int i = 1; i< words.size(); i++)
+            for (unsigned int i = 1; i< words.size(); i++)
             {
                 if (words[i]== "--help") helprequested = true;
             }
@@ -1378,7 +1421,7 @@ void process_line(char * line)
 
                     if (!strstr (line,"path-display-size"))
                     {
-                        u_int width = getNumberOfCols(75);
+                        unsigned int width = getNumberOfCols(75);
                         int pathSize = int((width-46)/2);
 
                         toexec+="transfers --path-display-size=";
@@ -1403,11 +1446,22 @@ void process_line(char * line)
                         string s = line;
                         if (clientID.size())
                         {
+                            string sline = line;
+                            size_t pspace = sline.find_first_of(" ");
+                            s="";
+                            s=sline.substr(0,pspace);
                             s += " --clientID=";
                             s+=clientID;
+                            if (pspace!=string::npos)
+                            {
+                                s+=sline.substr(pspace);
+                            }
                             words.push_back(s);
                         }
                         comms->executeCommand(s, readconfirmationloop);
+#ifdef _WIN32
+                        Sleep(200); // give a brief while to print progress ended
+#endif
                     }
                     else
                     {
@@ -1577,7 +1631,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, u_int width, bool encapsulated = true)
+void printCenteredLine(string msj, unsigned int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -1585,17 +1639,17 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
     }
     if (encapsulated)
         COUT << "|";
-    for (u_int i = 0; i < (width-msj.size())/2; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2; i++)
         COUT << " ";
     COUT << msj;
-    for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
         COUT << " ";
     if (encapsulated)
         COUT << "|";
     COUT << endl;
 }
 
-void printWelcomeMsg(u_int width)
+void printWelcomeMsg(unsigned int width)
 {
     if (!width)
     {
@@ -1604,7 +1658,7 @@ void printWelcomeMsg(u_int width)
 
     COUT << endl;
     COUT << ".";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << ".";
     COUT << endl;
@@ -1615,7 +1669,7 @@ void printWelcomeMsg(u_int width)
     printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
 
     COUT << "|";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << " " ;
     COUT << "|";
     COUT << endl;
@@ -1633,7 +1687,7 @@ void printWelcomeMsg(u_int width)
 #endif
 
     COUT << "`";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << "´";
     COUT << endl;
@@ -1682,6 +1736,13 @@ void mycompletefunct(char **c, int num_matches, int max_length)
             }
 #endif
 
+
+    // max_length is not trustworthy
+    for (int i=1; i <= num_matches; i++) //contrary to what the documentation says, num_matches is not the size of c (but num_matches+1), current text is preappended in c[0]
+    {
+        max_length = max(max_length,(int)strlen(c[i]));
+    }
+
     OUTSTREAM << endl;
 
     int nelements_per_col = max(1,(cols-1)/(max_length+1));
@@ -1690,9 +1751,9 @@ void mycompletefunct(char **c, int num_matches, int max_length)
         string option = c[i];
 
         OUTSTREAM << setw(min(cols-1,max_length+1)) << left;
-        int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+        int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
         OUTSTREAM << c[i];
-        _setmode(fileno(stdout), oldmode);
+        _setmode(_fileno(stdout), oldmode);
 
         if ( (i%nelements_per_col == 0) && (i != num_matches))
         {
@@ -1741,7 +1802,7 @@ int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
-    setlocale(LC_ALL, "");
+    setlocale(LC_ALL, "en-US");
     rl_completion_display_matches_hook = mycompletefunct;
 #endif
 

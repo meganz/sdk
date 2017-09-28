@@ -26,7 +26,7 @@ pkgrel=1
 epoch=
 pkgdesc="MEGA Command Line Interactive and Scriptable Application"
 arch=('i686' 'x86_64')
-url="http://mega.nz/#sync"
+url="http://mega.nz/cmd"
 license=("https://github.com/meganz/sdk/blob/megacmd/LICENSE")
 groups=()
 depends=('glibc' 'gcc-libs' 'sqlite' 'openssl' 'zlib' 'libpsl' 'icu' 'bash-completion' 'pcre')
@@ -59,7 +59,7 @@ build() {
 	  -e -g -b -l -c -s -u -a -q -p deps/
 
 	./configure --disable-shared --enable-static --disable-silent-rules \
-	  --disable-curl-checks --with-sodium=deps --with-cryptopp=deps\
+	  --disable-curl-checks --with-sodium=deps --with-pcre --with-cryptopp=deps\
 	  --with-curl=deps --with-freeimage=deps --with-readline=deps \
 	  --with-cares=deps \
 	  --with-termcap=deps --prefix=$PWD/deps --disable-examples

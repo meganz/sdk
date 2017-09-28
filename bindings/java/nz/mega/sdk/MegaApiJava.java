@@ -82,6 +82,16 @@ public class MegaApiJava {
     public final static int USER_ATTR_LASTNAME = MegaApi.USER_ATTR_LASTNAME;
     public final static int USER_ATTR_AUTHRING = MegaApi.USER_ATTR_AUTHRING;
     public final static int USER_ATTR_LAST_INTERACTION = MegaApi.USER_ATTR_LAST_INTERACTION;
+    public final static int USER_ATTR_ED25519_PUBLIC_KEY = MegaApi.USER_ATTR_ED25519_PUBLIC_KEY;
+    public final static int USER_ATTR_CU25519_PUBLIC_KEY = MegaApi.USER_ATTR_CU25519_PUBLIC_KEY;
+    public final static int USER_ATTR_KEYRING = MegaApi.USER_ATTR_KEYRING;
+    public final static int USER_ATTR_SIG_RSA_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_RSA_PUBLIC_KEY;
+    public final static int USER_ATTR_SIG_CU255_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_CU255_PUBLIC_KEY;
+    public final static int USER_ATTR_LANGUAGE = MegaApi.USER_ATTR_LANGUAGE;
+    public final static int USER_ATTR_PWD_REMINDER = MegaApi.USER_ATTR_PWD_REMINDER;
+
+    public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
+    public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
 
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
@@ -115,6 +125,11 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
 
+    public final static int PASSWORD_STRENGTH_VERYWEAK = MegaApi.PASSWORD_STRENGTH_VERYWEAK;
+    public final static int PASSWORD_STRENGTH_WEAK = MegaApi.PASSWORD_STRENGTH_WEAK;
+    public final static int PASSWORD_STRENGTH_MEDIUM = MegaApi.PASSWORD_STRENGTH_MEDIUM;
+    public final static int PASSWORD_STRENGTH_GOOD = MegaApi.PASSWORD_STRENGTH_GOOD;
+    public final static int PASSWORD_STRENGTH_STRONG = MegaApi.PASSWORD_STRENGTH_STRONG;
 
     MegaApi getMegaApi()
     {
@@ -1338,6 +1353,13 @@ public class MegaApiJava {
     	return megaApi.getMyXMPPJid();
     }
 
+    /**
+     * Returns whether MEGA Achievements are enabled for the open account
+     * @return True if enabled, false otherwise.
+     */
+    public boolean isAchievementsEnabled() {
+        return megaApi.isAchievementsEnabled();
+    }
 
     /**
      * Returns the fingerprint of the signing key of the currently open account
@@ -3088,6 +3110,27 @@ public class MegaApiJava {
     }
 
     /**
+     * Notify the user has exported the master key
+     *
+     * This function should be called when the user exports the master key by
+     * clicking on "Copy" or "Save file" options.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember the user has a backup of his/her master key. In consequence,
+     * MEGA will not ask the user to remind the password for the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void masterKeyExported(MegaRequestListenerInterface listener){
+        megaApi.masterKeyExported(createDelegateRequestListener(listener));
+    }
+
+    /**
      * Change the password of the MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
@@ -3266,6 +3309,23 @@ public class MegaApiJava {
      */
     public void invalidateCache(){
         megaApi.invalidateCache();
+    }
+
+    /**
+     * Estimate the strength of a password
+     *
+     * Possible return values are:
+     * - PASSWORD_STRENGTH_VERYWEAK = 0
+     * - PASSWORD_STRENGTH_WEAK = 1
+     * - PASSWORD_STRENGTH_MEDIUM = 2
+     * - PASSWORD_STRENGTH_GOOD = 3
+     * - PASSWORD_STRENGTH_STRONG = 4
+     *
+     * @param password Password to check
+     * @return Estimated strength of the password
+     */
+    public int getPasswordStrength(String password){
+        return megaApi.getPasswordStrength(password);
     }
 
     /**
@@ -5491,7 +5551,88 @@ public class MegaApiJava {
     public void registerPushNotifications(int deviceType, String token) {
         megaApi.registerPushNotifications(deviceType, token);
     }
-    
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getAccountAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getAccountAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the MEGA Achievements of the account logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+     */
+    public void getAccountAchievements(){
+        megaApi.getAccountAchievements();
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     *
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void getMegaAchievements(MegaRequestListenerInterface listener) {
+        megaApi.getMegaAchievements(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the list of existing MEGA Achievements
+     *
+     * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+     * the details for the different achievement classes, but not awards or rewards related to the
+     * account that is logged in.
+     * This function can be used to give an indication of what is available for advertising
+     * for unregistered users, despite it can be used with a logged in account with no difference.
+     *
+     * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+     * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Always true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+     */
+    public void getMegaAchievements() {
+        megaApi.getMegaAchievements();
+    }
 
     /****************************************************************************************************/
     // INTERNAL METHODS

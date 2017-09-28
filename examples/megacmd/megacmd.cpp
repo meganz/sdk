@@ -40,6 +40,9 @@
 
 #ifndef _WIN32
 #include "signal.h"
+#else
+#include <fcntl.h>
+#include <io.h>
 #endif
 
 
@@ -210,7 +213,7 @@ string newpasswd;
 bool doExit = false;
 bool consoleFailed = false;
 
-static char dynamicprompt[128];
+string dynamicprompt;
 
 static prompttype prompt = COMMAND;
 
@@ -307,7 +310,7 @@ void setprompt(prompttype p, string arg)
 
 void changeprompt(const char *newprompt)
 {
-    strncpy(dynamicprompt, newprompt, sizeof( dynamicprompt ));
+    dynamicprompt = newprompt;
     string s = "prompt:";
     s+=dynamicprompt;
     cm->informStateListeners(s);
@@ -375,6 +378,12 @@ void insertValidParamsPerCommand(set<string> *validParams, string thecommand, se
     {
         validParams->insert("r");
         validParams->insert("f");
+#ifdef USE_PCRE
+        validParams->insert("use-pcre");
+#endif
+    }
+    else if ("mv" == thecommand)
+    {
 #ifdef USE_PCRE
         validParams->insert("use-pcre");
 #endif
@@ -715,7 +724,7 @@ char * flags_value_completion(const char*text, int state)
                 {
                     validValues = cmdexecuter->getlistusers();
                     string prefix = strncmp(text, "--with=", strlen("--with="))?"":"--with=";
-                    for (u_int i=0;i<validValues.size();i++)
+                    for (unsigned int i=0;i<validValues.size();i++)
                     {
                         validValues.at(i)=prefix+validValues.at(i);
                     }
@@ -725,7 +734,7 @@ char * flags_value_completion(const char*text, int state)
             {
                 validValues = cmdexecuter->getlistusers();
                 string prefix = strncmp(text, "--user=", strlen("--user="))?"":"--user=";
-                for (u_int i=0;i<validValues.size();i++)
+                for (unsigned int i=0;i<validValues.size();i++)
                 {
                     validValues.at(i)=prefix+validValues.at(i);
                 }
@@ -825,7 +834,7 @@ char* transfertags_completion(const char* text, int state)
 
             // TODO: reconsider including completed transfers (sth like this:)
 //            globalTransferListener->completedTransfersMutex.lock();
-//            for (u_int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
+//            for (unsigned int i = 0;i < globalTransferListener->completedTransfers.size() && shownCompleted < limit; i++)
 //            {
 //                MegaTransfer *transfer = globalTransferListener->completedTransfers.at(shownCompleted);
 //                if (!transfer->isSyncTransfer())
@@ -1966,11 +1975,11 @@ void printAvailableCommands(int extensive = 0)
             {
                 if (extensive > 1)
                 {
-                    u_int width = getNumberOfCols();
+                    unsigned int width = getNumberOfCols();
 
                     OUTSTREAM <<  "<" << validCommandsOrdered.at(i) << ">" << endl;
                     OUTSTREAM <<  getHelpStr(validCommandsOrdered.at(i).c_str());
-                    for (u_int j = 0; j< width; j++) OUTSTREAM << "-";
+                    for (unsigned int j = 0; j< width; j++) OUTSTREAM << "-";
                     OUTSTREAM << endl;
                 }
                 else
@@ -2174,7 +2183,7 @@ void executecommand(char* ptr)
         {
             OUTSTREAM << "A great effort has been done so as to have MEGAcmd support non-ASCII characters." << endl;
             OUTSTREAM << "However, it might still be consider in an experimantal state. You might experiment some issues." << endl;
-            OUTSTREAM << "If that is the case, don´t hesistate to contact us so as to improve our support." << endl;
+            OUTSTREAM << "If that is the case, do not hesistate to contact us so as to improve our support." << endl;
             OUTSTREAM << endl;
             OUTSTREAM << "Known issues: " << endl;
             OUTSTREAM << endl;
@@ -2532,7 +2541,7 @@ void megacmd()
                     }
                     else
                     {
-                        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)//TODO: get actual version code
+                        if (megaCmdListener->getRequest()->getNumber() != MEGACMD_CODE_VERSION)
                         {
                             os << "---------------------------------------------------------------------" << endl;
                             os << "--        There is a new version available of megacmd: " << setw(12) << left << megaCmdListener->getRequest()->getName() << "--" << endl;
@@ -2591,7 +2600,7 @@ public:
     }
 };
 
-void printCenteredLine(string msj, u_int width, bool encapsulated = true)
+void printCenteredLine(string msj, unsigned int width, bool encapsulated = true)
 {
     if (msj.size()>width)
     {
@@ -2599,10 +2608,10 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
     }
     if (encapsulated)
         COUT << "|";
-    for (u_int i = 0; i < (width-msj.size())/2; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2; i++)
         COUT << " ";
     COUT << msj;
-    for (u_int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
+    for (unsigned int i = 0; i < (width-msj.size())/2 + (width-msj.size())%2 ; i++)
         COUT << " ";
     if (encapsulated)
         COUT << "|";
@@ -2611,7 +2620,7 @@ void printCenteredLine(string msj, u_int width, bool encapsulated = true)
 
 void printWelcomeMsg()
 {
-    u_int width = getNumberOfCols(75);
+    unsigned int width = getNumberOfCols(75);
 
 #ifdef _WIN32
         width--;
@@ -2619,7 +2628,7 @@ void printWelcomeMsg()
 
     COUT << endl;
     COUT << ".";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << ".";
     COUT << endl;
@@ -2630,14 +2639,14 @@ void printWelcomeMsg()
     printCenteredLine("|_|  |_|____|\\____/_/   \\_\\___|_| |_| |_|\\__,_|",width);
 
     COUT << "|";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << " " ;
     COUT << "|";
     COUT << endl;
     printCenteredLine("SERVER",width);
 
     COUT << "`";
-    for (u_int i = 0; i < width; i++)
+    for (unsigned int i = 0; i < width; i++)
         COUT << "=" ;
     COUT << "´";
     COUT << endl;
@@ -2698,7 +2707,7 @@ void initializeMacOSStuff(int argc, char* argv[])
         {
             execv("/Applications/MEGAcmd.app/Contents/MacOS/MEGAcmdLoader",argv);
         }
-        sleep(10); // TODO: remove
+        sleep(10);
         ::exit(0);
     }
 }
@@ -2727,7 +2736,7 @@ int main(int argc, char* argv[])
 {
 #ifdef _WIN32
     // Set Environment's default locale
-    setlocale(LC_ALL, "");
+    setlocale(LC_ALL, "en-US");
 #endif
 
 #ifdef __MACH__

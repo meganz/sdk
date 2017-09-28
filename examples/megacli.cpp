@@ -2765,7 +2765,6 @@ static void process_line(char* l)
                     {
                         return;
                     }
-
                     break;
 
                 case 5:
@@ -4785,6 +4784,12 @@ void DemoApp::checkout_result(error)
 void DemoApp::checkout_result(const char*)
 {
     // FIXME: implement
+}
+
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+{
+    // FIXME: implement display of values
+    delete details;
 }
 
 // display account details/history

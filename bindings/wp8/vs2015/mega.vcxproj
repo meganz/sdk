@@ -85,6 +85,7 @@
     <ClInclude Include="..\MAccountPurchase.h" />
     <ClInclude Include="..\MAccountSession.h" />
     <ClInclude Include="..\MAccountTransaction.h" />
+    <ClInclude Include="..\MAchievementsDetails.h" />
     <ClInclude Include="..\MChildrenLists.h" />
     <ClInclude Include="..\MContactRequest.h" />
     <ClInclude Include="..\MContactRequestList.h" />
@@ -138,6 +139,7 @@
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />
@@ -169,6 +171,7 @@
     <ClCompile Include="..\MAccountPurchase.cpp" />
     <ClCompile Include="..\MAccountSession.cpp" />
     <ClCompile Include="..\MAccountTransaction.cpp" />
+    <ClCompile Include="..\MAchievementsDetails.cpp" />
     <ClCompile Include="..\MChildrenLists.cpp" />
     <ClCompile Include="..\MContactRequest.cpp" />
     <ClCompile Include="..\MContactRequestList.cpp" />

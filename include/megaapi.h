@@ -54,6 +54,7 @@ class MegaTransferListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
+class MegaAchievementsDetails;
 class MegaPricing;
 class MegaNode;
 class MegaUser;
@@ -1099,7 +1100,8 @@ class MegaUser
             CHANGE_TYPE_PUBKEY_ED255    = 0x400,
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
-            CHANGE_TYPE_LANGUAGE        = 0x2000
+            CHANGE_TYPE_LANGUAGE        = 0x2000,
+            CHANGE_TYPE_PWD_REMINDER    = 0x4000
         };
 
         /**
@@ -1154,6 +1156,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
          * Check if the user has modified the preferred language
          *
+         * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
+         * Check if the data related to the password reminder dialog has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1207,6 +1212,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LANGUAGE         = 0x2000
          * Check if the user has modified the preferred language
+         *
+         * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
+         * Check if the data related to the password reminder dialog has changed
          */
         virtual int getChanges();
 
@@ -2005,7 +2013,8 @@ class MegaRequest
             TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_RESTORE,
+            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
+            TYPE_RESTORE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -2344,6 +2353,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getPublicNode - Returns the public node
          *
+         * You take the ownership of the returned value.
+         *
          * @return Public node related to the request
          */
         virtual MegaNode *getPublicMegaNode() const;
@@ -2483,6 +2494,8 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getAccountDetails - Details of the MEGA account
          *
+         * You take the ownership of the returned value.
+         *
          * @return Details related to the MEGA account
          */
         virtual MegaAccountDetails *getMegaAccountDetails() const;
@@ -2494,10 +2507,24 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getPricing - Returns the available pricing plans
          *
+         * You take the ownership of the returned value.
+         *
          * @return Available pricing plans to upgrade a MEGA account
          */
         virtual MegaPricing *getPricing() const;
 
+        /**
+         * @brief Returns details related to the MEGA Achievements of this account
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getMegaAchievements - Details of the MEGA Achievements of this account
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Details related to the MEGA Achievements of this account
+         */
+        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
 
         /**
          * @brief Returns the tag of a transfer related to the request
@@ -2893,7 +2920,8 @@ class MegaTransfer
         /**
          * @brief Returns a public node related to the transfer
          *
-         * The return value is only valid for downloads of public nodes
+         * The return value is only valid for downloads of public nodes.
+         *
          * You take the ownership of the returned value.
          *
          * @return Public node related to the transfer
@@ -3365,7 +3393,7 @@ class MegaSyncListener
 {
 public:
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -3379,10 +3407,10 @@ public:
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object related that manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -4407,7 +4435,7 @@ class MegaListener
 
 #ifdef ENABLE_SYNC
     /**
-     * @brief This function is called when the state of a synced file changes
+     * @brief This function is called when the state of a synced file or folder changes
      *
      * Possible values for the state are:
      * - MegaApi::STATE_SYNCED = 1
@@ -4421,10 +4449,10 @@ class MegaListener
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object manages the file
-     * @param filePath Local path of the file
+     * @param localPath Local path of the file or folder
      * @param newState New state of the file
      */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
      * @brief This function is called when there is a synchronization event
@@ -4575,7 +4603,8 @@ class MegaApi
             USER_ATTR_KEYRING = 7,              // private - byte array
             USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
-            USER_ATTR_LANGUAGE = 14             // private - char array
+            USER_ATTR_LANGUAGE = 14,            // private - char array
+            USER_ATTR_PWD_REMINDER = 15         // private - char array
         };
 
         enum {
@@ -4608,6 +4637,14 @@ class MegaApi
             PUSH_NOTIFICATION_ANDROID = 1,
             PUSH_NOTIFICATION_IOS_VOIP = 2,
             PUSH_NOTIFICATION_IOS_STD = 3
+        };
+
+        enum {
+            PASSWORD_STRENGTH_VERYWEAK = 0,
+            PASSWORD_STRENGTH_WEAK = 1,
+            PASSWORD_STRENGTH_MEDIUM = 2,
+            PASSWORD_STRENGTH_GOOD = 3,
+            PASSWORD_STRENGTH_STRONG = 4
         };
 
         /**
@@ -5659,6 +5696,12 @@ class MegaApi
          */
         char* getMyXMPPJid();
 
+        /**
+         * @brief Returns whether MEGA Achievements are enabled for the open account
+         * @return True if enabled, false otherwise.
+         */
+        bool isAchievementsEnabled();
+
 #ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account
@@ -6214,6 +6257,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6261,6 +6306,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6305,6 +6352,8 @@ class MegaApi
          * Get the signature of Cu25519 public key of the user (public)
          * MegaApi::USER_ATTR_LANGUAGE = 14
          * Get the preferred language of the user (private, non-encrypted)
+         * MegaApi::USER_ATTR_PWD_REMINDER = 15
+         * Get the password-reminder-dialog information (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6797,6 +6846,25 @@ class MegaApi
         char *exportMasterKey();
 
         /**
+         * @brief Notify the user has exported the master key
+         *
+         * This function should be called when the user exports the master key by
+         * clicking on "Copy" or "Save file" options.
+         *
+         * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+         * to remember the user has a backup of his/her master key. In consequence,
+         * MEGA will not ask the user to remind the password for the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         * - MegaRequest::getText - Returns the new value for the attribute
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void masterKeyExported(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -6892,6 +6960,21 @@ class MegaApi
          * @brief Invalidate the existing cache and create a fresh one
          */
         void invalidateCache();
+
+        /**
+         * @brief Estimate the strength of a password
+         *
+         * Possible return values are:
+         * - PASSWORD_STRENGTH_VERYWEAK = 0
+         * - PASSWORD_STRENGTH_WEAK = 1
+         * - PASSWORD_STRENGTH_MEDIUM = 2
+         * - PASSWORD_STRENGTH_GOOD = 3
+         * - PASSWORD_STRENGTH_STRONG = 4
+         *
+         * @param password Password to check
+         * @return Estimated strength of the password
+         */
+        int getPasswordStrength(const char *password);
 
         /**
          * @brief Submit feedback about the app
@@ -10302,6 +10385,45 @@ class MegaApi
         const char* getFileAttribute(MegaHandle h);
 #endif
 
+        /**
+         * @brief Get the MEGA Achievements of the account logged in
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Always false
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAchievementsDetails - Details of the MEGA Achievements of this account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getAccountAchievements(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the list of existing MEGA Achievements
+         *
+         * Similar to MegaApi::getAccountAchievements, this method returns only the base storage and
+         * the details for the different achievement classes, but not awards or rewards related to the
+         * account that is logged in.
+         * This function can be used to give an indication of what is available for advertising
+         * for unregistered users, despite it can be used with a logged in account with no difference.
+         *
+         * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+         * Achievements are not enabled), the request will fail with MegaError::API_EACCESS.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ACHIEVEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Always true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAchievementsDetails - Details of the list of existing MEGA Achievements
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMegaAchievements(MegaRequestListener *listener = NULL);
+
 private:
         MegaApiImpl *pImpl;
 };
@@ -10965,6 +11087,262 @@ public:
      * @return Copy of the MegaPricing object
      */
     virtual MegaPricing *copy();
+};
+
+/**
+ * @brief The MegaAchievementsDetails class
+ *
+ * There are several MEGA Achievements that a user can unlock, resulting in a
+ * temporary extension of the storage and/or transfer quota during a period of
+ * time.
+ *
+ * Currently there are 4 different classes of MEGA Achievements:
+ *
+ *  - Welcome: Create your free account and get 35 GB of complimentary storage space,
+ *      valid for 30 days.
+ *
+ *  - Invite: Invite as many friends or coworkers as you want. For every signup under the
+ *      invited email address, you will receive 10 GB of complimentary storage plus 20 GB
+ *      of transfer quota, both valid for 365 days, provided that the new user installs
+ *      either MEGAsync or a mobile app and starts using MEGA.
+ *
+ *  - Desktop install: When you install MEGAsync you get 20 GB of complimentary storage
+ *      space plus 40 GB of transfer quota, both valid for 180 days.
+ *
+ *  - Mobile install: When you install our mobile app you get 15 GB of complimentary
+ *      storage space plus 30 GB transfer quota, both valid for 180 days.
+ *
+ * When the user unlocks one of the achievements above, it unlocks an "Award". The award
+ * includes a timestamps to indicate when it was unlocked, plus an expiration timestamp.
+ * Afterwards, the award will not be active. Additionally, each award results in a "Reward".
+ * The reward is linked to the corresponding award and includes the storage and transfer
+ * quota obtained thanks to the unlocked award.
+ *
+ * @note It may take 2-3 days for achievements to show on the account after they have been completed.
+ */
+class MegaAchievementsDetails
+{
+public:
+
+    enum {
+        MEGA_ACHIEVEMENT_WELCOME            = 1,
+        MEGA_ACHIEVEMENT_INVITE             = 3,
+        MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
+        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5
+    };
+
+    virtual ~MegaAchievementsDetails();
+
+    /**
+     * @brief Get the base storage value for this account
+     * @return The base storage value, in bytes
+     */
+    virtual long long getBaseStorage();
+
+    /**
+     * @brief Get the storage granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Storage granted by this MEGA achievement class, in bytes
+     */
+    virtual long long getClassStorage(int class_id);
+
+    /**
+     * @brief Get the transfer quota granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Transfer quota granted by this MEGA achievement class, in bytes
+     */
+    virtual long long getClassTransfer(int class_id);
+
+    /**
+     * @brief Get the duration of storage/transfer quota granted by a MEGA achievement class
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *
+     * The storage and transfer quota resulting from a MEGA achievement may expire after
+     * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
+     * the granted storage and transfer quota is revoked.
+     *
+     * @param class_id Id of the MEGA achievement
+     * @return Number of days for the storage/transfer quota granted by this MEGA achievement class
+     */
+    virtual int getClassExpire(int class_id);
+
+    /**
+     * @brief Get the number of unlocked awards for this account
+     * @return Number of unlocked awards
+     */
+    virtual unsigned int getAwardsCount();
+
+    /**
+     * @brief Get the MEGA achievement class of the award
+     * @param index Position of the award in the list of unlocked awards
+     * @return The achievement class associated to the award in position \c index
+     */
+    virtual int getAwardClass(unsigned int index);
+
+    /**
+     * @brief Get the id of the award
+     * @param index Position of the award in the list of unlocked awards
+     * @return The id of the award in position \c index
+     */
+    virtual int getAwardId(unsigned int index);
+
+    /**
+     * @brief Get the timestamp of the award (when it was unlocked)
+     * @param index Position of the award in the list of unlocked awards
+     * @return The timestamp of the award (when it was unlocked) in position \c index
+     */
+    virtual int64_t getAwardTimestamp(unsigned int index);
+
+    /**
+     * @brief Get the expiration timestamp of the award
+     *
+     * After this moment, the storage and transfer quota granted as result of the award
+     * will not be valid anymore.
+     *
+     * @note The expiration time may not be the \c getAwardTimestamp plus the number of days
+     * returned by \c getClassExpire, since the award can be unlocked but not yet granted. It
+     * typically takes 2 days from unlocking the award until the user is actually rewarded.
+     *
+     * @param index Position of the award in the list of unlocked awards
+     * @return The expiration timestamp of the award in position \c index
+     */
+    virtual int64_t getAwardExpirationTs(unsigned int index);
+
+    /**
+     * @brief Get the list of referred emails for the award
+     *
+     * This function is specific for the achievements of class MEGA_ACHIEVEMENT_INVITE.
+     *
+     * You take ownership of the returned value.
+     *
+     * @param index Position of the award in the list of unlocked awards
+     * @return The list of invited emails for the award in position \c index
+     */
+    virtual MegaStringList* getAwardEmails(unsigned int index);
+
+    /**
+     * @brief Get the number of active rewards for this account
+     * @return Number of active rewards
+     */
+    virtual int getRewardsCount();
+    
+    /**
+     * @brief Get the id of the award associated with the reward
+     * @param index Position of the reward in the list of active rewards
+     * @return The id of the award associated with the reward
+     */
+    virtual int getRewardAwardId(unsigned int index);
+    
+    /**
+     * @brief Get the storage rewarded by the award
+     * @param index Position of the reward in the list of active rewards
+     * @return The storage rewarded by the award
+     */
+    virtual long long getRewardStorage(unsigned int index);
+    
+    /**
+     * @brief Get the transfer quota rewarded by the award
+     * @param index Position of the reward in the list of active rewards
+     * @return The transfer quota rewarded by the award
+     */
+    virtual long long getRewardTransfer(unsigned int index);
+    
+    /**
+     * @brief Get the storage rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The storage rewarded by the award_id
+     */
+    virtual long long getRewardStorageByAwardId(int award_id);
+    
+    /**
+     * @brief Get the transfer rewarded by the award_id
+     * @param award_id The id of the award
+     * @return The transfer rewarded by the award_id
+     */
+    virtual long long getRewardTransferByAwardId(int award_id);
+    
+    /**
+     * @brief Get the duration of the reward
+     * @param index Position of the reward in the list of active rewards
+     * @return The duration of the reward, in days
+     */
+    virtual int getRewardExpire(unsigned int index);
+    
+    /**
+     * @brief Creates a copy of this MegaAchievementsDetails object.
+     *
+     * The resulting object is fully independent of the source MegaAchievementsDetails,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaAchievementsDetails object
+     */
+    virtual MegaAchievementsDetails *copy();
+
+    /**
+     * @brief Returns the actual storage achieved by this account
+     *
+     * This function considers all the storage granted to the logged in
+     * account as result of the unlocked achievements. It does not consider
+     * the expired achievements nor the permanent base storage.
+     *
+     * @return The achieved storage for this account
+     */
+    virtual long long currentStorage();
+
+    /**
+     * @brief Returns the actual transfer quota achieved by this account
+     *
+     * This function considers all the transfer quota granted to the logged
+     * in account as result of the unlocked achievements. It does not consider
+     * the expired achievements.
+     *
+     * @return The achieved transfer quota for this account
+     */
+    virtual long long currentTransfer();
+
+    /**
+     * @brief Returns the actual achieved storage due to referrals
+     *
+     * This function considers all the storage granted to the logged in account
+     * as result of the successful invitations (referrals). It does not consider
+     * the expired achievements.
+     *
+     * @return The achieved storage by this account as result of referrals
+     */
+    virtual long long currentStorageReferrals();
+
+    /**
+     * @brief Returns the actual achieved transfer quota due to referrals
+     *
+     * This function considers all the transfer quota granted to the logged
+     * in account as result of the successful invitations (referrals). It
+     * does not consider the expired achievements.
+     *
+     * @return The transfer achieved quota by this account as result of referrals
+     */
+    virtual long long currentTransferReferrals();
 };
 
 }

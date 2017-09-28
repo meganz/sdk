@@ -33,6 +33,13 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <stdio.h>
+#ifndef _O_U16TEXT
+#define _O_U16TEXT 0x00020000
+#endif
+#ifndef _O_U8TEXT
+#define _O_U8TEXT 0x00040000
+#endif
 
 #else
 #include <fcntl.h>
@@ -52,6 +59,10 @@
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
+#endif
+
+#ifndef ENOTCONN
+#define ENOTCONN 107
 #endif
 
 #ifndef SSTR
@@ -248,7 +259,7 @@ string createAndRetrieveConfigFolder()
     configFolder = sconfigDir.str();
 
 
-    struct stat st = {0};
+    struct stat st;
     if (stat(configFolder.c_str(), &st) == -1) {
         mkdir(configFolder.c_str(), 0700);
     }
@@ -298,7 +309,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
             if (!number && initializeserver)
             {
                 //launch server
-                cerr << "[Server not running. ERRNO: "  << ERRNO << ". Initiating in the background]"<< endl;
+                cerr << "[Server not running. Initiating in the background]"<< endl;
 #ifdef _WIN32
                 STARTUPINFO si;
                 PROCESS_INFORMATION pi;
@@ -313,9 +324,9 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 
                 wchar_t foldercontainingexec[MAX_PATH+1];
                 bool okgetcontaningfolder = false;
-                if (!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_LOCAL_APPDATA,false))
+                if (S_OK != SHGetFolderPathW(NULL,CSIDL_LOCAL_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                 {
-                    if(!SHGetSpecialFolderPathW(NULL,(LPWSTR)foldercontainingexec,CSIDL_COMMON_APPDATA,false))
+                    if(S_OK != SHGetFolderPathW(NULL,CSIDL_COMMON_APPDATA,NULL,0,(LPWSTR)foldercontainingexec))
                     {
                         cerr << " Could not get LOCAL nor COMMON App Folder : " << ERRNO << endl;
                     }
@@ -472,7 +483,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
                 waitimet=waitimet*(relaunchnumber++);
 #endif
 
-                usleep(waitimet*100); //TODO: check again deleting this
+                usleep(waitimet*100);
                 while ( ::connect(thesock, (struct sockaddr*)&addr, sizeof( addr )) == SOCKET_ERROR && attempts--)
                 {
                     usleep(waitimet);
@@ -516,7 +527,7 @@ int MegaCmdShellCommunications::createSocket(int number, bool initializeserver, 
 MegaCmdShellCommunications::MegaCmdShellCommunications()
 {
 #ifdef _WIN32
-    setlocale(LC_ALL, ""); // en_US.utf8 could do?
+    setlocale(LC_ALL, "en-US");
 #endif
 
 
@@ -704,12 +715,14 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
     while (outcode == MCMD_REQCONFIRM)
     {
         int BUFFERSIZE = 1024;
-        char confirmQuestion[1025];
+        string confirmQuestion;
+        char buffer[1025];
         do{
-            n = recv(newsockfd, confirmQuestion, BUFFERSIZE, MSG_NOSIGNAL);
+            n = recv(newsockfd, buffer, BUFFERSIZE, MSG_NOSIGNAL);
             if (n)
             {
-                confirmQuestion[n]='\0'; //TODO: review this and test long confirmQuestions
+                buffer[n]='\0';
+                confirmQuestion.append(buffer);
             }
         } while(n == BUFFERSIZE && n !=SOCKET_ERROR);
 
@@ -717,7 +730,7 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 
         if (readconfirmationloop != NULL)
         {
-            response = readconfirmationloop(confirmQuestion);
+            response = readconfirmationloop(confirmQuestion.c_str());
         }
 
         n = send(newsockfd, (const char *) &response, sizeof(response), MSG_NOSIGNAL);
@@ -746,9 +759,9 @@ int MegaCmdShellCommunications::executeCommand(string command, bool (*readconfir
 
             wstring wbuffer;
             stringtolocalw((const char*)&buffer,&wbuffer);
-            int oldmode = _setmode(fileno(stdout), _O_U16TEXT);
+            int oldmode = _setmode(_fileno(stdout), _O_U16TEXT);
             output << wbuffer;
-            _setmode(fileno(stdout), oldmode);
+            _setmode(_fileno(stdout), oldmode);
 #else
             buffer[n]='\0';
             output << buffer;
@@ -930,5 +943,5 @@ MegaCmdShellCommunications::~MegaCmdShellCommunications()
 #endif
         listenerThread->join();
     }
-    delete listenerThread;
+    delete (MegaThread *)listenerThread;
 }

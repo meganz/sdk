@@ -90,24 +90,6 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
             return false;
         }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGWidth", &tag))
-        {
-            w = atoi((char*)FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            w = FreeImage_GetWidth(dib);
-        }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGHeight", &tag))
-        {
-            h = atoi((char*)FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            h = FreeImage_GetHeight(dib);
-        }
     }
     else
 #endif
@@ -125,10 +107,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
             return false;
         }
-
-        w = FreeImage_GetWidth(dib);
-        h = FreeImage_GetHeight(dib);
     }
+
+    w = FreeImage_GetWidth(dib);
+    h = FreeImage_GetHeight(dib);
 
     if (!w || !h)
     {

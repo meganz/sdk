@@ -240,7 +240,12 @@ int MRequest::getTag()
     return megaRequest ? megaRequest->getTag() : 0;
 }
 
-MPricing^  MRequest::getPricing()
+MPricing^ MRequest::getPricing()
 {
     return megaRequest ? ref new MPricing(megaRequest->getPricing(), true) : nullptr;
+}
+
+MAchievementsDetails^ MRequest::getMAchievementsDetails()
+{
+    return megaRequest ? ref new MAchievementsDetails(megaRequest->getMegaAchievementsDetails(), true) : nullptr;
 }

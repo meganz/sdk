@@ -38,7 +38,8 @@ SOURCES += src/attrmap.cpp \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp
+    src/mega_utf8proc.cpp \
+    src/mega_zxcvbn.cpp
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
@@ -93,7 +94,7 @@ win32 {
     }
 
     # link winhttp anyway (required for automatic proxy detection)
-    LIBS += -lwinhttp
+    LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
 
@@ -149,7 +150,8 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
-            include/mega/thread/posixthread.h
+            include/mega/thread/posixthread.h \
+            include/mega/mega_zxcvbn.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -311,6 +313,7 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
 
    CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
@@ -318,7 +321,7 @@ macx {
     LIBS += -lpcre
    }
 
-   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL CRYPTOPP_DISABLE_ASM
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
             -lz -lssl -lcrypto -lcryptopp

@@ -529,6 +529,12 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
 
+    // get mega achievements
+    void getaccountachievements(AchievementsDetails *details);
+
+    // get mega achievements list (for advertising for unregistered users)
+    void getmegaachievements(AchievementsDetails *details);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -978,6 +984,11 @@ public:
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
 
+    // timer for extra notifications
+    // (workaround for buggy network filesystems)
+    bool syncextraretry;
+    BackoffTimer syncextrabt;
+
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
     BackoffTimer syncscanbt;
@@ -1233,6 +1244,11 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // achievements enabled for the account
+    bool achievements_enabled;
+
+    bool tsLogin;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

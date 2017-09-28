@@ -28,6 +28,9 @@
 #include <ctime>
 #include <chrono>
 
+#ifdef _WIN32
+#include "windows.h"
+#endif
 
 namespace mega {
 

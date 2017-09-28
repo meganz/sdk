@@ -8,7 +8,7 @@
 #define MEGACMD_MINOR_VERSION 9
 #endif
 #ifndef MEGACMD_MICRO_VERSION
-#define MEGACMD_MICRO_VERSION 4
+#define MEGACMD_MICRO_VERSION 5
 #endif
 
 #ifndef MEGACMD_CODE_VERSION
@@ -25,7 +25,9 @@ const char * const megacmdchangelog =
         "Added unicode support for Windows""\n"
         "Refurbished communications and secured non-interactive mode in Windows""\n"
         "Implemented copy (cp) to user's inbox""\n"
-        "Several fixes and commands improvements"
+        "Several fixes and commands improvements""\n"
+        "Fix executin as admin in windows""\n"
+        "Fix encoding issues that left stuck in welcome message"
         ;
 
 
