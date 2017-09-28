@@ -939,6 +939,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual long long getStorageMax();
         virtual long long getStorageUsed();
+        virtual long long getVersionStorageUsed();
         virtual long long getTransferMax();
         virtual long long getTransferOwnUsed();
 

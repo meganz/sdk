@@ -16329,6 +16329,19 @@ long long MegaAccountDetailsPrivate::getStorageUsed()
     return details.storage_used;
 }
 
+long long MegaAccountDetailsPrivate::getVersionStorageUsed()
+{
+    long long total = 0;
+
+    handlestorage_map::iterator it;
+    for (it = details.storage.begin(); it != details.storage.end(); it++)
+    {
+        total += it->second.version_bytes;
+    }
+
+    return total;
+}
+
 long long MegaAccountDetailsPrivate::getTransferMax()
 {
     return details.transfer_max;

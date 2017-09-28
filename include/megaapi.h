@@ -10767,6 +10767,12 @@ public:
     virtual long long getStorageUsed();
 
     /**
+     * @brief Get the used storage by versions
+     * @return Used storage by versions (in bytes)
+     */
+    virtual long long getVersionStorageUsed();
+
+    /**
      * @brief Get the maximum available bandwidth for the account
      * @return Maximum available bandwidth (in bytes)
      */

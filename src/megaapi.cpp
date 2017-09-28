@@ -3935,6 +3935,11 @@ long long MegaAccountDetails::getStorageUsed()
     return 0;
 }
 
+long long MegaAccountDetails::getVersionStorageUsed()
+{
+    return 0;
+}
+
 long long MegaAccountDetails::getTransferMax()
 {
     return 0;
