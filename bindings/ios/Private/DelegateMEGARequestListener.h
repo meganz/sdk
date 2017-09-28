@@ -21,14 +21,14 @@
 #import "MEGARequestDelegate.h"
 #import "megaapi.h"
 #import "MEGASdk.h"
+#import "DelegateMEGABaseListener.h"
 
-class DelegateMEGARequestListener : public mega::MegaRequestListener {
+class DelegateMEGARequestListener : public DelegateMEGABaseListener, public mega::MegaRequestListener {
 
 public:
     
     DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener = true);
     id<MEGARequestDelegate>getUserListener();
-    void setValidListener(bool validListener);
     
     void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
     void onRequestFinish(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
@@ -36,9 +36,5 @@ public:
     void onRequestTemporaryError(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
     
 private:
-    MEGASdk *megaSDK;
     id<MEGARequestDelegate>listener;
-    bool singleListener;
-    bool validListener;
-    
 };

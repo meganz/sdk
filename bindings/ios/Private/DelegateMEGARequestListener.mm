@@ -25,19 +25,12 @@
 
 using namespace mega;
 
-DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener) {
-    this->megaSDK = megaSDK;
+DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener) : DelegateMEGABaseListener::DelegateMEGABaseListener(megaSDK, singleListener) {
     this->listener = listener;
-    this->singleListener = singleListener;
-    this->validListener = true;
 }
 
 id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
     return listener;
-}
-
-void DelegateMEGARequestListener::setValidListener(bool validListener) {
-    this->validListener = validListener;
 }
 
 void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *request) {
