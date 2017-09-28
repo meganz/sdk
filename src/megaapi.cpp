@@ -3935,6 +3935,16 @@ long long MegaAccountDetails::getNumFolders(MegaHandle)
     return 0;
 }
 
+long long MegaAccountDetails::getNumVersionFiles(MegaHandle)
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getVersionStorageUsed(MegaHandle)
+{
+    return 0;
+}
+
 MegaAccountDetails *MegaAccountDetails::copy()
 {
     return NULL;

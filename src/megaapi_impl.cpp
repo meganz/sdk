@@ -16152,6 +16152,16 @@ long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
     return details.storage[handle].folders;
 }
 
+long long MegaAccountDetailsPrivate::getVersionStorageUsed(MegaHandle handle)
+{
+    return details.storage[handle].version_bytes;
+}
+
+long long MegaAccountDetailsPrivate::getNumVersionFiles(MegaHandle handle)
+{
+    return details.storage[handle].version_files;
+}
+
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()
 {
     return new MegaAccountDetailsPrivate(&details);

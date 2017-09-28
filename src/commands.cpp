@@ -3026,6 +3026,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
         arg("pro", "1", 0);
     }
 
+    arg("v", 1);
+
     tag = client->reqtag;
 }
 
@@ -3139,6 +3141,8 @@ void CommandGetUserQuota::procresult()
                         ns->bytes = client->json.getint();
                         ns->files = client->json.getint();
                         ns->folders = client->json.getint();
+                        ns->version_bytes = client->json.getint();
+                        ns->version_files = client->json.getint();
 
                         client->json.leavearray();
                     }

@@ -10708,6 +10708,28 @@ public:
     virtual long long getNumFolders(MegaHandle handle);
 
     /**
+     * @brief Get the used storage by versions in for a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Used storage by versions (in bytes)
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
+    virtual long long getVersionStorageUsed(MegaHandle handle);
+
+    /**
+     * @brief Get the number of versioned files in a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Number of versioned files in the node
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
+    virtual long long getNumVersionFiles(MegaHandle handle);
+
+    /**
      * @brief Creates a copy of this MegaAccountDetails object.
      *
      * The resulting object is fully independent of the source MegaAccountDetails,

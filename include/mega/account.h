@@ -66,6 +66,8 @@ struct MEGA_API NodeStorage
     m_off_t bytes;
     uint32_t files;
     uint32_t folders;
+    m_off_t version_bytes;
+    m_off_t version_files;
 };
 
 typedef map<handle, NodeStorage> handlestorage_map;

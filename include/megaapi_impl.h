@@ -943,6 +943,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual long long getStorageUsed(MegaHandle handle);
         virtual long long getNumFiles(MegaHandle handle);
         virtual long long getNumFolders(MegaHandle handle);
+        virtual long long getVersionStorageUsed(MegaHandle handle);
+        virtual long long getNumVersionFiles(MegaHandle handle);
 
         virtual MegaAccountDetails* copy();
 
