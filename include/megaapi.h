@@ -2618,7 +2618,8 @@ public:
 
     enum {
         EVENT_COMMIT_DB = 0,
-        EVENT_ACCOUNT_CONFIRMATION = 1
+        EVENT_ACCOUNT_CONFIRMATION = 1,
+        EVENT_DISCONNECT = 3
     };
 
     virtual ~MegaEvent();
@@ -4207,6 +4208,9 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset the
+         * existing open-connections, since they have becom unusable.
+         *
          * You can check the type of event by calling MegaEvent::getType
          *
          * The SDK retains the ownership of the details of the event (\c event).
@@ -4519,6 +4523,9 @@ class MegaListener
          *
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
+         *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset the
+         * existing open-connections, since they have becom unusable.
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -5036,6 +5043,8 @@ class MegaApi
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
          * it could be retrying forever.
+         * Using true in this parameter will result in an additional call to MegaGlobalListener::onEvent and/or a call to
+         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
          *
          * @param includexfers true to retry also transfers
          * It's not recommended to set this flag. Transfer has a retry counter and are aborted after a number of retries
