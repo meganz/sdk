@@ -441,14 +441,6 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
-                            if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
-                            {
-                                LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
-                                client->usehttps = true;
-                                client->app->notify_change_to_https();
-                                return transfer->failed(API_EAGAIN);
-                            }
-
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
@@ -462,6 +454,21 @@ void TransferSlot::doio(MegaClient* client)
                                 errorcount++;
                                 reqs[i]->status = REQ_PREPARED;
                                 break;
+                            }
+
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            {
+                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
+                                return transfer->failed(API_EAGAIN);
                             }
 
                             // fail with returned error
@@ -579,11 +586,18 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
-                            if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
-                                LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
+                                LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
                                 return transfer->failed(API_EAGAIN);
                             }
 
@@ -725,13 +739,21 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_FAILURE:
                     LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
-                    if (reqs[i]->contenttype.find("text") != string::npos && !client->usehttps)
+                    if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
+                            && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
-                        LOG_warn << "Invalid Content-Type detected: " << reqs[i]->contenttype;
+                        LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
                         client->usehttps = true;
                         client->app->notify_change_to_https();
+
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99436, "Automatic change to HTTPS");
+                        client->reqtag = creqtag;
+
                         return transfer->failed(API_EAGAIN);
                     }
+
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)

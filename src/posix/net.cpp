@@ -2241,9 +2241,9 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     {
         req->timeleft = atol((char*)ptr + 17);
     }
-    else if (len > 16 && !memcmp(ptr, "Content-Type: ", 14))
+    else if (len > 15 && !memcmp(ptr, "Content-Type:", 13))
     {
-        req->contenttype.assign((char *)ptr + 14, len - 16);
+        req->contenttype.assign((char *)ptr + 13, len - 15);
     }
     else
     {
