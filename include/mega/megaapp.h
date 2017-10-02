@@ -283,6 +283,9 @@ struct MEGA_API MegaApp
     // account confirmation via signup link
     virtual void notify_confirmation(const char* email) { }
 
+    // network layer disconnected
+    virtual void notify_disconnect() { }
+
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }
 

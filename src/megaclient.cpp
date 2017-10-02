@@ -3018,6 +3018,8 @@ void MegaClient::disconnect()
 
     httpio->lastdata = NEVER;
     httpio->disconnect();
+
+    app->notify_disconnect();
 }
 
 void MegaClient::abortlockrequest()

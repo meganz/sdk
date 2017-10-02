@@ -10461,6 +10461,12 @@ void MegaApiImpl::notify_confirmation(const char *email)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_disconnect()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 {
     if (requestMap.find(client->restag) == requestMap.end())
