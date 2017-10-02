@@ -554,9 +554,9 @@ readline_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Readline"
-    local readline_ver="6.3"
-    local readline_url="ftp://ftp.cwru.edu/pub/bash/readline-$readline_ver.tar.gz"
-    local readline_md5="33c8fb279e981274f485fd91da77e94a"
+    local readline_ver="7.0"
+    local readline_url="https://ftp.gnu.org/gnu/readline/readline-$readline_ver.tar.gz"
+    local readline_md5="205b03a87fc83dab653b628c59b9fc91"
     local readline_file="readline-$readline_ver.tar.gz"
     local readline_dir="readline-$readline_ver"
     if [ $use_dynamic -eq 1 ]; then

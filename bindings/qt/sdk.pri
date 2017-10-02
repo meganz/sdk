@@ -94,7 +94,7 @@ win32 {
     }
 
     # link winhttp anyway (required for automatic proxy detection)
-    LIBS += -lwinhttp
+    LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
 

@@ -21,10 +21,10 @@ VIAddVersionKey "LegalCopyright" "MEGA Limited 2017"
 VIAddVersionKey "ProductName" "MEGAcmd"
 
 ; Version info
-VIProductVersion "0.9.4.0"
-VIAddVersionKey "FileVersion" "0.9.4.0"
-VIAddVersionKey "ProductVersion" "0.9.4.0"
-!define PRODUCT_VERSION "0.9.4"
+VIProductVersion "0.9.5.0"
+VIAddVersionKey "FileVersion" "0.9.5.0"
+VIAddVersionKey "ProductVersion" "0.9.5.0"
+!define PRODUCT_VERSION "0.9.5"
 
 !define PRODUCT_PUBLISHER "Mega Limited"
 !define PRODUCT_WEB_SITE "http://www.mega.nz"
@@ -93,7 +93,6 @@ var ALL_USERS_INSTDIR
 ; Installer pages
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "installer\terms.txt"
-!insertmacro MULTIUSER_PAGE_INSTALLMODE
 !insertmacro MUI_PAGE_STARTMENU Application $ICONS_GROUP
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
