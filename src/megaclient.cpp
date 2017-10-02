@@ -1200,7 +1200,23 @@ void MegaClient::exec()
                 switch (fc->req.status)
                 {
                     case REQ_SUCCESS:
-                        fc->parse(this, cit->first, true);
+                        if (fc->req.contenttype.find("text/html") != string::npos
+                            && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
+                            fc->urltime = 0;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99436, "Automatic change to HTTPS");
+                            reqtag = creqtag;
+                        }
+                        else
+                        {
+                            fc->parse(this, cit->first, true);
+                        }
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed(this);
@@ -1233,6 +1249,20 @@ void MegaClient::exec()
                         // timeout! fall through...
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
+
+                        if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
+                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99436, "Automatic change to HTTPS");
+                            reqtag = creqtag;
+                        }
+
                         fc->failed(this);
                         fc->timeout.reset();
                         fc->bt.backoff();
@@ -1247,7 +1277,7 @@ void MegaClient::exec()
                 {
                     fc->req.in.clear();
 
-                    if (Waiter::ds - fc->urltime > 600)
+                    if (!fc->urltime || (Waiter::ds - fc->urltime) > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
                         LOG_debug << "Getting fresh download URL";

@@ -456,6 +456,21 @@ void TransferSlot::doio(MegaClient* client)
                                 break;
                             }
 
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            {
+                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
+                                return transfer->failed(API_EAGAIN);
+                            }
+
                             // fail with returned error
                             return transfer->failed(e);
                         }
@@ -571,6 +586,21 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            {
+                                LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
+                                return transfer->failed(API_EAGAIN);
+                            }
+
                             int creqtag = client->reqtag;
                             client->reqtag = 0;
                             client->sendevent(99430, "Invalid chunk size");
@@ -709,6 +739,21 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_FAILURE:
                     LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
+                    if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
+                            && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
+                        client->usehttps = true;
+                        client->app->notify_change_to_https();
+
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99436, "Automatic change to HTTPS");
+                        client->reqtag = creqtag;
+
+                        return transfer->failed(API_EAGAIN);
+                    }
+
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)
