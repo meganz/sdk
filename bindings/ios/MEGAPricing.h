@@ -56,7 +56,7 @@
 
 /**
  * @brief Get the PRO level associated with the product.
- * @param productIndex Product index (from 0 to [MEGAPricing products]).
+ * @param index Product index (from 0 to [MEGAPricing products]).
  * @return PRO level associated with the product:
  * Valid values are:
  * - MEGAAccountTypeFree = 0

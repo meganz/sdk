@@ -19929,7 +19929,7 @@ int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
 
 long long MegaAchievementsDetailsPrivate::currentStorage()
 {
-    long long total = details.permanent_size;
+    long long total = 0;
     m_time_t ts = time(NULL);
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)

@@ -11255,9 +11255,9 @@ public:
     /**
      * @brief Returns the actual storage achieved by this account
      *
-     * This function considers the base storage (permanent) plus all the
-     * storage granted to the logged in account as result of the unlocked
-     * achievements. It does not consider the expired achievements.
+     * This function considers all the storage granted to the logged in
+     * account as result of the unlocked achievements. It does not consider
+     * the expired achievements nor the permanent base storage.
      *
      * @return The achieved storage for this account
      */

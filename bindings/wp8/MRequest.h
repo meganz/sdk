@@ -24,6 +24,7 @@
 #include "MNode.h"
 #include "MAccountDetails.h"
 #include "MPricing.h"
+#include "MAchievementsDetails.h"
 
 #include "megaapi.h"
 
@@ -63,7 +64,8 @@ namespace mega
         TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
         TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
         TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-        TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TOTAL_OF_REQUEST_TYPES
+        TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS, 
+        TOTAL_OF_REQUEST_TYPES
     };
 
     public ref class MRequest sealed
@@ -102,6 +104,7 @@ namespace mega
         int getNumDetails();
         int getTag();
         MPricing^ getPricing();
+        MAchievementsDetails^ getMAchievementsDetails();
 
     private:
         MRequest(MegaRequest *megaRequest, bool cMemoryOwn);
