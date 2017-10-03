@@ -2619,7 +2619,8 @@ public:
     enum {
         EVENT_COMMIT_DB = 0,
         EVENT_ACCOUNT_CONFIRMATION = 1,
-        EVENT_CHANGE_TO_HTTPS = 2
+        EVENT_CHANGE_TO_HTTPS = 2,
+        EVENT_DISCONNECT = 3
     };
 
     virtual ~MegaEvent();
@@ -4218,6 +4219,11 @@ class MegaGlobalListener
          * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
          * and automatically switch to HTTPS every time that the application starts.
          *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+         * existing open-connections, since they have become unusable. It's recommended that the app
+         * receiving this event reset its connections with other servers, since the disconnect
+         * performed by the SDK is due to a network change or IP addresses becoming invalid.
+         *
          * You can check the type of event by calling MegaEvent::getType
          *
          * The SDK retains the ownership of the details of the event (\c event).
@@ -4540,6 +4546,11 @@ class MegaListener
          * that applications that receive one of these events save that information on its settings and
          * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
          * and automatically switch to HTTPS every time that the application starts.
+         *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+         * existing open-connections, since they have become unusable. It's recommended that the app
+         * receiving this event reset its connections with other servers, since the disconnect
+         * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -5057,6 +5068,8 @@ class MegaApi
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
          * it could be retrying forever.
+         * Using true in this parameter will trigger the callback MegaGlobalListener::onEvent and the callback
+         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
          *
          * @param includexfers true to retry also transfers
          * It's not recommended to set this flag. Transfer has a retry counter and are aborted after a number of retries

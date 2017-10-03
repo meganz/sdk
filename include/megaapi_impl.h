@@ -2146,6 +2146,9 @@ protected:
         // notify about account confirmation
         virtual void notify_confirmation(const char*);
 
+        // network layer disconnected
+        virtual void notify_disconnect();
+
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
 
