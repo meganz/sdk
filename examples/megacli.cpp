@@ -578,7 +578,6 @@ void DemoApp::chaturl_result(string *url, error e)
     {
         cout << "Chat URL: " << *url << endl;
     }
-
 }
 
 void DemoApp::chatgrantaccess_result(error e)
@@ -628,6 +627,7 @@ void DemoApp::chattruncate_result(error e)
         cout << "Message/s truncated successfully" << endl;
     }
 }
+
 void DemoApp::chatsettitle_result(error e)
 {
     if (e)
@@ -638,6 +638,19 @@ void DemoApp::chatsettitle_result(error e)
     {
         cout << "Title updated successfully" << endl;
     }
+}
+
+void DemoApp::chatpresenceurl_result(string *url, error e)
+{
+    if (e)
+    {
+        cout << "Presence URL retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Presence URL: " << *url << endl;
+    }
+
 }
 
 void DemoApp::chats_updated(textchat_map *chats, int count)
@@ -672,7 +685,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     Base64::btoa((const byte *)&chat->id, sizeof(handle), hstr);
 
     cout << "Chat ID: " << hstr << endl;
-    cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
     if (chat->group)
@@ -692,7 +705,7 @@ void DemoApp::printChatInformation(TextChat *chat)
         {
             Base64::btoa((const byte *)&chat->userpriv->at(i).first, sizeof(handle), hstr);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
         }
     }
     else
@@ -2030,10 +2043,13 @@ static void process_line(char* l)
                 cout << "      debug" << endl;
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
+                cout << "      chats" << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
+                cout << "      chatup chatid userhandle ro|sta|mod" << endl;
+                cout << "      chatpu" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
@@ -3477,7 +3493,8 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|sta|mod]*" << endl;
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "       chatc group [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -3521,14 +3538,15 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|sta|mod" << endl;
+                            cout << "Invalid syntax to invite new peer" << endl;
+                            cout << "       chati chatid email ro|sta|mod" << endl;
                             return;
 
                         }
                     }
                     else if (words[0] == "chatr")
                     {
-                        if (words.size() > 1)
+                        if (words.size() > 1 && words.size() < 4)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
@@ -3536,6 +3554,7 @@ static void process_line(char* l)
                             if (words.size() == 2)
                             {
                                 client->removeFromChat(chatid, client->me);
+                                return;
                             }
                             else if (words.size() == 3)
                             {
@@ -3550,15 +3569,11 @@ static void process_line(char* l)
                                 client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
-                            else
-                            {
-                                cout << "      chatr chatid [email]" << endl;
-                                return;
-                            }
                         }
                         else
                         {
-                            cout << "      chatr chatid [email]" << endl;
+                            cout << "Invalid syntax to leave chat / remove peer" << endl;
+                            cout << "       chatr chatid [email]" << endl;
                             return;
                         }
 
@@ -3575,7 +3590,26 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to get chatd URL" << endl;
                             cout << "      chatu chatid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chats")
+                    {
+                        if (words.size() == 1)
+                        {
+                            textchat_map::iterator it;
+                            for (it = client->chats.begin(); it != client->chats.end(); it++)
+                            {
+                                DemoApp::printChatInformation(it->second);
+                            }
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to list chatrooms" << endl;
+                            cout << "      chats" << endl;
                             return;
                         }
                     }
@@ -3901,6 +3935,7 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to grant access to a user/node" << endl;
                             cout << "       chatga chatid nodehandle uid" << endl;
                             return;
                         }
@@ -3923,6 +3958,7 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to revoke access to a user/node" << endl;
                             cout << "       chatra chatid nodehandle uid" << endl;
                             return;
                         }
@@ -3946,8 +3982,64 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to set chat title" << endl;
                             cout << "       chatst chatid title64" << endl;
                             return;
+                        }
+                    }
+                    else if (words[0] == "chatpu")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->getChatPresenceUrl();
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to get presence URL" << endl;
+                            cout << "       chatpu" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatup")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle uh;
+                            Base64::atob(words[2].c_str(), (byte*) &uh, sizeof uh);
+
+                            string privstr = words[3];
+                            privilege_t priv;
+                            if (privstr ==  "ro")
+                            {
+                                priv = PRIV_RO;
+                            }
+                            else if (privstr == "sta")
+                            {
+                                priv = PRIV_STANDARD;
+                            }
+                            else if (privstr == "mod")
+                            {
+                                priv = PRIV_MODERATOR;
+                            }
+                            else
+                            {
+                                cout << "Unknown privilege for " << words[2] << endl;
+                                return;
+                            }
+
+                            client->updateChatPermissions(chatid, uh, priv);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to update privileges" << endl;
+                            cout << "       chatpu chatid userhandle ro|sta|mod" << endl;
+                            return;
+
                         }
                     }
 #endif
