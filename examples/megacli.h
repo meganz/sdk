@@ -128,11 +128,12 @@ struct DemoApp : public MegaApp
     virtual void chatupdatepermissions_result(error);
     virtual void chattruncate_result(error);
     virtual void chatsettitle_result(error);
+    virtual void chatpresenceurl_result(string *, error);
 
     void chats_updated(textchat_map*, int);
 
-    void printChatInformation(TextChat *);
-    string getPrivilegeString(privilege_t priv);
+    static void printChatInformation(TextChat *);
+    static string getPrivilegeString(privilege_t priv);
 #endif
 
     int prepare_download(Node*);
