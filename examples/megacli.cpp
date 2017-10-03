@@ -650,7 +650,6 @@ void DemoApp::chatpresenceurl_result(string *url, error e)
     {
         cout << "Presence URL: " << *url << endl;
     }
-
 }
 
 void DemoApp::chats_updated(textchat_map *chats, int count)
