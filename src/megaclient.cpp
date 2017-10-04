@@ -2082,6 +2082,7 @@ void MegaClient::exec()
                             // we have no sync-related operations pending - trigger processing if at least one
                             // filesystem item is notified or initiate a full rescan if there has been
                             // an event notification failure (or event notification is unavailable)
+                            bool scanfailed = false;
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 Sync* sync = *it;
@@ -2116,19 +2117,22 @@ void MegaClient::exec()
                                             {
                                                 LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
+                                                scanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
                                                 sync->dirnotify->error = false;
-                                                fsaccess->notifyerr = false;
-
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
-
-                                                syncscanbt.backoff(50 + totalnodes / 128);
                                             }
                                         }
                                     }
                                 }
+                            }
+
+                            if (scanfailed)
+                            {
+                                fsaccess->notifyerr = false;
+                                syncscanbt.backoff(50 + totalnodes / 128);
                             }
 
                             // clear pending global notification error flag if all syncs were marked
