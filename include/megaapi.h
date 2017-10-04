@@ -8566,6 +8566,20 @@ class MegaApi
         MegaNodeList* getVersions(MegaNode *node);
 
         /**
+         * @brief Get the number of versions of a file
+         * @param node Node to check
+         * @return Number of versions of the node, including the current version
+         */
+        int getNumVersions(MegaNode *node);
+
+        /**
+         * @brief Check if a file has previous versions
+         * @param node Node to check
+         * @return true if the node has any previous version
+         */
+        bool hasVersions(MegaNode *node);
+
+        /**
          * @brief Get file and folder children of a MegaNode separatedly
          *
          * If the parent node doesn't exist or it isn't a folder, this function

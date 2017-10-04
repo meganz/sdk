@@ -12582,6 +12582,64 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
     return new MegaNodeListPrivate(versions.data(), versions.size());
 }
 
+int MegaApiImpl::getNumVersions(MegaNode *node)
+{
+    if (!node)
+    {
+        return 0;
+    }
+
+    sdkMutex.lock();
+    Node *current = client->nodebyhandle(node->getHandle());
+    if (!current)
+    {
+        sdkMutex.unlock();
+        return 0;
+    }
+
+    if (current->type != FILENODE)
+    {
+        sdkMutex.unlock();
+        return 1;
+    }
+
+    int numVersions = 1;
+    while (current->children.size())
+    {
+        assert(current->children.size() == 1 && current->children.front()->parent == current);
+        current = current->children.front();
+        assert(current->type == FILENODE);
+        numVersions++;
+    }
+    sdkMutex.unlock();
+    return numVersions;
+}
+
+bool MegaApiImpl::hasVersions(MegaNode *node)
+{
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *current = client->nodebyhandle(node->getHandle());
+    if (!current || current->type != FILENODE)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    assert(!current->children.size()
+           || (current->children.size() == 1
+               && current->children.front()->parent == current
+               && current->children.front()->type == FILENODE));
+
+    bool result = current->children.size() != 0;
+    sdkMutex.unlock();
+    return result;
+}
+
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)

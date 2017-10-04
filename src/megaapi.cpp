@@ -2900,6 +2900,16 @@ MegaNodeList *MegaApi::getVersions(MegaNode *node)
     return pImpl->getVersions(node);
 }
 
+int MegaApi::getNumVersions(MegaNode *node)
+{
+    return pImpl->getNumVersions(node);
+}
+
+bool MegaApi::hasVersions(MegaNode *node)
+{
+    return pImpl->hasVersions(node);
+}
+
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 {
     return pImpl->getFileFolderChildren(p, order);

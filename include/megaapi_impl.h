@@ -1671,6 +1671,8 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
         MegaNodeList* getVersions(MegaNode *node);
+        int getNumVersions(MegaNode *node);
+        bool hasVersions(MegaNode *node);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);
