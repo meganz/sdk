@@ -157,7 +157,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  *
  * 0 for non-expire links, and -1 if the MEGANode is not exported.
  */
-@property (readonly, nonatomic) NSDate *expirationTime;
+@property (readonly, nonatomic) int64_t expirationTime;
 
 /**
  * @brief The public handle of an exported node. If the MEGANode

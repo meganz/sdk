@@ -280,8 +280,13 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
+    virtual void notify_change_to_https() { }
+
     // account confirmation via signup link
     virtual void notify_confirmation(const char* email) { }
+
+    // network layer disconnected
+    virtual void notify_disconnect() { }
 
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }

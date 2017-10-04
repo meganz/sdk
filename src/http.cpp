@@ -443,6 +443,7 @@ void HttpReq::init()
     lastdata = NEVER;
     outpos = 0;
     in.clear();
+    contenttype.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)

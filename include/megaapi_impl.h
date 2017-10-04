@@ -2145,8 +2145,14 @@ protected:
         // notify about db commit
         virtual void notify_dbcommit();
 
+        // notify about an automatic change to HTTPS
+        virtual void notify_change_to_https();
+
         // notify about account confirmation
         virtual void notify_confirmation(const char*);
+
+        // network layer disconnected
+        virtual void notify_disconnect();
 
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
