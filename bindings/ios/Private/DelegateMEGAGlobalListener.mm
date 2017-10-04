@@ -99,22 +99,12 @@ void DelegateMEGAGlobalListener::onReloadNeeded(mega::MegaApi* api) {
 }
 
 void DelegateMEGAGlobalListener::onEvent(mega::MegaApi *api, mega::MegaEvent *event) {
-    switch (event->getType()) {
-        case MegaEvent::EVENT_ACCOUNT_CONFIRMATION:            
-            if (listener != nil && [listener respondsToSelector:@selector(onEvent:event:)]) {
-                MegaEvent *tempEvent = NULL;
-                if(event) {
-                    tempEvent = event->copy();
-                }
-                MEGASdk *tempMegaSDK = this->megaSDK;
-                id<MEGAGlobalDelegate> tempListener = this->listener;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [tempListener onEvent:tempMegaSDK event:(tempEvent ? [[MEGAEvent alloc] initWithMegaEvent:tempEvent cMemoryOwn:YES] : nil)];
-                });
-            }
-            break;
-            
-        default:
-            break;
+    if (listener != nil && [listener respondsToSelector:@selector(onEvent:event:)]) {
+        MegaEvent *tempEvent = event->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGAGlobalDelegate> tempListener = this->listener;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onEvent:tempMegaSDK event:(tempEvent ? [[MEGAEvent alloc] initWithMegaEvent:tempEvent cMemoryOwn:YES] : nil)];
+        });
     }
 }

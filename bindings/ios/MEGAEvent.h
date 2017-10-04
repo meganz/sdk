@@ -22,8 +22,9 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM(NSUInteger, Event) {
-    EventCommitDB,
-    EventAccountConfirmation = 1
+    EventCommitDB = 0,
+    EventAccountConfirmation = 1,
+    EventChangeToHttps = 2
 };
 
 /**
