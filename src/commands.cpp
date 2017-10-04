@@ -3152,6 +3152,7 @@ void CommandGetUserQuota::procresult()
                         ns->version_bytes = client->json.getint();
                         ns->version_files = client->json.getint();
 
+                        while(client->json.storeobject());
                         client->json.leavearray();
                     }
 
