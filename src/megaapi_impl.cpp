@@ -13980,9 +13980,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!version->parent && version->parent->type == FILENODE)
+            if (version->type != FILENODE || !version->parent || version->parent->type != FILENODE)
             {
                 e = API_EARGS;
+                break;
             }
 
             Node *current = version;
@@ -14001,7 +14002,6 @@ void MegaApiImpl::sendPendingRequests()
             string attrstring;
             SymmCipher key;
 
-            // set up new node as folder node
             newnode->source = NEW_NODE;
             newnode->type = FILENODE;
             newnode->nodehandle = version->nodehandle;
