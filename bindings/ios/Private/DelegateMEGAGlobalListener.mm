@@ -100,10 +100,7 @@ void DelegateMEGAGlobalListener::onReloadNeeded(mega::MegaApi* api) {
 
 void DelegateMEGAGlobalListener::onEvent(mega::MegaApi *api, mega::MegaEvent *event) {
     if (listener != nil && [listener respondsToSelector:@selector(onEvent:event:)]) {
-        MegaEvent *tempEvent = NULL;
-        if(event) {
-            tempEvent = event->copy();
-        }
+        MegaEvent *tempEvent = event->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGAGlobalDelegate> tempListener = this->listener;
         dispatch_async(dispatch_get_main_queue(), ^{
