@@ -12422,11 +12422,14 @@ bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent)// || parent->type == FILENODE)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12440,11 +12443,14 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 
 int MegaApiImpl::getNumChildFiles(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent)// || parent->type == FILENODE)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12463,11 +12469,14 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 
 int MegaApiImpl::getNumChildFolders(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent) //|| parent->type == FILENODE)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12487,11 +12496,14 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 
 MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 {
-    if(!p) return new MegaNodeListPrivate();
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return new MegaNodeListPrivate();
+    }
 
     sdkMutex.lock();
     Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent)// || parent->type == FILENODE)
+    if (!parent || parent->type == FILENODE)
 	{
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -12572,14 +12584,14 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 {
-    if (!p)
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
     {
         return new MegaChildrenListsPrivate();
     }
 
     sdkMutex.lock();
     Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent)// || parent->type == FILENODE)
+    if (!parent || parent->type == FILENODE)
     {
         sdkMutex.unlock();
         return new MegaChildrenListsPrivate();
@@ -12663,14 +12675,14 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
 {
-    if (!parent)
+    if (!parent || parent->getType() == MegaNode::TYPE_FILE)
     {
         return false;
     }
 
     sdkMutex.lock();
     Node *p = client->nodebyhandle(parent->getHandle());
-    if (!p)// || p->type == FILENODE)
+    if (!p || p->type == FILENODE)
     {
         sdkMutex.unlock();
         return false;
@@ -12745,14 +12757,14 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 {
-    if(!parent || !name)
+    if (!parent || !name || parent->getType() == MegaNode::TYPE_FILE)
     {
         return NULL;
     }
 
     sdkMutex.lock();
     Node *parentNode = client->nodebyhandle(parent->getHandle());
-	if(!parentNode)
+    if (!parentNode || parentNode->type == FILENODE)
 	{
         sdkMutex.unlock();
         return NULL;

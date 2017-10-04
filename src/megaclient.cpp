@@ -727,6 +727,11 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     string nname = name;
     Node *found = NULL;
 
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
+
     fsaccess->normalize(&nname);
 
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
