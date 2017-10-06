@@ -12567,8 +12567,8 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
     versions.push_back(current);
     while (current->children.size())
     {
-        assert(current->children.size() == 1 && current->children.front()->parent == current);
-        current = current->children.front();
+        assert(current->children.back()->parent == current);
+        current = current->children.back();
         assert(current->type == FILENODE);
         versions.push_back(current);
     }
@@ -12594,8 +12594,8 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
     int numVersions = 1;
     while (current->children.size())
     {
-        assert(current->children.size() == 1 && current->children.front()->parent == current);
-        current = current->children.front();
+        assert(current->children.back()->parent == current);
+        current = current->children.back();
         assert(current->type == FILENODE);
         numVersions++;
     }
@@ -12619,9 +12619,8 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     }
 
     assert(!current->children.size()
-           || (current->children.size() == 1
-               && current->children.front()->parent == current
-               && current->children.front()->type == FILENODE));
+           || (current->children.back()->parent == current
+               && current->children.back()->type == FILENODE));
 
     bool result = current->children.size() != 0;
     sdkMutex.unlock();

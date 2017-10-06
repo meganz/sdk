@@ -5771,7 +5771,7 @@ error MegaClient::unlink(Node* n, bool keepversions)
         if (n->children.size())
         {
             assert (n->children.size() == 1);
-            Node *olderversion = n->children.front();
+            Node *olderversion = n->children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
             olderversion->tag = reqtag;
