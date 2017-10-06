@@ -5919,9 +5919,12 @@ class MegaApi
          * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
          * the node to the Rubbish Bin use MegaApi::moveNode
          *
+         * If the node has previous versions, they will be deleted too
+         *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+         * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
          *
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
@@ -5936,6 +5939,11 @@ class MegaApi
          *
          * If the node has previous versions, they won't be deleted.
          *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+         * - MegaRequest::getFlag - Returns true because previous versions will be preserved
+         *
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
          */
@@ -5943,6 +5951,16 @@ class MegaApi
 
         /**
          * @brief Restore a previous version of a file
+         *
+         * Only versions of a file can be restored, not the current version (because it's already current).
+         * The node will be copied and set as current. All the version history will be preserved without changes,
+         * being the old current node the previous version of the new current node, and keeping the restored
+         * node also in its previous place in the version history.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESTORE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to restore
+         *
          * @param version Node with the version to restore
          * @param listener MegaRequestListener to track this request
          */

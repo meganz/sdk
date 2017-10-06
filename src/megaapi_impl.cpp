@@ -12550,14 +12550,14 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 {
-    if (!node)
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
     {
         return new MegaNodeListPrivate();
     }
 
     sdkMutex.lock();
     Node *current = client->nodebyhandle(node->getHandle());
-    if (!current)
+    if (!current || current->type != FILENODE)
     {
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -12565,12 +12565,6 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 
     vector<Node*> versions;
     versions.push_back(current);
-    if (current->type != FILENODE)
-    {
-        sdkMutex.unlock();
-        return new MegaNodeListPrivate(versions.data(), versions.size());
-    }
-
     while (current->children.size())
     {
         assert(current->children.size() == 1 && current->children.front()->parent == current);
@@ -12584,23 +12578,17 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 
 int MegaApiImpl::getNumVersions(MegaNode *node)
 {
-    if (!node)
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
     {
         return 0;
     }
 
     sdkMutex.lock();
     Node *current = client->nodebyhandle(node->getHandle());
-    if (!current)
+    if (!current || current->type != FILENODE)
     {
         sdkMutex.unlock();
         return 0;
-    }
-
-    if (current->type != FILENODE)
-    {
-        sdkMutex.unlock();
-        return 1;
     }
 
     int numVersions = 1;
