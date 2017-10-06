@@ -5770,7 +5770,6 @@ error MegaClient::unlink(Node* n, bool keepversions)
         Node *newerversion = n->parent;
         if (n->children.size())
         {
-            assert (n->children.size() == 1);
             Node *olderversion = n->children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
