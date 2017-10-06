@@ -16429,27 +16429,67 @@ int MegaAccountDetailsPrivate::getNumUsageItems()
 
 long long MegaAccountDetailsPrivate::getStorageUsed(MegaHandle handle)
 {
-    return details.storage[handle].bytes;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.bytes;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getNumFiles(MegaHandle handle)
 {
-    return details.storage[handle].files;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.files;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
 {
-    return details.storage[handle].folders;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.folders;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getVersionStorageUsed(MegaHandle handle)
 {
-    return details.storage[handle].version_bytes;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.version_bytes;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getNumVersionFiles(MegaHandle handle)
 {
-    return details.storage[handle].version_files;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.version_files;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()
