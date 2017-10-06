@@ -5767,10 +5767,15 @@ error MegaClient::unlink(Node* n, bool keepversions)
 
     if (kv)
     {
-        Node *parent = n->parent;
+        Node *newerversion = n->parent;
         if (n->children.size())
         {
-            n->children.front()->setparent(parent);
+            assert (n->children.size() == 1);
+            Node *olderversion = n->children.front();
+            olderversion->setparent(newerversion);
+            olderversion->changed.parent = true;
+            olderversion->tag = reqtag;
+            notifynode(olderversion);
         }
     }
 
