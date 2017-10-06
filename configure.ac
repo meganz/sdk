@@ -29,9 +29,6 @@ m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
-#override default /usr/local prefix
-AC_PREFIX_DEFAULT([/])
-
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
@@ -48,6 +45,8 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE

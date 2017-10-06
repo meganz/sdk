@@ -10454,10 +10454,22 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_change_to_https()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CHANGE_TO_HTTPS);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_confirmation(const char *email)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
     event->setText(email);
+    fireOnEvent(event);
+}
+
+void MegaApiImpl::notify_disconnect()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
     fireOnEvent(event);
 }
 
@@ -19923,7 +19935,7 @@ int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
 
 long long MegaAchievementsDetailsPrivate::currentStorage()
 {
-    long long total = details.permanent_size;
+    long long total = 0;
     m_time_t ts = time(NULL);
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)

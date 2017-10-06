@@ -83,7 +83,6 @@ examples_mega_exec_CXXFLAGS =  -Iinclude/
 noinst_HEADERS += examples/megacmd/megacmdshell/megacmdshellcommunications.h examples/megacmd/megacmdshell/megacmdshell.h include/mega/thread.h
 examples_mega_cmd_SOURCES = examples/megacmd/megacmdshell/megacmdshellcommunications.cpp examples/megacmd/megacmdshell/megacmdshell.cpp 
 
-examples_mega_cmddir=examples
 examples_mega_cmd_CXXFLAGS = $(RL_CXXFLAGS) -Iinclude/
 #examples_mega_cmd_CXXFLAGS = -std=c++11 -DUSE_CPPTHREAD=1 $(RL_CXXFLAGS) -Iinclude/
 examples_mega_cmd_LDADD = $(RL_LDFLAGS) $(RL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) 

@@ -101,7 +101,5 @@ mkdir -p include/libevent || true
 cp -f -R libevent/include/* include/libevent/
 
 #rm -rf bin
-#rm -rf expat-${EXPAT_VERSION}
-#rm -rf expat-${EXPAT_VERSION}.tar.bz2
 
 echo "Done."
