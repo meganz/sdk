@@ -881,6 +881,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
+        if (!ISUNDEF(nn[i].ovhandle))
+        {
+            arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
+        }
+
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
 
@@ -1010,7 +1015,8 @@ void CommandPutNodes::procresult()
 
     e = API_EINTERNAL;
 
-    for (;;)
+    bool noexit = true;
+    while (noexit)
     {
         switch (client->json.getnameid())
         {
@@ -1022,6 +1028,17 @@ void CommandPutNodes::procresult()
                 else
                 {
                     LOG_err << "Parse error (readnodes)";
+                    e = API_EINTERNAL;
+                    noexit = false;
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                if (!client->readnodes(&client->json, 1))
+                {
+                    LOG_err << "Parse error (readversions)";
+                    e = API_EINTERNAL;
+                    noexit = false;
                 }
                 break;
 
@@ -1036,29 +1053,31 @@ void CommandPutNodes::procresult()
 
                 // fall through
             case EOO:
-                client->applykeys();
-
-#ifdef ENABLE_SYNC
-                if (source == PUTNODES_SYNC)
-                {
-                    client->app->putnodes_result(e, type, NULL);
-                    client->putnodes_sync_result(e, nn, nnsize);
-                }
-                else
-#endif
-                if (source == PUTNODES_APP)
-                {
-                    client->app->putnodes_result(e, type, nn);
-                }
-#ifdef ENABLE_SYNC
-                else
-                {
-                    client->putnodes_syncdebris_result(e, nn);
-                }
-#endif
-                return;
+                noexit = false;
+                break;
         }
     }
+
+    client->applykeys();
+
+#ifdef ENABLE_SYNC
+    if (source == PUTNODES_SYNC)
+    {
+        client->app->putnodes_result(e, type, NULL);
+        client->putnodes_sync_result(e, nn, nnsize);
+    }
+    else
+#endif
+    if (source == PUTNODES_APP)
+    {
+        client->app->putnodes_result(e, type, nn);
+    }
+#ifdef ENABLE_SYNC
+    else
+    {
+        client->putnodes_syncdebris_result(e, nn);
+    }
+#endif
 }
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
@@ -1213,12 +1232,17 @@ void CommandMoveNode::procresult()
     }
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th)
+CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
 {
     cmd("d");
     notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
+
+    if (keepversions)
+    {
+        arg("v", 1);
+    }
 
     h = th;
     tag = client->reqtag;
@@ -3010,6 +3034,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
         arg("pro", "1", 0);
     }
 
+    arg("v", 1);
+
     tag = client->reqtag;
 }
 
@@ -3123,7 +3149,10 @@ void CommandGetUserQuota::procresult()
                         ns->bytes = client->json.getint();
                         ns->files = client->json.getint();
                         ns->folders = client->json.getint();
+                        ns->version_bytes = client->json.getint();
+                        ns->version_files = client->json.getint();
 
+                        while(client->json.storeobject());
                         client->json.leavearray();
                     }
 
@@ -3774,6 +3803,15 @@ void CommandFetchNodes::procresult()
         {
             case 'f':
                 // nodes
+                if (!client->readnodes(&client->json, 0))
+                {
+                    client->fetchingnodes = false;
+                    return client->app->fetchnodes_result(API_EINTERNAL);
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                // old versions
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;

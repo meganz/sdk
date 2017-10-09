@@ -841,7 +841,7 @@ bool Node::setparent(Node* p)
             p = p->parent;
         }
 
-        if (!p)
+        if (!p || p->type == FILENODE)
         {
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
@@ -1460,11 +1460,6 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         // otherwise, overwrite node if it already exists and complete in its
         // place
         h = parent->node->nodehandle;
-        if (node && node->parent && node->parent->localnode)
-        {
-            sync->client->movetosyncdebris(node, sync->inshare);
-            sync->client->execsyncdeletions();
-        }
     }
 
     File::completed(t, this);
