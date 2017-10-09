@@ -1715,6 +1715,7 @@ void MegaClient::exec()
             }
         }
 
+
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)

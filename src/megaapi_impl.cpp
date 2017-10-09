@@ -2898,6 +2898,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
+        case TYPE_ADD_BACKUP: return "ADD_BACKUP";
     }
     return "UNKNOWN";
 }
@@ -6008,6 +6009,28 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
     sdkMutex.unlock();
     return result;
 }
+
+
+void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent,MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
+    if(parent) request->setNodeHandle(parent->getHandle());
+    if(localFolder)
+    {
+        string path(localFolder);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        request->setFile(path.data());
+    }
+
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
 {
@@ -13115,6 +13138,18 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 
 void MegaApiImpl::sendPendingTransfers()
 {
+
+    //TODO: move this to another method ::updateBackups
+    MegaBackupController *backupController;
+    while((backupController = backupsQueue.pop()))
+    {
+        backupController->update();
+    }
+
+    backupsQueue.push(backupController); //TODO: remove this and use sth differnt that the proposed queue (sth permanent)
+
+
+
     MegaTransferPrivate *transfer;
     error e;
     int nextTag;
@@ -15276,6 +15311,22 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
+        case MegaRequest::TYPE_ADD_BACKUP:
+        {
+            Node *parent = client->nodebyhandle(request->getNodeHandle());
+            if(!parent || (parent->type==FILENODE) || !request->getFile())
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile());
+            backupsQueue.push(mbc); //TODO: handle destruction of this queue
+
+            fireOnRequestFinish(request, MegaError(API_OK));
+
+            break;
+        }
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_ADD_SYNC:
         {
@@ -16076,6 +16127,57 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
 
     mutex.unlock();
 }
+
+
+BackupControllerQueue::BackupControllerQueue()
+{
+    mutex.init(false);
+}
+
+void BackupControllerQueue::push(MegaBackupController *transfer)
+{
+    mutex.lock();
+    backups.push_back(transfer);
+    mutex.unlock();
+}
+
+void BackupControllerQueue::push_front(MegaBackupController *transfer)
+{
+    mutex.lock();
+    backups.push_front(transfer);
+    mutex.unlock();
+}
+
+MegaBackupController *BackupControllerQueue::pop()
+{
+    mutex.lock();
+    if(backups.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    MegaBackupController *transfer = backups.front();
+    backups.pop_front();
+    mutex.unlock();
+    return transfer;
+}
+
+void BackupControllerQueue::removeListener(MegaTransferListener *listener) //TODO: deal with this
+{
+//    mutex.lock();
+
+//    std::deque<MegaBackupController *>::iterator it = transfers.begin();
+//    while(it != transfers.end())
+//    {
+//        MegaBackupController *transfer = (*it);
+//        if(transfer->getListener() == listener)
+//            transfer->setListener(NULL);
+//        it++;
+//    }
+
+//    mutex.unlock();
+}
+
 
 RequestQueue::RequestQueue()
 {
@@ -17383,8 +17485,11 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
     return true;
 }
 
+
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
+    LOG_fatal << " at MegaFolderUploadController constructor: "+ string(transfer->getFileName()); //TODO: delete
+
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
     this->transfer = transfer;
@@ -17393,7 +17498,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
 }
-
 void MegaFolderUploadController::start()
 {
     transfer->setFolderTransferTag(-1);
@@ -17613,6 +17717,8 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    LOG_fatal << " at MegaFolderUploadController::onTransferStart: "+ string(t->getFileName());
+
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -17633,6 +17739,324 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
 {
+    pendingTransfers--;
+    transfer->setState(MegaTransfer::STATE_ACTIVE);
+    transfer->setPriority(t->getPriority());
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+    checkCompletion();
+}
+
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename)
+{
+    LOG_fatal << " at MegaBackupController constructor: "+ string(filename); //TODO: delete
+
+    string localPath(filename); //TODO: this might better be named utf8name
+////    localPath.append(client->fsaccess->localseparator); //TODO: this caused segfault
+//    localPath.append("/"); //TODO: crossplatform solution
+//    localPath.append("001"); //TODO: get date??? iD?
+
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD);
+    transfer->setPath(localPath.data());
+
+    transfer->setParentHandle(parenthandle); //what if handle no longer valid now?
+
+    transfer->setAppData(NULL);
+    transfer->setSourceFileTemporary(false);
+
+//    if(fileName)
+//    {
+//        transfer->setFileName(NULL);
+//    }
+
+    transfer->setTime(-1);
+
+//    if(folderTransferTag)
+//    {
+//        transfer->setFolderTransferTag(folderTransferTag);
+//    }
+
+//    transferQueue.push(transfer);
+
+
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+    this->transfer = transfer;
+    this->listener = transfer->getListener();
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->tag = transfer->getTag();
+
+
+    this->startTime= Waiter::ds; // + sth
+}
+
+void MegaBackupController::update()
+{
+    LOG_fatal << " at MegaBackupController update: " + string(transfer->getFileName()); //TODO: delete
+
+    if (Waiter::ds > startTime)
+    {
+        LOG_fatal << " at MegaBackupController update starting: " + string(transfer->getFileName()); //TODO: delete
+        start();
+    }
+    else
+    {
+        LOG_fatal << " at MegaBackupController update too soon: " + string(transfer->getFileName()); //TODO: delete
+    }
+
+}
+
+void MegaBackupController::start()
+{
+    LOG_fatal << " at MegaBackupController start: " + string(transfer->getFileName()); //TODO: delete
+
+    transfer->setFolderTransferTag(-1);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    megaApi->fireOnTransferStart(transfer);
+
+    const char *name = transfer->getFileName();
+    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
+    if(!parent)
+    {
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
+        delete this;
+    }
+    else
+    {
+        string path = transfer->getPath();
+        string localpath;
+        client->fsaccess->path2local(&path, &localpath);
+
+        MegaNode *child = megaApi->getChildNode(parent, name);
+
+        if(!child || !child->isFolder())
+        {
+            pendingFolders.push_back(localpath);
+            megaApi->createFolder(name, parent, this);
+        }
+        else
+        {
+            pendingFolders.push_front(localpath);
+            onFolderAvailable(child->getHandle());
+        }
+
+        delete child;
+        delete parent;
+    }
+}
+
+void MegaBackupController::onFolderAvailable(MegaHandle handle)
+{
+    recursive++;
+    string localPath = pendingFolders.front();
+    pendingFolders.pop_front();
+
+    MegaNode *parent = megaApi->getNodeByHandle(handle);
+
+    string localname;
+    DirAccess* da;
+    da = client->fsaccess->newdiraccess();
+    if (da->dopen(&localPath, NULL, false))
+    {
+        size_t t = localPath.size();
+
+        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        {
+            if (t)
+            {
+                localPath.append(client->fsaccess->localseparator);
+            }
+
+            localPath.append(localname);
+
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if(fa->fopen(&localPath, true, false))
+            {
+                string name = localname;
+                client->fsaccess->local2name(&name);
+
+                if(fa->type == FILENODE)
+                {
+                    pendingTransfers++;
+                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                    if(!child || child->isFolder() || (fa->size != child->getSize()))
+                    {
+                        FileFingerprint fp;
+                        fp.genfingerprint(fa);
+                        Node *node = client->nodebyfingerprint(&fp);
+                        if(!node)
+                        {
+                            string utf8path;
+                            client->fsaccess->local2path(&localPath, &utf8path);
+                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
+                        }
+                        else
+                        {
+                            string utf8path;
+                            client->fsaccess->local2path(&localPath, &utf8path);
+                            #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+                                    if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
+                                        utf8path.insert(0, "\\\\?\\");
+                            #endif
+
+                            int nextTag = client->nextreqtag();
+                            MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
+                            t->setPath(utf8path.c_str());
+                            t->setParentHandle(parent->getHandle());
+                            t->setTag(nextTag);
+                            t->setFolderTransferTag(tag);
+                            t->setTotalBytes(node->size);
+                            megaApi->transferMap[nextTag] = t;
+                            pendingSkippedTransfers.push_back(t);
+                            t->setState(MegaTransfer::STATE_QUEUED);
+                            megaApi->fireOnTransferStart(t);
+
+                            MegaNode *duplicate = MegaNodePrivate::fromNode(node);
+                            megaApi->copyNode(duplicate, parent, name.c_str(), this);
+                            delete duplicate;
+                        }
+                    }
+                    else
+                    {
+                        string utf8path;
+                        client->fsaccess->local2path(&localPath, &utf8path);
+                        #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+                                if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
+                                    utf8path.insert(0, "\\\\?\\");
+                        #endif
+
+                        int nextTag = client->nextreqtag();
+                        MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
+                        t->setPath(utf8path.data());
+                        t->setParentHandle(parent->getHandle());
+                        t->setTag(nextTag);
+                        t->setFolderTransferTag(tag);
+                        t->setTotalBytes(child->getSize());
+                        megaApi->transferMap[nextTag] = t;
+                        t->setState(MegaTransfer::STATE_QUEUED);
+                        megaApi->fireOnTransferStart(t);
+                        t->setTransferredBytes(child->getSize());
+                        t->setDeltaSize(child->getSize());
+                        t->setState(MegaTransfer::STATE_COMPLETED);
+                        megaApi->fireOnTransferFinish(t, MegaError(API_OK));
+                    }
+
+                    delete child;
+                }
+                else
+                {
+                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                    if(!child || !child->isFolder())
+                    {
+                        pendingFolders.push_back(localPath);
+                        megaApi->createFolder(name.c_str(), parent, this);
+                    }
+                    else
+                    {
+                        pendingFolders.push_front(localPath);
+                        onFolderAvailable(child->getHandle());
+                    }
+                    delete child;
+                }
+            }
+
+            localPath.resize(t);
+            delete fa;
+        }
+    }
+
+    delete da;
+    delete parent;
+    recursive--;
+
+    checkCompletion();
+}
+
+void MegaBackupController::checkCompletion()
+{
+    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingSkippedTransfers.size())
+    {
+        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        transfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        delete this;
+    }
+}
+
+void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+{
+    int type = request->getType();
+    int errorCode = e->getErrorCode();
+
+    if(type == MegaRequest::TYPE_CREATE_FOLDER)
+    {
+        if(!errorCode)
+        {
+            onFolderAvailable(request->getNodeHandle());
+        }
+        else
+        {
+            pendingFolders.pop_front();
+            checkCompletion();
+        }
+    }
+    else if(type == MegaRequest::TYPE_COPY)
+    {
+        Node *node = client->nodebyhandle(request->getNodeHandle());
+        long long size = node ? node->size : 0;
+
+        MegaTransferPrivate *t = pendingSkippedTransfers.front();
+        t->setTransferredBytes(size);
+        t->setDeltaSize(size);
+
+        if (!errorCode)
+        {
+            t->setState(MegaTransfer::STATE_COMPLETED);
+        }
+        else
+        {
+            t->setState(MegaTransfer::STATE_FAILED);
+        }
+        megaApi->fireOnTransferFinish(t, MegaError(errorCode));
+        pendingSkippedTransfers.pop_front();
+        checkCompletion();
+    }
+}
+
+void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
+{
+    LOG_fatal << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
+
+    transfer->setState(t->getState());
+    transfer->setPriority(t->getPriority());
+    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
+    transfer->setUpdateTime(Waiter::ds);
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+{
+    LOG_fatal << " at MegaBackupController::onTransferUpdate";
+
+    transfer->setState(t->getState());
+    transfer->setPriority(t->getPriority());
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    transfer->setMeanSpeed(t->getMeanSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
+{
+    LOG_fatal << " at MegaBackupController::onTransferFinish";
+
     pendingTransfers--;
     transfer->setState(MegaTransfer::STATE_ACTIVE);
     transfer->setPriority(t->getPriority());

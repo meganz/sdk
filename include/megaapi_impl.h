@@ -214,6 +214,41 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
 
+
+class MegaBackupController : public MegaRequestListener, public MegaTransferListener
+{
+public:
+    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename);
+    void update();
+    void start();
+
+protected:
+    void onFolderAvailable(MegaHandle handle);
+    void checkCompletion();
+
+    std::list<std::string> pendingFolders;
+    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
+
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+
+
+    int64_t startTime; // when shalll the next backup begin
+
+
+
+public:
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+};
+
 class MegaFolderDownloadController : public MegaTransferListener
 {
 public:
@@ -1401,6 +1436,22 @@ class TransferQueue
         void removeListener(MegaTransferListener *listener);
 };
 
+//Thread safe transfer queue
+class BackupControllerQueue
+{
+    protected:
+        std::deque<MegaBackupController *> backups;
+        MegaMutex mutex;
+
+    public:
+        BackupControllerQueue();
+        void push(MegaBackupController *transfer);
+        void push_front(MegaBackupController *transfer);
+        MegaBackupController * pop();
+        void removeListener(MegaTransferListener *listener);//TODO: deal with this
+};
+
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -1568,6 +1619,10 @@ class MegaApiImpl : public MegaApp
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
+
+        //Backups
+        void startBackup(const char* localPath, MegaNode *parent, MegaRequestListener *listener=NULL);
+
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -1907,6 +1962,7 @@ protected:
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
+        BackupControllerQueue backupsQueue;
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
