@@ -480,7 +480,7 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
     QImage result = image->read();
     if (result.isNull())
     {
-        LOG_err << "Error reading image: " << image->errorString().toStdString();
+        LOG_err << "Error reading image: " << image->errorString().toUtf8().constData();
         return result;
     }
 
