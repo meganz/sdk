@@ -9973,6 +9973,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
 
         transfer->setNodeHandle(h);
+        transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
         {
@@ -13265,35 +13266,82 @@ void MegaApiImpl::sendPendingTransfers()
                 }
 
                 nodetype_t type = fa->type;
-                Node *previousNode = client->childnodebyname(parent, fileName);
-                if (previousNode && previousNode->type == type && type == FILENODE)
+                m_off_t size = fa->size;
+                FileFingerprint fp;
+                if (type == FILENODE)
                 {
-                    FileFingerprint fp;
                     fp.genfingerprint(fa);
-                    if (fp == *((FileFingerprint *)previousNode))
-                    {
-                        transfer->setState(MegaTransfer::STATE_QUEUED);
-                        transferMap[nextTag] = transfer;
-                        transfer->setTag(nextTag);
-                        transfer->setTotalBytes(fa->size);
-                        fireOnTransferStart(transfer);
-                        transfer->setNodeHandle(previousNode->nodehandle);
-                        transfer->setDeltaSize(fa->size);
-                        transfer->setSpeed(0);
-                        transfer->setMeanSpeed(0);
-                        transfer->setStartTime(Waiter::ds);
-                        transfer->setUpdateTime(Waiter::ds);
-                        transfer->setState(MegaTransfer::STATE_COMPLETED);
-                        fireOnTransferFinish(transfer, MegaError(API_OK));
-                        delete fa;
-                        break;
-                    }
                 }
-
                 delete fa;
 
                 if (type == FILENODE)
                 {
+                    Node *previousNode = client->childnodebyname(parent, fileName);
+                    if (previousNode && previousNode->type == type)
+                    {
+                        if (fp == *((FileFingerprint *)previousNode))
+                        {
+                            transfer->setState(MegaTransfer::STATE_QUEUED);
+                            transferMap[nextTag] = transfer;
+                            transfer->setTag(nextTag);
+                            transfer->setTotalBytes(size);
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
+                            fireOnTransferStart(transfer);
+                            transfer->setNodeHandle(previousNode->nodehandle);
+                            transfer->setDeltaSize(size);
+                            transfer->setSpeed(0);
+                            transfer->setMeanSpeed(0);
+                            transfer->setState(MegaTransfer::STATE_COMPLETED);
+                            fireOnTransferFinish(transfer, MegaError(API_OK));
+                            break;
+                        }
+                    }
+
+                    Node *samenode = client->nodebyfingerprint(&fp);
+                    if (samenode && samenode->nodekey.size())
+                    {
+                        transfer->setState(MegaTransfer::STATE_QUEUED);
+                        transferMap[nextTag] = transfer;
+                        pendingUploads++;
+                        transfer->setTag(nextTag);
+                        transfer->setTotalBytes(size);
+                        transfer->setStartTime(Waiter::ds);
+                        transfer->setUpdateTime(Waiter::ds);
+                        fireOnTransferStart(transfer);
+
+                        unsigned nc;
+                        TreeProcCopy tc;
+                        client->proctree(samenode, &tc, false, true);
+                        tc.allocnodes();
+                        nc = tc.nc;
+                        client->proctree(samenode, &tc);
+                        tc.nn->parenthandle = UNDEF;
+
+                        SymmCipher key;
+                        AttrMap attrs;
+                        string attrstring;
+                        key.setkey((const byte*)tc.nn[0].nodekey.data(), samenode->type);
+                        attrs = samenode->attrs;
+                        string sname = fileName;
+                        fsAccess->normalize(&sname);
+                        attrs.map['n'] = sname;
+                        attrs.getjson(&attrstring);
+                        client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+                        if (tc.nn->type == FILENODE)
+                        {
+                            tc.nn->ovhandle = client->getovhandle(parent, &sname);
+                        }
+                        client->putnodes(parent->nodehandle, tc.nn, nc);
+
+                        transfer->setDeltaSize(size);
+                        transfer->setSpeed(0);
+                        transfer->setMeanSpeed(0);
+                        transfer->setState(MegaTransfer::STATE_COMPLETING);
+                        fireOnTransferUpdate(transfer);
+                        break;
+                    }
+
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
@@ -13475,7 +13523,7 @@ void MegaApiImpl::sendPendingTransfers()
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(fa->size);
-                            transfer->setTransferredBytes(fa->size);
+                            transfer->setTransferredBytes(0);
                             transfer->setPath(path.c_str());
                             fireOnTransferStart(transfer);
                             if (node)
@@ -17691,74 +17739,12 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             {
                 string name = localname;
                 client->fsaccess->local2name(&name);
-
-                if(fa->type == FILENODE)
+                if (fa->type == FILENODE)
                 {
                     pendingTransfers++;
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || child->isFolder() || (fa->size != child->getSize()))
-                    {                        
-                        FileFingerprint fp;
-                        fp.genfingerprint(fa);
-                        Node *node = client->nodebyfingerprint(&fp);
-                        if(!node)
-                        {
-                            string utf8path;
-                            client->fsaccess->local2path(&localPath, &utf8path);
-                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
-                        }
-                        else
-                        {
-                            string utf8path;
-                            client->fsaccess->local2path(&localPath, &utf8path);
-                            #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-                                    if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-                                        utf8path.insert(0, "\\\\?\\");
-                            #endif
-
-                            int nextTag = client->nextreqtag();
-                            MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
-                            t->setPath(utf8path.c_str());
-                            t->setParentHandle(parent->getHandle());
-                            t->setTag(nextTag);
-                            t->setFolderTransferTag(tag);
-                            t->setTotalBytes(node->size);
-                            megaApi->transferMap[nextTag] = t;
-                            pendingSkippedTransfers.push_back(t);
-                            t->setState(MegaTransfer::STATE_QUEUED);
-                            megaApi->fireOnTransferStart(t);
-
-                            MegaNode *duplicate = MegaNodePrivate::fromNode(node);
-                            megaApi->copyNode(duplicate, parent, name.c_str(), this);
-                            delete duplicate;
-                        }
-                    }
-                    else
-                    {
-                        string utf8path;
-                        client->fsaccess->local2path(&localPath, &utf8path);
-                        #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-                                if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-                                    utf8path.insert(0, "\\\\?\\");
-                        #endif
-
-                        int nextTag = client->nextreqtag();
-                        MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
-                        t->setPath(utf8path.data());
-                        t->setParentHandle(parent->getHandle());
-                        t->setTag(nextTag);
-                        t->setFolderTransferTag(tag);
-                        t->setTotalBytes(child->getSize());
-                        megaApi->transferMap[nextTag] = t;
-                        t->setState(MegaTransfer::STATE_QUEUED);
-                        megaApi->fireOnTransferStart(t);
-                        t->setTransferredBytes(child->getSize());
-                        t->setDeltaSize(child->getSize());
-                        t->setState(MegaTransfer::STATE_COMPLETED);
-                        megaApi->fireOnTransferFinish(t, MegaError(API_OK));
-                    }
-
-                    delete child;
+                    string utf8path;
+                    client->fsaccess->local2path(&localPath, &utf8path);
+                    megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
                 }
                 else
                 {
