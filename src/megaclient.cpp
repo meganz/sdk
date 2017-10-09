@@ -11053,6 +11053,10 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
+                if (nn->type == FILENODE && ISUNDEF(nn->ovhandle))
+                {
+                    nn->ovhandle = getovhandle(synccreate[start]->parent->node, &synccreate[start]->name);
+                }
                 reqs.add(new CommandPutNodes(this,
                                                 synccreate[start]->parent->node->nodehandle,
                                                 NULL, nn, nnp - nn,
@@ -11723,6 +11727,20 @@ m_off_t MegaClient::getmaxdownloadspeed()
 m_off_t MegaClient::getmaxuploadspeed()
 {
     return httpio->getmaxuploadspeed();
+}
+
+handle MegaClient::getovhandle(Node *parent, string *name)
+{
+    handle ovhandle = UNDEF;
+    if (parent && name)
+    {
+        Node *ovn = childnodebyname(parent, name->c_str());
+        if (ovn)
+        {
+            ovhandle = ovn->nodehandle;
+        }
+    }
+    return ovhandle;
 }
 
 void MegaClient::userfeedbackstore(const char *message)
