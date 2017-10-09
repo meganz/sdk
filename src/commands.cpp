@@ -5391,4 +5391,55 @@ void CommandGetMegaAchievements::procresult()
     }
 }
 
+CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
+{
+    cmd("wpdf");
+
+    tag = client->reqtag;
+}
+
+void CommandGetWelcomePDF::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getwelcomepdf_result(UNDEF, NULL, (error)client->json.getint());
+        return;
+    }
+
+    handle ph = UNDEF;
+    byte keybuf[FILENODEKEYLENGTH];
+    int len_key = 0;
+    string key;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle(MegaClient::NODEHANDLE);
+                break;
+
+            case 'k':
+                len_key = client->json.storebinary(keybuf, sizeof keybuf);
+                break;
+
+            case EOO:
+                if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
+                {
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                }
+                key.assign((const char *) keybuf, len_key);
+                return client->app->getwelcomepdf_result(ph, &key, API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse welcome PDF response";
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                }
+                break;
+        }
+    }
+}
+
 } // namespace

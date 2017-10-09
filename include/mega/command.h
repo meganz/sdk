@@ -865,6 +865,14 @@ public:
     CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
 };
 
+class MEGA_API CommandGetWelcomePDF : public Command
+{
+public:
+    void procresult();
+
+    CommandGetWelcomePDF(MegaClient*);
+};
+
 } // namespace
 
 #endif

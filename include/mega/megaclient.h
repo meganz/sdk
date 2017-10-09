@@ -535,6 +535,9 @@ public:
     // get mega achievements list (for advertising for unregistered users)
     void getmegaachievements(AchievementsDetails *details);
 
+    // get welcome pdf
+    void getwelcomepdf();
+
     // toggle global debug flag
     bool toggledebug();
 

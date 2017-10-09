@@ -62,6 +62,11 @@ static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
+// import welcompe pdf at account confirmation
+static bool pdf_to_import = false;
+static handle pdf_ph = UNDEF;
+static byte pdf_key[FILENODEKEYLENGTH];
+
 // local console
 Console* console;
 
@@ -841,6 +846,12 @@ void DemoApp::fetchnodes_result(error e)
             }
         }
     }
+
+    if (pdf_to_import)
+    {
+        pdf_to_import = false;
+        client->getwelcomepdf();
+    }
 }
 
 void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
@@ -853,6 +864,23 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
         {
             cout << "Success." << endl;
         }
+    }
+
+    if (!ISUNDEF(pdf_ph))   // putnodes from openfilelink_result()
+    {
+        if (!e)
+        {
+            cout << "Welcome PDF file has been imported successfully." << endl;
+        }
+        else
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+
+        pdf_ph = UNDEF;
+        memset(pdf_key, 0, FILENODEKEYLENGTH);
+
+        return;
     }
 
     if (e)
@@ -2778,6 +2806,7 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
+                        client->getwelcomepdf();
                         return;
                     }
                     break;
@@ -4396,6 +4425,7 @@ void DemoApp::confirmsignuplink_result(error e)
     {
         cout << "Signup confirmed, logging in..." << endl;
         client->login(signupemail.c_str(), pwkey);
+        pdf_to_import = true;
     }
 }
 
@@ -4662,6 +4692,14 @@ void DemoApp::openfilelink_result(error e)
     if (e)
     {
         cout << "Failed to open link: " << errorstring(e) << endl;
+
+        if (!ISUNDEF(pdf_ph)) // import welcome pdf has failed
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+
+            pdf_ph = UNDEF;
+            memset(pdf_key, 0, FILENODEKEYLENGTH);
+        }
     }
 }
 
@@ -4881,6 +4919,26 @@ void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
 {
     // FIXME: implement display of values
     delete details;
+}
+
+void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
+{
+    if (e)
+    {
+        cout << "Failed to get Welcome PDF. Error: " << e << endl;
+
+        pdf_ph = UNDEF;
+        memset(pdf_key, 0, FILENODEKEYLENGTH);
+    }
+    else
+    {
+        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
+
+        pdf_ph = ph;
+        memcpy(pdf_key, k->data(), FILENODEKEYLENGTH);
+
+        client->reqs.add(new CommandGetPH(client, pdf_ph, pdf_key, 1));
+    }
 }
 
 // display account details/history
