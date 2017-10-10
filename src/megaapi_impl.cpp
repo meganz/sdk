@@ -3898,6 +3898,13 @@ MegaApiImpl::~MegaApiImpl()
         delete it->second;
     }
 
+    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
+    {
+        MegaBackupController *backupController=*it;
+        delete backupController;
+    }
+
+
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -13138,17 +13145,12 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 
 void MegaApiImpl::sendPendingTransfers()
 {
-
     //TODO: move this to another method ::updateBackups
-    MegaBackupController *backupController;
-    while((backupController = backupsQueue.pop()))
+    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
     {
+        MegaBackupController *backupController=*it;
         backupController->update();
     }
-
-    backupsQueue.push(backupController); //TODO: remove this and use sth differnt that the proposed queue (sth permanent)
-
-
 
     MegaTransferPrivate *transfer;
     error e;
@@ -15320,8 +15322,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile());
-            backupsQueue.push(mbc); //TODO: handle destruction of this queue
+            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile(), 100);
+            backupsSet.insert(mbc);
 
             fireOnRequestFinish(request, MegaError(API_OK));
 
@@ -16127,57 +16129,6 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
 
     mutex.unlock();
 }
-
-
-BackupControllerQueue::BackupControllerQueue()
-{
-    mutex.init(false);
-}
-
-void BackupControllerQueue::push(MegaBackupController *transfer)
-{
-    mutex.lock();
-    backups.push_back(transfer);
-    mutex.unlock();
-}
-
-void BackupControllerQueue::push_front(MegaBackupController *transfer)
-{
-    mutex.lock();
-    backups.push_front(transfer);
-    mutex.unlock();
-}
-
-MegaBackupController *BackupControllerQueue::pop()
-{
-    mutex.lock();
-    if(backups.empty())
-    {
-        mutex.unlock();
-        return NULL;
-    }
-    MegaBackupController *transfer = backups.front();
-    backups.pop_front();
-    mutex.unlock();
-    return transfer;
-}
-
-void BackupControllerQueue::removeListener(MegaTransferListener *listener) //TODO: deal with this
-{
-//    mutex.lock();
-
-//    std::deque<MegaBackupController *>::iterator it = transfers.begin();
-//    while(it != transfers.end())
-//    {
-//        MegaBackupController *transfer = (*it);
-//        if(transfer->getListener() == listener)
-//            transfer->setListener(NULL);
-//        it++;
-//    }
-
-//    mutex.unlock();
-}
-
 
 RequestQueue::RequestQueue()
 {
@@ -17750,14 +17701,59 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename, int64_t period)
 {
     LOG_fatal << " at MegaBackupController constructor: "+ string(filename); //TODO: delete
 
-    string localPath(filename); //TODO: this might better be named utf8name
-////    localPath.append(client->fsaccess->localseparator); //TODO: this caused segfault
-//    localPath.append("/"); //TODO: crossplatform solution
-//    localPath.append("001"); //TODO: get date??? iD?
+    this->basepath = filename;
+    this->parenthandle = parenthandle;
+
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+
+
+    this->period = period;
+    this->startTime = Waiter::ds + period;
+
+    this->ongoing = false;
+    this->ongoing = false;
+}
+
+void MegaBackupController::update()
+{
+    LOG_fatal << " at MegaBackupController update: " + basepath; //TODO: delete
+
+    if (Waiter::ds > startTime)
+    {
+        if (!ongoing)
+        {
+            LOG_fatal << " at MegaBackupController update starting: " + basepath; //TODO: delete
+            start();
+            startTime+=period;
+        }
+        else
+        {
+            LOG_err << "Backup already being executed: " + basepath << ". Postponing ...";
+            //TODO: give it a while? (how? maybe using backoff timers)
+            //TODO: update startTime? jump starTime if next period exceeded?
+
+        }
+    }
+    else
+    {
+        LOG_fatal << " at MegaBackupController update too soon: " + basepath; //TODO: delete
+        //TODO: update next waking sdk time
+    }
+}
+
+void MegaBackupController::start()
+{
+    LOG_fatal << " at MegaBackupController start: " + basepath; //TODO: delete
+
+    string localPath = basepath;
 
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD);
     transfer->setPath(localPath.data());
@@ -17780,39 +17776,9 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parentha
 //    }
 
 //    transferQueue.push(transfer);
-
-
-    this->megaApi = megaApi;
-    this->client = megaApi->getMegaClient();
     this->transfer = transfer;
-    this->listener = transfer->getListener();
-    this->recursive = 0;
-    this->pendingTransfers = 0;
+    this->listener = transfer->getListener(); //TODO: delete listener, transfer has none!
     this->tag = transfer->getTag();
-
-
-    this->startTime= Waiter::ds; // + sth
-}
-
-void MegaBackupController::update()
-{
-    LOG_fatal << " at MegaBackupController update: " + string(transfer->getFileName()); //TODO: delete
-
-    if (Waiter::ds > startTime)
-    {
-        LOG_fatal << " at MegaBackupController update starting: " + string(transfer->getFileName()); //TODO: delete
-        start();
-    }
-    else
-    {
-        LOG_fatal << " at MegaBackupController update too soon: " + string(transfer->getFileName()); //TODO: delete
-    }
-
-}
-
-void MegaBackupController::start()
-{
-    LOG_fatal << " at MegaBackupController start: " + string(transfer->getFileName()); //TODO: delete
 
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -17820,27 +17786,36 @@ void MegaBackupController::start()
     megaApi->fireOnTransferStart(transfer);
 
     const char *name = transfer->getFileName();
+    std::ostringstream ossremotename;
+    ossremotename << name;
+    ossremotename << "_"; ////  << client->fsaccess->localseparator; //TODO: this caused segfault //TODO: crossplatform solution
+    ossremotename << startTime;
+    string backupname = ossremotename.str();
+
     MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
     if(!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-        delete this;
+
+        LOG_err << "Could not start backup: "<< transfer->getFileName() << ". Parent node not found";
     }
     else
     {
+        ongoing = true;
+
         string path = transfer->getPath();
         string localpath;
         client->fsaccess->path2local(&path, &localpath);
 
-        MegaNode *child = megaApi->getChildNode(parent, name);
+        MegaNode *child = megaApi->getChildNode(parent, backupname.c_str());
 
         if(!child || !child->isFolder())
         {
             pendingFolders.push_back(localpath);
-            megaApi->createFolder(name, parent, this);
+            megaApi->createFolder(backupname.c_str(), parent, this);
         }
-        else
+        else //TODO: actually this should not occurr (no folder should exist already)... ? unless this is somehow a retry...
         {
             pendingFolders.push_front(localpath);
             onFolderAvailable(child->getHandle());
@@ -17978,15 +17953,17 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     checkCompletion();
 }
 
-void MegaBackupController::checkCompletion()
+bool MegaBackupController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingSkippedTransfers.size())
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-        delete this;
+        ongoing = false;
+        return true;
     }
+    return false;
 }
 
 void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)

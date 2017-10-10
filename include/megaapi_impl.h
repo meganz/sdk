@@ -218,13 +218,13 @@ public:
 class MegaBackupController : public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename);
+    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename, int64_t period);
     void update();
     void start();
 
 protected:
     void onFolderAvailable(MegaHandle handle);
-    void checkCompletion();
+    bool checkCompletion();
 
     std::list<std::string> pendingFolders;
     std::list<MegaTransferPrivate *> pendingSkippedTransfers;
@@ -237,10 +237,12 @@ protected:
     int tag;
     int pendingTransfers;
 
-
+    bool ongoing;
     int64_t startTime; // when shalll the next backup begin
+    int64_t period; //TODO: getter/setter
 
-
+    string basepath;
+    handle parenthandle;
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
@@ -1436,22 +1438,6 @@ class TransferQueue
         void removeListener(MegaTransferListener *listener);
 };
 
-//Thread safe transfer queue
-class BackupControllerQueue
-{
-    protected:
-        std::deque<MegaBackupController *> backups;
-        MegaMutex mutex;
-
-    public:
-        BackupControllerQueue();
-        void push(MegaBackupController *transfer);
-        void push_front(MegaBackupController *transfer);
-        MegaBackupController * pop();
-        void removeListener(MegaTransferListener *listener);//TODO: deal with this
-};
-
-
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -1962,7 +1948,8 @@ protected:
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
-        BackupControllerQueue backupsQueue;
+        set<MegaBackupController *> backupsSet;
+
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
