@@ -10825,6 +10825,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     string attrstring;
     string fileName;
+    string validName;
     string keystring;
     string fingerprint;
 
@@ -10866,6 +10867,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         else
         {
             fileName = it->second.c_str();
+            validName = fileName;
         }
 
         it = attrs.map.find('c');
@@ -10907,6 +10909,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
         newnode->attrstring = new string(*a);
+        newnode->ovhandle = client->getovhandle(client->nodebyhandle(request->getParentHandle()), &validName);
 
         // add node
         requestMap.erase(request->getTag());
@@ -13883,6 +13886,14 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 tc.nn->parenthandle = UNDEF;
+                if (tc.nn->type == FILENODE)
+                {
+                    attr_map::iterator it = node->attrs.map.find('n');
+                    if (it != node->attrs.map.end())
+                    {
+                        tc.nn->ovhandle = client->getovhandle(newParent, &it->second);
+                    }
+                }
                 client->putnodes(newParent->nodehandle, tc.nn, nc);
                 e = API_OK;
                 break;
@@ -13931,12 +13942,15 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
+                string sname = megaNode->getName();
                 if (newName)
                 {
                     MegaNodePrivate *privateNode = dynamic_cast<MegaNodePrivate *>(megaNode);
                     if (privateNode)
                     {
-                        privateNode->setName(newName);
+                        sname = newName;
+                        fsAccess->normalize(&sname);
+                        privateNode->setName(sname.c_str());
                     }
                     else
                     {
@@ -13951,6 +13965,10 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
+                    if (megaNode->getType() == MegaNode::TYPE_FILE)
+                    {
+                        tc.nn->ovhandle = client->getovhandle(target, &sname);
+                    }
                     client->putnodes(target->nodehandle, tc.nn, nc);
                 }
                 else
@@ -13978,6 +13996,13 @@ void MegaApiImpl::sendPendingRequests()
 
                 tc.nn->parenthandle = UNDEF;
 
+                string sname;
+                attr_map::iterator it = node->attrs.map.find('n');
+                if (it != node->attrs.map.end())
+                {
+                    sname = it->second;
+                }
+
                 if (newName && tc.nn[0].nodekey.size())
                 {
                     SymmCipher key;
@@ -13987,7 +14012,7 @@ void MegaApiImpl::sendPendingRequests()
                     key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
                     attrs = node->attrs;
 
-                    string sname = newName;
+                    sname = newName;
                     fsAccess->normalize(&sname);
                     attrs.map['n'] = sname;
 
@@ -13997,6 +14022,10 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
+                    if (tc.nn->type == FILENODE)
+                    {
+                        tc.nn->ovhandle = client->getovhandle(target, &sname);
+                    }
                     client->putnodes(target->nodehandle,tc.nn,nc);
                 }
                 else

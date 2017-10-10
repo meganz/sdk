@@ -314,15 +314,7 @@ void File::completed(Transfer* t, LocalNode* l)
 #endif
             if (ISUNDEF(newnode->ovhandle))
             {
-                Node *pn = t->client->nodebyhandle(th);
-                if (pn)
-                {
-                    Node *ovn = t->client->childnodebyname(pn, name.c_str());
-                    if (ovn)
-                    {
-                        newnode->ovhandle = ovn->nodehandle;
-                    }
-                }
+                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
