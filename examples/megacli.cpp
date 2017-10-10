@@ -1833,10 +1833,6 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    // decrypt and set master key, then proceed with the confirmation
-                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-                    client->key.setkey(signupencryptedmasterkey);
-
                     client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
                                               MegaClient::stringhash64(&signupemail, &pwcipher));
                 }
@@ -4425,7 +4421,6 @@ void DemoApp::confirmsignuplink_result(error e)
     {
         cout << "Signup confirmed, logging in..." << endl;
         client->login(signupemail.c_str(), pwkey);
-        pdf_to_import = true;
     }
 }
 
@@ -4613,6 +4608,8 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     cout << buf << endl;
 
+    pdf_to_import = true;
+
     client->fetchnodes();
 }
 
@@ -4691,14 +4688,16 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        cout << "Failed to open link: " << errorstring(e) << endl;
-
         if (!ISUNDEF(pdf_ph)) // import welcome pdf has failed
         {
             cout << "Failed to import Welcome PDF file" << endl;
 
             pdf_ph = UNDEF;
             memset(pdf_key, 0, FILENODEKEYLENGTH);
+        }
+        else
+        {
+            cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
 }
@@ -4745,7 +4744,14 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
         newnode->attrstring = new string(*a);
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        if (!ISUNDEF(pdf_ph))
+        {
+            client->putnodes(client->rootnodes[0], newnode, 1);
+        }
+        else
+        {
+            client->putnodes(n->nodehandle, newnode, 1);
+        }
     }
     else
     {
@@ -4939,6 +4945,8 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
 
         client->reqs.add(new CommandGetPH(client, pdf_ph, pdf_key, 1));
     }
+
+    pdf_to_import = false;
 }
 
 // display account details/history
@@ -5289,6 +5297,8 @@ void DemoAppFolder::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+
+        pdf_to_import = false;
     }
     else
     {
@@ -5308,6 +5318,11 @@ void DemoAppFolder::fetchnodes_result(error e)
 
             delete clientFolder;
             clientFolder = NULL;
+        }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
         }
     }
 }
