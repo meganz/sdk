@@ -1385,6 +1385,7 @@ void MegaClient::exec()
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
 
@@ -1424,6 +1425,7 @@ void MegaClient::exec()
                             {
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
                         }
