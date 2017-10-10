@@ -1521,7 +1521,8 @@ void CommandLogin::procresult()
                     // password using symmetric challenge
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking tsid";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     // add missing RSA keypair
@@ -1541,7 +1542,8 @@ void CommandLogin::procresult()
 
                     if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking private key";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     if (!checksession)
