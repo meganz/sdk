@@ -7320,7 +7320,6 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
-
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -9247,6 +9246,26 @@ void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
+
+    if (e == API_OK)
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->reqs.add(new CommandGetPH(client, ph, (const byte*) key->data(), 1));
+        client->reqtag = creqtag;
+    }
+    else
+    {
+        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+    }
+}
+
 #ifdef ENABLE_CHAT
 
 void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
@@ -9980,7 +9999,8 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE))) return;
+                    (request->getType() != MegaRequest::TYPE_MOVE) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
 #ifdef ENABLE_SYNC
     client->syncdownrequired = true;
@@ -10026,7 +10046,14 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         if (e)
         {
-            fireOnRequestFinish(request, MegaError(e));
+            if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+            }
+            else
+            {
+                fireOnRequestFinish(request, MegaError(e));
+            }
         }
     }
 }
@@ -10774,7 +10801,13 @@ void MegaApiImpl::openfilelink_result(error result)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+
+    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+    {
+        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+    }
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10790,7 +10823,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK)
-                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)))
+                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)
+                     && (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
     {
         return;
     }
@@ -10881,7 +10915,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setFlag(true);
     }
 
-    if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
+    if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK)
+            || (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT))
     {
         NewNode* newnode = new NewNode[1];
 
@@ -10898,7 +10933,14 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(request->getParentHandle(), newnode, 1);
+        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
+        {
+            client->putnodes(client->rootnodes[0], newnode, 1);
+        }
+        else
+        {
+            client->putnodes(request->getParentHandle(), newnode, 1);
+        }
     }
 	else
     {
@@ -11230,6 +11272,16 @@ void MegaApiImpl::sendsignuplink_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
+    if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+            && (e == API_OK) && (request->getParamType() == 0))   // new account has been created
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->getwelcomepdf();
+        client->reqtag = creqtag;
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -11285,11 +11337,7 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
         fireOnRequestFinish(request, MegaError(API_ENOENT));
 	}
 	else
-	{
-		// decrypt and set master key, then proceed with the confirmation
-		pwcipher.ecb_decrypt(signupencryptedmasterkey);
-		client->key.setkey(signupencryptedmasterkey);
-
+    {
         requestMap.erase(request->getTag());
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);

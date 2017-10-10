@@ -2083,6 +2083,7 @@ protected:
         virtual void getversion_result(int, const char*, error);
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
         virtual void getmegaachievements_result(AchievementsDetails*, error);
+        virtual void getwelcomepdf_result(handle, string*, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
