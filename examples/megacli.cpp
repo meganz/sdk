@@ -4963,7 +4963,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
 
