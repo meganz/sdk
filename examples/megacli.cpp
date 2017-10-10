@@ -62,6 +62,11 @@ static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
+// import welcompe pdf at account confirmation
+static bool pdf_to_import = false;
+static handle pdf_ph = UNDEF;
+static byte pdf_key[FILENODEKEYLENGTH];
+
 // local console
 Console* console;
 
@@ -841,6 +846,12 @@ void DemoApp::fetchnodes_result(error e)
             }
         }
     }
+
+    if (pdf_to_import)
+    {
+        pdf_to_import = false;
+        client->getwelcomepdf();
+    }
 }
 
 void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
@@ -853,6 +864,23 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
         {
             cout << "Success." << endl;
         }
+    }
+
+    if (!ISUNDEF(pdf_ph))   // putnodes from openfilelink_result()
+    {
+        if (!e)
+        {
+            cout << "Welcome PDF file has been imported successfully." << endl;
+        }
+        else
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+
+        pdf_ph = UNDEF;
+        memset(pdf_key, 0, FILENODEKEYLENGTH);
+
+        return;
     }
 
     if (e)
@@ -1805,10 +1833,6 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    // decrypt and set master key, then proceed with the confirmation
-                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-                    client->key.setkey(signupencryptedmasterkey);
-
                     client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
                                               MegaClient::stringhash64(&signupemail, &pwcipher));
                 }
@@ -2778,6 +2802,7 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
+                        client->getwelcomepdf();
                         return;
                     }
                     break;
@@ -4583,6 +4608,8 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     cout << buf << endl;
 
+    pdf_to_import = true;
+
     client->fetchnodes();
 }
 
@@ -4661,7 +4688,17 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        cout << "Failed to open link: " << errorstring(e) << endl;
+        if (!ISUNDEF(pdf_ph)) // import welcome pdf has failed
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+
+            pdf_ph = UNDEF;
+            memset(pdf_key, 0, FILENODEKEYLENGTH);
+        }
+        else
+        {
+            cout << "Failed to open link: " << errorstring(e) << endl;
+        }
     }
 }
 
@@ -4707,7 +4744,14 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
         newnode->attrstring = new string(*a);
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        if (!ISUNDEF(pdf_ph))
+        {
+            client->putnodes(client->rootnodes[0], newnode, 1);
+        }
+        else
+        {
+            client->putnodes(n->nodehandle, newnode, 1);
+        }
     }
     else
     {
@@ -4883,6 +4927,28 @@ void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
     delete details;
 }
 
+void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
+{
+    if (e)
+    {
+        cout << "Failed to get Welcome PDF. Error: " << e << endl;
+
+        pdf_ph = UNDEF;
+        memset(pdf_key, 0, FILENODEKEYLENGTH);
+    }
+    else
+    {
+        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
+
+        pdf_ph = ph;
+        memcpy(pdf_key, k->data(), FILENODEKEYLENGTH);
+
+        client->reqs.add(new CommandGetPH(client, pdf_ph, pdf_key, 1));
+    }
+
+    pdf_to_import = false;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -4897,7 +4963,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
 
@@ -5231,6 +5298,8 @@ void DemoAppFolder::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+
+        pdf_to_import = false;
     }
     else
     {
@@ -5250,6 +5319,11 @@ void DemoAppFolder::fetchnodes_result(error e)
 
             delete clientFolder;
             clientFolder = NULL;
+        }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
         }
     }
 }

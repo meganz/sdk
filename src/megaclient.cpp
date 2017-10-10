@@ -727,6 +727,11 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     string nname = name;
     Node *found = NULL;
 
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
+
     fsaccess->normalize(&nname);
 
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
@@ -2082,6 +2087,7 @@ void MegaClient::exec()
                             // we have no sync-related operations pending - trigger processing if at least one
                             // filesystem item is notified or initiate a full rescan if there has been
                             // an event notification failure (or event notification is unavailable)
+                            bool scanfailed = false;
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 Sync* sync = *it;
@@ -2116,19 +2122,22 @@ void MegaClient::exec()
                                             {
                                                 LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
+                                                scanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
                                                 sync->dirnotify->error = false;
-                                                fsaccess->notifyerr = false;
-
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
-
-                                                syncscanbt.backoff(50 + totalnodes / 128);
                                             }
                                         }
                                     }
                                 }
+                            }
+
+                            if (scanfailed)
+                            {
+                                fsaccess->notifyerr = false;
+                                syncscanbt.backoff(50 + totalnodes / 128);
                             }
 
                             // clear pending global notification error flag if all syncs were marked
@@ -4148,6 +4157,10 @@ void MegaClient::readtree(JSON* j)
                     readnodes(j, 1);
                     break;
 
+                case MAKENAMEID2('f', '2'):
+                    readnodes(j, 1);
+                    break;
+
                 case 'u':
                     readusers(j);
                     break;
@@ -5740,16 +5753,30 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n)
+error MegaClient::unlink(Node* n, bool keepversions)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
 
-    reqs.add(new CommandDelNode(this, n->nodehandle));
+    bool kv = (keepversions && n->type == FILENODE);
+    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
 
     mergenewshares(1);
+
+    if (kv)
+    {
+        Node *newerversion = n->parent;
+        if (n->children.size())
+        {
+            Node *olderversion = n->children.back();
+            olderversion->setparent(newerversion);
+            olderversion->changed.parent = true;
+            olderversion->tag = reqtag;
+            notifynode(olderversion);
+        }
+    }
 
     TreeProcDel td;
     proctree(n, &td);
@@ -7327,9 +7354,9 @@ void MegaClient::resetKeyring()
 #endif
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
+void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
-    if (n->type != FILENODE)
+    if (!skipversions || n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
@@ -10967,10 +10994,10 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? send it to SyncDebris.
+                    // overwriting an existing remote node? tag it as the previous version
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        movetosyncdebris(l->node, l->sync->inshare);
+                        nnp->ovhandle = l->node->nodehandle;
                     }
 
                     // this is a file - copy, use original key & attributes
@@ -11846,6 +11873,11 @@ void MegaClient::getaccountachievements(AchievementsDetails *details)
 void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
+}
+
+void MegaClient::getwelcomepdf()
+{
+    reqs.add(new CommandGetWelcomePDF(this));
 }
 
 FetchNodesStats::FetchNodesStats()

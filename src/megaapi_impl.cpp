@@ -2897,6 +2897,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
+        case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
     }
     return "UNKNOWN";
@@ -4804,11 +4805,23 @@ void MegaApiImpl::renameNode(MegaNode *node, const char *newName, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
+void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE, listener);
     if(node) request->setNodeHandle(node->getHandle());
+    request->setFlag(keepversions);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::restoreVersion(MegaNode *version, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESTORE, listener);
+    if (version)
+    {
+        request->setNodeHandle(version->getHandle());
+    }
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -7320,7 +7333,6 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
-
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -9247,6 +9259,26 @@ void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
+
+    if (e == API_OK)
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->reqs.add(new CommandGetPH(client, ph, (const byte*) key->data(), 1));
+        client->reqtag = creqtag;
+    }
+    else
+    {
+        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+    }
+}
+
 #ifdef ENABLE_CHAT
 
 void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
@@ -9596,7 +9628,7 @@ void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
 
 void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
 {
-    LOG_debug << "Sync - remote file deletion detected " << n->displayname();
+    LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -9980,7 +10012,9 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE))) return;
+                    (request->getType() != MegaRequest::TYPE_MOVE) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_RESTORE))) return;
 
 #ifdef ENABLE_SYNC
     client->syncdownrequired = true;
@@ -10026,7 +10060,14 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         if (e)
         {
-            fireOnRequestFinish(request, MegaError(e));
+            if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+            }
+            else
+            {
+                fireOnRequestFinish(request, MegaError(e));
+            }
         }
     }
 }
@@ -10774,7 +10815,13 @@ void MegaApiImpl::openfilelink_result(error result)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+
+    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+    {
+        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+    }
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10790,7 +10837,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK)
-                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)))
+                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)
+                     && (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
     {
         return;
     }
@@ -10881,7 +10929,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setFlag(true);
     }
 
-    if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
+    if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK)
+            || (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT))
     {
         NewNode* newnode = new NewNode[1];
 
@@ -10898,7 +10947,14 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(request->getParentHandle(), newnode, 1);
+        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
+        {
+            client->putnodes(client->rootnodes[0], newnode, 1);
+        }
+        else
+        {
+            client->putnodes(request->getParentHandle(), newnode, 1);
+        }
     }
 	else
     {
@@ -11230,6 +11286,16 @@ void MegaApiImpl::sendsignuplink_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
+    if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+            && (e == API_OK) && (request->getParamType() == 0))   // new account has been created
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->getwelcomepdf();
+        client->reqtag = creqtag;
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -11285,11 +11351,7 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
         fireOnRequestFinish(request, MegaError(API_ENOENT));
 	}
 	else
-	{
-		// decrypt and set master key, then proceed with the confirmation
-		pwcipher.ecb_decrypt(signupencryptedmasterkey);
-		client->key.setkey(signupencryptedmasterkey);
-
+    {
         requestMap.erase(request->getTag());
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
@@ -12408,11 +12470,14 @@ bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12426,11 +12491,14 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 
 int MegaApiImpl::getNumChildFiles(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12449,11 +12517,14 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 
 int MegaApiImpl::getNumChildFolders(MegaNode* p)
 {
-	if (!p) return 0;
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
 
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
+    if (!parent || parent->type == FILENODE)
 	{
 		sdkMutex.unlock();
 		return 0;
@@ -12473,11 +12544,14 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 
 MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 {
-    if(!p) return new MegaNodeListPrivate();
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
+    {
+        return new MegaNodeListPrivate();
+    }
 
     sdkMutex.lock();
     Node *parent = client->nodebyhandle(p->getHandle());
-	if(!parent)
+    if (!parent || parent->type == FILENODE)
 	{
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
@@ -12522,16 +12596,95 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     else return new MegaNodeListPrivate();
 }
 
+MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
+{
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    sdkMutex.lock();
+    Node *current = client->nodebyhandle(node->getHandle());
+    if (!current || current->type != FILENODE)
+    {
+        sdkMutex.unlock();
+        return new MegaNodeListPrivate();
+    }
+
+    vector<Node*> versions;
+    versions.push_back(current);
+    while (current->children.size())
+    {
+        assert(current->children.back()->parent == current);
+        current = current->children.back();
+        assert(current->type == FILENODE);
+        versions.push_back(current);
+    }
+    sdkMutex.unlock();
+    return new MegaNodeListPrivate(versions.data(), versions.size());
+}
+
+int MegaApiImpl::getNumVersions(MegaNode *node)
+{
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
+    {
+        return 0;
+    }
+
+    sdkMutex.lock();
+    Node *current = client->nodebyhandle(node->getHandle());
+    if (!current || current->type != FILENODE)
+    {
+        sdkMutex.unlock();
+        return 0;
+    }
+
+    int numVersions = 1;
+    while (current->children.size())
+    {
+        assert(current->children.back()->parent == current);
+        current = current->children.back();
+        assert(current->type == FILENODE);
+        numVersions++;
+    }
+    sdkMutex.unlock();
+    return numVersions;
+}
+
+bool MegaApiImpl::hasVersions(MegaNode *node)
+{
+    if (!node || node->getType() != MegaNode::TYPE_FILE)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *current = client->nodebyhandle(node->getHandle());
+    if (!current || current->type != FILENODE)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    assert(!current->children.size()
+           || (current->children.back()->parent == current
+               && current->children.back()->type == FILENODE));
+
+    bool result = current->children.size() != 0;
+    sdkMutex.unlock();
+    return result;
+}
+
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 {
-    if(!p)
+    if (!p || p->getType() == MegaNode::TYPE_FILE)
     {
         return new MegaChildrenListsPrivate();
     }
 
     sdkMutex.lock();
     Node *parent = client->nodebyhandle(p->getHandle());
-    if(!parent)
+    if (!parent || parent->type == FILENODE)
     {
         sdkMutex.unlock();
         return new MegaChildrenListsPrivate();
@@ -12615,14 +12768,20 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
 {
-    if (!parent)
+    if (!parent || parent->getType() == MegaNode::TYPE_FILE)
     {
         return false;
     }
 
     sdkMutex.lock();
     Node *p = client->nodebyhandle(parent->getHandle());
-    bool ret = p ? p->children.size() : false;
+    if (!p || p->type == FILENODE)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool ret = p->children.size();
     sdkMutex.unlock();
 
     return ret;
@@ -12644,7 +12803,7 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
     }
 
     Node *parent = node->parent;
-    if(!parent)
+    if (!parent)
     {
         sdkMutex.unlock();
         return -1;
@@ -12691,14 +12850,14 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 {
-    if(!parent || !name)
+    if (!parent || !name || parent->getType() == MegaNode::TYPE_FILE)
     {
         return NULL;
     }
 
     sdkMutex.lock();
     Node *parentNode = client->nodebyhandle(parent->getHandle());
-	if(!parentNode)
+    if (!parentNode || parentNode->type == FILENODE)
 	{
         sdkMutex.unlock();
         return NULL;
@@ -13847,6 +14006,54 @@ void MegaApiImpl::sendPendingRequests()
             }
 			break;
 		}
+        case MegaRequest::TYPE_RESTORE:
+        {
+            Node *version = client->nodebyhandle(request->getNodeHandle());
+            if (!version)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (version->type != FILENODE || !version->parent || version->parent->type != FILENODE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            Node *current = version;
+            while (current->parent && current->parent->type == FILENODE)
+            {
+                current = current->parent;
+            }
+
+            if (!current->parent)
+            {
+                e = API_EINTERNAL;
+                break;
+            }
+
+            NewNode* newnode = new NewNode[1];
+            string attrstring;
+            SymmCipher key;
+
+            newnode->source = NEW_NODE;
+            newnode->type = FILENODE;
+            newnode->nodehandle = version->nodehandle;
+            newnode->parenthandle = UNDEF;
+            newnode->ovhandle = current->nodehandle;
+            newnode->nodekey = version->nodekey;
+            newnode->attrstring = new string();
+            if (newnode->nodekey.size())
+            {
+                key.setkey((const byte*)version->nodekey.data(), version->type);
+                version->attrs.getjson(&attrstring);
+                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+            }
+
+            client->putnodes(current->parent->nodehandle, newnode, 1);
+            break;
+        }
         case MegaRequest::TYPE_RENAME:
         {
             Node* node = client->nodebyhandle(request->getNodeHandle());
@@ -13864,10 +14071,17 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_REMOVE:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());
+            bool keepversions = request->getFlag();
 
             if (!node)
             {
                 e = API_ENOENT;
+                break;
+            }
+
+            if (keepversions && node->type != FILENODE)
+            {
+                e = API_EARGS;
                 break;
             }
 
@@ -13879,7 +14093,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-			e = client->unlink(node);
+            e = client->unlink(node, keepversions);
 			break;
 		}
 		case MegaRequest::TYPE_SHARE:
@@ -16016,7 +16230,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
-		t->attrstring = new string;
+        t->attrstring = new string();
 		if(t->nodekey.size())
 		{
 			key.setkey((const byte*)t->nodekey.data(),n->type);
@@ -16232,6 +16446,19 @@ long long MegaAccountDetailsPrivate::getStorageUsed()
     return details.storage_used;
 }
 
+long long MegaAccountDetailsPrivate::getVersionStorageUsed()
+{
+    long long total = 0;
+
+    handlestorage_map::iterator it;
+    for (it = details.storage.begin(); it != details.storage.end(); it++)
+    {
+        total += it->second.version_bytes;
+    }
+
+    return total;
+}
+
 long long MegaAccountDetailsPrivate::getTransferMax()
 {
     return details.transfer_max;
@@ -16249,17 +16476,67 @@ int MegaAccountDetailsPrivate::getNumUsageItems()
 
 long long MegaAccountDetailsPrivate::getStorageUsed(MegaHandle handle)
 {
-    return details.storage[handle].bytes;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.bytes;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getNumFiles(MegaHandle handle)
 {
-    return details.storage[handle].files;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.files;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
 {
-    return details.storage[handle].folders;
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.folders;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+long long MegaAccountDetailsPrivate::getVersionStorageUsed(MegaHandle handle)
+{
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.version_bytes;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+long long MegaAccountDetailsPrivate::getNumVersionFiles(MegaHandle handle)
+{
+    handlestorage_map::iterator it = details.storage.find(handle);
+    if (it != details.storage.end())
+    {
+        return it->second.version_files;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()

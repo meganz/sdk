@@ -939,6 +939,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual long long getStorageMax();
         virtual long long getStorageUsed();
+        virtual long long getVersionStorageUsed();
         virtual long long getTransferMax();
         virtual long long getTransferOwnUsed();
 
@@ -946,6 +947,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual long long getStorageUsed(MegaHandle handle);
         virtual long long getNumFiles(MegaHandle handle);
         virtual long long getNumFolders(MegaHandle handle);
+        virtual long long getVersionStorageUsed(MegaHandle handle);
+        virtual long long getNumVersionFiles(MegaHandle handle);
 
         virtual MegaAccountDetails* copy();
 
@@ -1502,7 +1505,8 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
-        void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+        void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
+        void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
@@ -1666,6 +1670,9 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getVersions(MegaNode *node);
+        int getNumVersions(MegaNode *node);
+        bool hasVersions(MegaNode *node);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);
@@ -2083,6 +2090,7 @@ protected:
         virtual void getversion_result(int, const char*, error);
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
         virtual void getmegaachievements_result(AchievementsDetails*, error);
+        virtual void getwelcomepdf_result(handle, string*, error);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
