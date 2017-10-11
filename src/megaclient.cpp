@@ -6081,6 +6081,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             if ((n = nodebyhandle(h)))
             {
+                Node* p = NULL;
+                if (!ISUNDEF(ph))
+                {
+                    p = nodebyhandle(ph);
+                }
+
                 if (n->changed.removed)
                 {
                     // node marked for deletion is being resurrected, possibly
@@ -6090,17 +6096,20 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
+                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency (parent linkage)");
+                        app->reload("Node inconsistency");
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99437, "Node inconsistency");
+                        reqtag = creqtag;
                     }
                 }
 
                 if (!ISUNDEF(ph))
                 {
-                    Node* p;
-
-                    if ((p = nodebyhandle(ph)))
+                    if (p)
                     {
                         n->setparent(p);
                         n->changed.parent = true;
