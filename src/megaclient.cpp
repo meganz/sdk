@@ -11053,10 +11053,6 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
-                if (nn->type == FILENODE && ISUNDEF(nn->ovhandle))
-                {
-                    nn->ovhandle = getovhandle(synccreate[start]->parent->node, &synccreate[start]->name);
-                }
                 reqs.add(new CommandPutNodes(this,
                                                 synccreate[start]->parent->node->nodehandle,
                                                 NULL, nn, nnp - nn,
