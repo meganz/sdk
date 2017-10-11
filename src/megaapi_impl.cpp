@@ -10036,7 +10036,12 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
-        request->setNodeHandle(h);
+        request->setNodeHandle(h);    
+        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+        {
+            fireOnRequestFinish(request, MegaError(API_OK));    // even if import fails, notify account was successfuly created anyway
+            return;
+        }
         fireOnRequestFinish(request, megaError);
     }
     else
@@ -10060,14 +10065,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         if (e)
         {
-            if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-            {
-                fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
-            }
-            else
-            {
-                fireOnRequestFinish(request, MegaError(e));
-            }
+            fireOnRequestFinish(request, MegaError(e));
         }
     }
 }
