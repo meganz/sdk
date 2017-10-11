@@ -13288,6 +13288,7 @@ void MegaApiImpl::sendPendingTransfers()
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(size);
+                            transfer->setTransferredBytes(0);
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             fireOnTransferStart(transfer);
@@ -13297,16 +13298,16 @@ void MegaApiImpl::sendPendingTransfers()
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
                             fireOnTransferFinish(transfer, MegaError(API_OK));
-                            break;
+                            break;                            
                         }
                     }
 
                     Node *samenode = client->nodebyfingerprint(&fp);
                     if (samenode && samenode->nodekey.size())
                     {
+                        pendingUploads++;
                         transfer->setState(MegaTransfer::STATE_QUEUED);
                         transferMap[nextTag] = transfer;
-                        pendingUploads++;
                         transfer->setTag(nextTag);
                         transfer->setTotalBytes(size);
                         transfer->setStartTime(Waiter::ds);
@@ -13528,6 +13529,8 @@ void MegaApiImpl::sendPendingTransfers()
                             transfer->setTotalBytes(fa->size);
                             transfer->setTransferredBytes(0);
                             transfer->setPath(path.c_str());
+                            transfer->setStartTime(Waiter::ds);
+                            transfer->setUpdateTime(Waiter::ds);
                             fireOnTransferStart(transfer);
                             if (node)
                             {
@@ -13541,8 +13544,6 @@ void MegaApiImpl::sendPendingTransfers()
                             transfer->setDeltaSize(fa->size);
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
-                            transfer->setStartTime(Waiter::ds);
-                            transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
                             fireOnTransferFinish(transfer, MegaError(API_OK));
                             delete fa;
