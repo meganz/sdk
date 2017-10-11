@@ -2899,6 +2899,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
         case TYPE_ADD_BACKUP: return "ADD_BACKUP";
+        case TYPE_TIMER: return "ESTABLISH_TIMER";
     }
     return "UNKNOWN";
 }
@@ -6018,7 +6019,7 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
 }
 
 
-void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent,MegaRequestListener *listener)
+void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
     if(parent) request->setNodeHandle(parent->getHandle());
@@ -6031,6 +6032,20 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent,MegaRequ
 #endif
         request->setFile(path.data());
     }
+
+    request->setNumRetry(numBackups); //TODO: document this
+    request->setNumber(period); //TODO: document this
+
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+
+void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER);
+    request->setNumber(period); //TODO: document this
 
     request->setListener(listener);
     requestQueue.push(request);
@@ -10559,6 +10574,23 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             delete f;
         }
     }
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+
+void MegaApiImpl::bttimedpassed_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_TIMER))
+    {
+        return;
+    }
+
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -15322,10 +15354,24 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile(), 100);
+
+            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
             backupsSet.insert(mbc);
 
             fireOnRequestFinish(request, MegaError(API_OK));
+
+            break;
+        }
+        case MegaRequest::TYPE_TIMER:
+        {
+            long long delta = request->getNumber();
+            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            twb->backoff(delta);
+            e = client->addtimer(twb);
+            if (e)
+            {
+                fireOnRequestFinish(request, MegaError(API_EFAILED));
+            }
 
             break;
         }
@@ -17701,9 +17747,9 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename, int64_t period)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename, int64_t period, int maxBackups)
 {
-    LOG_fatal << " at MegaBackupController constructor: "+ string(filename); //TODO: delete
+    LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
 
     this->basepath = filename;
     this->parenthandle = parenthandle;
@@ -17714,29 +17760,34 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parentha
     this->recursive = 0;
     this->pendingTransfers = 0;
 
-
     this->period = period;
-    this->startTime = Waiter::ds + period;
+
+    int64_t lastbackuptime = getLastBackupTime();
+    this->startTime = lastbackuptime?(lastbackuptime+period):Waiter::ds;
+    if (this->startTime < Waiter::ds)
+        this->startTime = Waiter::ds;
+
+    megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
     this->ongoing = false;
-    this->ongoing = false;
+    this->maxBackups = maxBackups;
+
 }
 
 void MegaBackupController::update()
 {
-    LOG_fatal << " at MegaBackupController update: " + basepath; //TODO: delete
+//    LOG_fatal << " at MegaBackupController update: " + basepath; //TODO: delete
 
     if (Waiter::ds > startTime)
     {
         if (!ongoing)
         {
-            LOG_fatal << " at MegaBackupController update starting: " + basepath; //TODO: delete
             start();
             startTime+=period;
         }
         else
         {
-            LOG_err << "Backup already being executed: " + basepath << ". Postponing ...";
+            LOG_verbose << "Backup already being executed: " + basepath << ". Postponing ...";
             //TODO: give it a while? (how? maybe using backoff timers)
             //TODO: update startTime? jump starTime if next period exceeded?
 
@@ -17744,14 +17795,126 @@ void MegaBackupController::update()
     }
     else
     {
-        LOG_fatal << " at MegaBackupController update too soon: " + basepath; //TODO: delete
-        //TODO: update next waking sdk time
+        megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
     }
+}
+
+void MegaBackupController::removeexceeding()
+{
+//    LOG_fatal << " at MegaBackupController removeexceeding: " + basepath; //TODO: delete
+    map<int64_t, MegaNode *> backupTimesPaths;
+    int64_t oldesttime=0;
+
+    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+    if (parentNode)
+    {
+        MegaNodeList* children = megaApi->getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (isBackup(childname) )
+                {
+                    int64_t timeofbackup = getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=childNode;
+                        oldesttime = min(oldesttime?oldesttime:timeofbackup, timeofbackup);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+
+
+            while (backupTimesPaths.size() > maxBackups && oldesttime) //TODO: what if maxBackups==0?
+            {
+                MegaNode * nodeToDelete = backupTimesPaths.at(oldesttime);
+
+                char * nodepath = megaApi->getNodePath(nodeToDelete);
+                LOG_info << " Removing backup " << nodepath;
+                delete []nodepath;
+
+                megaApi->remove(nodeToDelete, this); //TODO: register when request finished and then update! TODO: figure out a way to control that we dont issue the same request twice!
+
+                backupTimesPaths.erase(oldesttime);
+                oldesttime = 0;
+                if (backupTimesPaths.size() > maxBackups)
+                {
+                    oldesttime = backupTimesPaths.begin()->first;
+                }
+            }
+
+
+            delete children;
+        }
+    }
+}
+
+int64_t MegaBackupController::getLastBackupTime()
+{
+    map<int64_t, MegaNode *> backupTimesPaths;
+    int64_t latesttime=0;
+
+    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+    if (parentNode)
+    {
+        MegaNodeList* children = megaApi->getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (isBackup(childname) )
+                {
+                    int64_t timeofbackup = getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=childNode;
+                        latesttime = max(latesttime, timeofbackup);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+            delete children;
+        }
+    }
+    return latesttime;
+}
+
+
+bool MegaBackupController::isBackup(string localname)
+{
+    return (localname.find("_bk_") != string::npos);
+}
+
+
+int64_t MegaBackupController::getTimeOfBackup(string localname)
+{
+    size_t pos = localname.find("_bk_");
+    if (pos == string::npos || ( (pos+4) >= (localname.size()-1) ) )
+    {
+        return 0;
+    }
+    string rest = localname.substr(pos + 4).c_str();
+
+    int64_t toret = atol(rest.c_str());
+    return toret;
+
+//    return atol(localname.substr(pos + 1).c_str());
 }
 
 void MegaBackupController::start()
 {
-    LOG_fatal << " at MegaBackupController start: " + basepath; //TODO: delete
+    LOG_fatal << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ; //TODO: delete
 
     string localPath = basepath;
 
@@ -17788,8 +17951,9 @@ void MegaBackupController::start()
     const char *name = transfer->getFileName();
     std::ostringstream ossremotename;
     ossremotename << name;
-    ossremotename << "_"; ////  << client->fsaccess->localseparator; //TODO: this caused segfault //TODO: crossplatform solution
-    ossremotename << startTime;
+    ossremotename << "_bk_"; ////  << client->fsaccess->localseparator; //TODO: this caused segfault (no fsaccess?) //TODO: crossplatform solution
+    ossremotename << startTime; //TODO: should we use this time or Waiter::ds for the name?
+//    ossremotename << Waiter::ds;
     string backupname = ossremotename.str();
 
     MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
@@ -17960,6 +18124,9 @@ bool MegaBackupController::checkCompletion()
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+
+        removeexceeding(); //TODO: figure out a way to keep onging as true until removed succeeds
+
         ongoing = false;
         return true;
     }
@@ -18008,7 +18175,7 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
 
 void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
-    LOG_fatal << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
+    LOG_verbose << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
 
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
@@ -18019,7 +18186,7 @@ void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    LOG_fatal << " at MegaBackupController::onTransferUpdate";
+    LOG_verbose << " at MegaBackupController::onTransferUpdate";
 
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
@@ -18032,7 +18199,7 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
 {
-    LOG_fatal << " at MegaBackupController::onTransferFinish";
+    LOG_verbose << " at MegaackupController::onTransferFinish";
 
     pendingTransfers--;
     transfer->setState(MegaTransfer::STATE_ACTIVE);

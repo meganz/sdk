@@ -2097,9 +2097,14 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
-void MegaApi::startBackup(const char* localPath, MegaNode* parent, MegaRequestListener *listener)
+void MegaApi::startBackup(const char* localPath, MegaNode* parent, int64_t period, int numBackups, MegaRequestListener *listener)
 {
-    pImpl->startBackup(localPath, parent, listener);
+    pImpl->startBackup(localPath, parent, period, numBackups, listener);
+}
+
+void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
+{
+    pImpl->startTimer(period, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)

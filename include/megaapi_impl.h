@@ -218,9 +218,16 @@ public:
 class MegaBackupController : public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename, int64_t period);
+    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
     void update();
     void start();
+    void removeexceeding();
+    int64_t getLastBackupTime();
+
+private:
+    bool isBackup(string localname);
+    int64_t getTimeOfBackup(string localname);
+
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -243,6 +250,7 @@ protected:
 
     string basepath;
     handle parenthandle;
+    int maxBackups;
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
@@ -1607,8 +1615,10 @@ class MegaApiImpl : public MegaApp
         bool usingHttpsOnly();
 
         //Backups
-        void startBackup(const char* localPath, MegaNode *parent, MegaRequestListener *listener=NULL);
+        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
 
+        //Timer
+        void startTimer( int64_t period, MegaRequestListener *listener=NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -2194,6 +2204,9 @@ protected:
 
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
+
+        // notify about a finished timer
+        virtual void bttimedpassed_result(error);
 
         void sendPendingRequests();
         void sendPendingTransfers();

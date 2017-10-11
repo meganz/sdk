@@ -395,9 +395,14 @@ public:
     error exportnode(Node*, int, m_time_t);
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
+    // add timer
+    error addtimer(TimerWithBackoff *twb);
+
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
+
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -610,6 +615,8 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+
+    vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
     HttpReq* pendingsc;

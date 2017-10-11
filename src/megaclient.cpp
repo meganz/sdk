@@ -929,6 +929,22 @@ MegaClient::~MegaClient()
     delete sctable;
     delete tctable;
     delete dbaccess;
+
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+    {
+        TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
+        if (bttimer->armed())
+        {
+            //TODO: callback
+            restag = bttimer->tag; //Does this make sense here?
+            app->bttimedpassed_result(API_EFAILED);
+            it = bttimers.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 // nonblocking state machine executing all operations currently in progress
@@ -2257,6 +2273,23 @@ void MegaClient::exec()
             workinglockcs->post(this);
         }
 
+
+        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+        {
+            TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
+            if (bttimer->armed())
+            {
+                //TODO: callback
+                restag = bttimer->tag; //Does this make sense here?
+                app->bttimedpassed_result(API_OK);
+                it = bttimers.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
@@ -2348,6 +2381,11 @@ int MegaClient::preparewait()
         if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
+        }
+
+        for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
+        {
+            ((TimerWithBackoff *)*cit)->update(&nds);
         }
 
         // retry failed file attribute puts
@@ -9968,6 +10006,12 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 #else
     return API_EINCOMPLETE;
 #endif
+}
+
+error MegaClient::addtimer(TimerWithBackoff *twb)
+{
+    bttimers.push_back(twb);
+    return API_OK;
 }
 
 // check sync path, add sync if folder

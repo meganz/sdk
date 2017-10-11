@@ -2014,7 +2014,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_ADD_BACKUP,
+            TYPE_ADD_BACKUP, TYPE_TIMER,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7079,9 +7079,14 @@ class MegaApi
         ///////////////////   TRANSFERS ///////////////////
 
         /**
-         * TODO
+         * TODO: doc and move somewhere else
          */
-        void startBackup(const char* localPath, MegaNode *parent, MegaRequestListener *listener=NULL);
+        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+
+        /**
+         * TODO: doc and move somewhere else
+        */
+        void startTimer( int64_t period, MegaRequestListener *listener);
 
         /**
          * @brief Upload a file or a folder
