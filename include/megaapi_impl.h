@@ -197,8 +197,6 @@ protected:
     void checkCompletion();
 
     std::list<std::string> pendingFolders;
-    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
-
     MegaApiImpl *megaApi;
     MegaClient *client;
     MegaTransferPrivate *transfer;

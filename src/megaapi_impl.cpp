@@ -17764,7 +17764,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             localPath.append(localname);
 
             FileAccess *fa = client->fsaccess->newfileaccess();
-            if(fa->fopen(&localPath, true, false))
+            if (fa->fopen(&localPath, true, false))
             {
                 string name = localname;
                 client->fsaccess->local2name(&name);
@@ -17806,7 +17806,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
 void MegaFolderUploadController::checkCompletion()
 {
-    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingSkippedTransfers.size())
+    if (!recursive && !pendingFolders.size() && !pendingTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -17820,9 +17820,9 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
     int type = request->getType();
     int errorCode = e->getErrorCode();
 
-    if(type == MegaRequest::TYPE_CREATE_FOLDER)
+    if (type == MegaRequest::TYPE_CREATE_FOLDER)
     {
-        if(!errorCode)
+        if (!errorCode)
         {
             onFolderAvailable(request->getNodeHandle());
         }
@@ -17831,27 +17831,6 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
             pendingFolders.pop_front();
             checkCompletion();
         }
-    }
-    else if(type == MegaRequest::TYPE_COPY)
-    {
-        Node *node = client->nodebyhandle(request->getNodeHandle());
-        long long size = node ? node->size : 0;
-
-        MegaTransferPrivate *t = pendingSkippedTransfers.front();
-        t->setTransferredBytes(size);
-        t->setDeltaSize(size);
-
-        if (!errorCode)
-        {
-            t->setState(MegaTransfer::STATE_COMPLETED);
-        }
-        else
-        {
-            t->setState(MegaTransfer::STATE_FAILED);
-        }
-        megaApi->fireOnTransferFinish(t, MegaError(errorCode));
-        pendingSkippedTransfers.pop_front();
-        checkCompletion();
     }
 }
 
