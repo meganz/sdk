@@ -933,17 +933,10 @@ MegaClient::~MegaClient()
     for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
     {
         TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
-        if (bttimer->armed())
-        {
-            //TODO: callback
-            restag = bttimer->tag; //Does this make sense here?
-            app->bttimedpassed_result(API_EFAILED);
-            it = bttimers.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
+        restag = bttimer->tag; //Does this make sense here?
+        app->bttimedpassed_result(API_EFAILED);
+        delete *it;
+        it = bttimers.erase(it);
     }
 }
 
@@ -2279,9 +2272,9 @@ void MegaClient::exec()
             TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
             if (bttimer->armed())
             {
-                //TODO: callback
                 restag = bttimer->tag; //Does this make sense here?
                 app->bttimedpassed_result(API_OK);
+                delete *it;
                 it = bttimers.erase(it);
             }
             else

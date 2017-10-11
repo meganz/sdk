@@ -223,9 +223,10 @@ public:
     void start();
     void removeexceeding();
     int64_t getLastBackupTime();
+    ~MegaBackupController();
 
 private:
-    bool isBackup(string localname);
+    bool isBackup(string localname, string backupname);
     int64_t getTimeOfBackup(string localname);
 
 
@@ -249,6 +250,7 @@ protected:
     int64_t period; //TODO: getter/setter
 
     string basepath;
+    string backupName;
     handle parenthandle;
     int maxBackups;
 

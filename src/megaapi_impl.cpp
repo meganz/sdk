@@ -3889,6 +3889,13 @@ MegaApiImpl::~MegaApiImpl()
     thread.join();
 
     requestMap.erase(request->getTag());
+
+    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
+    {
+        MegaBackupController *backupController=*it;
+        delete backupController;
+    }
+
     for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
         delete it->second;
@@ -3898,13 +3905,6 @@ MegaApiImpl::~MegaApiImpl()
     {
         delete it->second;
     }
-
-    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
-    {
-        MegaBackupController *backupController=*it;
-        delete backupController;
-    }
-
 
     delete gfxAccess;
     delete fsAccess;
@@ -17752,6 +17752,9 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parentha
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
 
     this->basepath = filename;
+    size_t found = basepath.find_last_of("/\\");
+    this->backupName = basepath.substr((found == string::npos)?0:found+1);
+
     this->parenthandle = parenthandle;
 
     this->megaApi = megaApi;
@@ -17761,6 +17764,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parentha
     this->pendingTransfers = 0;
 
     this->period = period;
+
+
 
     int64_t lastbackuptime = getLastBackupTime();
     this->startTime = lastbackuptime?(lastbackuptime+period):Waiter::ds;
@@ -17815,7 +17820,7 @@ void MegaBackupController::removeexceeding()
             {
                 MegaNode *childNode = children->get(i);
                 string childname = childNode->getName();
-                if (isBackup(childname) )
+                if (isBackup(childname, backupName) )
                 {
                     int64_t timeofbackup = getTimeOfBackup(childname);
                     if (timeofbackup)
@@ -17831,7 +17836,7 @@ void MegaBackupController::removeexceeding()
             }
 
 
-            while (backupTimesPaths.size() > maxBackups && oldesttime) //TODO: what if maxBackups==0?
+            while (backupTimesPaths.size() > (unsigned int)maxBackups && oldesttime) //TODO: what if maxBackups==0?
             {
                 MegaNode * nodeToDelete = backupTimesPaths.at(oldesttime);
 
@@ -17843,7 +17848,7 @@ void MegaBackupController::removeexceeding()
 
                 backupTimesPaths.erase(oldesttime);
                 oldesttime = 0;
-                if (backupTimesPaths.size() > maxBackups)
+                if (backupTimesPaths.size() > (unsigned int)maxBackups)
                 {
                     oldesttime = backupTimesPaths.begin()->first;
                 }
@@ -17852,6 +17857,7 @@ void MegaBackupController::removeexceeding()
 
             delete children;
         }
+        delete parentNode;
     }
 }
 
@@ -17870,7 +17876,7 @@ int64_t MegaBackupController::getLastBackupTime()
             {
                 MegaNode *childNode = children->get(i);
                 string childname = childNode->getName();
-                if (isBackup(childname) )
+                if (isBackup(childname, backupName) )
                 {
                     int64_t timeofbackup = getTimeOfBackup(childname);
                     if (timeofbackup)
@@ -17886,14 +17892,15 @@ int64_t MegaBackupController::getLastBackupTime()
             }
             delete children;
         }
+        delete parentNode;
     }
     return latesttime;
 }
 
 
-bool MegaBackupController::isBackup(string localname)
+bool MegaBackupController::isBackup(string localname, string backupname)
 {
-    return (localname.find("_bk_") != string::npos);
+    return ( localname.compare(0, backupname.length(), backupname) == 0) && (localname.find("_bk_") != string::npos);
 }
 
 
@@ -17914,7 +17921,7 @@ int64_t MegaBackupController::getTimeOfBackup(string localname)
 
 void MegaBackupController::start()
 {
-    LOG_fatal << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ; //TODO: delete
+    LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ; //TODO: delete
 
     string localPath = basepath;
 
@@ -18121,10 +18128,13 @@ bool MegaBackupController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingSkippedTransfers.size())
     {
-        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-
+        if (transfer)
+        {
+            LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+            transfer->setState(MegaTransfer::STATE_COMPLETED);
+            megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+            transfer = NULL;
+        }
         removeexceeding(); //TODO: figure out a way to keep onging as true until removed succeeds
 
         ongoing = false;
@@ -18210,6 +18220,11 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
     checkCompletion();
+}
+
+MegaBackupController::~MegaBackupController()
+{
+    delete transfer;
 }
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
