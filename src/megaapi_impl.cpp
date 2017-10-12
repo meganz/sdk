@@ -9261,7 +9261,6 @@ void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error
 
 void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
