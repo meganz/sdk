@@ -64,8 +64,6 @@ static int ets = 0;
 
 // import welcompe pdf at account confirmation
 static bool pdf_to_import = false;
-static handle pdf_ph = UNDEF;
-static byte pdf_key[FILENODEKEYLENGTH];
 
 // local console
 Console* console;
@@ -828,6 +826,7 @@ void DemoApp::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        pdf_to_import = false;
     }
     else
     {
@@ -845,12 +844,11 @@ void DemoApp::fetchnodes_result(error e)
                 cout << "Folder link loaded correctly." << endl;
             }
         }
-    }
 
-    if (pdf_to_import)
-    {
-        pdf_to_import = false;
-        client->getwelcomepdf();
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
+        }
     }
 }
 
@@ -866,7 +864,7 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
     }
 
-    if (!ISUNDEF(pdf_ph))   // putnodes from openfilelink_result()
+    if (pdf_to_import)   // putnodes from openfilelink_result()
     {
         if (!e)
         {
@@ -877,9 +875,7 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
             cout << "Failed to import Welcome PDF file" << endl;
         }
 
-        pdf_ph = UNDEF;
-        memset(pdf_key, 0, FILENODEKEYLENGTH);
-
+        pdf_to_import = false;
         return;
     }
 
@@ -2875,6 +2871,7 @@ static void process_line(char* l)
                         if (words.size() == 1)
                         {
                             cout << "Creating ephemeral session..." << endl;
+                            pdf_to_import = true;
                             client->createephemeral();
                         }
                         else if (words.size() == 2)
@@ -4377,6 +4374,7 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
+    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -4608,8 +4606,6 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     cout << buf << endl;
 
-    pdf_to_import = true;
-
     client->fetchnodes();
 }
 
@@ -4688,18 +4684,16 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        if (!ISUNDEF(pdf_ph)) // import welcome pdf has failed
+        if (pdf_to_import) // import welcome pdf has failed
         {
             cout << "Failed to import Welcome PDF file" << endl;
-
-            pdf_ph = UNDEF;
-            memset(pdf_key, 0, FILENODEKEYLENGTH);
         }
         else
         {
             cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
+    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -4711,6 +4705,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
+        pdf_to_import = false;
         return;
     }
 
@@ -4726,9 +4721,10 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-    if(!buf)
+    if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
+        pdf_to_import = false;
     }
     else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
@@ -4744,7 +4740,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
         newnode->attrstring = new string(*a);
 
-        if (!ISUNDEF(pdf_ph))
+        if (pdf_to_import)
         {
             client->putnodes(client->rootnodes[0], newnode, 1);
         }
@@ -4756,6 +4752,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     else
     {
         cout << "Need to be logged in to import file links." << endl;
+        pdf_to_import = false;
     }
 
     delete [] buf;
@@ -4932,21 +4929,13 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     if (e)
     {
         cout << "Failed to get Welcome PDF. Error: " << e << endl;
-
-        pdf_ph = UNDEF;
-        memset(pdf_key, 0, FILENODEKEYLENGTH);
+        pdf_to_import = false;
     }
     else
     {
         cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
-
-        pdf_ph = ph;
-        memcpy(pdf_key, k->data(), FILENODEKEYLENGTH);
-
-        client->reqs.add(new CommandGetPH(client, pdf_ph, pdf_key, 1));
+        client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
     }
-
-    pdf_to_import = false;
 }
 
 // display account details/history
@@ -5298,7 +5287,6 @@ void DemoAppFolder::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
-
         pdf_to_import = false;
     }
     else
