@@ -62,7 +62,7 @@ static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
-// import welcompe pdf at account confirmation
+// import welcome pdf at account creation
 static bool pdf_to_import = false;
 
 // local console
@@ -2798,7 +2798,6 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
-                        client->getwelcomepdf();
                         return;
                     }
                     break;
