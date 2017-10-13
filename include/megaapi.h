@@ -3526,6 +3526,109 @@ public:
 
 #endif
 
+
+/**
+ * @brief Provides information about a backup
+ */
+class MegaBackup
+{
+public:
+    //TODO: review all methods state implementations/meaning
+    enum
+    {
+        BACKUP_FAILED = -2,
+        BACKUP_CANCELED = -1,
+        BACKUP_INITIALSCAN = 0,
+        BACKUP_ACTIVE,
+        BACKUP_ONGOING
+    };
+
+    virtual ~MegaBackup();
+
+    /**
+     * @brief Creates a copy of this MegaBackup object
+     *
+     * The resulting object is fully independent of the source MegaBackup,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaError object
+     */
+    virtual MegaBackup *copy();
+
+    /**
+     * @brief Get the handle of the folder that is being backed up
+     * @return Handle of the folder that is being backed up in MEGA
+     */
+    virtual MegaHandle getMegaHandle() const;
+
+    /**
+     * @brief Get the path of the local folder that is being backed up
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRequest object is deleted.
+     *
+     * @return Local folder that is being backed up
+     */
+    virtual const char* getLocalFolder() const;
+
+    /**
+     * @brief Returns the identifier of this backup
+     *
+     * Identifiers of backups are always negative numbers.
+     *
+     * @return Identifier of the backup
+     */
+    virtual int getTag() const;
+
+    /**
+     * @brief Returns the period of the backup
+     *
+     * @return The period of the backup in deciseconds
+     */
+    virtual int64_t getPeriod() const;
+
+    /**
+     * @brief Returns the number of backups to keep
+     *
+     * @return Maximun number of Backups to store
+     */
+    virtual int getMaxBackups() const;
+
+
+    /**
+     * @brief Returns the folder paths of a backup
+     *
+     * You take ownership of the returned value.
+     *
+     * @return Folder paths that contain each of the backups (.
+     */
+    virtual MegaStringList* getBackupFolders() const;
+
+    /**
+     * @brief Get the state of the backup
+     *
+     * Possible values are:
+     * - BACKUP_FAILED = -2
+     * The backup has failed and has been disabled
+     *
+     * - BACKUP_CANCELED = -1,
+     * The backup has failed and has been disabled
+     *
+     * - BACKUP_INITIALSCAN = 0,
+     * The backup is doing the initial scan
+     *
+     * - BACKUP_ACTIVE
+     * The backup is active
+     *
+     * @return State of the backup
+     */
+    virtual int getState() const;
+};
+
+
 /**
  * @brief Provides information about an error
  */
@@ -8276,6 +8379,36 @@ class MegaApi
          * @return Synchronization with the specified root local path
          */
         MegaSync *getSyncByPath(const char *localPath);
+
+        /**
+         * @brief Get the backup identified with a tag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param tag Tag that identifies the backup
+         * @return Backup identified by the tag
+         */
+        MegaBackup *getBackupByTag(int tag);
+
+        /**
+         * @brief getBackupByNode Get the backup associated with a node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Root node of the backup
+         * @return Backup with the specified root node
+         */
+        MegaBackup *getBackupByNode(MegaNode *node);
+
+        /**
+         * @brief getBackupByPath Get the backup associated with a local path
+         *
+         * You take the ownership of the returned value
+         *
+         * @param localPath Root local path of the backup
+         * @return Backup with the specified root local path
+         */
+        MegaBackup *getBackupByPath(const char *localPath);
 
 #ifdef USE_PCRE
         /**

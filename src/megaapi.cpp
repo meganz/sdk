@@ -2370,6 +2370,22 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 #endif
 #endif
 
+
+MegaBackup *MegaApi::getBackupByTag(int tag)
+{
+    return pImpl->getBackupByTag(tag);
+}
+
+MegaBackup *MegaApi::getBackupByNode(MegaNode *node)
+{
+    return pImpl->getBackupByNode(node);
+}
+
+MegaBackup *MegaApi::getBackupByPath(const char *localPath)
+{
+    return pImpl->getBackupByPath(localPath);
+}
+
 int MegaApi::getNumPendingUploads()
 {
     return pImpl->getNumPendingUploads();
@@ -4238,6 +4254,50 @@ const char *MegaRegExp::getFullPattern()
     return pImpl->getFullPattern();
 }
 #endif
+
+
+MegaBackup::~MegaBackup() { }
+
+MegaBackup *MegaBackup::copy()
+{
+    return NULL;
+}
+
+MegaHandle MegaBackup::getMegaHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+const char *MegaBackup::getLocalFolder() const
+{
+    return NULL;
+}
+
+int MegaBackup::getTag() const
+{
+    return 0;
+}
+
+int64_t MegaBackup::getPeriod() const
+{
+    return 0;
+}
+
+int MegaBackup::getMaxBackups() const
+{
+    return 0;
+}
+
+MegaStringList* MegaBackup::getBackupFolders() const
+{
+    return NULL;
+}
+
+int MegaBackup::getState() const
+{
+    return MegaBackup::BACKUP_FAILED;
+}
+
 
 MegaAccountBalance::~MegaAccountBalance()
 {

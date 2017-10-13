@@ -1111,6 +1111,69 @@ char *MegaApiImpl::getBlockedPath()
 }
 #endif
 
+MegaBackup *MegaApiImpl::getBackupByTag(int tag)
+{
+    sdkMutex.lock();
+    if (backupsMap.find(tag) == backupsMap.end())
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+    MegaBackup *result = backupsMap.at(tag)->copy();
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node) //TODO: This is potentially hazardous, since two backups can have the same parent handle
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    MegaBackup *result = NULL;
+    MegaHandle nodeHandle = node->getHandle();
+    sdkMutex.lock();
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if (backup->getMegaHandle() == nodeHandle)
+        {
+            result = backup->copy();
+            break;
+        }
+        it++;
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaBackup *MegaApiImpl::getBackupByPath(const char *localPath)
+{
+    if (!localPath)
+    {
+        return NULL;
+    }
+
+    MegaBackup *result = NULL;
+    sdkMutex.lock();
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if (!strcmp(localPath, backup->getLocalFolder()))
+        {
+            result = backup->copy();
+            break;
+        }
+        it++;
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
 bool MegaNodePrivate::hasThumbnail()
 {
 	return thumbnailAvailable;
@@ -3890,9 +3953,9 @@ MegaApiImpl::~MegaApiImpl()
 
     requestMap.erase(request->getTag());
 
-    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
+    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
     {
-        MegaBackupController *backupController=*it;
+        MegaBackupController *backupController=it->second;
         delete backupController;
     }
 
@@ -13178,9 +13241,9 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 void MegaApiImpl::sendPendingTransfers()
 {
     //TODO: move this to another method ::updateBackups
-    for (std::set<MegaBackupController *>::iterator it = backupsSet.begin(); it != backupsSet.end(); ++it)
+    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
     {
-        MegaBackupController *backupController=*it;
+        MegaBackupController *backupController=it->second;
         backupController->update();
     }
 
@@ -15355,8 +15418,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 
 
-            MegaBackupController *mbc = new MegaBackupController(this, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
-            backupsSet.insert(mbc);
+            MegaBackupController *mbc = new MegaBackupController(this, -request->getTag(), request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
+            backupsMap[request->getTag()]=mbc;
 
             fireOnRequestFinish(request, MegaError(API_OK));
 
@@ -17747,7 +17810,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char* filename, int64_t period, int maxBackups)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle parenthandle, const char* filename, int64_t period, int maxBackups)
 {
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
 
@@ -17777,8 +17840,42 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, handle parentha
     this->ongoing = false;
     this->maxBackups = maxBackups;
 
+    this->tag = tag;
 }
 
+MegaBackupController::MegaBackupController(MegaBackupController *backup)
+{
+    this->setTag(backup->getTag());
+    this->setLocalFolder(backup->getLocalFolder());
+    this->setMegaHandle(backup->getMegaHandle());
+
+    //TODO: copy these if make any sense
+//    std::list<std::string> pendingFolders;
+//    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
+    this->transfer = NULL;
+//    if (backup->transfer)
+//        this->transfer = new MegaTransferPrivate(backup->transfer); //TODO: does this make any sense?
+
+
+    this->megaApi = backup->megaApi;
+    this->client = backup->client;
+    this->listener = backup->listener;
+    this->recursive = backup->recursive;
+    this->pendingTransfers = backup->pendingTransfers;
+    this->megaApi = backup->megaApi;
+
+    this->setOngoing(backup->getOngoing());
+//    this->setState(backup->getState()); //TODO: implement this when state added
+    this->setStartTime(backup->getStartTime());
+    this->setPeriod(backup->getPeriod());
+
+    this->setLocalFolder(backup->getLocalFolder());
+    this->setBackupName(backup->getLocalFolder());
+    this->setMegaHandle(backup->getMegaHandle());
+    this->setMaxBackups(backup->getMaxBackups());
+
+
+}
 void MegaBackupController::update()
 {
 //    LOG_fatal << " at MegaBackupController update: " + basepath; //TODO: delete
@@ -17919,6 +18016,16 @@ int64_t MegaBackupController::getTimeOfBackup(string localname)
 //    return atol(localname.substr(pos + 1).c_str());
 }
 
+bool MegaBackupController::getOngoing() const
+{
+    return ongoing;
+}
+
+void MegaBackupController::setOngoing(bool value)
+{
+    ongoing = value;
+}
+
 void MegaBackupController::start()
 {
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ; //TODO: delete
@@ -17948,7 +18055,6 @@ void MegaBackupController::start()
 //    transferQueue.push(transfer);
     this->transfer = transfer;
     this->listener = transfer->getListener(); //TODO: delete listener, transfer has none!
-    this->tag = transfer->getTag();
 
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -18220,6 +18326,100 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
     checkCompletion();
+}
+
+MegaBackup *MegaBackupController::copy()
+{
+    return new MegaBackupController(this);
+}
+
+
+int MegaBackupController::getMaxBackups() const
+{
+    return maxBackups;
+}
+
+void MegaBackupController::setMaxBackups(int value)
+{
+    maxBackups = value;
+}
+
+string MegaBackupController::getBackupName() const
+{
+    return backupName;
+}
+
+void MegaBackupController::setBackupName(const string &value)
+{
+    backupName = value;
+}
+
+int64_t MegaBackupController::getPeriod() const
+{
+    return period;
+}
+
+void MegaBackupController::setPeriod(const int64_t &value)
+{
+    period = value;
+}
+
+int64_t MegaBackupController::getStartTime() const
+{
+    return startTime;
+}
+
+void MegaBackupController::setStartTime(const int64_t &value)
+{
+    startTime = value;
+}
+
+int MegaBackupController::getTag() const
+{
+    return this->tag;
+}
+
+void MegaBackupController::setTag(int value)
+{
+    tag = value;
+}
+
+MegaHandle MegaBackupController::getMegaHandle() const
+{
+    return this->parenthandle;
+}
+
+void MegaBackupController::setMegaHandle(const MegaHandle &value)
+{
+    parenthandle = value;
+}
+
+const char *MegaBackupController::getLocalFolder() const
+{
+    return this->basepath.c_str();
+}
+
+void MegaBackupController::setLocalFolder(const string &value)
+{
+    basepath = value;
+}
+
+MegaStringList *MegaBackupController::getBackupFolders()
+{
+    //TODO: implement this
+    return NULL;
+}
+
+int MegaBackupController::getState() const
+{
+    if (ongoing)
+    {
+        return BACKUP_ONGOING;
+    }
+    else
+    {
+        return BACKUP_ACTIVE;
+    }
 }
 
 MegaBackupController::~MegaBackupController()

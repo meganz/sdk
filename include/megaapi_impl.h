@@ -215,10 +215,12 @@ public:
 };
 
 
-class MegaBackupController : public MegaRequestListener, public MegaTransferListener
+class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
+    MegaBackupController(MegaApiImpl *megaApi, int tag, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
+    MegaBackupController(MegaBackupController *backup);
+
     void update();
     void start();
     void removeexceeding();
@@ -228,6 +230,7 @@ public:
 private:
     bool isBackup(string localname, string backupname);
     int64_t getTimeOfBackup(string localname);
+    bool ongoing; //TODO: stablish state whenever this changes and act upon state // maybe delete this variable
 
 
 protected:
@@ -242,10 +245,9 @@ protected:
     MegaTransferPrivate *transfer;
     MegaTransferListener *listener;
     int recursive;
-    int tag;
     int pendingTransfers;
 
-    bool ongoing;
+    int tag;
     int64_t startTime; // when shalll the next backup begin
     int64_t period; //TODO: getter/setter
 
@@ -259,6 +261,29 @@ public:
     virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+
+    // MegaBackup interface
+public:
+    MegaBackup *copy();
+    MegaHandle getMegaHandle() const;
+    void setMegaHandle(const MegaHandle &value);
+    const char *getLocalFolder() const;
+    void setLocalFolder(const string &value);
+    int getTag() const;
+    void setTag(int value);
+    MegaStringList *getBackupFolders();
+    int getState() const;
+    int64_t getStartTime() const;
+    void setStartTime(const int64_t &value);
+    int64_t getPeriod() const;
+    void setPeriod(const int64_t &value);
+    string getBackupName() const;
+    void setBackupName(const string &value);
+
+    int getMaxBackups() const;
+    void setMaxBackups(int value);
+    bool getOngoing() const;
+    void setOngoing(bool value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -1696,6 +1721,9 @@ class MegaApiImpl : public MegaApp
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
 
+        MegaBackup *getBackupByTag(int tag);
+        MegaBackup *getBackupByNode(MegaNode *node);
+        MegaBackup *getBackupByPath(const char * localPath);
         void update();
         bool isWaiting();
         bool areServersBusy();
@@ -1960,7 +1988,7 @@ protected:
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
-        set<MegaBackupController *> backupsSet;
+        map<int, MegaBackupController *> backupsMap;
 
         RequestQueue requestQueue;
         TransferQueue transferQueue;
