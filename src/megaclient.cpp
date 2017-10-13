@@ -11877,6 +11877,11 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
     reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
 
+void MegaClient::getwelcomepdf()
+{
+    reqs.add(new CommandGetWelcomePDF(this));
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();
