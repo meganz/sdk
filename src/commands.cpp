@@ -881,7 +881,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (!ISUNDEF(nn[i].ovhandle))
+        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }

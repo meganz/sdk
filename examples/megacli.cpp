@@ -2356,6 +2356,13 @@ static void process_line(char* l)
                                 // build new nodes array
                                 client->proctree(n, &tc);
 
+                                string sname;
+                                attr_map::iterator it = n->attrs.map.find('n');
+                                if (it != n->attrs.map.end())
+                                {
+                                    sname = it->second;
+                                }
+
                                 // if specified target is a filename, use it
                                 if (newname.size())
                                 {
@@ -2369,6 +2376,7 @@ static void process_line(char* l)
 
                                     client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
+                                    sname = newname;
 
                                     key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
 
@@ -2383,6 +2391,11 @@ static void process_line(char* l)
 
                                 if (tn)
                                 {
+                                    if (tc.nn->type == FILENODE)
+                                    {
+                                        tc.nn->ovhandle = client->getovhandle(tn, &sname);
+                                    }
+
                                     // add the new nodes
                                     client->putnodes(tn->nodehandle, tc.nn, nc);
 
@@ -3098,6 +3111,7 @@ static void process_line(char* l)
 
                                     client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
+                                    newnode->ovhandle = client->getovhandle(n, &newname);
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
@@ -4727,6 +4741,11 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     }
     else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
+        AttrMap attrs;
+        JSON json;
+        nameid name;
+        string* t;
+        json.begin((char*)buf + 5);
         NewNode* newnode = new NewNode[1];
 
         // set up new node as folder node
@@ -4734,10 +4753,20 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-
         newnode->attrstring = new string(*a);
+
+        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        {
+            JSON::unescape(t);
+
+            if (name == 'n')
+            {
+                client->fsaccess->normalize(t);
+                newnode->ovhandle = client->getovhandle(n, t);
+                break;
+            }
+        }
 
         if (pdf_to_import)
         {
