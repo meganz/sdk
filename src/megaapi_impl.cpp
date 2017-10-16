@@ -17837,7 +17837,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
-    this->ongoing = false;
+    this->state = MegaBackup::BACKUP_ACTIVE;
+    this->pendingremovals = 0;
     this->maxBackups = maxBackups;
 
     this->tag = tag;
@@ -17845,6 +17846,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
 
 MegaBackupController::MegaBackupController(MegaBackupController *backup)
 {
+    this->pendingremovals = backup->pendingremovals;
     this->setTag(backup->getTag());
     this->setLocalFolder(backup->getLocalFolder());
     this->setMegaHandle(backup->getMegaHandle());
@@ -17864,8 +17866,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
 
-    this->setOngoing(backup->getOngoing());
-//    this->setState(backup->getState()); //TODO: implement this when state added
+    this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
 
@@ -17882,17 +17883,16 @@ void MegaBackupController::update()
 
     if (Waiter::ds > startTime)
     {
-        if (!ongoing)
+        if (!isBusy())
         {
             start();
             startTime+=period;
         }
         else
         {
-            LOG_verbose << "Backup already being executed: " + basepath << ". Postponing ...";
-            //TODO: give it a while? (how? maybe using backoff timers)
-            //TODO: update startTime? jump starTime if next period exceeded?
-
+            LOG_verbose << "Backup busy: " << basepath << ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
+            megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+            //TODO: update startTime? jump starTime if next period exceeded? //not much sense
         }
     }
     else
@@ -17904,6 +17904,7 @@ void MegaBackupController::update()
 void MegaBackupController::removeexceeding()
 {
 //    LOG_fatal << " at MegaBackupController removeexceeding: " + basepath; //TODO: delete
+
     map<int64_t, MegaNode *> backupTimesPaths;
     int64_t oldesttime=0;
 
@@ -17940,7 +17941,8 @@ void MegaBackupController::removeexceeding()
                 char * nodepath = megaApi->getNodePath(nodeToDelete);
                 LOG_info << " Removing backup " << nodepath;
                 delete []nodepath;
-
+                state = BACKUP_REMOVING_EXCEEDING;
+                pendingremovals++;
                 megaApi->remove(nodeToDelete, this); //TODO: register when request finished and then update! TODO: figure out a way to control that we dont issue the same request twice!
 
                 backupTimesPaths.erase(oldesttime);
@@ -18016,14 +18018,14 @@ int64_t MegaBackupController::getTimeOfBackup(string localname)
 //    return atol(localname.substr(pos + 1).c_str());
 }
 
-bool MegaBackupController::getOngoing() const
+void MegaBackupController::setState(int value)
 {
-    return ongoing;
+    state = value;
 }
 
-void MegaBackupController::setOngoing(bool value)
+bool MegaBackupController::isBusy() const
 {
-    ongoing = value;
+    return (state == MegaBackup::BACKUP_ONGOING) || (state == MegaBackup::BACKUP_REMOVING_EXCEEDING); //TODO: consider busy when removing???
 }
 
 void MegaBackupController::start()
@@ -18079,7 +18081,7 @@ void MegaBackupController::start()
     }
     else
     {
-        ongoing = true;
+        state = BACKUP_ONGOING;
 
         string path = transfer->getPath();
         string localpath;
@@ -18241,9 +18243,10 @@ bool MegaBackupController::checkCompletion()
             megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
             transfer = NULL;
         }
-        removeexceeding(); //TODO: figure out a way to keep onging as true until removed succeeds
 
-        ongoing = false;
+        //TODO: what if there are several removals!
+        state == BACKUP_ACTIVE;
+        removeexceeding();
         return true;
     }
     return false;
@@ -18287,6 +18290,15 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         pendingSkippedTransfers.pop_front();
         checkCompletion();
     }
+    else if(type == MegaRequest::TYPE_REMOVE)
+    {
+        pendingremovals--;
+        if (!pendingremovals)
+        {
+            state = BACKUP_ACTIVE;
+        }
+    }
+
 }
 
 void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
@@ -18412,14 +18424,7 @@ MegaStringList *MegaBackupController::getBackupFolders()
 
 int MegaBackupController::getState() const
 {
-    if (ongoing)
-    {
-        return BACKUP_ONGOING;
-    }
-    else
-    {
-        return BACKUP_ACTIVE;
-    }
+    return state;
 }
 
 MegaBackupController::~MegaBackupController()

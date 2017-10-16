@@ -230,8 +230,8 @@ public:
 private:
     bool isBackup(string localname, string backupname);
     int64_t getTimeOfBackup(string localname);
-    bool ongoing; //TODO: stablish state whenever this changes and act upon state // maybe delete this variable
-
+    int state;
+    int pendingremovals;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -282,8 +282,8 @@ public:
 
     int getMaxBackups() const;
     void setMaxBackups(int value);
-    bool getOngoing() const;
-    void setOngoing(bool value);
+    bool isBusy() const;
+    void setState(int value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener

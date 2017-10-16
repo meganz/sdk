@@ -3540,7 +3540,8 @@ public:
         BACKUP_CANCELED = -1,
         BACKUP_INITIALSCAN = 0,
         BACKUP_ACTIVE,
-        BACKUP_ONGOING
+        BACKUP_ONGOING,
+        BACKUP_REMOVING_EXCEEDING
     };
 
     virtual ~MegaBackup();
