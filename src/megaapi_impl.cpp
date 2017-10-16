@@ -17828,8 +17828,6 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
 
     this->period = period;
 
-
-
     int64_t lastbackuptime = getLastBackupTime();
     this->startTime = lastbackuptime?(lastbackuptime+period):Waiter::ds;
     if (this->startTime < Waiter::ds)
@@ -17842,6 +17840,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
     this->maxBackups = maxBackups;
 
     this->tag = tag;
+
+    //TODO: removeexceeding when registering? At least update attrs to FAILED/INCOMPLETE to those that are !complete
 }
 
 MegaBackupController::MegaBackupController(MegaBackupController *backup)
@@ -18070,6 +18070,7 @@ void MegaBackupController::start()
     ossremotename << startTime; //TODO: should we use this time or Waiter::ds for the name?
 //    ossremotename << Waiter::ds;
     string backupname = ossremotename.str();
+    currentName = backupname;
 
     MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
     if(!parent)
@@ -18112,6 +18113,12 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     pendingFolders.pop_front();
 
     MegaNode *parent = megaApi->getNodeByHandle(handle);
+
+    if (recursive == 1) //main folder of the backup
+    {
+        currentHandle = handle;
+        megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
+    }
 
     string localname;
     DirAccess* da;
@@ -18240,12 +18247,22 @@ bool MegaBackupController::checkCompletion()
         {
             LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
             transfer->setState(MegaTransfer::STATE_COMPLETED);
+            MegaNode *node = megaApi->getNodeByHandle(currentHandle);
+            if (node)
+            {
+                megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
+                delete node;
+            }
+            else
+            {
+                LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+            }
+
             megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
             transfer = NULL;
         }
 
-        //TODO: what if there are several removals!
-        state == BACKUP_ACTIVE;
+        state = BACKUP_ACTIVE;
         removeexceeding();
         return true;
     }
@@ -18297,6 +18314,7 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         {
             state = BACKUP_ACTIVE;
         }
+
     }
 
 }

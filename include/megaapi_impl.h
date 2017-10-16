@@ -231,6 +231,8 @@ private:
     bool isBackup(string localname, string backupname);
     int64_t getTimeOfBackup(string localname);
     int state;
+    handle currentHandle;
+    string currentName;
     int pendingremovals;
 
 protected:
