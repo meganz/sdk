@@ -11478,13 +11478,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                     else
                     {
-                        if (t->progresscompleted)
-                        {
-                            LOG_warn << "Temporary file not found";
-                            t->chunkmacs.clear();
-                            t->progresscompleted = 0;
-                            t->pos = 0;
-                        }
+                        LOG_warn << "Temporary file not found";
+                        t->localfilename.clear();
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        t->pos = 0;
                     }
                 }
                 else
