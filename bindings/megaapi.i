@@ -44,11 +44,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef ENABLE_WEBRTC
     // Initialize WebRTC (it doesn't seem to be needed for the example app)
-    // MEGAjvm->AttachCurrentThread(&jenv, NULL);
-    // jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
-    // jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
-    // jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
-    // webrtc::JVM::Initialize(MEGAjvm, context);
+    MEGAjvm->AttachCurrentThread(&jenv, NULL);
+    jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
+    jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+    jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+    webrtc::JVM::Initialize(MEGAjvm, context);
     // MEGAjvm->DetachCurrentThread();
 
     // Initialize the JNI and SSL stuff of WebRTC
