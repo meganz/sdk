@@ -1124,7 +1124,7 @@ MegaBackup *MegaApiImpl::getBackupByTag(int tag)
     return result;
 }
 
-MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node) //TODO: This is potentially hazardous, since two backups can have the same parent handle
+MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node)
 {
     if (!node)
     {
@@ -6096,8 +6096,8 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t
         request->setFile(path.data());
     }
 
-    request->setNumRetry(numBackups); //TODO: document this
-    request->setNumber(period); //TODO: document this
+    request->setNumRetry(numBackups);
+    request->setNumber(period);
 
     request->setListener(listener);
     requestQueue.push(request);
@@ -6108,7 +6108,7 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t
 void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER);
-    request->setNumber(period); //TODO: document this
+    request->setNumber(period);
 
     request->setListener(listener);
     requestQueue.push(request);
@@ -15417,7 +15417,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-
             MegaBackupController *mbc = new MegaBackupController(this, -request->getTag(), request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
             backupsMap[request->getTag()]=mbc;
 
@@ -17829,9 +17828,11 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
     this->period = period;
 
     int64_t lastbackuptime = getLastBackupTime();
-    this->startTime = lastbackuptime?(lastbackuptime+period):Waiter::ds;
+    this->offsetds=std::time(NULL)*10 - Waiter::ds;
+    this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
     if (this->startTime < Waiter::ds)
         this->startTime = Waiter::ds;
+
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
@@ -17840,6 +17841,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
     this->maxBackups = maxBackups;
 
     this->tag = tag;
+
+    this->lastwakeuptime = 0;
 
     //TODO: removeexceeding when registering? At least update attrs to FAILED/INCOMPLETE to those that are !complete
 }
@@ -17851,12 +17854,12 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setLocalFolder(backup->getLocalFolder());
     this->setMegaHandle(backup->getMegaHandle());
 
+    this->transfer = NULL;
     //TODO: copy these if make any sense
 //    std::list<std::string> pendingFolders;
 //    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
-    this->transfer = NULL;
 //    if (backup->transfer)
-//        this->transfer = new MegaTransferPrivate(backup->transfer); //TODO: does this make any sense?
+//        this->transfer = new MegaTransferPrivate(backup->transfer);
 
 
     this->megaApi = backup->megaApi;
@@ -17866,12 +17869,14 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
 
+
     this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
+    this->setOffsetds(backup->getOffsetds());
 
     this->setLocalFolder(backup->getLocalFolder());
-    this->setBackupName(backup->getLocalFolder());
+    this->setBackupName(backup->getBackupName());
     this->setMegaHandle(backup->getMegaHandle());
     this->setMaxBackups(backup->getMaxBackups());
 
@@ -17879,8 +17884,6 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
 }
 void MegaBackupController::update()
 {
-//    LOG_fatal << " at MegaBackupController update: " + basepath; //TODO: delete
-
     if (Waiter::ds > startTime)
     {
         if (!isBusy())
@@ -17890,21 +17893,25 @@ void MegaBackupController::update()
         }
         else
         {
-            LOG_verbose << "Backup busy: " << basepath << ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
-            megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+            LOG_verbose << "Backup busy: " << basepath <<
+                           ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
+            megaApi->startTimer(10); //give it a while? (how much??)
             //TODO: update startTime? jump starTime if next period exceeded? //not much sense
         }
     }
     else
     {
-        megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+        if (lastwakeuptime < Waiter::ds || ((this->startTime + 1) < lastwakeuptime))
+        {
+            LOG_verbose << " Waiking in " << (this->startTime - Waiter::ds + 1) << " deciseconds to do backup";
+            megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+            lastwakeuptime = this->startTime + 1;
+        }
     }
 }
 
 void MegaBackupController::removeexceeding()
 {
-//    LOG_fatal << " at MegaBackupController removeexceeding: " + basepath; //TODO: delete
-
     map<int64_t, MegaNode *> backupTimesPaths;
     int64_t oldesttime=0;
 
@@ -17934,16 +17941,16 @@ void MegaBackupController::removeexceeding()
             }
 
 
-            while (backupTimesPaths.size() > (unsigned int)maxBackups && oldesttime) //TODO: what if maxBackups==0?
+            while (backupTimesPaths.size() > (unsigned int)maxBackups && oldesttime)
             {
                 MegaNode * nodeToDelete = backupTimesPaths.at(oldesttime);
 
                 char * nodepath = megaApi->getNodePath(nodeToDelete);
-                LOG_info << " Removing backup " << nodepath;
+                LOG_info << " Removing exceeding backup " << nodepath;
                 delete []nodepath;
                 state = BACKUP_REMOVING_EXCEEDING;
                 pendingremovals++;
-                megaApi->remove(nodeToDelete, this); //TODO: register when request finished and then update! TODO: figure out a way to control that we dont issue the same request twice!
+                megaApi->remove(nodeToDelete, this);
 
                 backupTimesPaths.erase(oldesttime);
                 oldesttime = 0;
@@ -17952,7 +17959,6 @@ void MegaBackupController::removeexceeding()
                     oldesttime = backupTimesPaths.begin()->first;
                 }
             }
-
 
             delete children;
         }
@@ -17997,13 +18003,13 @@ int64_t MegaBackupController::getLastBackupTime()
 }
 
 
-bool MegaBackupController::isBackup(string localname, string backupname)
+bool MegaBackupController::isBackup(string localname, string backupname) const
 {
     return ( localname.compare(0, backupname.length(), backupname) == 0) && (localname.find("_bk_") != string::npos);
 }
 
 
-int64_t MegaBackupController::getTimeOfBackup(string localname)
+int64_t MegaBackupController::getTimeOfBackup(string localname) const
 {
     size_t pos = localname.find("_bk_");
     if (pos == string::npos || ( (pos+4) >= (localname.size()-1) ) )
@@ -18030,10 +18036,11 @@ bool MegaBackupController::isBusy() const
 
 void MegaBackupController::start()
 {
-    LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ; //TODO: delete
+    LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ;
 
     string localPath = basepath;
 
+    //TODO: review usage of transfer. Do we really need it?
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD);
     transfer->setPath(localPath.data());
 
@@ -18066,9 +18073,9 @@ void MegaBackupController::start()
     const char *name = transfer->getFileName();
     std::ostringstream ossremotename;
     ossremotename << name;
-    ossremotename << "_bk_"; ////  << client->fsaccess->localseparator; //TODO: this caused segfault (no fsaccess?) //TODO: crossplatform solution
-    ossremotename << startTime; //TODO: should we use this time or Waiter::ds for the name?
-//    ossremotename << Waiter::ds;
+    ossremotename << "_bk_";
+    ossremotename << offsetds+startTime;
+//    ossremotename << Waiter::ds; //TODO: save this somewhere
     string backupname = ossremotename.str();
     currentName = backupname;
 
@@ -18269,6 +18276,16 @@ bool MegaBackupController::checkCompletion()
     return false;
 }
 
+int64_t MegaBackupController::getOffsetds() const
+{
+    return offsetds;
+}
+
+void MegaBackupController::setOffsetds(const int64_t &value)
+{
+    offsetds = value;
+}
+
 void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
     int type = request->getType();
@@ -18434,10 +18451,50 @@ void MegaBackupController::setLocalFolder(const string &value)
     basepath = value;
 }
 
-MegaStringList *MegaBackupController::getBackupFolders()
+MegaStringList *MegaBackupController::getBackupFolders() const
 {
-    //TODO: implement this
-    return NULL;
+    MegaStringListPrivate * backupFolders;
+
+    map<int64_t, string> backupTimesPaths;
+
+    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+    if (parentNode)
+    {
+        MegaNodeList* children = megaApi->getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (isBackup(childname, backupName) )
+                {
+                    int64_t timeofbackup = getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=megaApi->getNodePath(childNode);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+
+            delete children;
+        }
+        delete parentNode;
+    }
+
+    vector<char*> listofpaths;
+
+    for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
+    {
+        listofpaths.push_back(strdup(itr->second.c_str()));
+    }
+    backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
+
+    return backupFolders;
 }
 
 int MegaBackupController::getState() const

@@ -3533,7 +3533,6 @@ public:
 class MegaBackup
 {
 public:
-    //TODO: review all methods state implementations/meaning
     enum
     {
         BACKUP_FAILED = -2,
@@ -3598,7 +3597,6 @@ public:
      */
     virtual int getMaxBackups() const;
 
-
     /**
      * @brief Returns the folder paths of a backup
      *
@@ -3624,6 +3622,11 @@ public:
      * - BACKUP_ACTIVE
      * The backup is active
      *
+     * - BACKUP_ONGOING
+     * A backup is being performed
+     *
+     * - BACKUP_REMOVING_EXCEEDING
+     * The backup is active and an exceeding backup is being removed
      * @return State of the backup
      */
     virtual int getState() const;
@@ -7183,16 +7186,6 @@ class MegaApi
         ///////////////////   TRANSFERS ///////////////////
 
         /**
-         * TODO: doc and move somewhere else
-         */
-        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
-
-        /**
-         * TODO: doc and move somewhere else
-        */
-        void startTimer( int64_t period, MegaRequestListener *listener);
-
-        /**
          * @brief Upload a file or a folder
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -8010,6 +8003,46 @@ class MegaApi
          */
         MegaTransferList *getChildTransfers(int transferTag);
 
+
+        /**
+         * @brief Starts a backup of a local folder into a remote location
+         *
+         * Determined by the selected period several backups will be stored in the selected locations
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the period between backups in deciseconds
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
+         * - MegaRequest::getTag - Tag asociated with the backup
+         * -
+         * @param localFolder Local folder
+         * @param parent MEGA folder to hold the backups
+         * @param period period between backups in deciseconds
+         * @param numBackups maximun number of backups to keep
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Starts a timer.
+         *
+         * This, besides the classic timer usage, can be used to enforce a loop of the SDK thread when the time passes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TIMER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the selected period
+
+         * An OnRequestFinish will be caled when the time is passed
+         *
+         * @param period time to wait
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void startTimer( int64_t period, MegaRequestListener *listener = NULL);
+
+
 #ifdef ENABLE_SYNC
 
         ///////////////////   SYNCHRONIZATION   ///////////////////
@@ -8395,6 +8428,7 @@ class MegaApi
          * @brief getBackupByNode Get the backup associated with a node
          *
          * You take the ownership of the returned value
+         * Caveat: Two backups can have the same parent node, the first one encountered is returned
          *
          * @param node Root node of the backup
          * @return Backup with the specified root node

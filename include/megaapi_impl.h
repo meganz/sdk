@@ -228,12 +228,14 @@ public:
     ~MegaBackupController();
 
 private:
-    bool isBackup(string localname, string backupname);
-    int64_t getTimeOfBackup(string localname);
+    bool isBackup(string localname, string backupname) const;
+    int64_t getTimeOfBackup(string localname) const;
     int state;
     handle currentHandle;
     string currentName;
     int pendingremovals;
+
+    int64_t lastwakeuptime;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -251,7 +253,8 @@ protected:
 
     int tag;
     int64_t startTime; // when shalll the next backup begin
-    int64_t period; //TODO: getter/setter
+    int64_t period;
+    int64_t offsetds; //times offset with epoch time?
 
     string basepath;
     string backupName;
@@ -273,7 +276,7 @@ public:
     void setLocalFolder(const string &value);
     int getTag() const;
     void setTag(int value);
-    MegaStringList *getBackupFolders();
+    MegaStringList *getBackupFolders() const;
     int getState() const;
     int64_t getStartTime() const;
     void setStartTime(const int64_t &value);
@@ -286,6 +289,8 @@ public:
     void setMaxBackups(int value);
     bool isBusy() const;
     void setState(int value);
+    int64_t getOffsetds() const;
+    void setOffsetds(const int64_t &value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -1726,6 +1731,7 @@ class MegaApiImpl : public MegaApp
         MegaBackup *getBackupByTag(int tag);
         MegaBackup *getBackupByNode(MegaNode *node);
         MegaBackup *getBackupByPath(const char * localPath);
+
         void update();
         bool isWaiting();
         bool areServersBusy();
