@@ -2102,6 +2102,11 @@ void MegaApi::startBackup(const char* localPath, MegaNode* parent, int64_t perio
     pImpl->startBackup(localPath, parent, period, numBackups, listener);
 }
 
+void MegaApi::removeBackup(int tag, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(tag, listener);
+}
+
 void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 {
     pImpl->startTimer(period, listener);

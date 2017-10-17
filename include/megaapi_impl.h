@@ -1650,6 +1650,7 @@ class MegaApiImpl : public MegaApp
 
         //Backups
         void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+        void removeBackup(int tag, MegaRequestListener *listener=NULL);
 
         //Timer
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);

@@ -2014,7 +2014,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_ADD_BACKUP, TYPE_TIMER,
+            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -8024,6 +8024,21 @@ class MegaApi
          *
          */
         void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Remove a backup
+         *
+         * The backup will stop being performed. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the tag of the deleted backup
+         *
+         * @param tag tag of the backup to delete
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeBackup(int tag, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Starts a timer.

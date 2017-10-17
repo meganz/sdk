@@ -6081,7 +6081,6 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
     return result;
 }
 
-
 void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
@@ -6099,6 +6098,15 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t
     request->setNumRetry(numBackups);
     request->setNumber(period);
 
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP);
+    request->setNumber(tag); //TODO: document this
     request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
@@ -15417,10 +15425,34 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaBackupController *mbc = new MegaBackupController(this, -request->getTag(), request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
-            backupsMap[request->getTag()]=mbc;
+            int tag = request->getTag();
+            MegaBackupController *mbc = new MegaBackupController(this, tag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
+            backupsMap[tag] = mbc;
 
             fireOnRequestFinish(request, MegaError(API_OK));
+
+            break;
+        }
+        case MegaRequest::TYPE_REMOVE_BACKUP:
+        {
+            int tag = request->getNumber();
+            bool found = false;
+
+            if (backupsMap.find(tag) != backupsMap.end())
+            {
+                found = true;
+                delete backupsMap.find(tag)->second;//TODO: this might be time consumming if we want to do that with some order
+                                                    // perhaps we can use a method: clearanddelete with a "delete this;" upon finish
+                backupsMap.erase(tag);
+            }
+            if (found)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            else
+            {
+                e = API_ENOENT;
+            }
 
             break;
         }
@@ -18020,8 +18052,6 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
 
     int64_t toret = atol(rest.c_str());
     return toret;
-
-//    return atol(localname.substr(pos + 1).c_str());
 }
 
 void MegaBackupController::setState(int value)
@@ -18031,7 +18061,7 @@ void MegaBackupController::setState(int value)
 
 bool MegaBackupController::isBusy() const
 {
-    return (state == MegaBackup::BACKUP_ONGOING) || (state == MegaBackup::BACKUP_REMOVING_EXCEEDING); //TODO: consider busy when removing???
+    return (state == MegaBackup::BACKUP_ONGOING) || (state == MegaBackup::BACKUP_REMOVING_EXCEEDING);
 }
 
 void MegaBackupController::start()
@@ -18504,6 +18534,7 @@ int MegaBackupController::getState() const
 
 MegaBackupController::~MegaBackupController()
 {
+    megaApi->removeRequestListener(this);
     delete transfer;
 }
 
