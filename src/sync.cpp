@@ -868,22 +868,25 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                         LOG_warn << "File checked in the future";
                                     }
 
-                                    if (currentsecs >= prevfa->mtime)
+                                    if (!waitforupdate)
                                     {
-                                        if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
+                                        if (currentsecs >= prevfa->mtime)
                                         {
-                                            LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
-                                            LOG_debug << "File modified too recently. Waiting...";
-                                            waitforupdate = true;
+                                            if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
+                                            {
+                                                LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+                                                LOG_debug << "File modified too recently. Waiting...";
+                                                waitforupdate = true;
+                                            }
+                                            else
+                                            {
+                                                LOG_debug << "The modification time seems stable.";
+                                            }
                                         }
                                         else
                                         {
-                                            LOG_debug << "The modification time seems stable.";
+                                            LOG_warn << "File modified in the future";
                                         }
-                                    }
-                                    else
-                                    {
-                                        LOG_warn << "File modified in the future";
                                     }
                                 }
                                 else
@@ -902,7 +905,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 if (waitforupdate)
                                 {
                                     LOG_debug << "Possible file update detected.";
-                                    *backoffds += FILE_UPDATE_DELAY_DS;
+                                    *backoffds = FILE_UPDATE_DELAY_DS;
                                     delete prevfa;
                                     delete fa;
                                     return NULL;
