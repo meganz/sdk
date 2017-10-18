@@ -27,6 +27,7 @@ import unittest
 import logging
 import platform
 import unicodedata
+import time
 
 def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexisting=False):
     '''
@@ -491,6 +492,39 @@ class SyncTestBase(unittest.TestCase):
             if not self.file_rename(ffname_src, ffname_dst):
                 return False
 
+        return True
+        
+    def files_moveanddelete(self, l_files, where=".", timeout=0, file_generate_name_func=generate_ascii_name):
+        """
+        moves and deletes objects in "in" instance and check new files in "out" instance
+        """
+        logging.debug("Move&Rename files..")
+
+        os.makedirs(os.path.join(self.app.local_folder_in,where))
+        i = 0
+        for f in l_files:
+            ffname_src = os.path.join(self.app.local_folder_in, f["name"])
+            f["name"] = file_generate_name_func("renamed_", i)
+            i = i + 1
+            ffname_dst = os.path.join(self.app.local_folder_in, where, f["name"])
+
+            logging.debug("move&delete file: %s => %s" % (ffname_src, ffname_dst))
+
+            if os.path.exists(ffname_src):
+                try:
+                    shutil.move(ffname_src, ffname_dst)
+                except OSError, e:
+                    logging.error("Failed to rename file: %s (%s)" % (ffname_src, e))
+                    return False
+            try:
+                time.sleep(timeout)
+                os.remove(ffname_dst)
+            except OSError, e:
+                logging.error("Failed to delete file: %s (%s)" % (ffname_dst, e))
+                return False
+
+        if (where != "."):
+            shutil.rmtree(os.path.join(self.app.local_folder_in,where))
         return True
 
     def files_remove(self, l_files):
