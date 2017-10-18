@@ -757,6 +757,8 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    updatedfilesize = ~0;
+    updatedfilets = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -1855,81 +1857,84 @@ void MegaClient::exec()
                     syncextraretry = false;
                 }
 
-                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                if (!syncnagleretry)
                 {
-                    if (!syncfsopsfailed)
+                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                     {
-                        syncfslockretry = false;
-
-                        // not retrying local operations: process pending notifyqs
-                        for (it = syncs.begin(); it != syncs.end(); )
+                        if (!syncfsopsfailed)
                         {
-                            Sync* sync = *it++;
+                            syncfslockretry = false;
 
-                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
+                            // not retrying local operations: process pending notifyqs
+                            for (it = syncs.begin(); it != syncs.end(); )
                             {
-                                delete sync;
-                                continue;
-                            }
-                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                            {
-                                // process items from the notifyq until depleted
-                                if (sync->dirnotify->notifyq[q].size())
+                                Sync* sync = *it++;
+
+                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                                 {
-                                    dstime dsretry;
-
-                                    syncops = true;
-
-                                    if ((dsretry = sync->procscanq(q)))
+                                    delete sync;
+                                    continue;
+                                }
+                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                {
+                                    // process items from the notifyq until depleted
+                                    if (sync->dirnotify->notifyq[q].size())
                                     {
-                                        // we resume processing after dsretry has elapsed
-                                        // (to avoid open-after-creation races with e.g. MS Office)
-                                        if (EVER(dsretry))
+                                        dstime dsretry;
+
+                                        syncops = true;
+
+                                        if ((dsretry = sync->procscanq(q)))
                                         {
-                                            syncnaglebt.backoff(dsretry + 1);
-                                            syncnagleretry = true;
+                                            // we resume processing after dsretry has elapsed
+                                            // (to avoid open-after-creation races with e.g. MS Office)
+                                            if (EVER(dsretry))
+                                            {
+                                                syncnaglebt.backoff(dsretry + 1);
+                                                syncnagleretry = true;
+                                            }
+                                            else
+                                            {
+                                                syncactivity = true;
+                                            }
+
+                                            if (syncadding)
+                                            {
+                                                break;
+                                            }
                                         }
                                         else
                                         {
-                                            syncactivity = true;
-                                        }
+                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                            if (!syncadding)
+                                            {
+                                                LOG_debug << "Running syncup to create missing folders";
+                                                syncup(&sync->localroot, &nds);
+                                                sync->cachenodes();
+                                            }
 
-                                        if (syncadding)
-                                        {
+                                            // we interrupt processing the notifyq if the completion
+                                            // of a node creation is required to continue
                                             break;
                                         }
                                     }
-                                    else
-                                    {
-                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                        if (!syncadding)
-                                        {
-                                            LOG_debug << "Running syncup to create missing folders";
-                                            syncup(&sync->localroot, &nds);
-                                            sync->cachenodes();
-                                        }
 
-                                        // we interrupt processing the notifyq if the completion
-                                        // of a node creation is required to continue
-                                        break;
+                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                    {
+                                        sync->changestate(SYNC_ACTIVE);
+
+                                        // scan for items that were deleted while the sync was stopped
+                                        // FIXME: defer this until RETRY queue is processed
+                                        sync->scanseqno++;
+                                        sync->deletemissing(&sync->localroot);
                                     }
                                 }
-
-                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-                                {
-                                    sync->changestate(SYNC_ACTIVE);
-
-                                    // scan for items that were deleted while the sync was stopped
-                                    // FIXME: defer this until RETRY queue is processed
-                                    sync->scanseqno++;
-                                    sync->deletemissing(&sync->localroot);
-                                }
                             }
-                        }
 
-                        if (syncadding)
-                        {
-                            break;
+                            if (syncadding)
+                            {
+                                break;
+                            }
                         }
                     }
                 }

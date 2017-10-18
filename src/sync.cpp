@@ -32,6 +32,7 @@ namespace mega {
 
 const int Sync::SCANNING_DELAY_DS = 5;
 const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
+const int Sync::FILE_UPDATE_DELAY_DS = 30;
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
@@ -493,7 +494,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
+LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds)
 {
     LocalNode* ll = l;
     FileAccess* fa;
@@ -813,6 +814,93 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     LOG_debug << "Move detected by fsid in checkpath. Type: " << it->second->type;
+
+                    if (fa->type == FILENODE && backoffds)
+                    {
+                        // logic to detect files being updated in the local computer moving the original file
+                        // to another location as a temporary backup
+
+                        string local;
+                        it->second->getlocalpath(&local, true);
+                        FileAccess *prevfa = client->fsaccess->newfileaccess();
+                        m_time_t currentsecs = time(NULL);
+                        bool exists = prevfa->fopen(&local);
+                        bool waitforupdate = false;
+
+                        if (exists)
+                        {
+                            LOG_debug << "File detected in the origin of a move";
+
+                            if (currentsecs >= client->updatedfilets)
+                            {
+                                if ((currentsecs - client->updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
+                                {
+                                    LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << client->updatedfilets
+                                              << "  currentsize = " << prevfa->size << "  lastsize = " << client->updatedfilesize;
+                                    LOG_debug << "The file was checked too recently. Waiting...";
+                                    waitforupdate = true;
+                                }
+                                else if (client->updatedfilesize != prevfa->size)
+                                {
+                                    LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << client->updatedfilets
+                                              << "  currentsize = " << prevfa->size << "  lastsize = " << client->updatedfilesize;
+                                    LOG_debug << "The file size has changed since the last check. Waiting...";
+                                    client->updatedfilesize = prevfa->size;
+                                    client->updatedfilets = currentsecs;
+                                    waitforupdate = true;
+                                }
+                                else
+                                {
+                                    LOG_debug << "The file size seems stable";
+                                }
+                            }
+                            else
+                            {
+                                LOG_debug << "File checked in the future";
+                            }
+
+                            if (currentsecs >= prevfa->mtime)
+                            {
+                                if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
+                                {
+                                    LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+                                    LOG_debug << "File modified too recently. Waiting...";
+                                    waitforupdate = true;
+                                }
+                                else
+                                {
+                                    LOG_debug << "The modification time seems stable.";
+                                }
+                            }
+                            else
+                            {
+                                LOG_debug << "File modified in the future";
+                            }
+                        }
+                        else
+                        {
+                            if (prevfa->retry)
+                            {
+                                LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
+                                waitforupdate = true;
+                            }
+                            else
+                            {
+                                LOG_debug << "There isn't anything in the origin path";
+                            }
+                        }
+
+                        if (waitforupdate)
+                        {
+                            LOG_debug << "Possible file update detected.";
+                            *backoffds += FILE_UPDATE_DELAY_DS;
+                            delete prevfa;
+                            delete fa;
+                            return NULL;
+                        }
+                        delete prevfa;
+                    }
+
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                     // (in case of a move, this synchronously updates l->parent
@@ -994,7 +1082,15 @@ dstime Sync::procscanq(int q)
 
         if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
-            l = checkpath(l, &dirnotify->notifyq[q].front().path);
+            dstime backoffds = 0;
+            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds);
+            if (backoffds)
+            {
+                LOG_verbose << "Scanning deferred during " << backoffds << " ds";
+                return backoffds;
+            }
+            client->updatedfilesize = ~0;
+            client->updatedfilets = 0;
 
             // defer processing because of a missing parent node?
             if (l == (LocalNode*)~0)
