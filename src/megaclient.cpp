@@ -759,6 +759,7 @@ void MegaClient::init()
     totalNodes = 0;
     updatedfilesize = ~0;
     updatedfilets = 0;
+    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
