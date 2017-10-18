@@ -76,7 +76,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL);
+    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL);
 
     m_off_t localbytes;
     unsigned localnodes[2];
@@ -127,6 +127,8 @@ public:
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
+    static const int FILE_UPDATE_DELAY_DS;
+    static const int FILE_UPDATE_MAX_DELAY_SECS;
 
 protected :
     bool readstatecache();

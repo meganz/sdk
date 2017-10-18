@@ -760,6 +760,11 @@ public:
     // directory change notification
     struct FileSystemAccess* fsaccess;
 
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
+
     // bitmap graphics handling
     GfxProc* gfx;
     
