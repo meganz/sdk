@@ -3577,8 +3577,6 @@ public:
     /**
      * @brief Returns the identifier of this backup
      *
-     * Identifiers of backups are always negative numbers.
-     *
      * @return Identifier of the backup
      */
     virtual int getTag() const;
@@ -8014,7 +8012,7 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the period between backups in deciseconds
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
-         * - MegaRequest::getTag - Tag asociated with the backup
+         * - MegaRequest::getTransferTag - Tag asociated with the backup
          * -
          * @param localFolder Local folder
          * @param parent MEGA folder to hold the backups

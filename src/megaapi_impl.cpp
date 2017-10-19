@@ -4781,6 +4781,7 @@ void MegaApiImpl::loop()
         if (r & Waiter::NEEDEXEC)
         {
             WAIT_CLASS::bumpds();
+            updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
             if(threadExit)
@@ -6106,7 +6107,7 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t
 void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP);
-    request->setNumber(tag); //TODO: document this
+    request->setNumber(tag);
     request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
@@ -13246,15 +13247,17 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
     return request;
 }
 
-void MegaApiImpl::sendPendingTransfers()
+void MegaApiImpl::updateBackups()
 {
-    //TODO: move this to another method ::updateBackups
     for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
     {
         MegaBackupController *backupController=it->second;
         backupController->update();
     }
+}
 
+void MegaApiImpl::sendPendingTransfers()
+{
     MegaTransferPrivate *transfer;
     error e;
     int nextTag;
@@ -15425,9 +15428,34 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            int tag = request->getTag();
-            MegaBackupController *mbc = new MegaBackupController(this, tag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
-            backupsMap[tag] = mbc;
+            MegaBackupController *mbc = NULL;
+            int tagexisting;
+            bool existing = false;
+            for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+            {
+                if (!strcmp(it->second->getLocalFolder(), request->getFile()) && it->second->getMegaHandle() == request->getNodeHandle())
+                {
+                    existing = true;
+                    mbc = it->second;
+                    tagexisting = it->first;
+                }
+            }
+
+            if (existing){
+                LOG_debug << "Updating existing backup parameters: " <<  request->getFile() << " to " << request->getNodeHandle();
+//                fireOnRequestFinish(request, MegaError(API_EEXIST));
+//                break;
+                mbc->setPeriod(request->getNumber());
+                mbc->setMaxBackups(request->getNumRetry());
+                request->setTransferTag(tagexisting);
+            }
+            else
+            {
+                int tag = request->getTag();
+                MegaBackupController *mbc = new MegaBackupController(this, tag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
+                backupsMap[tag] = mbc;
+                request->setTransferTag(tag);
+            }
 
             fireOnRequestFinish(request, MegaError(API_OK));
 
@@ -17579,8 +17607,6 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
-    LOG_fatal << " at MegaFolderUploadController constructor: "+ string(transfer->getFileName()); //TODO: delete
-
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
     this->transfer = transfer;
@@ -17857,14 +17883,9 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
     this->recursive = 0;
     this->pendingTransfers = 0;
 
-    this->period = period;
+    lastbackuptime = getLastBackupTime();
 
-    int64_t lastbackuptime = getLastBackupTime();
-    this->offsetds=std::time(NULL)*10 - Waiter::ds;
-    this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
-    if (this->startTime < Waiter::ds)
-        this->startTime = Waiter::ds;
-
+    this->setPeriod(period);
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
@@ -17906,6 +17927,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
     this->setOffsetds(backup->getOffsetds());
+    this->setLastbackuptime(backup->getLastBackupTime());
 
     this->setLocalFolder(backup->getLocalFolder());
     this->setBackupName(backup->getBackupName());
@@ -18054,6 +18076,16 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
     return toret;
 }
 
+int64_t MegaBackupController::getLastbackuptime() const
+{
+    return lastbackuptime;
+}
+
+void MegaBackupController::setLastbackuptime(const int64_t &value)
+{
+    lastbackuptime = value;
+}
+
 void MegaBackupController::setState(int value)
 {
     state = value;
@@ -18108,6 +18140,8 @@ void MegaBackupController::start()
 //    ossremotename << Waiter::ds; //TODO: save this somewhere
     string backupname = ossremotename.str();
     currentName = backupname;
+
+    lastbackuptime = max(lastbackuptime,offsetds+startTime);
 
     MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
     if(!parent)
@@ -18439,6 +18473,10 @@ int64_t MegaBackupController::getPeriod() const
 void MegaBackupController::setPeriod(const int64_t &value)
 {
     period = value;
+    this->offsetds=std::time(NULL)*10 - Waiter::ds;
+    this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
+    if (this->startTime < Waiter::ds)
+        this->startTime = Waiter::ds;
 }
 
 int64_t MegaBackupController::getStartTime() const

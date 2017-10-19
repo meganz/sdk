@@ -236,6 +236,7 @@ private:
     int pendingremovals;
 
     int64_t lastwakeuptime;
+    int64_t lastbackuptime;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -291,6 +292,8 @@ public:
     void setState(int value);
     int64_t getOffsetds() const;
     void setOffsetds(const int64_t &value);
+    int64_t getLastbackuptime() const;
+    void setLastbackuptime(const int64_t &value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -2249,6 +2252,7 @@ protected:
 
         void sendPendingRequests();
         void sendPendingTransfers();
+        void updateBackups();
         char *stringToArray(string &buffer);
 
         //Internal
