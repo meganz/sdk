@@ -145,6 +145,7 @@ class SyncTest(SyncTestBase):
 
         # move & delete
         self.assertTrue(self.files_moveanddelete(l_files,"subfolder"), "Move&Delete files")
+        #~ self.assertTrue(self.files_moveanddelete(l_files,"."), "Move&Delete files") #this is expected to fail as of 20171019        
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         self.app.sync()

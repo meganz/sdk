@@ -499,8 +499,11 @@ class SyncTestBase(unittest.TestCase):
         moves and deletes objects in "in" instance and check new files in "out" instance
         """
         logging.debug("Move&Rename files..")
+        try:
+            os.makedirs(os.path.join(self.app.local_folder_in,where))
+        except Exception, e:
+            logging.debug("Unable to create subfolder: %s (%s)" % (where, e))
 
-        os.makedirs(os.path.join(self.app.local_folder_in,where))
         i = 0
         for f in l_files:
             ffname_src = os.path.join(self.app.local_folder_in, f["name"])
