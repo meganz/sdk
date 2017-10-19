@@ -13364,7 +13364,7 @@ void MegaApiImpl::sendPendingTransfers()
                         client->proctree(samenode, &tc, false, true);
                         tc.allocnodes();
                         nc = tc.nc;
-                        client->proctree(samenode, &tc);
+                        client->proctree(samenode, &tc, false, true);
                         tc.nn->parenthandle = UNDEF;
 
                         SymmCipher key;

@@ -148,6 +148,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return false;
     }
 
+    retry = false;
     type = FILENODE;
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
     *size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
