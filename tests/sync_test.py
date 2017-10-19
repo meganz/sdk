@@ -154,6 +154,46 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         return True
+        
+    def test_mimic_update_with_backup_files(self):
+        """
+        create files with different size,
+        mimic_update_with_backup
+        """
+        logging.info("Launching test_mimic_update_with_backup_files test")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+        self.app.change_folders();        
+
+        # make sure remote folders are empty
+        self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        # create files
+        l_files = self.files_create()
+        self.assertIsNotNone(l_files, "Creating files")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        self.app.sync()
+
+        # comparing
+        self.assertTrue(self.files_check(l_files), "Comparing files")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        # mimic update with backup
+        self.assertTrue(self.files_mimic_update_with_backup(l_files), "Mimic update with backup files")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        self.app.sync()
+
+        # remove files
+        self.assertTrue(self.files_remove(l_files), "Removing files")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        # make sure remote folders are empty
+        self.assertTrue(self.dirs_check_empty(), "Checking if remote folders are empty")
+        self.assertTrue(self.app.is_alive(), "Test application is not running")
+
+        return True
 
     def test_create_delete_dirs(self):
         """

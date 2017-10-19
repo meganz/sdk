@@ -262,7 +262,7 @@ class SyncTestBase(unittest.TestCase):
         create files in "in" instance and check files presence in "out" instance
         Return list of files
         """
-        logging.debug("Creating files..")
+        logging.debug("Creating files.. (nrfiles="+str(self.nr_files)+")")
 
         l_files = []
 
@@ -525,6 +525,46 @@ class SyncTestBase(unittest.TestCase):
 
         if (where != "."):
             shutil.rmtree(os.path.join(self.app.local_folder_in,where))
+        return True
+        
+    def files_mimic_update_with_backup(self, l_files, timeout=0, file_generate_name_func=generate_ascii_name):
+        """
+        moves and deletes objects in "in" instance and check new files in "out" instance
+        """
+        logging.debug("Mimic update with backup files..")
+
+        i = 0
+        for f in l_files:
+            ffname_src = os.path.join(self.app.local_folder_in, f["name"])
+            #f["name"] = file_generate_name_func("renamed_", i)
+            i = i + 1
+            ffname_dst = os.path.join(self.app.local_folder_in, "renamed_"+f["name"])
+            ffname_dst_out = os.path.join(self.app.local_folder_out, "renamed_"+f["name"])
+
+            logging.debug("Mimic update with backup file: %s => %s" % (ffname_src, ffname_dst))
+
+            if os.path.exists(ffname_src):
+                try:
+                    shutil.move(ffname_src, ffname_dst)
+                except OSError, e:
+                    logging.error("Failed to rename file: %s (%s)" % (ffname_src, e))
+                    return False
+            try:
+                time.sleep(timeout)
+                with open(ffname_dst, 'r') as f:
+                    with open(ffname_src, 'w') as f2:
+                        for r in range(100):
+                            f2.write("whatever")
+                            time.sleep(0.03)
+                            if os.path.exists(ffname_dst_out): #existing temporary file
+                                logging.error("ERROR in sync: Temporary file being created in syncout: : %s!" % (ffname_dst))
+                                os.remove(ffname_dst)
+                                return False;
+                os.remove(ffname_dst)
+            except OSError, e:
+                logging.error("Failed to delete file: %s (%s)" % (ffname_dst, e))
+                return False
+
         return True
 
     def files_remove(self, l_files):
