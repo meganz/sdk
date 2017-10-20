@@ -58,8 +58,14 @@ GfxProcCG::~GfxProcCG() {
     }
 }
 
+extern const char *__progname;
+
 const char* GfxProcCG::supportedformats() {
-    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.heic.";
+    if (strcmp(((char *)__progname), "MEGAPickerFileProvider")!=0) {
+        return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.heic.";
+    } else {
+        return "";
+    }
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
