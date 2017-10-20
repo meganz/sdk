@@ -216,7 +216,7 @@ public:
 class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, int tag, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
     MegaBackupController(MegaBackupController *backup);
 
     void update();
@@ -241,7 +241,6 @@ protected:
     bool checkCompletion();
 
     std::list<std::string> pendingFolders;
-    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
 
     MegaApiImpl *megaApi;
     MegaClient *client;
@@ -251,6 +250,7 @@ protected:
     int pendingTransfers;
 
     int tag;
+    int folderTransferTag; //reused between backup instances
     int64_t startTime; // when shalll the next backup begin
     int64_t period;
     int64_t offsetds; //times offset with epoch time?
@@ -292,6 +292,8 @@ public:
     void setOffsetds(const int64_t &value);
     int64_t getLastbackuptime() const;
     void setLastbackuptime(const int64_t &value);
+    int getFolderTransferTag() const;
+    void setFolderTransferTag(int value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -1585,6 +1587,7 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
+        void remove(MegaNode* node, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
         void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
@@ -1656,6 +1659,7 @@ class MegaApiImpl : public MegaApp
         //Backups
         void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
+        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 
         //Timer
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);
@@ -1703,6 +1707,8 @@ class MegaApiImpl : public MegaApp
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
+        MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
+
 
 #ifdef ENABLE_SYNC
         //Sync

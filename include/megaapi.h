@@ -2014,7 +2014,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER,
+            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_RESTORE,
             TOTAL_OF_REQUEST_TYPES
         };
@@ -8088,6 +8088,11 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief TODO: doc
+         */
+        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Starts a timer.

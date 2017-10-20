@@ -2963,7 +2963,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
         case TYPE_ADD_BACKUP: return "ADD_BACKUP";
-        case TYPE_TIMER: return "ESTABLISH_TIMER";
+        case TYPE_TIMER: return "STABLISH_TIMER";
     }
     return "UNKNOWN";
 }
@@ -4878,6 +4878,11 @@ void MegaApiImpl::renameNode(MegaNode *node, const char *newName, MegaRequestLis
     waiter->notify();
 }
 
+void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
+{
+    return remove(node, false, listener);
+}
+
 void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE, listener);
@@ -6095,6 +6100,24 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
     return result;
 }
 
+MegaTransferList *MegaApiImpl::getTansfersByFolderTag(int folderTransferTag)
+{
+    sdkMutex.lock();
+    vector<MegaTransfer *> transfers;
+    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        MegaTransferPrivate *t = it->second;
+        if (t->getFolderTransferTag() == folderTransferTag)
+        {
+            transfers.push_back(t);
+        }
+    }
+
+    MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
@@ -6126,6 +6149,15 @@ void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
     waiter->notify();
 }
 
+
+void MegaApiImpl::abortCurrentBackup(int tag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+    request->setNumber(tag);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
 {
@@ -15741,7 +15773,8 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 int tag = request->getTag();
-                MegaBackupController *mbc = new MegaBackupController(this, tag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
+                int tagForFolderTansferTag = client->nextreqtag();
+                MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
                 backupsMap[tag] = mbc;
                 request->setTransferTag(tag);
             }
@@ -15767,6 +15800,52 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
             else
+            {
+                e = API_ENOENT;
+            }
+
+            break;
+        }
+        case MegaRequest::TYPE_ABORT_CURRENT_BACKUP:
+        {
+            int tag = request->getNumber();
+            bool found = false;
+
+            if (backupsMap.find(tag) != backupsMap.end())
+            {
+                found = true;
+
+                MegaBackupController *backup = backupsMap.find(tag)->second; //TODO: do not look twice. use an iterator
+
+                bool flag = request->getFlag();
+                if (!flag)
+                {
+                    if (backup->getState() == MegaBackup::BACKUP_ONGOING)
+                    {
+                        for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+                        {
+                            MegaTransferPrivate *t = it->second;
+                            if (t->getFolderTransferTag() == backup->getFolderTransferTag())
+                            {
+                                api->cancelTransferByTag(t->getTag()); //what if any of these fail? (Although I don't think that's possible)
+                            }
+                        }
+                        request->setFlag(true);
+                        requestQueue.push(request);
+                    }
+                    else
+                    {
+                        LOG_debug << "Abort failed: no ongoing backup";
+                        fireOnRequestFinish(request, MegaError(API_OK)); //TODO: ok???
+                    }
+                }
+                else
+                {
+                    fireOnRequestFinish(request, MegaError(API_OK));
+                }
+
+            }
+            if (!found)
             {
                 e = API_ENOENT;
             }
@@ -18136,7 +18215,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle parenthandle, const char* filename, int64_t period, int maxBackups)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, int64_t period, int maxBackups)
 {
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
 
@@ -18163,6 +18242,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, handle
     this->maxBackups = maxBackups;
 
     this->tag = tag;
+    this->folderTransferTag = folderTransferTag;
 
     this->lastwakeuptime = 0;
 
@@ -18179,9 +18259,10 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->transfer = NULL;
     //TODO: copy these if make any sense
 //    std::list<std::string> pendingFolders;
-//    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
 //    if (backup->transfer)
 //        this->transfer = new MegaTransferPrivate(backup->transfer);
+
+    this->setFolderTransferTag(backup->getFolderTransferTag());
 
 
     this->megaApi = backup->megaApi;
@@ -18202,8 +18283,6 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setBackupName(backup->getBackupName());
     this->setMegaHandle(backup->getMegaHandle());
     this->setMaxBackups(backup->getMaxBackups());
-
-
 }
 void MegaBackupController::update()
 {
@@ -18218,8 +18297,11 @@ void MegaBackupController::update()
         {
             LOG_verbose << "Backup busy: " << basepath <<
                            ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
-            megaApi->startTimer(10); //give it a while? (how much??)
-            //TODO: update startTime? jump starTime if next period exceeded? //not much sense
+            if ((lastwakeuptime+10) < Waiter::ds )
+            {
+                megaApi->startTimer(10); //give it a while
+                lastwakeuptime = Waiter::ds+10;
+            }
         }
     }
     else
@@ -18435,10 +18517,12 @@ void MegaBackupController::start()
             pendingFolders.push_back(localpath);
             megaApi->createFolder(backupname.c_str(), parent, this);
         }
-        else //TODO: actually this should not occurr (no folder should exist already)... ? unless this is somehow a retry...
+        else
         {
-            pendingFolders.push_front(localpath);
-            onFolderAvailable(child->getHandle());
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
+
+            LOG_err << "Could not start backup: "<< transfer->getFileName() << ". Backup already exists";
         }
 
         delete child;
@@ -18460,119 +18544,68 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
         megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
     }
 
-    string localname;
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
-    if (da->dopen(&localPath, NULL, false))
+    if (state == BACKUP_ONGOING)
     {
-        size_t t = localPath.size();
-
-        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        string localname;
+        DirAccess* da;
+        da = client->fsaccess->newdiraccess();
+        if (da->dopen(&localPath, NULL, false))
         {
-            if (t)
+            size_t t = localPath.size();
+
+            while (da->dnext(&localPath, &localname, client->followsymlinks))
             {
-                localPath.append(client->fsaccess->localseparator);
-            }
-
-            localPath.append(localname);
-
-            FileAccess *fa = client->fsaccess->newfileaccess();
-            if(fa->fopen(&localPath, true, false))
-            {
-                string name = localname;
-                client->fsaccess->local2name(&name);
-
-                if(fa->type == FILENODE)
+                if (t)
                 {
-                    pendingTransfers++;
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || child->isFolder() || (fa->size != child->getSize()))
+                    localPath.append(client->fsaccess->localseparator);
+                }
+
+                localPath.append(localname);
+
+                //TODO: add exclude filters here
+
+                FileAccess *fa = client->fsaccess->newfileaccess();
+                if(fa->fopen(&localPath, true, false))
+                {
+                    string name = localname;
+                    client->fsaccess->local2name(&name);
+                    if(fa->type == FILENODE)
                     {
-                        FileFingerprint fp;
-                        fp.genfingerprint(fa);
-                        Node *node = client->nodebyfingerprint(&fp);
-                        if(!node)
+                        pendingTransfers++;
+                        string utf8path;
+                        client->fsaccess->local2path(&localPath, &utf8path);
+
+                        megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
+                    }
+                    else
+                    {
+                        MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                        if(!child || !child->isFolder())
                         {
-                            string utf8path;
-                            client->fsaccess->local2path(&localPath, &utf8path);
-                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
+                            pendingFolders.push_back(localPath);
+                            megaApi->createFolder(name.c_str(), parent, this);
                         }
                         else
                         {
-                            string utf8path;
-                            client->fsaccess->local2path(&localPath, &utf8path);
-                            #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-                                    if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-                                        utf8path.insert(0, "\\\\?\\");
-                            #endif
-
-                            int nextTag = client->nextreqtag();
-                            MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
-                            t->setPath(utf8path.c_str());
-                            t->setParentHandle(parent->getHandle());
-                            t->setTag(nextTag);
-                            t->setFolderTransferTag(tag);
-                            t->setTotalBytes(node->size);
-                            megaApi->transferMap[nextTag] = t;
-                            pendingSkippedTransfers.push_back(t);
-                            t->setState(MegaTransfer::STATE_QUEUED);
-                            megaApi->fireOnTransferStart(t);
-
-                            MegaNode *duplicate = MegaNodePrivate::fromNode(node);
-                            megaApi->copyNode(duplicate, parent, name.c_str(), this);
-                            delete duplicate;
+                            pendingFolders.push_front(localPath);
+                            onFolderAvailable(child->getHandle());
                         }
+                        delete child;
                     }
-                    else
-                    {
-                        string utf8path;
-                        client->fsaccess->local2path(&localPath, &utf8path);
-                        #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-                                if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-                                    utf8path.insert(0, "\\\\?\\");
-                        #endif
-
-                        int nextTag = client->nextreqtag();
-                        MegaTransferPrivate* t = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, this);
-                        t->setPath(utf8path.data());
-                        t->setParentHandle(parent->getHandle());
-                        t->setTag(nextTag);
-                        t->setFolderTransferTag(tag);
-                        t->setTotalBytes(child->getSize());
-                        megaApi->transferMap[nextTag] = t;
-                        t->setState(MegaTransfer::STATE_QUEUED);
-                        megaApi->fireOnTransferStart(t);
-                        t->setTransferredBytes(child->getSize());
-                        t->setDeltaSize(child->getSize());
-                        t->setState(MegaTransfer::STATE_COMPLETED);
-                        megaApi->fireOnTransferFinish(t, MegaError(API_OK));
-                    }
-
-                    delete child;
                 }
-                else
-                {
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || !child->isFolder())
-                    {
-                        pendingFolders.push_back(localPath);
-                        megaApi->createFolder(name.c_str(), parent, this);
-                    }
-                    else
-                    {
-                        pendingFolders.push_front(localPath);
-                        onFolderAvailable(child->getHandle());
-                    }
-                    delete child;
-                }
+
+                localPath.resize(t);
+                delete fa;
             }
-
-            localPath.resize(t);
-            delete fa;
         }
+
+        delete da;
+    }
+    else
+    {
+        LOG_warn << " Folder created while not ONGOING "; //TODO: add extra info
     }
 
-    delete da;
     delete parent;
     recursive--;
 
@@ -18581,7 +18614,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
 bool MegaBackupController::checkCompletion()
 {
-    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingSkippedTransfers.size())
+    if(!recursive && !pendingFolders.size() && !pendingTransfers)
     {
         if (transfer)
         {
@@ -18607,6 +18640,16 @@ bool MegaBackupController::checkCompletion()
         return true;
     }
     return false;
+}
+
+int MegaBackupController::getFolderTransferTag() const
+{
+    return folderTransferTag;
+}
+
+void MegaBackupController::setFolderTransferTag(int value)
+{
+    folderTransferTag = value;
 }
 
 int64_t MegaBackupController::getOffsetds() const
@@ -18636,27 +18679,6 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
             checkCompletion();
         }
     }
-    else if(type == MegaRequest::TYPE_COPY)
-    {
-        Node *node = client->nodebyhandle(request->getNodeHandle());
-        long long size = node ? node->size : 0;
-
-        MegaTransferPrivate *t = pendingSkippedTransfers.front();
-        t->setTransferredBytes(size);
-        t->setDeltaSize(size);
-
-        if (!errorCode)
-        {
-            t->setState(MegaTransfer::STATE_COMPLETED);
-        }
-        else
-        {
-            t->setState(MegaTransfer::STATE_FAILED);
-        }
-        megaApi->fireOnTransferFinish(t, MegaError(errorCode));
-        pendingSkippedTransfers.pop_front();
-        checkCompletion();
-    }
     else if(type == MegaRequest::TYPE_REMOVE)
     {
         pendingremovals--;
@@ -18664,9 +18686,7 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         {
             state = BACKUP_ACTIVE;
         }
-
     }
-
 }
 
 void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)

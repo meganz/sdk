@@ -2117,6 +2117,11 @@ void MegaApi::removeBackup(int tag, MegaRequestListener *listener)
     pImpl->removeBackup(tag, listener);
 }
 
+void MegaApi::abortCurrentBackup(int tag, MegaRequestListener *listener)
+{
+    pImpl->abortCurrentBackup(tag, listener);
+}
+
 void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 {
     pImpl->startTimer(period, listener);
