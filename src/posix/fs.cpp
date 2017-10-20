@@ -939,7 +939,7 @@ bool PosixFileSystemAccess::getsname(string*, string*) const
     return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
+bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool override)
 {
 #ifdef USE_IOS
     string absoluteoldname;
@@ -962,13 +962,15 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     }
 #endif
 
-    if (!rename(oldname->c_str(), newname->c_str()))
+    bool existingandcare = !override && (0 == access(newname->c_str(), F_OK));
+    if (!existingandcare && !rename(oldname->c_str(), newname->c_str()))
     {
+        LOG_verbose << "Succesfully moved file: " << oldname->c_str() << " to " << newname->c_str();
         return true;
     }
 
-    target_exists = errno == EEXIST;
-    transient_error = errno == ETXTBSY || errno == EBUSY;
+    target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
+    transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
     LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;

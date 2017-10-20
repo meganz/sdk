@@ -1623,7 +1623,17 @@ void MegaApi::renameNode(MegaNode *node, const char *newName, MegaRequestListene
 
 void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->remove(node, listener);
+    pImpl->remove(node, false, listener);
+}
+
+void MegaApi::removeVersion(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->remove(node, true, listener);
+}
+
+void MegaApi::restoreVersion(MegaNode *version, MegaRequestListener *listener)
+{
+    pImpl->restoreVersion(version, listener);
 }
 
 void MegaApi::cleanRubbishBin(MegaRequestListener *listener)
@@ -2916,6 +2926,21 @@ MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
     return pImpl->getChildren(p, order);
 }
 
+MegaNodeList *MegaApi::getVersions(MegaNode *node)
+{
+    return pImpl->getVersions(node);
+}
+
+int MegaApi::getNumVersions(MegaNode *node)
+{
+    return pImpl->getNumVersions(node);
+}
+
+bool MegaApi::hasVersions(MegaNode *node)
+{
+    return pImpl->hasVersions(node);
+}
+
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 {
     return pImpl->getFileFolderChildren(p, order);
@@ -3951,6 +3976,11 @@ long long MegaAccountDetails::getStorageUsed()
     return 0;
 }
 
+long long MegaAccountDetails::getVersionStorageUsed()
+{
+    return 0;
+}
+
 long long MegaAccountDetails::getTransferMax()
 {
     return 0;
@@ -3977,6 +4007,16 @@ long long MegaAccountDetails::getNumFiles(MegaHandle)
 }
 
 long long MegaAccountDetails::getNumFolders(MegaHandle)
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getNumVersionFiles(MegaHandle)
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getVersionStorageUsed(MegaHandle)
 {
     return 0;
 }

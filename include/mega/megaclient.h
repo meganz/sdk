@@ -302,7 +302,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*);
+    error unlink(Node*, bool = false);
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
@@ -540,6 +540,9 @@ public:
     // get mega achievements list (for advertising for unregistered users)
     void getmegaachievements(AchievementsDetails *details);
 
+    // get welcome pdf
+    void getwelcomepdf();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -559,6 +562,9 @@ public:
 
     // get max upload speed
     m_off_t getmaxuploadspeed();
+
+    // get the handle of the older version for a NewNode
+    handle getovhandle(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -760,6 +766,11 @@ public:
 
     // directory change notification
     struct FileSystemAccess* fsaccess;
+
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
 
     // bitmap graphics handling
     GfxProc* gfx;
@@ -1215,7 +1226,7 @@ public:
     handle getpublicfolderhandle();
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;

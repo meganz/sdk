@@ -727,6 +727,11 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     string nname = name;
     Node *found = NULL;
 
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
+
     fsaccess->normalize(&nname);
 
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
@@ -752,6 +757,9 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    updatedfilesize = ~0;
+    updatedfilets = 0;
+    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -1389,6 +1397,7 @@ void MegaClient::exec()
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
 
@@ -1428,6 +1437,7 @@ void MegaClient::exec()
                             {
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
                         }
@@ -1590,9 +1600,9 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry && !pendingcs && !csretrying)
 #else
-        if (!scpaused && jsonsc.pos)
+        if (!scpaused && jsonsc.pos && !pendingcs && !csretrying)
 #endif
         {
             // FIXME: reload in case of bad JSON
@@ -1858,81 +1868,84 @@ void MegaClient::exec()
                     syncextraretry = false;
                 }
 
-                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                if (!syncnagleretry)
                 {
-                    if (!syncfsopsfailed)
+                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                     {
-                        syncfslockretry = false;
-
-                        // not retrying local operations: process pending notifyqs
-                        for (it = syncs.begin(); it != syncs.end(); )
+                        if (!syncfsopsfailed)
                         {
-                            Sync* sync = *it++;
+                            syncfslockretry = false;
 
-                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
+                            // not retrying local operations: process pending notifyqs
+                            for (it = syncs.begin(); it != syncs.end(); )
                             {
-                                delete sync;
-                                continue;
-                            }
-                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                            {
-                                // process items from the notifyq until depleted
-                                if (sync->dirnotify->notifyq[q].size())
+                                Sync* sync = *it++;
+
+                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                                 {
-                                    dstime dsretry;
-
-                                    syncops = true;
-
-                                    if ((dsretry = sync->procscanq(q)))
+                                    delete sync;
+                                    continue;
+                                }
+                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                {
+                                    // process items from the notifyq until depleted
+                                    if (sync->dirnotify->notifyq[q].size())
                                     {
-                                        // we resume processing after dsretry has elapsed
-                                        // (to avoid open-after-creation races with e.g. MS Office)
-                                        if (EVER(dsretry))
+                                        dstime dsretry;
+
+                                        syncops = true;
+
+                                        if ((dsretry = sync->procscanq(q)))
                                         {
-                                            syncnaglebt.backoff(dsretry + 1);
-                                            syncnagleretry = true;
+                                            // we resume processing after dsretry has elapsed
+                                            // (to avoid open-after-creation races with e.g. MS Office)
+                                            if (EVER(dsretry))
+                                            {
+                                                syncnaglebt.backoff(dsretry + 1);
+                                                syncnagleretry = true;
+                                            }
+                                            else
+                                            {
+                                                syncactivity = true;
+                                            }
+
+                                            if (syncadding)
+                                            {
+                                                break;
+                                            }
                                         }
                                         else
                                         {
-                                            syncactivity = true;
-                                        }
+                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                            if (!syncadding)
+                                            {
+                                                LOG_debug << "Running syncup to create missing folders";
+                                                syncup(&sync->localroot, &nds);
+                                                sync->cachenodes();
+                                            }
 
-                                        if (syncadding)
-                                        {
+                                            // we interrupt processing the notifyq if the completion
+                                            // of a node creation is required to continue
                                             break;
                                         }
                                     }
-                                    else
-                                    {
-                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                        if (!syncadding)
-                                        {
-                                            LOG_debug << "Running syncup to create missing folders";
-                                            syncup(&sync->localroot, &nds);
-                                            sync->cachenodes();
-                                        }
 
-                                        // we interrupt processing the notifyq if the completion
-                                        // of a node creation is required to continue
-                                        break;
+                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                    {
+                                        sync->changestate(SYNC_ACTIVE);
+
+                                        // scan for items that were deleted while the sync was stopped
+                                        // FIXME: defer this until RETRY queue is processed
+                                        sync->scanseqno++;
+                                        sync->deletemissing(&sync->localroot);
                                     }
                                 }
-
-                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-                                {
-                                    sync->changestate(SYNC_ACTIVE);
-
-                                    // scan for items that were deleted while the sync was stopped
-                                    // FIXME: defer this until RETRY queue is processed
-                                    sync->scanseqno++;
-                                    sync->deletemissing(&sync->localroot);
-                                }
                             }
-                        }
 
-                        if (syncadding)
-                        {
-                            break;
+                            if (syncadding)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -4184,6 +4197,10 @@ void MegaClient::readtree(JSON* j)
                     readnodes(j, 1);
                     break;
 
+                case MAKENAMEID2('f', '2'):
+                    readnodes(j, 1);
+                    break;
+
                 case 'u':
                     readusers(j);
                     break;
@@ -5776,16 +5793,30 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n)
+error MegaClient::unlink(Node* n, bool keepversions)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
 
-    reqs.add(new CommandDelNode(this, n->nodehandle));
+    bool kv = (keepversions && n->type == FILENODE);
+    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
 
     mergenewshares(1);
+
+    if (kv)
+    {
+        Node *newerversion = n->parent;
+        if (n->children.size())
+        {
+            Node *olderversion = n->children.back();
+            olderversion->setparent(newerversion);
+            olderversion->changed.parent = true;
+            olderversion->tag = reqtag;
+            notifynode(olderversion);
+        }
+    }
 
     TreeProcDel td;
     proctree(n, &td);
@@ -6090,6 +6121,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             if ((n = nodebyhandle(h)))
             {
+                Node* p = NULL;
+                if (!ISUNDEF(ph))
+                {
+                    p = nodebyhandle(ph);
+                }
+
                 if (n->changed.removed)
                 {
                     // node marked for deletion is being resurrected, possibly
@@ -6099,17 +6136,20 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
+                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency (parent linkage)");
+                        app->reload("Node inconsistency");
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99437, "Node inconsistency");
+                        reqtag = creqtag;
                     }
                 }
 
                 if (!ISUNDEF(ph))
                 {
-                    Node* p;
-
-                    if ((p = nodebyhandle(ph)))
+                    if (p)
                     {
                         n->setparent(p);
                         n->changed.parent = true;
@@ -7363,9 +7403,9 @@ void MegaClient::resetKeyring()
 #endif
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
+void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
-    if (n->type != FILENODE)
+    if (!skipversions || n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
@@ -11009,10 +11049,10 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? send it to SyncDebris.
+                    // overwriting an existing remote node? tag it as the previous version
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        movetosyncdebris(l->node, l->sync->inshare);
+                        nnp->ovhandle = l->node->nodehandle;
                     }
 
                     // this is a file - copy, use original key & attributes
@@ -11482,13 +11522,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                     else
                     {
-                        if (t->progresscompleted)
-                        {
-                            LOG_warn << "Temporary file not found";
-                            t->chunkmacs.clear();
-                            t->progresscompleted = 0;
-                            t->pos = 0;
-                        }
+                        LOG_warn << "Temporary file not found";
+                        t->localfilename.clear();
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        t->pos = 0;
                     }
                 }
                 else
@@ -11740,6 +11778,20 @@ m_off_t MegaClient::getmaxuploadspeed()
     return httpio->getmaxuploadspeed();
 }
 
+handle MegaClient::getovhandle(Node *parent, string *name)
+{
+    handle ovhandle = UNDEF;
+    if (parent && name)
+    {
+        Node *ovn = childnodebyname(parent, name->c_str());
+        if (ovn)
+        {
+            ovhandle = ovn->nodehandle;
+        }
+    }
+    return ovhandle;
+}
+
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
@@ -11888,6 +11940,11 @@ void MegaClient::getaccountachievements(AchievementsDetails *details)
 void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
+}
+
+void MegaClient::getwelcomepdf()
+{
+    reqs.add(new CommandGetWelcomePDF(this));
 }
 
 FetchNodesStats::FetchNodesStats()

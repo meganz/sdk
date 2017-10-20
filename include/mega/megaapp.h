@@ -224,6 +224,9 @@ struct MEGA_API MegaApp
     // get mega-achievements
     virtual void getmegaachievements_result(AchievementsDetails*, error) {}
 
+    // get welcome pdf
+    virtual void getwelcomepdf_result(handle, string*, error) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }
