@@ -62,6 +62,9 @@ static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
+// import welcome pdf at account creation
+static bool pdf_to_import = false;
+
 // local console
 Console* console;
 
@@ -823,6 +826,7 @@ void DemoApp::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        pdf_to_import = false;
     }
     else
     {
@@ -840,6 +844,11 @@ void DemoApp::fetchnodes_result(error e)
                 cout << "Folder link loaded correctly." << endl;
             }
         }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
+        }
     }
 }
 
@@ -853,6 +862,21 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
         {
             cout << "Success." << endl;
         }
+    }
+
+    if (pdf_to_import)   // putnodes from openfilelink_result()
+    {
+        if (!e)
+        {
+            cout << "Welcome PDF file has been imported successfully." << endl;
+        }
+        else
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+
+        pdf_to_import = false;
+        return;
     }
 
     if (e)
@@ -1805,10 +1829,6 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    // decrypt and set master key, then proceed with the confirmation
-                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-                    client->key.setkey(signupencryptedmasterkey);
-
                     client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
                                               MegaClient::stringhash64(&signupemail, &pwcipher));
                 }
@@ -2336,6 +2356,13 @@ static void process_line(char* l)
                                 // build new nodes array
                                 client->proctree(n, &tc);
 
+                                string sname;
+                                attr_map::iterator it = n->attrs.map.find('n');
+                                if (it != n->attrs.map.end())
+                                {
+                                    sname = it->second;
+                                }
+
                                 // if specified target is a filename, use it
                                 if (newname.size())
                                 {
@@ -2349,6 +2376,7 @@ static void process_line(char* l)
 
                                     client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
+                                    sname = newname;
 
                                     key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
 
@@ -2363,6 +2391,11 @@ static void process_line(char* l)
 
                                 if (tn)
                                 {
+                                    if (tc.nn->type == FILENODE)
+                                    {
+                                        tc.nn->ovhandle = client->getovhandle(tn, &sname);
+                                    }
+
                                     // add the new nodes
                                     client->putnodes(tn->nodehandle, tc.nn, nc);
 
@@ -2850,6 +2883,7 @@ static void process_line(char* l)
                         if (words.size() == 1)
                         {
                             cout << "Creating ephemeral session..." << endl;
+                            pdf_to_import = true;
                             client->createephemeral();
                         }
                         else if (words.size() == 2)
@@ -3077,6 +3111,7 @@ static void process_line(char* l)
 
                                     client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
+                                    newnode->ovhandle = client->getovhandle(n, &newname);
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
@@ -4352,6 +4387,7 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
+    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -4661,8 +4697,16 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        cout << "Failed to open link: " << errorstring(e) << endl;
+        if (pdf_to_import) // import welcome pdf has failed
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+        else
+        {
+            cout << "Failed to open link: " << errorstring(e) << endl;
+        }
     }
+    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -4674,6 +4718,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
+        pdf_to_import = false;
         return;
     }
 
@@ -4689,12 +4734,18 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-    if(!buf)
+    if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
+        pdf_to_import = false;
     }
     else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
+        AttrMap attrs;
+        JSON json;
+        nameid name;
+        string* t;
+        json.begin((char*)buf + 5);
         NewNode* newnode = new NewNode[1];
 
         // set up new node as folder node
@@ -4702,16 +4753,34 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-
         newnode->attrstring = new string(*a);
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        {
+            JSON::unescape(t);
+
+            if (name == 'n')
+            {
+                client->fsaccess->normalize(t);
+                newnode->ovhandle = client->getovhandle(n, t);
+                break;
+            }
+        }
+
+        if (pdf_to_import)
+        {
+            client->putnodes(client->rootnodes[0], newnode, 1);
+        }
+        else
+        {
+            client->putnodes(n->nodehandle, newnode, 1);
+        }
     }
     else
     {
         cout << "Need to be logged in to import file links." << endl;
+        pdf_to_import = false;
     }
 
     delete [] buf;
@@ -4883,6 +4952,20 @@ void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
     delete details;
 }
 
+void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
+{
+    if (e)
+    {
+        cout << "Failed to get Welcome PDF. Error: " << e << endl;
+        pdf_to_import = false;
+    }
+    else
+    {
+        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
+        client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
+    }
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -4897,7 +4980,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
 
@@ -5231,6 +5315,7 @@ void DemoAppFolder::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        pdf_to_import = false;
     }
     else
     {
@@ -5250,6 +5335,11 @@ void DemoAppFolder::fetchnodes_result(error e)
 
             delete clientFolder;
             clientFolder = NULL;
+        }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
         }
     }
 }

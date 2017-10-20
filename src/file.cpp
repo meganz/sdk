@@ -300,12 +300,23 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[0];
             }
-#ifdef ENABLE_SYNC
+#ifdef ENABLE_SYNC            
             if (l)
             {
+                // tag the previous version in the synced folder (if any)
+                if (l->node && l->node->parent && l->node->parent->localnode)
+                {
+                    newnode->ovhandle = l->node->nodehandle;
+                }
+
                 t->client->syncadding++;
             }
 #endif
+            if (ISUNDEF(newnode->ovhandle))
+            {
+                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
+            }
+
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,

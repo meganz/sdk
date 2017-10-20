@@ -228,6 +228,7 @@ struct DemoApp : public MegaApp
     void checkout_result(const char*);
 
     void getmegaachievements_result(AchievementsDetails*, error);
+    void getwelcomepdf_result(handle, string*, error);
 
     void reload(const char*);
     void clearing();
