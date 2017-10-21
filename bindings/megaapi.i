@@ -26,6 +26,10 @@ jstring strEncodeUTF8;
 jclass clsString;
 jmethodID ctorString;
 jmethodID getBytes;
+jclass applicationClass;
+jmethodID startVideoCaptureMID;
+jobject surfaceTextureHelper;
+
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
@@ -55,6 +59,16 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     webrtc_jni::InitGlobalJniVariables(jvm);
     rtc::InitializeSSL();
     webrtc_jni::LoadGlobalClassReferenceHolder();
+
+    jclass megaApplicationClass = jenv->FindClass("mega/privacy/android/app/MegaApplication");
+    applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
+    startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass,"startVideoCapture","(JLorg/webrtc/SurfaceTextureHelper;)V");
+
+    jclass surfaceTextureHelperClass = jenv->FindClass("org/webrtc/SurfaceTextureHelper");
+    jmethodID createSurfaceMID = jenv->GetStaticMethodID(surfaceTextureHelperClass,"create","(Ljava/lang/String;Lorg/webrtc/EglBase$Context;)Lorg/webrtc/SurfaceTextureHelper;");
+    jstring threadStr = (jstring) jenv->NewStringUTF("VideoCapturerThread");
+    jobject surface = jenv->CallStaticObjectMethod(surfaceTextureHelperClass, createSurfaceMID, threadStr, NULL);
+    surfaceTextureHelper = jenv->NewGlobalRef(surface);
 #endif
 
     return JNI_VERSION_1_4;
