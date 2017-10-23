@@ -32,8 +32,8 @@ class MEGA_API GfxProcCG : public mega::GfxProc
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
     CFMutableDictionaryRef thumbnailParams;
-    CGImageRef createThumbnailWithMaxSize(int size);
-    int maxSizeForThumbnail(const int rw, const int rh);
+    CGImageRef createThumbnailWithMaxSize(double size);
+    double maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
     const char* supportedformats();
     bool readbitmap(mega::FileAccess*, mega::string*, int);
