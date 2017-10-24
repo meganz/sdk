@@ -241,6 +241,7 @@ protected:
     bool checkCompletion();
 
     std::list<std::string> pendingFolders;
+    std::list<MegaTransfer *> failedTransfers;
 
     MegaApiImpl *megaApi;
     MegaClient *client;

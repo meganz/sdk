@@ -18480,6 +18480,11 @@ void MegaBackupController::start()
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->pendingFolders.clear();
+    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    {
+        delete *it;
+    }
+    this->failedTransfers.clear();
     this->currentHandle = UNDEF;
 
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ;
@@ -18654,7 +18659,14 @@ bool MegaBackupController::checkCompletion()
             MegaNode *node = megaApi->getNodeByHandle(currentHandle);
             if (node)
             {
-                megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
+                if (failedTransfers.size())
+                {
+                    megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this); //TODO: review attr values
+                }
+                else
+                {
+                    megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
+                }
                 delete node;
             }
             else
@@ -18711,6 +18723,11 @@ void MegaBackupController::abortCurrent()
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->pendingFolders.clear();
+    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    {
+        delete *it;
+    }
+    this->failedTransfers.clear();
     this->currentHandle = UNDEF;
 }
 
@@ -18765,7 +18782,7 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     megaApi->fireOnTransferUpdate(transfer);
 }
 
-void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
+void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaackupController::onTransferFinish";
 
@@ -18777,6 +18794,12 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     transfer->setSpeed(t->getSpeed());
     transfer->setMeanSpeed(t->getMeanSpeed());
     megaApi->fireOnTransferUpdate(transfer);
+
+    if (e->getErrorCode() != MegaError::API_OK)
+    {
+        failedTransfers.push_back(t->copy());
+    }
+
     checkCompletion();
 }
 
@@ -18916,6 +18939,12 @@ MegaBackupController::~MegaBackupController()
     megaApi->removeRequestListener(this);
     megaApi->removeTransferListener(this);
     delete transfer;
+
+    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    {
+        delete *it;
+    }
+
 }
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
