@@ -13929,7 +13929,7 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
             else
             {
                 LOG_debug << "Abort failed: no ongoing backup";
-                fireOnRequestFinish(request, MegaError(API_OK)); //TODO: ok???
+                fireOnRequestFinish(request, MegaError(API_ENOENT));
             }
         }
         else
@@ -13943,6 +13943,7 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     {
         e = API_ENOENT;
     }
+    return e;
 }
 
 void MegaApiImpl::sendPendingRequests()
@@ -18286,17 +18287,11 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setMegaHandle(backup->getMegaHandle());
 
     this->transfer = NULL;
-    //TODO: copy these if make any sense
-//    std::list<std::string> pendingFolders;
-//    if (backup->transfer)
-//        this->transfer = new MegaTransferPrivate(backup->transfer);
 
     this->setFolderTransferTag(backup->getFolderTransferTag());
 
-
     this->megaApi = backup->megaApi;
     this->client = backup->client;
-    this->listener = backup->listener;
     this->recursive = backup->recursive;
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
@@ -18509,21 +18504,8 @@ void MegaBackupController::start()
     transfer->setAppData(NULL);
     transfer->setSourceFileTemporary(false);
 
-//    if(fileName)
-//    {
-//        transfer->setFileName(NULL);
-//    }
-
     transfer->setTime(-1);
-
-//    if(folderTransferTag)
-//    {
-//        transfer->setFolderTransferTag(folderTransferTag);
-//    }
-
-//    transferQueue.push(transfer);
     this->transfer = transfer;
-    this->listener = transfer->getListener(); //TODO: delete listener, transfer has none!
 
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -18716,6 +18698,8 @@ void MegaBackupController::setOffsetds(const int64_t &value)
 
 void MegaBackupController::abortCurrent()
 {
+    LOG_debug << "Setting backup as aborted: " << currentName;
+
     state = BACKUP_ACTIVE;
 
     MegaNode *node = megaApi->getNodeByHandle(currentHandle);

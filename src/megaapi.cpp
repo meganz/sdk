@@ -4348,7 +4348,6 @@ int MegaBackup::getState() const
     return MegaBackup::BACKUP_FAILED;
 }
 
-
 MegaAccountBalance::~MegaAccountBalance()
 {
 

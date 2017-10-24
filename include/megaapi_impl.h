@@ -218,48 +218,79 @@ class MegaBackupController : public MegaBackup, public MegaRequestListener, publ
 public:
     MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
     MegaBackupController(MegaBackupController *backup);
+    ~MegaBackupController();
 
     void update();
     void start();
     void removeexceeding();
-    int64_t getLastBackupTime();
-    ~MegaBackupController();
+    void abortCurrent();
 
-private:
-    bool isBackup(string localname, string backupname) const;
-    int64_t getTimeOfBackup(string localname) const;
-    int state;
-    handle currentHandle;
-    string currentName;
-    int pendingremovals;
+    // MegaBackup interface
+    MegaBackup *copy();
+    const char *getLocalFolder() const;
+    MegaHandle getMegaHandle() const;
+    int getTag() const;
+    int64_t getPeriod() const;
+    int getMaxBackups() const;
+    MegaStringList *getBackupFolders() const;
+    int getState() const;
 
-    int64_t lastwakeuptime;
-    int64_t lastbackuptime;
+    // MegaBackup setters
+    void setLocalFolder(const string &value);
+    void setMegaHandle(const MegaHandle &value);
+    void setTag(int value);
+    void setPeriod(const int64_t &value);
+    void setMaxBackups(int value);
+    void setState(int value);
+
+    //getters&setters
+    int64_t getStartTime() const;
+    void setStartTime(const int64_t &value);
+    string getBackupName() const;
+    void setBackupName(const string &value);
+    int64_t getOffsetds() const;
+    void setOffsetds(const int64_t &value);
+    int64_t getLastbackuptime() const;
+    void setLastbackuptime(const int64_t &value);
+    int getFolderTransferTag() const;
+    void setFolderTransferTag(int value);
 
 protected:
-    void onFolderAvailable(MegaHandle handle);
-    bool checkCompletion();
+    bool isBackup(string localname, string backupname) const;
+    int64_t getTimeOfBackup(string localname) const;
 
-    std::list<std::string> pendingFolders;
-    std::list<MegaTransfer *> failedTransfers;
-
+    // common variables
     MegaApiImpl *megaApi;
     MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int pendingTransfers;
 
+    int state;
     int tag;
+    int64_t lastwakeuptime;
+    int64_t lastbackuptime;
+    int pendingremovals;
     int folderTransferTag; //reused between backup instances
-    int64_t startTime; // when shalll the next backup begin
-    int64_t period;
-    int64_t offsetds; //times offset with epoch time?
-
     string basepath;
     string backupName;
     handle parenthandle;
     int maxBackups;
+    int64_t period;
+    int64_t offsetds; //times offset with epoch time?
+    int64_t startTime; // when shalll the next backup begin
+
+    // backup instance related
+    MegaTransferPrivate *transfer;
+    handle currentHandle;
+    string currentName;
+    std::list<std::string> pendingFolders;
+    std::list<MegaTransfer *> failedTransfers;
+    int recursive;
+    int pendingTransfers;
+
+
+    void onFolderAvailable(MegaHandle handle);
+    bool checkCompletion();
+    bool isBusy() const;
+    int64_t getLastBackupTime();
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
@@ -267,35 +298,6 @@ public:
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 
-    // MegaBackup interface
-public:
-    MegaBackup *copy();
-    MegaHandle getMegaHandle() const;
-    void setMegaHandle(const MegaHandle &value);
-    const char *getLocalFolder() const;
-    void setLocalFolder(const string &value);
-    int getTag() const;
-    void setTag(int value);
-    MegaStringList *getBackupFolders() const;
-    int getState() const;
-    int64_t getStartTime() const;
-    void setStartTime(const int64_t &value);
-    int64_t getPeriod() const;
-    void setPeriod(const int64_t &value);
-    string getBackupName() const;
-    void setBackupName(const string &value);
-
-    int getMaxBackups() const;
-    void setMaxBackups(int value);
-    bool isBusy() const;
-    void setState(int value);
-    int64_t getOffsetds() const;
-    void setOffsetds(const int64_t &value);
-    int64_t getLastbackuptime() const;
-    void setLastbackuptime(const int64_t &value);
-    int getFolderTransferTag() const;
-    void setFolderTransferTag(int value);
-    void abortCurrent();
 };
 
 class MegaFolderDownloadController : public MegaTransferListener

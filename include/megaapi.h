@@ -8090,7 +8090,19 @@ class MegaApi
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
 
         /**
-         * @brief TODO: doc
+         * @brief Aborts current ONGOING backup.
+         *
+         * This will cancell all current active transfers.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ABORT_CURRENT_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the tag of the deleted backup
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if successfully aborted an ongoing backup
+         * - MegaError::API_ENOENT if backup could not be found or no ongoing backup found
+         *
+         * @param tag tag of the backup to delete
          */
         void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 
