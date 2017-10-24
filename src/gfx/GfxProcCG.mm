@@ -165,8 +165,8 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     return w && h;
 }
 
-CGImageRef GfxProcCG::createThumbnailWithMaxSize(double size) {
-    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &size);
+CGImageRef GfxProcCG::createThumbnailWithMaxSize(int size) {
+    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
     CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
     CFRelease(maxSize);
 
@@ -191,7 +191,7 @@ static inline CGRect tileRect(size_t w, size_t h)
     return res;
 }
 
-double GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
+int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
     if (rh) { // rectangular rw*rh bounding box
         return std::max(rw, rh);
     }
