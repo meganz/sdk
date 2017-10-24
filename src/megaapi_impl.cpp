@@ -18274,7 +18274,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->lastwakeuptime = 0;
 
-    //TODO: removeexceeding when registering? At least update attrs to FAILED/INCOMPLETE to those that are !complete
+    removeexceeding();
+
 }
 
 MegaBackupController::MegaBackupController(MegaBackupController *backup)
@@ -18358,8 +18359,16 @@ void MegaBackupController::removeexceeding()
             {
                 MegaNode *childNode = children->get(i);
                 string childname = childNode->getName();
+
                 if (isBackup(childname, backupName) )
                 {
+                    const char *backstvalue = childNode->getCustomAttr("BACKST");
+                    if (!strcmp(backstvalue,"ONGOING") && childNode->getHandle() != currentHandle)
+                    {
+                        LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status tu MISCARRIED";
+                        megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
+                    }
+
                     int64_t timeofbackup = getTimeOfBackup(childname);
                     if (timeofbackup)
                     {
