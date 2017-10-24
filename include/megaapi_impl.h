@@ -294,6 +294,7 @@ public:
     void setLastbackuptime(const int64_t &value);
     int getFolderTransferTag() const;
     void setFolderTransferTag(int value);
+    void abortCurrent();
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -1949,6 +1950,8 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
+
+        error processAbortBackupRequest(MegaRequestPrivate *request, error e);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

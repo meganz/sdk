@@ -13898,6 +13898,53 @@ void MegaApiImpl::removeRecursively(const char *path)
 }
 
 
+error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
+{
+    int tag = request->getNumber();
+    bool found = false;
+
+    map<int, MegaBackupController *>::iterator itr = backupsMap.find(tag) ;
+    if (itr != backupsMap.end())
+    {
+        found = true;
+
+        MegaBackupController *backup = itr->second;
+
+        bool flag = request->getFlag();
+        if (!flag)
+        {
+            if (backup->getState() == MegaBackup::BACKUP_ONGOING)
+            {
+                for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+                {
+                    MegaTransferPrivate *t = it->second;
+                    if (t->getFolderTransferTag() == backup->getFolderTransferTag())
+                    {
+                        api->cancelTransferByTag(t->getTag()); //what if any of these fail? (Although I don't think that's possible)
+                    }
+                }
+                request->setFlag(true);
+                requestQueue.push(request);
+            }
+            else
+            {
+                LOG_debug << "Abort failed: no ongoing backup";
+                fireOnRequestFinish(request, MegaError(API_OK)); //TODO: ok???
+            }
+        }
+        else
+        {
+            backup->abortCurrent(); //TODO: THIS MAY CAUSE NEW REQUESTS, should we consider them before fireOnRequestFinish?!!!
+            fireOnRequestFinish(request, MegaError(API_OK));
+        }
+
+    }
+    if (!found)
+    {
+        e = API_ENOENT;
+    }
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -15764,8 +15811,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if (existing){
                 LOG_debug << "Updating existing backup parameters: " <<  request->getFile() << " to " << request->getNodeHandle();
-//                fireOnRequestFinish(request, MegaError(API_EEXIST));
-//                break;
                 mbc->setPeriod(request->getNumber());
                 mbc->setMaxBackups(request->getNumRetry());
                 request->setTransferTag(tagexisting);
@@ -15785,19 +15830,47 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_BACKUP:
         {
-            int tag = request->getNumber();
+            int backuptag = request->getNumber();
             bool found = false;
+            bool flag = request->getFlag();
 
-            if (backupsMap.find(tag) != backupsMap.end())
+
+            map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+            if (itr != backupsMap.end())
             {
                 found = true;
-                delete backupsMap.find(tag)->second;//TODO: this might be time consumming if we want to do that with some order
-                                                    // perhaps we can use a method: clearanddelete with a "delete this;" upon finish
-                backupsMap.erase(tag);
             }
+
             if (found)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                if (!flag)
+                {
+                    MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+                    requestabort->setNumber(backuptag);
+
+                    nextTag = client->nextreqtag();
+                    requestabort->setTag(nextTag);
+                    requestMap[nextTag]=requestabort;
+                    fireOnRequestStart(requestabort);
+
+                    e = processAbortBackupRequest(requestabort, e);
+                    if (e)
+                    {
+                        LOG_err << "Failed to abort backup upon remove request";
+                        fireOnRequestFinish(requestabort, MegaError(API_OK));
+                    }
+                    else
+                    {
+                        request->setFlag(true);
+                        requestQueue.push(request);
+                    }
+                }
+                else
+                {
+                    backupsMap.erase(backuptag);
+                    fireOnRequestFinish(request, MegaError(API_OK));
+                    delete itr->second;
+                }
             }
             else
             {
@@ -15808,47 +15881,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_ABORT_CURRENT_BACKUP:
         {
-            int tag = request->getNumber();
-            bool found = false;
-
-            if (backupsMap.find(tag) != backupsMap.end())
-            {
-                found = true;
-
-                MegaBackupController *backup = backupsMap.find(tag)->second; //TODO: do not look twice. use an iterator
-
-                bool flag = request->getFlag();
-                if (!flag)
-                {
-                    if (backup->getState() == MegaBackup::BACKUP_ONGOING)
-                    {
-                        for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
-                        {
-                            MegaTransferPrivate *t = it->second;
-                            if (t->getFolderTransferTag() == backup->getFolderTransferTag())
-                            {
-                                api->cancelTransferByTag(t->getTag()); //what if any of these fail? (Although I don't think that's possible)
-                            }
-                        }
-                        request->setFlag(true);
-                        requestQueue.push(request);
-                    }
-                    else
-                    {
-                        LOG_debug << "Abort failed: no ongoing backup";
-                        fireOnRequestFinish(request, MegaError(API_OK)); //TODO: ok???
-                    }
-                }
-                else
-                {
-                    fireOnRequestFinish(request, MegaError(API_OK));
-                }
-
-            }
-            if (!found)
-            {
-                e = API_ENOENT;
-            }
+            e = processAbortBackupRequest(request, e);
 
             break;
         }
@@ -15858,11 +15891,6 @@ void MegaApiImpl::sendPendingRequests()
             TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
-            if (e)
-            {
-                fireOnRequestFinish(request, MegaError(API_EFAILED));
-            }
-
             break;
         }
 #ifdef ENABLE_SYNC
@@ -18449,6 +18477,11 @@ bool MegaBackupController::isBusy() const
 
 void MegaBackupController::start()
 {
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->pendingFolders.clear();
+    this->currentHandle = UNDEF;
+
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ;
 
     string localPath = basepath;
@@ -18532,17 +18565,15 @@ void MegaBackupController::start()
 
 void MegaBackupController::onFolderAvailable(MegaHandle handle)
 {
-    recursive++;
-    string localPath = pendingFolders.front();
-    pendingFolders.pop_front();
-
     MegaNode *parent = megaApi->getNodeByHandle(handle);
-
-    if (recursive == 1) //main folder of the backup
+    if(currentHandle == UNDEF)//main folder of the backup instance
     {
         currentHandle = handle;
         megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
     }
+    recursive++;
+    string localPath = pendingFolders.front();
+    pendingFolders.pop_front();
 
     if (state == BACKUP_ONGOING)
     {
@@ -18660,6 +18691,27 @@ int64_t MegaBackupController::getOffsetds() const
 void MegaBackupController::setOffsetds(const int64_t &value)
 {
     offsetds = value;
+}
+
+void MegaBackupController::abortCurrent()
+{
+    state = BACKUP_ACTIVE;
+
+    MegaNode *node = megaApi->getNodeByHandle(currentHandle);
+    if (node)
+    {
+        megaApi->setCustomNodeAttribute(node, "BACKST", "ABORTED");
+        delete node;
+    }
+    else
+    {
+        LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+    }
+
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->pendingFolders.clear();
+    this->currentHandle = UNDEF;
 }
 
 void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
@@ -18862,6 +18914,7 @@ int MegaBackupController::getState() const
 MegaBackupController::~MegaBackupController()
 {
     megaApi->removeRequestListener(this);
+    megaApi->removeTransferListener(this);
     delete transfer;
 }
 
