@@ -4480,6 +4480,34 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)registeriOSdeviceToken:(NSString *)deviceToken;
 
 /**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
+
+/**
  * @brief Get the MEGA Achievements of the account logged in
  *
  * The associated request type with this request is MEGARequestTypeGetAchievements
