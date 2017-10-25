@@ -6111,10 +6111,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     {
                         app->reload("Node inconsistency");
 
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99437, "Node inconsistency");
-                        reqtag = creqtag;
+                        static bool reloadnotified = false;
+                        if (!reloadnotified)
+                        {
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99437, "Node inconsistency");
+                            reqtag = creqtag;
+                            reloadnotified = true;
+                        }
                     }
                 }
 
