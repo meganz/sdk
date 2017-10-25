@@ -282,10 +282,11 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
+    SymmCipher *cipher = transfer->transfercipher();
     for (chunkmac_map::iterator it = macs->begin(); it != macs->end(); it++)
     {
         SymmCipher::xorblock(it->second.mac, mac);
-        transfer->key.ecb_encrypt(mac);
+        cipher->ecb_encrypt(mac);
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -417,7 +418,7 @@ void TransferSlot::doio(MegaClient* client)
                                     transfer->failcount = 0;
                                     transfer->chunkmacs[reqs[i]->pos].finished = true;
                                     transfer->progresscompleted += reqs[i]->size;
-                                    memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);
+                                    memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
@@ -636,7 +637,7 @@ void TransferSlot::doio(MegaClient* client)
                                     }
                                 }
 
-                                reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                          &transfer->chunkmacs, transfer->ctriv,
                                          asyncIO[i]->pos, npos);
 
@@ -946,7 +947,7 @@ void TransferSlot::doio(MegaClient* client)
                             return transfer->failed(API_EINTERNAL);
                         }
 
-                        reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                        reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                                                  &transfer->chunkmacs, transfer->ctriv,
                                                                  transfer->pos, npos);
                         reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);
