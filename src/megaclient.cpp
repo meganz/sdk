@@ -921,6 +921,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
                      "." TOSTRING(MEGA_MICRO_VERSION));
 
     LOG_debug << "User-Agent: " << useragent;
+    LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
+
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
