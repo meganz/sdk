@@ -216,7 +216,7 @@ public:
 class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, string periodstring, int64_t period=-1, int maxBackups = 10);
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, const char *speriod, int64_t period=-1, int maxBackups = 10);
     MegaBackupController(MegaBackupController *backup);
     ~MegaBackupController();
 

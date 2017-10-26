@@ -66,9 +66,9 @@
 #endif
 
 #include "mega/mega_zxcvbn.h"
+
+#define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
-
-
 
 using namespace mega;
 
@@ -6129,7 +6129,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     sdkMutex.lock();
 
     map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
-    if (itr != backupsMap.end())
+    if (itr == backupsMap.end())
     {
         LOG_err << "Failed to find backup with tag " << backuptag;
         sdkMutex.unlock();
@@ -15883,8 +15883,9 @@ void MegaApiImpl::sendPendingRequests()
             {
                 int tag = request->getTag();
                 int tagForFolderTansferTag = client->nextreqtag();
+                string speriod = request->getText();
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
-                                                                     request->getFile(), request->getText(), request->getNumber(), request->getNumRetry());
+                                                                     request->getFile(), speriod.c_str(), request->getNumber(), request->getNumRetry());
                 backupsMap[tag] = mbc;
                 request->setTransferTag(tag);
             }
@@ -18308,9 +18309,9 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, string periodstring, int64_t period, int maxBackups)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, const char *speriod, int64_t period, int maxBackups)
 {
-    LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
+    LOG_info << "Registering backup for folder " << filename << " period=" << period << " speriod=" << speriod << " Number-of-Backups=" << maxBackups;
 
     this->basepath = filename;
     size_t found = basepath.find_last_of("/\\");
@@ -18323,11 +18324,12 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->recursive = 0;
     this->pendingTransfers = 0;
+    this->currentHandle = UNDEF;
 
     lastbackuptime = getLastBackupTime();
 
     this->setPeriod(period);
-    this->setPeriodstring(periodstring);
+    this->setPeriodstring(speriod);
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
@@ -18335,10 +18337,13 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     this->pendingremovals = 0;
     this->maxBackups = maxBackups;
 
+
     this->tag = tag;
     this->folderTransferTag = folderTransferTag;
 
     this->lastwakeuptime = 0;
+
+    this->transfer = NULL;
 
     removeexceeding();
 
@@ -18361,7 +18366,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
 
-    //TOD
+    //TODO: do use setters??? they do extra stuff
     this->setOffsetds(backup->getOffsetds());
     this->setLastbackuptime(backup->getLastBackupTime());
     this->setState(backup->getState());
@@ -18456,7 +18461,7 @@ void MegaBackupController::update()
     {
         if (lastwakeuptime < Waiter::ds || ((this->startTime + 1) < lastwakeuptime))
         {
-            LOG_verbose << " Waiking in " << (this->startTime - Waiter::ds + 1) << " deciseconds to do backup";
+            LOG_debug << " Waking in " << (this->startTime - Waiter::ds + 1) << " deciseconds to do backup";
             megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
             lastwakeuptime = this->startTime + 1;
         }
@@ -18619,8 +18624,11 @@ std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
 int64_t MegaBackupController::stringTimeTods(string stime) const
 {
     struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
     strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
-    return mktime(&dt)*10;
+    dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
+                        //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+    return (mktime(&dt))*10;
 }
 
 
@@ -19002,13 +19010,15 @@ void MegaBackupController::setPeriodstring(const string &value)
         }
         else
         {
+            int64_t wds = Waiter::ds;
             this->startTime = this->getNextStartTime(lastbackuptime-offsetds);
+            LOG_debug << " Next Backup set in " << startTime - wds << " deciseconds" ;
         }
         if (this->startTime < Waiter::ds)
             this->startTime = Waiter::ds;
 
 
-        //TODO: do some magic here
+
     }
 }
 
