@@ -6121,6 +6121,64 @@ MegaTransferList *MegaApiImpl::getTansfersByFolderTag(int folderTransferTag)
     return result;
 }
 
+MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
+{
+    MegaStringListPrivate * backupFolders;
+
+    map<int64_t, string> backupTimesPaths;
+    sdkMutex.lock();
+
+    map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+    if (itr != backupsMap.end())
+    {
+        LOG_err << "Failed to find backup with tag " << backuptag;
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    MegaBackupController *mbc = itr->second;
+
+    MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
+    if (parentNode)
+    {
+        MegaNodeList* children = getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (mbc->isBackup(childname, mbc->getBackupName()) )
+                {
+                    int64_t timeofbackup = mbc->getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=getNodePath(childNode);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+
+            delete children;
+        }
+        delete parentNode;
+    }
+    sdkMutex.unlock();
+
+    vector<char*> listofpaths;
+
+    for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
+    {
+        listofpaths.push_back(strdup(itr->second.c_str()));
+    }
+    backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
+
+    return backupFolders;
+}
+
 void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
@@ -18303,12 +18361,13 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
 
+    //TOD
+    this->setOffsetds(backup->getOffsetds());
+    this->setLastbackuptime(backup->getLastBackupTime());
     this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
     this->setPeriodstring(backup->getPeriodstring());
-    this->setOffsetds(backup->getOffsetds());
-    this->setLastbackuptime(backup->getLastBackupTime());
 
     this->setLocalFolder(backup->getLocalFolder());
     this->setBackupName(backup->getBackupName());
@@ -18368,21 +18427,19 @@ void MegaBackupController::update()
     {
         if (!isBusy())
         {
-            start();
-            startTime = getNextStartTime(startTime);
+            long long nextStartTime = getNextStartTime(startTime);
+            if (nextStartTime > Waiter::ds)
+            {
+                start();
+            }
+            else
+            {
+                LOG_warn << " BACKUP discarded (too soon, time for the next): " << basepath;
+                //TODO: mark as SKIPPED. Where? folder does not exist yet!!
+                megaApi->startTimer(1); //wake sdk
+            }
 
-//            long long nextStartTime = getNextStartTime(startTime);
-//            if (nextStartTime > Waiter::ds)
-//            {
-//                start();
-//            }
-//            else
-//            {
-//                LOG_debug << " BACKUP discarded (too soon, time for the next): " << basepath;
-//                megaApi->startTimer(1); //wake sdk
-//            }
-
-//            startTime = nextStartTime;
+            startTime = nextStartTime;
         }
         else
         {
@@ -18425,9 +18482,9 @@ void MegaBackupController::removeexceeding()
                 if (isBackup(childname, backupName) )
                 {
                     const char *backstvalue = childNode->getCustomAttr("BACKST");
-                    if (!strcmp(backstvalue,"ONGOING") && childNode->getHandle() != currentHandle)
+                    if (!backstvalue || (!strcmp(backstvalue,"ONGOING") && childNode->getHandle() != currentHandle) )
                     {
-                        LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status tu MISCARRIED";
+                        LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status to MISCARRIED";
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
@@ -18522,7 +18579,8 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
     }
     string rest = localname.substr(pos + 4).c_str();
 
-    int64_t toret = atol(rest.c_str());
+//    int64_t toret = atol(rest.c_str());
+    int64_t toret = stringTimeTods(rest);
     return toret;
 }
 
@@ -18545,6 +18603,26 @@ bool MegaBackupController::isBusy() const
 {
     return (state == MegaBackup::BACKUP_ONGOING) || (state == MegaBackup::BACKUP_REMOVING_EXCEEDING);
 }
+
+
+std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
+{
+    struct tm * dt;
+    char buffer [40];
+    time_t rawtime = rawtimeds/10;
+    dt = localtime(&rawtime);
+    strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", dt);
+
+    return std::string(buffer);
+}
+
+int64_t MegaBackupController::stringTimeTods(string stime) const
+{
+    struct tm dt;
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+    return mktime(&dt)*10;
+}
+
 
 void MegaBackupController::start()
 {
@@ -18583,7 +18661,7 @@ void MegaBackupController::start()
     std::ostringstream ossremotename;
     ossremotename << name;
     ossremotename << "_bk_";
-    ossremotename << offsetds+startTime;
+    ossremotename << epochdsToString(offsetds+startTime);
 //    ossremotename << Waiter::ds; //TODO: save this somewhere
     string backupname = ossremotename.str();
     currentName = backupname;
@@ -18972,52 +19050,6 @@ const char *MegaBackupController::getLocalFolder() const
 void MegaBackupController::setLocalFolder(const string &value)
 {
     basepath = value;
-}
-
-MegaStringList *MegaBackupController::getBackupFolders() const
-{
-    MegaStringListPrivate * backupFolders;
-
-    map<int64_t, string> backupTimesPaths;
-
-    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
-    if (parentNode)
-    {
-        MegaNodeList* children = megaApi->getChildren(parentNode);
-        if (children)
-        {
-            for (int i = 0; i < children->size(); i++)
-            {
-                MegaNode *childNode = children->get(i);
-                string childname = childNode->getName();
-                if (isBackup(childname, backupName) )
-                {
-                    int64_t timeofbackup = getTimeOfBackup(childname);
-                    if (timeofbackup)
-                    {
-                        backupTimesPaths[timeofbackup]=megaApi->getNodePath(childNode);
-                    }
-                    else
-                    {
-                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
-                    }
-                }
-            }
-
-            delete children;
-        }
-        delete parentNode;
-    }
-
-    vector<char*> listofpaths;
-
-    for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
-    {
-        listofpaths.push_back(strdup(itr->second.c_str()));
-    }
-    backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
-
-    return backupFolders;
 }
 
 int MegaBackupController::getState() const

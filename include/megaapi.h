@@ -3621,15 +3621,6 @@ public:
     virtual int getMaxBackups() const;
 
     /**
-     * @brief Returns the folder paths of a backup
-     *
-     * You take ownership of the returned value.
-     *
-     * @return Folder paths that contain each of the backups (.
-     */
-    virtual MegaStringList* getBackupFolders() const;
-
-    /**
      * @brief Get the state of the backup
      *
      * Possible values are:
@@ -8075,6 +8066,17 @@ class MegaApi
          * @see MegaTransfer::isFolderTransfer, MegaTransfer::getFolderTransferTag
          */
         MegaTransferList *getChildTransfers(int transferTag);
+
+
+        /**
+         * @brief Returns the folder paths of a backup
+         *
+         * You take ownership of the returned value.
+         *
+         * @param backuptag backup tag
+         * @return Folder paths that contain each of the backups or NULL if tag not found.
+         */
+        MegaStringList *getBackupFolders(int backuptag) const;
 
 
         /**

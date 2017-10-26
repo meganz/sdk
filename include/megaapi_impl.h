@@ -241,7 +241,6 @@ public:
     int64_t getPeriod() const;
     std::string getPeriodstring() const;
     int getMaxBackups() const;
-    MegaStringList *getBackupFolders() const;
     int getState() const;
 
     // MegaBackup setters
@@ -265,9 +264,11 @@ public:
     int getFolderTransferTag() const;
     void setFolderTransferTag(int value);
 
-protected:
+    //convenience methods
     bool isBackup(std::string localname, std::string backupname) const;
     int64_t getTimeOfBackup(std::string localname) const;
+
+protected:
 
     // common variables
     MegaApiImpl *megaApi;
@@ -302,6 +303,10 @@ protected:
     bool checkCompletion();
     bool isBusy() const;
     int64_t getLastBackupTime();
+
+    std::string epochdsToString(const int64_t rawtimeds) const;
+    int64_t stringTimeTods(string stime) const;
+
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
@@ -1672,6 +1677,7 @@ class MegaApiImpl : public MegaApp
         bool usingHttpsOnly();
 
         //Backups
+        MegaStringList *getBackupFolders(int backuptag);
         void startBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
         void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);

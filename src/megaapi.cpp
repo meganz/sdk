@@ -2107,6 +2107,12 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+
+MegaStringList *MegaApi::getBackupFolders(int backuptag) const
+{
+    return pImpl->getBackupFolders(backuptag);
+}
+
 void MegaApi::startBackup(const char* localPath, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
     pImpl->startBackup(localPath, parent, period, periodstring, numBackups, listener);
@@ -4341,11 +4347,6 @@ std::string MegaBackup::getPeriodString() const
 int MegaBackup::getMaxBackups() const
 {
     return 0;
-}
-
-MegaStringList* MegaBackup::getBackupFolders() const
-{
-    return NULL;
 }
 
 int MegaBackup::getState() const
