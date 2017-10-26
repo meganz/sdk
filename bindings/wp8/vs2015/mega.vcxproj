@@ -51,6 +51,7 @@
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\mega_http_parser.h" />
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\..\include\mega\mega_ccronexpr.h" />
     <ClInclude Include="..\..\..\include\mega\node.h" />
     <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h" />
     <ClInclude Include="..\..\..\include\mega\proxy.h" />
@@ -139,6 +140,7 @@
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
@@ -295,7 +297,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -313,7 +315,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -331,7 +333,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -349,7 +351,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -367,7 +369,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -385,7 +387,7 @@
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>28204</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>

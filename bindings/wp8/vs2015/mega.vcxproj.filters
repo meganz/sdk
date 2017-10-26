@@ -184,6 +184,9 @@
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_ccronexpr.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\megaapp.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
@@ -409,6 +412,9 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_ccronexpr.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\megaapi.cpp">

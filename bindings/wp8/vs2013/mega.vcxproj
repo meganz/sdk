@@ -151,7 +151,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -170,7 +170,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -189,7 +189,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -207,7 +207,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -225,7 +225,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -243,7 +243,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -262,7 +262,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -281,7 +281,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -299,7 +299,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -317,7 +317,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\third_party\ccronexpr;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -448,6 +448,7 @@
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />

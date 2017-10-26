@@ -216,7 +216,7 @@ public:
 class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, int64_t period, int maxBackups = 10);
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, string periodstring, int64_t period=-1, int maxBackups = 10);
     MegaBackupController(MegaBackupController *backup);
     ~MegaBackupController();
 
@@ -225,29 +225,39 @@ public:
     void removeexceeding();
     void abortCurrent();
 
+    /**
+     * @brief getNextStartTime
+     * @param oldStartTime
+     * @return deciseconds of the next StartTime (Waiter::ds time)
+     */
+    long long getNextStartTime(long long oldStartTimeds); //TODO: move to MegaBackup
+
+
     // MegaBackup interface
     MegaBackup *copy();
     const char *getLocalFolder() const;
     MegaHandle getMegaHandle() const;
     int getTag() const;
     int64_t getPeriod() const;
+    std::string getPeriodstring() const;
     int getMaxBackups() const;
     MegaStringList *getBackupFolders() const;
     int getState() const;
 
     // MegaBackup setters
-    void setLocalFolder(const string &value);
+    void setLocalFolder(const std::string &value);
     void setMegaHandle(const MegaHandle &value);
     void setTag(int value);
     void setPeriod(const int64_t &value);
+    void setPeriodstring(const std::string &value);
     void setMaxBackups(int value);
     void setState(int value);
 
     //getters&setters
     int64_t getStartTime() const;
     void setStartTime(const int64_t &value);
-    string getBackupName() const;
-    void setBackupName(const string &value);
+    std::string getBackupName() const;
+    void setBackupName(const std::string &value);
     int64_t getOffsetds() const;
     void setOffsetds(const int64_t &value);
     int64_t getLastbackuptime() const;
@@ -256,8 +266,8 @@ public:
     void setFolderTransferTag(int value);
 
 protected:
-    bool isBackup(string localname, string backupname) const;
-    int64_t getTimeOfBackup(string localname) const;
+    bool isBackup(std::string localname, std::string backupname) const;
+    int64_t getTimeOfBackup(std::string localname) const;
 
     // common variables
     MegaApiImpl *megaApi;
@@ -269,24 +279,25 @@ protected:
     int64_t lastbackuptime;
     int pendingremovals;
     int folderTransferTag; //reused between backup instances
-    string basepath;
-    string backupName;
+    std::string basepath;
+    std::string backupName;
     handle parenthandle;
     int maxBackups;
     int64_t period;
+    std::string periodstring;
     int64_t offsetds; //times offset with epoch time?
     int64_t startTime; // when shalll the next backup begin
 
     // backup instance related
     MegaTransferPrivate *transfer;
     handle currentHandle;
-    string currentName;
+    std::string currentName;
     std::list<std::string> pendingFolders;
     std::list<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
 
-
+    // internal methods
     void onFolderAvailable(MegaHandle handle);
     bool checkCompletion();
     bool isBusy() const;
@@ -1661,7 +1672,7 @@ class MegaApiImpl : public MegaApp
         bool usingHttpsOnly();
 
         //Backups
-        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+        void startBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
         void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 

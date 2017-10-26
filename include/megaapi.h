@@ -3590,6 +3590,30 @@ public:
     virtual int64_t getPeriod() const;
 
     /**
+     * @brief Returns the period string of the backup
+     * Any of these 6 fields may be an asterisk (*). This would mean the entire range of possible values, i.e. each minute, each hour, etc.
+     *
+     * Period is formatted as follows
+     *  - - - - - -
+     *  | | | | | |
+     *  | | | | | |
+     *  | | | | | +---- Day of the Week   (range: 1-7, 1 standing for Monday)
+     *  | | | | +------ Month of the Year (range: 1-12)
+     *  | | | +-------- Day of the Month  (range: 1-31)
+     *  | | +---------- Hour              (range: 0-23)
+     *  | +------------ Minute            (range: 0-59)
+     *  +-------------- Second            (range: 0-59)
+     *
+     * E.g:
+     * - daily at 04:00:00 (UTC): "0 0 4 * * *"
+     * - every 15th day at 00:00:00 (UTC) "0 0 0 15 * *"
+     * - mondays at 04.30.00 (UTC): "0 30 3 * * 1"
+     *
+     * @return The period string of the backup
+     */
+    std::string getPeriodString() const;
+
+    /**
      * @brief Returns the number of backups to keep
      *
      * @return Maximun number of Backups to store
@@ -8068,11 +8092,12 @@ class MegaApi
          * @param localFolder Local folder
          * @param parent MEGA folder to hold the backups
          * @param period period between backups in deciseconds
+         * @param periodstring cron like time string to define period
          * @param numBackups maximun number of backups to keep
          * @param listener MegaRequestListener to track this request
          *
          */
-        void startBackup(const char* localPath, MegaNode *parent, int64_t period, int numBackups, MegaRequestListener *listener=NULL);
+        void startBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Remove a backup

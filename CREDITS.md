@@ -100,6 +100,18 @@ Files included in this repository based on `utf8proc`:
 - `include/mega/mega_utf8proc.h` (based on `utf8proc.h`)
 - `third_party/utf8proc/LICENSE` (copy of the licence of `utf8proc`)
 
+#### Cron expression parsing in ANSI C
+A clean C library for processing cron expresions and obtaining epoch times
+
+https://github.com/staticlibs/ccronexpr
+
+License:  Apache License 2.0
+
+Files included in this repository based on `ccronexpr`:
+- `src/mega_ccronexpr.cpp` (based on `ccronexpr.c`)
+- `include/mega/mega_ccronexpr.h` (based on `ccronexpr.h`)
+- `third_party/ccronexpr/LICENSE` (copy of the licence of `ccronexpr`)
+
 #### http_parser
 HTTP request/response parser for C
 

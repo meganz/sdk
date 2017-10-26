@@ -58,7 +58,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\zlib;3rdparty\include;3rdparty\include\libuv;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;..\..\third_party\ccronexpr;..\..\third_party\utf8proc;.;3rdparty\include\zlib;3rdparty\include;3rdparty\include\libuv;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>debug\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
@@ -98,7 +98,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\libuv;3rdparty\include\zlib;3rdparty\include;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;..\..\third_party\ccronexpr;.;3rdparty\include\libuv;3rdparty\include\zlib;3rdparty\include;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>release\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
@@ -161,6 +161,7 @@
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
     <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
@@ -216,6 +217,7 @@
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\include\mega\mega_ccronexpr.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />

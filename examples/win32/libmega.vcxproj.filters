@@ -153,6 +153,9 @@
     <ClCompile Include="..\..\src\mega_utf8proc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\mega_ccronexpr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\posix\net.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -306,6 +309,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\mega\mega_ccronexpr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\mega\posix\meganet.h">

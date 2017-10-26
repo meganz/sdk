@@ -66,6 +66,9 @@
 #endif
 
 #include "mega/mega_zxcvbn.h"
+#include "mega/mega_ccronexpr.h"
+
+
 
 using namespace mega;
 
@@ -6118,7 +6121,7 @@ MegaTransferList *MegaApiImpl::getTansfersByFolderTag(int folderTransferTag)
     return result;
 }
 
-void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, int numBackups, MegaRequestListener *listener)
+void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
     if(parent) request->setNodeHandle(parent->getHandle());
@@ -6134,6 +6137,7 @@ void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t
 
     request->setNumRetry(numBackups);
     request->setNumber(period);
+    request->setText(periodstring.c_str());
 
     request->setListener(listener);
     requestQueue.push(request);
@@ -15813,6 +15817,7 @@ void MegaApiImpl::sendPendingRequests()
             if (existing){
                 LOG_debug << "Updating existing backup parameters: " <<  request->getFile() << " to " << request->getNodeHandle();
                 mbc->setPeriod(request->getNumber());
+                mbc->setPeriodstring(request->getText()); //TODO: doc this getText
                 mbc->setMaxBackups(request->getNumRetry());
                 request->setTransferTag(tagexisting);
             }
@@ -15820,7 +15825,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 int tag = request->getTag();
                 int tagForFolderTansferTag = client->nextreqtag();
-                MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(), request->getFile(), request->getNumber(), request->getNumRetry());
+                MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
+                                                                     request->getFile(), request->getText(), request->getNumber(), request->getNumRetry());
                 backupsMap[tag] = mbc;
                 request->setTransferTag(tag);
             }
@@ -18244,7 +18250,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, int64_t period, int maxBackups)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, string periodstring, int64_t period, int maxBackups)
 {
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " Number-of-Backups=" << maxBackups;
 
@@ -18263,6 +18269,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     lastbackuptime = getLastBackupTime();
 
     this->setPeriod(period);
+    this->setPeriodstring(periodstring);
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
@@ -18296,10 +18303,10 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->pendingTransfers = backup->pendingTransfers;
     this->megaApi = backup->megaApi;
 
-
     this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
+    this->setPeriodstring(backup->getPeriodstring());
     this->setOffsetds(backup->getOffsetds());
     this->setLastbackuptime(backup->getLastBackupTime());
 
@@ -18308,14 +18315,74 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setMegaHandle(backup->getMegaHandle());
     this->setMaxBackups(backup->getMaxBackups());
 }
+
+long long MegaBackupController::getNextStartTime(long long oldStartTimeds)
+{
+    if (period != -1)
+    {
+        return oldStartTimeds + period;
+    }
+    else
+    {
+        time_t current = (oldStartTimeds + this->offsetds)/10;
+
+        const char* err = NULL;
+        cron_expr parsed;
+        memset(&parsed, 0, sizeof(parsed));
+        cron_parse_expr(periodstring.c_str(), &parsed, &err);
+
+        if (err==NULL)
+        {
+            time_t newt = cron_next(&parsed, current);
+            long long newStarTimeds = newt*10-offsetds;
+            if (newStarTimeds > oldStartTimeds)
+            {
+                return newStarTimeds;
+            }
+            else
+            {
+                LOG_err << "Invalid calculated NextStartTime" ;
+                return -1; //TODO: deal with this value error and do not ever start
+            }
+
+
+        }
+        else
+        {
+            LOG_err << " error cron expresion";
+            //TODO: do this upon construction and save cron_expr (update it in setPeriodString!)
+            return oldStartTimeds;
+        }
+    }
+
+}
+
 void MegaBackupController::update()
 {
+    if (startTime < 0)
+    {
+        LOG_err << "Backup not updated due to invalid startTime";
+        return;
+    }
     if (Waiter::ds > startTime)
     {
         if (!isBusy())
         {
             start();
-            startTime+=period;
+            startTime = getNextStartTime(startTime);
+
+//            long long nextStartTime = getNextStartTime(startTime);
+//            if (nextStartTime > Waiter::ds)
+//            {
+//                start();
+//            }
+//            else
+//            {
+//                LOG_debug << " BACKUP discarded (too soon, time for the next): " << basepath;
+//                megaApi->startTimer(1); //wake sdk
+//            }
+
+//            startTime = nextStartTime;
         }
         else
         {
@@ -18491,7 +18558,7 @@ void MegaBackupController::start()
     this->failedTransfers.clear();
     this->currentHandle = UNDEF;
 
-    LOG_info << "starting backup of " << basepath << ". Next one will be in " << period << " ds" ;
+    LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTime(startTime)-offsetds << " ds" ;
 
     string localPath = basepath;
 
@@ -18827,13 +18894,44 @@ int64_t MegaBackupController::getPeriod() const
     return period;
 }
 
+string MegaBackupController::getPeriodstring() const
+{
+    return periodstring;
+}
+
 void MegaBackupController::setPeriod(const int64_t &value)
 {
     period = value;
-    this->offsetds=std::time(NULL)*10 - Waiter::ds;
-    this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
-    if (this->startTime < Waiter::ds)
-        this->startTime = Waiter::ds;
+    if (value != -1)
+    {
+        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
+        if (this->startTime < Waiter::ds)
+            this->startTime = Waiter::ds;
+    }
+}
+
+void MegaBackupController::setPeriodstring(const string &value)
+{
+    periodstring = value;
+    if (value.size())
+    {
+        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+
+        if (!lastbackuptime)
+        {
+            this->startTime = Waiter::ds;
+        }
+        else
+        {
+            this->startTime = this->getNextStartTime(lastbackuptime-offsetds);
+        }
+        if (this->startTime < Waiter::ds)
+            this->startTime = Waiter::ds;
+
+
+        //TODO: do some magic here
+    }
 }
 
 int64_t MegaBackupController::getStartTime() const

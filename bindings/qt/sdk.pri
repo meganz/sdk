@@ -39,6 +39,7 @@ SOURCES += src/attrmap.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
     src/mega_utf8proc.cpp \
+    src/mega_ccronexpr.cpp \
     src/mega_zxcvbn.cpp
 
 CONFIG(USE_MEGAAPI) {
@@ -150,6 +151,7 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
+            include/mega/mega_ccronexpr.h \
             include/mega/thread/posixthread.h \
             include/mega/mega_zxcvbn.h
 

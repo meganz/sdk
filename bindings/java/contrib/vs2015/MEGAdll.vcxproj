@@ -43,6 +43,7 @@
     <ClInclude Include="..\..\..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\..\..\include\mega\mega_ccronexpr.h" />
     <ClInclude Include="..\..\..\..\include\mega\node.h" />
     <ClInclude Include="..\..\..\..\include\mega\posix\meganet.h" />
     <ClInclude Include="..\..\..\..\include\mega\proxy.h" />
@@ -93,6 +94,7 @@
     <ClCompile Include="..\..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\..\..\src\posix\net.cpp" />
@@ -194,7 +196,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\win32;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;..\..\..\..\third_party\ccronexpr;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\win32;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PreprocessorDefinitions>_ITERATOR_DEBUG_LEVEL=0;WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;USE_CURL;ENABLE_CHAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -214,7 +216,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\win32;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;..\..\..\..\third_party\ccronexpr;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\win32;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PreprocessorDefinitions>_ITERATOR_DEBUG_LEVEL=0;WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;USE_CURL;ENABLE_CHAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -237,7 +239,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;USE_CURL;ENABLE_CHAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\\win32;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;..\..\..\..\third_party\ccronexpr;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\\win32;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -254,7 +256,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;USE_CURL;ENABLE_CHAT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\\win32;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\third_party\utf8proc;..\..\..\..\third_party\ccronexpr;.;3rdparty\include\curl;3rdparty\include\cares;3rdparty\include\zlib;3rdparty\include;..\..\..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\libsodium;C:\Program Files (x86)\Java\jdk1.8.0_77\include;C:\Program Files (x86)\Java\jdk1.8.0_77\include\\win32;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>

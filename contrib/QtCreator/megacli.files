@@ -50,6 +50,7 @@
 ../../include/mega/json.h
 ../../include/mega/logging.h
 ../../include/mega/mega_utf8proc.h
+../../include/mega/mega_ccronexpr.h
 ../../include/mega/mega_glob.h
 ../../include/mega/megaapp.h
 ../../include/mega/megaclient.h
@@ -113,6 +114,7 @@
 ../../src/mega_glob.c
 ../../src/mega_utf8proc.cpp
 ../../src/mega_utf8proc_data.c
+../../src/mega_ccronexpr.cpp
 ../../src/megaapi.cpp
 ../../src/megaapi_impl.cpp
 ../../src/megaclient.cpp
