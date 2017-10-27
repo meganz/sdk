@@ -1227,7 +1227,8 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
-    SymmCipher tmpcipher;
+    SymmCipher tmpnodecipher;
+    SymmCipher tmptransfercipher;
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);

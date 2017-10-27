@@ -618,7 +618,7 @@ void CommandGetFile::procresult()
 
                     key.setkey(filekey, FILENODE);
 
-                    if ((buf = Node::decryptattr(tslot ? &tslot->transfer->key : &key,
+                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
                                                  at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
