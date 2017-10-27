@@ -15875,7 +15875,7 @@ void MegaApiImpl::sendPendingRequests()
             if (existing){
                 LOG_debug << "Updating existing backup parameters: " <<  request->getFile() << " to " << request->getNodeHandle();
                 mbc->setPeriod(request->getNumber());
-                mbc->setPeriodstring(request->getText()); //TODO: doc this getText
+                mbc->setPeriodstring(request->getText());
                 mbc->setMaxBackups(request->getNumRetry());
                 request->setTransferTag(tagexisting);
             }
@@ -18322,9 +18322,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
 
-    this->recursive = 0;
-    this->pendingTransfers = 0;
-    this->currentHandle = UNDEF;
+    clearCurrentBackupData();
 
     lastbackuptime = getLastBackupTime();
 
@@ -18343,10 +18341,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->lastwakeuptime = 0;
 
-    this->transfer = NULL;
-
     removeexceeding();
-
 }
 
 MegaBackupController::MegaBackupController(MegaBackupController *backup)
@@ -18356,15 +18351,33 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setLocalFolder(backup->getLocalFolder());
     this->setMegaHandle(backup->getMegaHandle());
 
-    this->transfer = NULL;
-
     this->setFolderTransferTag(backup->getFolderTransferTag());
 
     this->megaApi = backup->megaApi;
     this->client = backup->client;
+
+    //copy currentBackup data
     this->recursive = backup->recursive;
     this->pendingTransfers = backup->pendingTransfers;
-    this->megaApi = backup->megaApi;
+    for (std::list<string>::iterator it = backup->pendingFolders.begin(); it != backup->pendingFolders.end(); it++)
+    {
+        this->pendingFolders.push_back(*it);
+    }
+
+    for (std::list<MegaTransfer *>::iterator it = backup->failedTransfers.begin(); it != backup->failedTransfers.end(); it++)
+    {
+        this->failedTransfers.push_back(((MegaTransfer *)*it)->copy());
+    }
+    this->currentHandle = backup->currentHandle;
+    this->currentBKStartTime = backup->currentBKStartTime;
+    this->updateTime = backup->updateTime;
+    this->transferredBytes = backup->transferredBytes;
+    this->totalBytes = backup->totalBytes;
+    this->speed = backup->speed;
+    this->meanSpeed = backup->meanSpeed;
+    this->numberFiles = backup->numberFiles;
+    this->totalFiles = backup->totalFiles;
+    this->numberFolders = backup->numberFolders;
 
     //TODO: do use setters??? they do extra stuff
     this->setOffsetds(backup->getOffsetds());
@@ -18372,7 +18385,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
-    this->setPeriodstring(backup->getPeriodstring());
+    this->setPeriodstring(backup->getPeriodString());
 
     this->setLocalFolder(backup->getLocalFolder());
     this->setBackupName(backup->getBackupName());
@@ -18589,6 +18602,96 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
     return toret;
 }
 
+long long MegaBackupController::getTotalFiles() const
+{
+    return totalFiles;
+}
+
+void MegaBackupController::setTotalFiles(long long value)
+{
+    totalFiles = value;
+}
+
+int64_t MegaBackupController::getCurrentBKStartTime() const
+{
+    return currentBKStartTime;
+}
+
+void MegaBackupController::setCurrentBKStartTime(const int64_t &value)
+{
+    currentBKStartTime = value;
+}
+
+int64_t MegaBackupController::getUpdateTime() const
+{
+    return updateTime;
+}
+
+void MegaBackupController::setUpdateTime(const int64_t &value)
+{
+    updateTime = value;
+}
+
+long long MegaBackupController::getTransferredBytes() const
+{
+    return transferredBytes;
+}
+
+void MegaBackupController::setTransferredBytes(long long value)
+{
+    transferredBytes = value;
+}
+
+long long MegaBackupController::getTotalBytes() const
+{
+    return totalBytes;
+}
+
+void MegaBackupController::setTotalBytes(long long value)
+{
+    totalBytes = value;
+}
+
+long long MegaBackupController::getSpeed() const
+{
+    return speed;
+}
+
+void MegaBackupController::setSpeed(long long value)
+{
+    speed = value;
+}
+
+long long MegaBackupController::getMeanSpeed() const
+{
+    return meanSpeed;
+}
+
+void MegaBackupController::setMeanSpeed(long long value)
+{
+    meanSpeed = value;
+}
+
+long long MegaBackupController::getNumberFiles() const
+{
+    return numberFiles;
+}
+
+void MegaBackupController::setNumberFiles(long long value)
+{
+    numberFiles = value;
+}
+
+long long MegaBackupController::getNumberFolders() const
+{
+    return numberFolders;
+}
+
+void MegaBackupController::setNumberFolders(long long value)
+{
+    numberFolders = value;
+}
+
 int64_t MegaBackupController::getLastbackuptime() const
 {
     return lastbackuptime;
@@ -18631,8 +18734,7 @@ int64_t MegaBackupController::stringTimeTods(string stime) const
     return (mktime(&dt))*10;
 }
 
-
-void MegaBackupController::start()
+void MegaBackupController::clearCurrentBackupData()
 {
     this->recursive = 0;
     this->pendingTransfers = 0;
@@ -18643,52 +18745,51 @@ void MegaBackupController::start()
     }
     this->failedTransfers.clear();
     this->currentHandle = UNDEF;
+    this->currentBKStartTime = 0;
+    this->updateTime = 0;
+    this->transferredBytes = 0;
+    this->totalBytes = 0;
+    this->speed = 0;
+    this->meanSpeed = 0;
+    this->numberFiles = 0;
+    this->totalFiles = 0;
+    this->numberFolders = 0;
+}
 
+
+void MegaBackupController::start()
+{
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTime(startTime)-offsetds << " ds" ;
+    clearCurrentBackupData();
+    this->setCurrentBKStartTime(Waiter::ds); //notice: this is != StarTime
+    //TODO: fireonBackupStart
+    //    megaApi->fireOnTransferStart(transfer);
 
-    string localPath = basepath;
+    size_t plastsep = basepath.find_last_of("\\/");
+    if(plastsep == string::npos)
+        plastsep = -1;
+    string name = basepath.substr(plastsep+1);
 
-    //TODO: review usage of transfer. Do we really need it?
-    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD);
-    transfer->setPath(localPath.data());
-
-    transfer->setParentHandle(parenthandle); //what if handle no longer valid now?
-
-    transfer->setAppData(NULL);
-    transfer->setSourceFileTemporary(false);
-
-    transfer->setTime(-1);
-    this->transfer = transfer;
-
-    transfer->setFolderTransferTag(-1);
-    transfer->setStartTime(Waiter::ds);
-    transfer->setState(MegaTransfer::STATE_QUEUED);
-    megaApi->fireOnTransferStart(transfer);
-
-    const char *name = transfer->getFileName();
     std::ostringstream ossremotename;
     ossremotename << name;
     ossremotename << "_bk_";
     ossremotename << epochdsToString(offsetds+startTime);
-//    ossremotename << Waiter::ds; //TODO: save this somewhere
     string backupname = ossremotename.str();
     currentName = backupname;
 
     lastbackuptime = max(lastbackuptime,offsetds+startTime);
 
-    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
+    MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
     if(!parent)
     {
-        transfer->setState(MegaTransfer::STATE_FAILED);
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-
-        LOG_err << "Could not start backup: "<< transfer->getFileName() << ". Parent node not found";
+        //TODO: fire on backup finish? (or fire started later?
+        LOG_err << "Could not start backup: "<< name << ". Parent node not found";
     }
     else
     {
         state = BACKUP_ONGOING;
 
-        string path = transfer->getPath();
+        string path = basepath;
         string localpath;
         client->fsaccess->path2local(&path, &localpath);
 
@@ -18701,10 +18802,8 @@ void MegaBackupController::start()
         }
         else
         {
-            transfer->setState(MegaTransfer::STATE_FAILED);
-            megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-
-            LOG_err << "Could not start backup: "<< transfer->getFileName() << ". Backup already exists";
+            //TODO: fire on backup finish? (or fire started later?
+            LOG_err << "Could not start backup: "<< name << ". Backup already exists";
         }
 
         delete child;
@@ -18719,6 +18818,10 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     {
         currentHandle = handle;
         megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
+    }
+    else
+    {
+        numberFolders++;
     }
     recursive++;
     string localPath = pendingFolders.front();
@@ -18755,6 +18858,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                         string utf8path;
                         client->fsaccess->local2path(&localPath, &utf8path);
 
+                        totalFiles++;
                         megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
                     }
                     else
@@ -18796,31 +18900,27 @@ bool MegaBackupController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers)
     {
-        if (transfer)
+//        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        LOG_debug << "Folder transfer finished - "; //TODO: restablish the former with this->getTransferredBytes
+        MegaNode *node = megaApi->getNodeByHandle(currentHandle);
+        if (node)
         {
-            LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-            transfer->setState(MegaTransfer::STATE_COMPLETED);
-            MegaNode *node = megaApi->getNodeByHandle(currentHandle);
-            if (node)
+            if (failedTransfers.size())
             {
-                if (failedTransfers.size())
-                {
-                    megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this); //TODO: review attr values
-                }
-                else
-                {
-                    megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
-                }
-                delete node;
+                megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this); //TODO: review attr values
             }
             else
             {
-                LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+                megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
             }
-
-            megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-            transfer = NULL;
+            delete node;
         }
+        else
+        {
+            LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+        }
+
+        //TODO: fire on backup finish!
 
         state = BACKUP_ACTIVE;
         removeexceeding();
@@ -18866,15 +18966,8 @@ void MegaBackupController::abortCurrent()
         LOG_err << "Could not set backup attribute, node not found for: " << currentName;
     }
 
-    this->recursive = 0;
-    this->pendingTransfers = 0;
-    this->pendingFolders.clear();
-    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
-    {
-        delete *it;
-    }
-    this->failedTransfers.clear();
-    this->currentHandle = UNDEF;
+    clearCurrentBackupData();
+
 }
 
 void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
@@ -18908,24 +19001,23 @@ void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     LOG_verbose << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
 
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
-    transfer->setUpdateTime(Waiter::ds);
-    megaApi->fireOnTransferUpdate(transfer);
+    this->setTotalBytes(this->getTotalBytes() + t->getTotalBytes());
+    this->setUpdateTime(Waiter::ds);
+//    megaApi->fireOnTransferUpdate(transfer);
+    //TODO: fire onBackupUpdate!!
+
 }
 
 void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
     LOG_verbose << " at MegaBackupController::onTransferUpdate";
 
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize());
+    this->setUpdateTime(Waiter::ds);
+    this->setSpeed(t->getSpeed());
+    this->setMeanSpeed(t->getMeanSpeed());
+//    megaApi->fireOnTransferUpdate(transfer);
+    //TODO: fire onBackupUpdate!!
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
@@ -18933,17 +19025,20 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     LOG_verbose << " at MegaackupController::onTransferFinish";
 
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+//    this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize()); //TODO: THIS was in MegaUploaderController (which seems wrong)
+    this->setUpdateTime(Waiter::ds);
+    this->setSpeed(t->getSpeed());
+    this->setMeanSpeed(t->getMeanSpeed());
+//    megaApi->fireOnTransferUpdate(transfer);
+    //TODO: fire onBackupUpdate!!
 
     if (e->getErrorCode() != MegaError::API_OK)
     {
         failedTransfers.push_back(t->copy());
+    }
+    else
+    {
+        numberFiles++;
     }
 
     checkCompletion();
@@ -18980,7 +19075,7 @@ int64_t MegaBackupController::getPeriod() const
     return period;
 }
 
-string MegaBackupController::getPeriodstring() const
+string MegaBackupController::getPeriodString() const
 {
     return periodstring;
 }
@@ -19016,8 +19111,6 @@ void MegaBackupController::setPeriodstring(const string &value)
         }
         if (this->startTime < Waiter::ds)
             this->startTime = Waiter::ds;
-
-
 
     }
 }
@@ -19071,7 +19164,6 @@ MegaBackupController::~MegaBackupController()
 {
     megaApi->removeRequestListener(this);
     megaApi->removeTransferListener(this);
-    delete transfer;
 
     for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
     {

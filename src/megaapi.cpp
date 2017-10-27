@@ -4354,6 +4354,51 @@ int MegaBackup::getState() const
     return MegaBackup::BACKUP_FAILED;
 }
 
+long long MegaBackup::getNumberFolders() const
+{
+     return 0;
+}
+
+long long MegaBackup::getNumberFiles() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTotalFiles() const
+{
+     return 0;
+}
+
+int64_t MegaBackup::getCurrentBKStartTime() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTransferredBytes() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTotalBytes() const
+{
+     return 0;
+}
+
+long long MegaBackup::getSpeed() const
+{
+     return 0;
+}
+
+long long MegaBackup::getMeanSpeed() const
+{
+     return 0;
+}
+
+int64_t MegaBackup::getUpdateTime() const
+{
+     return 0;
+}
+
 MegaAccountBalance::~MegaAccountBalance()
 {
 

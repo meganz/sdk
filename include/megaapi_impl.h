@@ -239,7 +239,7 @@ public:
     MegaHandle getMegaHandle() const;
     int getTag() const;
     int64_t getPeriod() const;
-    std::string getPeriodstring() const;
+    std::string getPeriodString() const;
     int getMaxBackups() const;
     int getState() const;
 
@@ -290,13 +290,23 @@ protected:
     int64_t startTime; // when shalll the next backup begin
 
     // backup instance related
-    MegaTransferPrivate *transfer;
     handle currentHandle;
     std::string currentName;
     std::list<std::string> pendingFolders;
     std::list<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
+    // backup instance stats
+    int64_t currentBKStartTime;
+    int64_t updateTime;
+    long long transferredBytes;
+    long long totalBytes;
+    long long speed;
+    long long meanSpeed;
+    long long numberFiles; //number of files successfully uploaded
+    long long totalFiles;
+    long long numberFolders;
+
 
     // internal methods
     void onFolderAvailable(MegaHandle handle);
@@ -307,6 +317,7 @@ protected:
     std::string epochdsToString(const int64_t rawtimeds) const;
     int64_t stringTimeTods(string stime) const;
 
+    void clearCurrentBackupData();
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
@@ -314,6 +325,24 @@ public:
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 
+    long long getNumberFolders() const;
+    void setNumberFolders(long long value);
+    long long getNumberFiles() const;
+    void setNumberFiles(long long value);
+    long long getMeanSpeed() const;
+    void setMeanSpeed(long long value);
+    long long getSpeed() const;
+    void setSpeed(long long value);
+    long long getTotalBytes() const;
+    void setTotalBytes(long long value);
+    long long getTransferredBytes() const;
+    void setTransferredBytes(long long value);
+    int64_t getUpdateTime() const;
+    void setUpdateTime(const int64_t &value);
+    int64_t getCurrentBKStartTime() const;
+    void setCurrentBKStartTime(const int64_t &value);
+    long long getTotalFiles() const;
+    void setTotalFiles(long long value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener

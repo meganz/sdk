@@ -1982,6 +1982,7 @@ class MegaContactRequestList
  */
 class MegaRequest
 {
+//TODO: add relevant docs regarding backups in these class methods
     public:
         enum {
             TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
@@ -3611,7 +3612,7 @@ public:
      *
      * @return The period string of the backup
      */
-    std::string getPeriodString() const;
+    virtual std::string getPeriodString() const;
 
     /**
      * @brief Returns the number of backups to keep
@@ -3644,6 +3645,72 @@ public:
      * @return State of the backup
      */
     virtual int getState() const;
+
+
+    // Current backup data:
+    /**
+     * @brief Returns the number of folders created in the backup
+     * @return number of folders created in the backup
+     */
+    virtual long long getNumberFolders() const;
+
+    /**
+     * @brief Returns the number of files created in the backup
+     * @return number of files created in the backup
+     */
+    virtual long long getNumberFiles() const;
+
+    /**
+     * @brief Returns the number of files to be created in the backup
+     * @return number of files to be created in the backup
+     */
+    virtual long long getTotalFiles() const;
+
+    /**
+     * @brief Returns the starting time of the request (in deciseconds)
+     *
+     * The returned value is a monotonic time since some unspecified starting point expressed in
+     * deciseconds.
+     *
+     * @return Starting time of the backup (in deciseconds)
+     */
+    virtual int64_t getCurrentBKStartTime() const;
+
+    /**
+     * @brief Returns the number of Transferred bytes during this request
+     * @return Transferred bytes during this backup
+     */
+    virtual long long getTransferredBytes() const;
+
+    /**
+     * @brief Returns the total bytes to be Transferred to complete the backup
+     * @return Total bytes to be Transferred to complete the backup
+     */
+    virtual long long getTotalBytes() const;
+
+    /**
+     * @brief Returns the current speed of this backup
+     * @return Current speed of this backup
+     */
+    virtual long long getSpeed() const;
+
+    /**
+     * @brief Returns the average speed of this backup
+     * @return Average speed of this backup
+     */
+    virtual long long getMeanSpeed() const;
+
+    /**
+     * @brief Returns the timestamp when the last data was received (in deciseconds)
+     *
+     * This timestamp doesn't have a defined starting point. Use the difference between
+     * the return value of this function and MegaBackup::getCurrentBKStartTime to know how
+     * much time the backup has been running.
+     *
+     * @return Timestamp when the last data was received (in deciseconds)
+     */
+    virtual int64_t getUpdateTime() const;
+
 };
 
 
@@ -8086,10 +8153,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_BACKUP
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns the period between backups in deciseconds
+         * - MegaRequest::getNumber - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaRequest::getText - Returns the cron like time string to define period
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
-         * - MegaRequest::getTransferTag - Tag asociated with the backup
+         * - MegaRequest::getBackupTag - Tag asociated with the backup
          * -
          * @param localFolder Local folder
          * @param parent MEGA folder to hold the backups
@@ -8119,7 +8187,7 @@ class MegaApi
         /**
          * @brief Aborts current ONGOING backup.
          *
-         * This will cancell all current active transfers.
+         * This will cancell all current active backups.
          *
          * The associated request type with this request is MegaRequest::TYPE_ABORT_CURRENT_BACKUP
          * Valid data in the MegaRequest object received on callbacks:
