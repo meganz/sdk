@@ -28,6 +28,7 @@ jmethodID ctorString;
 jmethodID getBytes;
 jclass applicationClass;
 jmethodID startVideoCaptureMID;
+jmethodID stopVideoCaptureMID;
 jobject surfaceTextureHelper;
 
 
@@ -63,6 +64,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     jclass megaApplicationClass = jenv->FindClass("mega/privacy/android/app/MegaApplication");
     applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
     startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass,"startVideoCapture","(JLorg/webrtc/SurfaceTextureHelper;)V");
+    stopVideoCaptureMID = jenv->GetStaticMethodID(applicationClass,"stopVideoCapture","()V");
 
     jclass surfaceTextureHelperClass = jenv->FindClass("org/webrtc/SurfaceTextureHelper");
     jmethodID createSurfaceMID = jenv->GetStaticMethodID(surfaceTextureHelperClass,"create","(Ljava/lang/String;Lorg/webrtc/EglBase$Context;)Lorg/webrtc/SurfaceTextureHelper;");
