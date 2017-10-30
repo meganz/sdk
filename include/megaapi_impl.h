@@ -26,6 +26,9 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#define CRON_USE_LOCAL_TIME 1
+#include "mega/mega_ccronexpr.h"
+
 #ifdef USE_PCRE
 #include <pcre.h>
 #endif
@@ -282,6 +285,8 @@ protected:
     int maxBackups;
     int64_t period;
     std::string periodstring;
+    cron_expr ccronexpr;
+    bool valid;
     int64_t offsetds; //times offset with epoch time?
     int64_t startTime; // when shalll the next backup begin
 
@@ -342,6 +347,10 @@ public:
     void setTotalFiles(long long value);
     MegaBackupListener *getBackupListener() const;
     void setBackupListener(MegaBackupListener *value);
+    cron_expr getCcronexpr() const;
+    void setCcronexpr(const cron_expr &value);
+    bool isValid() const;
+    void setValid(bool value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener

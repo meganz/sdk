@@ -67,9 +67,6 @@
 
 #include "mega/mega_zxcvbn.h"
 
-#define CRON_USE_LOCAL_TIME 1
-#include "mega/mega_ccronexpr.h"
-
 using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -16029,6 +16026,12 @@ void MegaApiImpl::sendPendingRequests()
                 mbc->setPeriodstring(request->getText());
                 mbc->setMaxBackups(request->getNumRetry());
                 request->setTransferTag(tagexisting);
+                if (!mbc->isValid())
+                {
+                    LOG_err << "Failed to update backup parameters: Invalid parameters";
+                    e = API_EARGS;
+                    break;
+                }
             }
             else
             {
@@ -16038,8 +16041,16 @@ void MegaApiImpl::sendPendingRequests()
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
                                                                      request->getFile(), speriod.c_str(), request->getNumber(), request->getNumRetry());
                 mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in startBackup?
-                backupsMap[tag] = mbc;
-                request->setTransferTag(tag);
+                if (mbc->isValid())
+                {
+                    backupsMap[tag] = mbc;
+                    request->setTransferTag(tag);
+                }
+                else
+                {
+                    e = API_EARGS;
+                    break;
+                }
             }
 
             fireOnRequestFinish(request, MegaError(API_OK));
@@ -18496,23 +18507,26 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->backupListener = NULL;
 
+    valid = true;
     this->setPeriod(period);
     this->setPeriodstring(speriod);
 
-    megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+    if (valid)
+    {
+        megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
-    this->pendingremovals = 0;
-    this->maxBackups = maxBackups;
+        this->pendingremovals = 0;
+        this->maxBackups = maxBackups;
 
+        this->tag = tag;
+        this->folderTransferTag = folderTransferTag;
 
-    this->tag = tag;
-    this->folderTransferTag = folderTransferTag;
+        this->lastwakeuptime = 0;
+        this->state = MegaBackup::BACKUP_ACTIVE;
+        megaApi->fireOnBackupStateChanged(this);
 
-    this->lastwakeuptime = 0;
-    this->state = MegaBackup::BACKUP_ACTIVE;
-    megaApi->fireOnBackupStateChanged(this);
-
-    removeexceeding();
+        removeexceeding();
+    }
 }
 
 MegaBackupController::MegaBackupController(MegaBackupController *backup)
@@ -18558,7 +18572,9 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setState(backup->getState());
     this->setStartTime(backup->getStartTime());
     this->setPeriod(backup->getPeriod());
+    this->setCcronexpr(backup->getCcronexpr());
     this->setPeriodstring(backup->getPeriodString());
+    this->setValid(backup->isValid());
 
     this->setLocalFolder(backup->getLocalFolder());
     this->setBackupName(backup->getBackupName());
@@ -18591,41 +18607,32 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
     }
     else
     {
+        if (!valid)
+        {
+            return oldStartTimeds;
+        }
         time_t current = (oldStartTimeds + this->offsetds)/10;
 
-        const char* err = NULL;
-        cron_expr parsed;
-        memset(&parsed, 0, sizeof(parsed));
-        cron_parse_expr(periodstring.c_str(), &parsed, &err);
-
-        if (err==NULL)
+        time_t newt = cron_next((cron_expr *)&ccronexpr, current);
+        long long newStarTimeds = newt*10-offsetds;
+        if (newStarTimeds > oldStartTimeds)
         {
-            time_t newt = cron_next(&parsed, current);
-            long long newStarTimeds = newt*10-offsetds;
-            if (newStarTimeds > oldStartTimeds)
-            {
-                return newStarTimeds;
-            }
-            else
-            {
-                LOG_err << "Invalid calculated NextStartTime" ;
-                return -1; //TODO: deal with this value error and do not ever start
-            }
-
-
+            return newStarTimeds;
         }
         else
         {
-            LOG_err << " error cron expresion";
-            //TODO: do this upon construction and save cron_expr (update it in setPeriodString!)
-            return oldStartTimeds;
+            LOG_err << "Invalid calculated NextStartTime" ;
+            return -1; //TODO: deal with this value error and do not ever start
         }
     }
-
 }
 
 void MegaBackupController::update()
 {
+    if (!valid)
+    {
+        return;
+    }
     if (startTime < 0)
     {
         LOG_err << "Backup not updated due to invalid startTime";
@@ -18698,7 +18705,7 @@ void MegaBackupController::removeexceeding()
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
-                    if (!strcmp(backstvalue,"COMPLETE"))
+                    if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
                     {
                         ncompleted++;
                     }
@@ -18719,7 +18726,7 @@ void MegaBackupController::removeexceeding()
         {
             map<int64_t, MegaNode *>::iterator itr = backupTimesNodes.begin();
             const char *backstvalue = itr->second->getCustomAttr("BACKST");
-            if ( (ncompleted == 1) && (!strcmp(backstvalue,"COMPLETE")) && backupTimesNodes.size() > 1)
+            if ( (ncompleted == 1) && backstvalue && (!strcmp(backstvalue,"COMPLETE")) && backupTimesNodes.size() > 1)
             {
                 itr++;
             }
@@ -18727,7 +18734,7 @@ void MegaBackupController::removeexceeding()
             MegaNode * nodeToDelete = itr->second;
             int64_t timetodelete = itr->first;
             backstvalue = nodeToDelete->getCustomAttr("BACKST");
-            if (!strcmp(backstvalue,"COMPLETE"))
+            if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
             {
                 ncompleted--;
             }
@@ -18803,6 +18810,26 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
 //    int64_t toret = atol(rest.c_str());
     int64_t toret = stringTimeTods(rest);
     return toret;
+}
+
+bool MegaBackupController::isValid() const
+{
+    return valid;
+}
+
+void MegaBackupController::setValid(bool value)
+{
+    valid = value;
+}
+
+cron_expr MegaBackupController::getCcronexpr() const
+{
+    return ccronexpr;
+}
+
+void MegaBackupController::setCcronexpr(const cron_expr &value)
+{
+    ccronexpr = value;
 }
 
 MegaBackupListener *MegaBackupController::getBackupListener() const
@@ -19318,6 +19345,18 @@ void MegaBackupController::setPeriodstring(const string &value)
     periodstring = value;
     if (value.size())
     {
+        const char* err = NULL;
+        memset((cron_expr *)&ccronexpr, 0, sizeof(ccronexpr));
+        cron_parse_expr(periodstring.c_str(), &ccronexpr, &err);
+
+        if (err != NULL)
+        {
+            state = BACKUP_FAILED;
+            valid = false;
+            return;
+        }
+        valid = true;
+
         this->offsetds=std::time(NULL)*10 - Waiter::ds;
 
         if (!lastbackuptime)
