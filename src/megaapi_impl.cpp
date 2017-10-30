@@ -18626,10 +18626,11 @@ void MegaBackupController::update()
 
 void MegaBackupController::removeexceeding()
 {
-    map<int64_t, MegaNode *> backupTimesPaths;
-    int64_t oldesttime=0;
+    map<int64_t, MegaNode *> backupTimesNodes;
+    int ncompleted=0;
 
     MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+
     if (parentNode)
     {
         MegaNodeList* children = megaApi->getChildren(parentNode);
@@ -18643,17 +18644,22 @@ void MegaBackupController::removeexceeding()
                 if (isBackup(childname, backupName) )
                 {
                     const char *backstvalue = childNode->getCustomAttr("BACKST");
+
                     if (!backstvalue || (!strcmp(backstvalue,"ONGOING") && childNode->getHandle() != currentHandle) )
                     {
                         LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status to MISCARRIED";
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
+                    if (!strcmp(backstvalue,"COMPLETE"))
+                    {
+                        ncompleted++;
+                    }
+
                     int64_t timeofbackup = getTimeOfBackup(childname);
                     if (timeofbackup)
                     {
-                        backupTimesPaths[timeofbackup]=childNode;
-                        oldesttime = min(oldesttime?oldesttime:timeofbackup, timeofbackup);
+                        backupTimesNodes[timeofbackup]=childNode;
                     }
                     else
                     {
@@ -18661,32 +18667,38 @@ void MegaBackupController::removeexceeding()
                     }
                 }
             }
-
-
-            while (backupTimesPaths.size() > (unsigned int)maxBackups && oldesttime)
+        }
+        while (backupTimesNodes.size() > (unsigned int)maxBackups)
+        {
+            map<int64_t, MegaNode *>::iterator itr = backupTimesNodes.begin();
+            const char *backstvalue = itr->second->getCustomAttr("BACKST");
+            if ( (ncompleted == 1) && (!strcmp(backstvalue,"COMPLETE")) && backupTimesNodes.size() > 1)
             {
-                MegaNode * nodeToDelete = backupTimesPaths.at(oldesttime);
-
-                char * nodepath = megaApi->getNodePath(nodeToDelete);
-                LOG_info << " Removing exceeding backup " << nodepath;
-                delete []nodepath;
-                state = BACKUP_REMOVING_EXCEEDING;
-                megaApi->fireOnBackupStateChanged(this);
-                pendingremovals++;
-                megaApi->remove(nodeToDelete, this);
-
-                backupTimesPaths.erase(oldesttime);
-                oldesttime = 0;
-                if (backupTimesPaths.size() > (unsigned int)maxBackups)
-                {
-                    oldesttime = backupTimesPaths.begin()->first;
-                }
+                itr++;
             }
 
-            delete children;
+            MegaNode * nodeToDelete = itr->second;
+            int64_t timetodelete = itr->first;
+            backstvalue = nodeToDelete->getCustomAttr("BACKST");
+            if (!strcmp(backstvalue,"COMPLETE"))
+            {
+                ncompleted--;
+            }
+
+            char * nodepath = megaApi->getNodePath(nodeToDelete);
+            LOG_info << " Removing exceeding backup " << nodepath;
+            delete []nodepath;
+            state = BACKUP_REMOVING_EXCEEDING;
+            megaApi->fireOnBackupStateChanged(this);
+            pendingremovals++;
+            megaApi->remove(nodeToDelete, this);
+
+            backupTimesNodes.erase(timetodelete);
         }
-        delete parentNode;
+
+        delete children;
     }
+    delete parentNode;
 }
 
 int64_t MegaBackupController::getLastBackupTime()
