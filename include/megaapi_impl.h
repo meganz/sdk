@@ -923,7 +923,10 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaRegExp *getRegExp() const;
 #endif
 
-    protected:
+        MegaBackupListener *getBackupListener() const;
+        void setBackupListener(MegaBackupListener *value);
+
+protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
         AchievementsDetails *achievementsDetails;
@@ -950,7 +953,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
-        //TODO: add MegaBackupListener here?
+        MegaBackupListener *backupListener;
+
         int transfer;
         int numDetails;
         MegaNode* publicNode;
@@ -1517,6 +1521,7 @@ class RequestQueue
 #ifdef ENABLE_SYNC
         void removeListener(MegaSyncListener *listener);
 #endif
+        void removeListener(MegaBackupListener *listener);
 };
 
 

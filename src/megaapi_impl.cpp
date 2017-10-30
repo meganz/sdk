@@ -2316,6 +2316,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->syncListener = NULL;
     this->regExp = NULL;
 #endif
+    this->backupListener = NULL;
 	this->nodeHandle = UNDEF;
 	this->link = NULL;
 	this->parentHandle = UNDEF;
@@ -2430,6 +2431,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setRegExp(request->getRegExp());
     this->syncListener = request->getSyncListener();
 #endif
+    this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
 
     this->accountDetails = NULL;
@@ -2530,6 +2532,7 @@ MegaRegExp *MegaRequestPrivate::getRegExp() const
 {
     return regExp;
 }
+
 void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
 {
     if (this->regExp)
@@ -2547,6 +2550,16 @@ void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
     }
 }
 #endif
+
+MegaBackupListener *MegaRequestPrivate::getBackupListener() const
+{
+    return backupListener;
+}
+
+void MegaRequestPrivate::setBackupListener(MegaBackupListener *value)
+{
+    backupListener = value;
+}
 
 MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
 {
@@ -11784,7 +11797,7 @@ void MegaApiImpl::removeBackupListener(MegaBackupListener* listener)
         it++;
     }
 
-//    backupQueue.removeListener(listener); //TODO: think about this
+    requestQueue.removeListener(listener);
     sdkMutex.unlock();
 }
 
@@ -16024,6 +16037,7 @@ void MegaApiImpl::sendPendingRequests()
                 string speriod = request->getText();
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
                                                                      request->getFile(), speriod.c_str(), request->getNumber(), request->getNumRetry());
+                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in startBackup?
                 backupsMap[tag] = mbc;
                 request->setTransferTag(tag);
             }
@@ -16964,6 +16978,22 @@ void RequestQueue::removeListener(MegaSyncListener *listener)
     mutex.unlock();
 }
 #endif
+
+void RequestQueue::removeListener(MegaBackupListener *listener)
+{
+    mutex.lock();
+
+    std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
+    while(it != requests.end())
+    {
+        MegaRequestPrivate *request = (*it);
+        if(request->getBackupListener()==listener)
+            request->setBackupListener(NULL);
+        it++;
+    }
+
+    mutex.unlock();
+}
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
 {
@@ -18464,7 +18494,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     lastbackuptime = getLastBackupTime();
 
-    this->backupListener = NULL; //TODO: receive in constructor
+    this->backupListener = NULL;
 
     this->setPeriod(period);
     this->setPeriodstring(speriod);
