@@ -51,6 +51,7 @@ typedef uint64_t MegaHandle;
 class MegaListener;
 class MegaRequestListener;
 class MegaTransferListener;
+class MegaBackupListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
@@ -64,6 +65,7 @@ class MegaError;
 class MegaRequest;
 class MegaEvent;
 class MegaTransfer;
+class MegaBackup;
 class MegaSync;
 class MegaStringList;
 class MegaNodeList;
@@ -71,6 +73,7 @@ class MegaUserList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
+class MegaBackupList;
 class MegaApi;
 
 class MegaSemaphore;
@@ -1926,6 +1929,42 @@ class MegaTransferList
 };
 
 /**
+ * @brief List of MegaBackup objects
+ *
+ * A MegaBackupList has the ownership of the MegaBackup objects that it contains, so they will be
+ * only valid until the MegaBackupList is deleted. If you want to retain a MegaBackup returned by
+ * a MegaBackupList, use MegaBackup::copy.
+ *
+ * Objects of this class are immutable.
+ *
+ * @see MegaApi::getBackups
+ */
+class MegaBackupList
+{
+	public:
+        virtual ~MegaBackupList();
+
+        /**
+         * @brief Returns the MegaBackup at the position i in the MegaBackupList
+         *
+         * The MegaBackupList retains the ownership of the returned MegaBackup. It will be only valid until
+         * the MegaBackupList is deleted.
+         *
+         * If the index is >= the size of the list, this function returns NULL.
+         *
+         * @param i Position of the MegaBackup that we want to get for the list
+         * @return MegaBackup at the position i in the list
+         */
+        virtual MegaBackup* get(int i);
+
+        /**
+         * @brief Returns the number of MegaBackup objects in the list
+         * @return Number of MegaBackup objects in the list
+         */
+        virtual int size();
+};
+
+/**
  * @brief List of MegaContactRequest objects
  *
  * A MegaContactRequestList has the ownership of the MegaContactRequest objects that it contains, so they will be
@@ -3531,6 +3570,103 @@ public:
 
 /**
  * @brief Provides information about a backup
+ *
+ * Developers can use listeners (MegaListener, MegaBackupListener)
+ * to track the progress of each backup. MegaBackup objects are provided in callbacks sent
+ * to these listeners and allow developers to know the state of the backups and their parameters
+ * and
+ *
+ * The implementation will receive callbacks from an internal worker thread.
+ *
+ **/
+class MegaBackupListener
+{
+public:
+
+    virtual ~MegaBackupListener();
+
+    /**
+     * @brief This function is called when the state of the backup changes
+     *
+     * The SDK calls this function when the state of the backup changes, for example
+     * from 'active' to 'ongoing' or 'removing exceeding'.
+     *
+     * You can use MegaBackup::getState to get the new state.
+     *
+     * @param api MegaApi object that is backing up files
+     * @param backup MegaBackup object that has changed the state
+     */
+    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup is about to start being processed
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     */
+    virtual void onBackupStart(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup has finished
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * There won't be more callbacks about this backup.
+     * The last parameter provides the result of the backup. If the backup finished without problems,
+     * the error code will be API_OK
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupFinish(MegaApi* api, MegaBackup *backup, MegaError* error);
+
+    /**
+     * @brief This function is called to inform about the progress of a backup
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     *
+     * @see MegaBackup::getTransferredBytes, MegaBackup::getSpeed
+     */
+    virtual void onBackupUpdate(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when there is a temporary error processing a backup
+     *
+     * The backup continues after this callback, so expect more MegaBackupListener::onBackupTemporaryError or
+     * a MegaBackupListener::onBackupFinish callback
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupTemporaryError(MegaApi *api, MegaBackup *backup, MegaError* error);
+
+};
+
+
+/**
+ * @brief Provides information about a backup
  */
 class MegaBackup
 {
@@ -3677,14 +3813,14 @@ public:
     virtual int64_t getCurrentBKStartTime() const;
 
     /**
-     * @brief Returns the number of Transferred bytes during this request
+     * @brief Returns the number of transferred bytes during this request
      * @return Transferred bytes during this backup
      */
     virtual long long getTransferredBytes() const;
 
     /**
-     * @brief Returns the total bytes to be Transferred to complete the backup
-     * @return Total bytes to be Transferred to complete the backup
+     * @brief Returns the total bytes to be transferred to complete the backup
+     * @return Total bytes to be transferred to complete the backup
      */
     virtual long long getTotalBytes() const;
 
@@ -4696,6 +4832,83 @@ class MegaListener
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
+    /**
+     * @brief This function is called when the state of the backup changes
+     *
+     * The SDK calls this function when the state of the backup changes, for example
+     * from 'active' to 'ongoing' or 'removing exceeding'.
+     *
+     * You can use MegaBackup::getState to get the new state.
+     *
+     * @param api MegaApi object that is backing up files
+     * @param backup MegaBackup object that has changed the state
+     */
+    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup is about to start being processed
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     */
+    virtual void onBackupStart(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup has finished
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * There won't be more callbacks about this backup.
+     * The last parameter provides the result of the backup. If the backup finished without problems,
+     * the error code will be API_OK
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupFinish(MegaApi* api, MegaBackup *backup, MegaError* error);
+
+    /**
+     * @brief This function is called to inform about the progress of a backup
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     *
+     * @see MegaBackup::getTransferredBytes, MegaBackup::getSpeed
+     */
+    virtual void onBackupUpdate(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when there is a temporary error processing a backup
+     *
+     * The backup continues after this callback, so expect more MegaBackupListener::onBackupTemporaryError or
+     * a MegaBackupListener::onBackupFinish callback
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupTemporaryError(MegaApi *api, MegaBackup *backup, MegaError* error);
+
 #ifdef ENABLE_CHAT
     /**
      * @brief This function is called when there are new or updated chats
@@ -4998,6 +5211,18 @@ class MegaApi
          */
         void removeSyncListener(MegaSyncListener *listener);
 #endif
+
+        /**
+         * @brief Add a listener for all events related to backups
+         * @param listener Listener that will receive backup events
+         */
+        void addBackupListener(MegaBackupListener *listener);
+
+        /**
+         * @brief Unregister a backup listener
+         * @param listener Objet that will be unregistered
+         */
+        void removeBackupListener(MegaBackupListener *listener);
 
         /**
          * @brief Unregister a listener

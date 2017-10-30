@@ -11666,6 +11666,15 @@ void MegaApiImpl::addTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::addBackupListener(MegaBackupListener* listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    backupListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
 {
     if(!listener) return;
@@ -11755,6 +11764,27 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
     }
 
     transferQueue.removeListener(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::removeBackupListener(MegaBackupListener* listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    backupListeners.erase(listener);
+
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if(backup->getBackupListener() == listener)
+            backup->setBackupListener(NULL);
+
+        it++;
+    }
+
+//    backupQueue.removeListener(listener); //TODO: think about this
     sdkMutex.unlock();
 }
 
@@ -12213,6 +12243,114 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
 }
 
 #endif
+
+void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupStateChanged(api, backup);
+    }
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupStateChanged(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupStateChanged(api, backup);
+    }
+}
+
+
+void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
+{
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupStart(api, backup);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupStart(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupStart(api, backup);
+    }
+
+}
+
+void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, MegaError e)
+{
+    MegaError *megaError = new MegaError(e);
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupFinish(api, backup, megaError);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupFinish(api, backup, megaError);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupFinish(api, backup, megaError);
+    }
+
+    delete megaError;
+}
+
+void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e)
+{
+    MegaError *megaError = new MegaError(e);
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    delete megaError;
+}
+
+void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
+{
+//    notificationNumber++; //TODO: what is this for
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupUpdate(api, backup);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupUpdate(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupUpdate(api, backup);
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 
@@ -18326,12 +18464,13 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     lastbackuptime = getLastBackupTime();
 
+    this->backupListener = NULL; //TODO: receive in constructor
+
     this->setPeriod(period);
     this->setPeriodstring(speriod);
 
     megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
 
-    this->state = MegaBackup::BACKUP_ACTIVE;
     this->pendingremovals = 0;
     this->maxBackups = maxBackups;
 
@@ -18340,6 +18479,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     this->folderTransferTag = folderTransferTag;
 
     this->lastwakeuptime = 0;
+    this->state = MegaBackup::BACKUP_ACTIVE;
+    megaApi->fireOnBackupStateChanged(this);
 
     removeexceeding();
 }
@@ -18355,6 +18496,8 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
 
     this->megaApi = backup->megaApi;
     this->client = backup->client;
+    this->setBackupListener(backup->getBackupListener());
+
 
     //copy currentBackup data
     this->recursive = backup->recursive;
@@ -18528,6 +18671,7 @@ void MegaBackupController::removeexceeding()
                 LOG_info << " Removing exceeding backup " << nodepath;
                 delete []nodepath;
                 state = BACKUP_REMOVING_EXCEEDING;
+                megaApi->fireOnBackupStateChanged(this);
                 pendingremovals++;
                 megaApi->remove(nodeToDelete, this);
 
@@ -18600,6 +18744,16 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
 //    int64_t toret = atol(rest.c_str());
     int64_t toret = stringTimeTods(rest);
     return toret;
+}
+
+MegaBackupListener *MegaBackupController::getBackupListener() const
+{
+    return backupListener;
+}
+
+void MegaBackupController::setBackupListener(MegaBackupListener *value)
+{
+    backupListener = value;
 }
 
 long long MegaBackupController::getTotalFiles() const
@@ -18762,8 +18916,6 @@ void MegaBackupController::start()
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTime(startTime)-offsetds << " ds" ;
     clearCurrentBackupData();
     this->setCurrentBKStartTime(Waiter::ds); //notice: this is != StarTime
-    //TODO: fireonBackupStart
-    //    megaApi->fireOnTransferStart(transfer);
 
     size_t plastsep = basepath.find_last_of("\\/");
     if(plastsep == string::npos)
@@ -18779,15 +18931,19 @@ void MegaBackupController::start()
 
     lastbackuptime = max(lastbackuptime,offsetds+startTime);
 
+    megaApi->fireOnBackupStart(this);
+
     MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
     if(!parent)
     {
-        //TODO: fire on backup finish? (or fire started later?
         LOG_err << "Could not start backup: "<< name << ". Parent node not found";
+        megaApi->fireOnBackupFinish(this, MegaError(API_ENOENT));
+
     }
     else
     {
         state = BACKUP_ONGOING;
+        megaApi->fireOnBackupStateChanged(this);
 
         string path = basepath;
         string localpath;
@@ -18920,9 +19076,10 @@ bool MegaBackupController::checkCompletion()
             LOG_err << "Could not set backup attribute, node not found for: " << currentName;
         }
 
-        //TODO: fire on backup finish!
-
         state = BACKUP_ACTIVE;
+        megaApi->fireOnBackupFinish(this, MegaError(API_OK));
+        megaApi->fireOnBackupStateChanged(this);
+
         removeexceeding();
         return true;
     }
@@ -18954,6 +19111,8 @@ void MegaBackupController::abortCurrent()
     LOG_debug << "Setting backup as aborted: " << currentName;
 
     state = BACKUP_ACTIVE;
+    megaApi->fireOnBackupStateChanged(this);
+
 
     MegaNode *node = megaApi->getNodeByHandle(currentHandle);
     if (node)
@@ -18980,10 +19139,12 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         if(!errorCode)
         {
             onFolderAvailable(request->getNodeHandle());
+            megaApi->fireOnBackupUpdate(this);
         }
         else
         {
             pendingFolders.pop_front();
+            megaApi->fireOnBackupUpdate(this);
             checkCompletion();
         }
     }
@@ -18993,8 +19154,10 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         if (!pendingremovals)
         {
             state = BACKUP_ACTIVE;
+            megaApi->fireOnBackupStateChanged(this);
         }
     }
+
 }
 
 void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
@@ -19003,9 +19166,8 @@ void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
 
     this->setTotalBytes(this->getTotalBytes() + t->getTotalBytes());
     this->setUpdateTime(Waiter::ds);
-//    megaApi->fireOnTransferUpdate(transfer);
-    //TODO: fire onBackupUpdate!!
 
+    megaApi->fireOnBackupUpdate(this);
 }
 
 void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
@@ -19016,8 +19178,8 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     this->setUpdateTime(Waiter::ds);
     this->setSpeed(t->getSpeed());
     this->setMeanSpeed(t->getMeanSpeed());
-//    megaApi->fireOnTransferUpdate(transfer);
-    //TODO: fire onBackupUpdate!!
+
+    megaApi->fireOnBackupUpdate(this);
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
@@ -19029,8 +19191,6 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     this->setUpdateTime(Waiter::ds);
     this->setSpeed(t->getSpeed());
     this->setMeanSpeed(t->getMeanSpeed());
-//    megaApi->fireOnTransferUpdate(transfer);
-    //TODO: fire onBackupUpdate!!
 
     if (e->getErrorCode() != MegaError::API_OK)
     {
@@ -19040,6 +19200,8 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     {
         numberFiles++;
     }
+
+    megaApi->fireOnBackupUpdate(this);
 
     checkCompletion();
 }

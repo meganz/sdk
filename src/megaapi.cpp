@@ -1267,6 +1267,17 @@ void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
 
+void MegaListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupStart(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupFinish(MegaApi *, MegaBackup *, MegaError *)
+{ }
+void MegaListener::onBackupUpdate(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError *)
+{ }
+
 #ifdef ENABLE_CHAT
 void MegaGlobalListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 {}
@@ -2857,6 +2868,16 @@ void MegaApi::removeSyncListener(MegaSyncListener *listener)
 }
 #endif
 
+void MegaApi::addBackupListener(MegaBackupListener *listener)
+{
+    pImpl->addBackupListener(listener);
+}
+
+void MegaApi::removeBackupListener(MegaBackupListener *listener)
+{
+    pImpl->removeBackupListener(listener);
+}
+
 void MegaApi::removeListener(MegaListener* listener)
 {
     pImpl->removeListener(listener);
@@ -4311,6 +4332,19 @@ const char *MegaRegExp::getFullPattern()
 }
 #endif
 
+
+void MegaBackupListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupStart(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupFinish(MegaApi*, MegaBackup *, MegaError*)
+{ }
+void MegaBackupListener::onBackupUpdate(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError*)
+{ }
+MegaBackupListener::~MegaBackupListener()
+{ }
 
 MegaBackup::~MegaBackup() { }
 

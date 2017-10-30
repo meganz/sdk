@@ -273,6 +273,7 @@ protected:
     // common variables
     MegaApiImpl *megaApi;
     MegaClient *client;
+    MegaBackupListener *backupListener;
 
     int state;
     int tag;
@@ -343,6 +344,8 @@ public:
     void setCurrentBKStartTime(const int64_t &value);
     long long getTotalFiles() const;
     void setTotalFiles(long long value);
+    MegaBackupListener *getBackupListener() const;
+    void setBackupListener(MegaBackupListener *value);
 };
 
 class MegaFolderDownloadController : public MegaTransferListener
@@ -951,6 +954,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
+        //TODO: add MegaBackupListener here?
         int transfer;
         int numDetails;
         MegaNode* publicNode;
@@ -1546,7 +1550,8 @@ class MegaApiImpl : public MegaApp
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
-        void addTransferListener(MegaTransferListener* listener);     
+        void addTransferListener(MegaTransferListener* listener);
+        void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
 #ifdef ENABLE_SYNC
         void addSyncListener(MegaSyncListener *listener);
@@ -1555,6 +1560,7 @@ class MegaApiImpl : public MegaApp
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
+        void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
         MegaRequest *getCurrentRequest();
@@ -1999,8 +2005,13 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
-
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
+
+        void fireOnBackupStateChanged(MegaBackupController *backup);
+        void fireOnBackupStart(MegaBackupController *backup);
+        void fireOnBackupFinish(MegaBackupController *backup, MegaError e);
+        void fireOnBackupUpdate(MegaBackupController *backup);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2084,6 +2095,7 @@ protected:
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
+        set<MegaBackupListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
         set<MegaSyncListener *> syncListeners;
