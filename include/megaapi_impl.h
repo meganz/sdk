@@ -225,14 +225,6 @@ public:
     void removeexceeding();
     void abortCurrent();
 
-    /**
-     * @brief getNextStartTime
-     * @param oldStartTime
-     * @return deciseconds of the next StartTime (Waiter::ds time)
-     */
-    long long getNextStartTime(long long oldStartTimeds); //TODO: move to MegaBackup
-
-
     // MegaBackup interface
     MegaBackup *copy();
     const char *getLocalFolder() const;
@@ -242,6 +234,9 @@ public:
     std::string getPeriodString() const;
     int getMaxBackups() const;
     int getState() const;
+    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+
+
 
     // MegaBackup setters
     void setLocalFolder(const std::string &value);
@@ -314,6 +309,7 @@ protected:
     bool checkCompletion();
     bool isBusy() const;
     int64_t getLastBackupTime();
+    long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
 
     std::string epochdsToString(const int64_t rawtimeds) const;
     int64_t stringTimeTods(string stime) const;

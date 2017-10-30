@@ -4378,6 +4378,12 @@ std::string MegaBackup::getPeriodString() const
     return string();
 }
 
+long long MegaBackup::getNextStartTime(long long oldStartTimeAbsolute) const
+{
+    return 0;
+}
+
+
 int MegaBackup::getMaxBackups() const
 {
     return 0;

@@ -18536,8 +18536,25 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->setMaxBackups(backup->getMaxBackups());
 }
 
-long long MegaBackupController::getNextStartTime(long long oldStartTimeds)
+
+long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute) const
 {
+    if (oldStartTimeAbsolute == -1)
+    {
+        return (getNextStartTimeDs() + this->offsetds)/10;
+    }
+    else
+    {
+        return (getNextStartTimeDs(oldStartTimeAbsolute*10 - this->offsetds) + this->offsetds)/10;
+    }
+}
+
+long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) const
+{
+    if (oldStartTimeds == -1)
+    {
+        oldStartTimeds = startTime;
+    }
     if (period != -1)
     {
         return oldStartTimeds + period;
@@ -18588,7 +18605,7 @@ void MegaBackupController::update()
     {
         if (!isBusy())
         {
-            long long nextStartTime = getNextStartTime(startTime);
+            long long nextStartTime = getNextStartTimeDs(startTime);
             if (nextStartTime > Waiter::ds)
             {
                 start();
@@ -18925,7 +18942,7 @@ void MegaBackupController::clearCurrentBackupData()
 
 void MegaBackupController::start()
 {
-    LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTime(startTime)-offsetds << " ds" ;
+    LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTimeDs(startTime)-offsetds << " ds" ;
     clearCurrentBackupData();
     this->setCurrentBKStartTime(Waiter::ds); //notice: this is != StarTime
 
@@ -19280,7 +19297,7 @@ void MegaBackupController::setPeriodstring(const string &value)
         else
         {
             int64_t wds = Waiter::ds;
-            this->startTime = this->getNextStartTime(lastbackuptime-offsetds);
+            this->startTime = this->getNextStartTimeDs(lastbackuptime-offsetds);
             LOG_debug << " Next Backup set in " << startTime - wds << " deciseconds" ;
         }
         if (this->startTime < Waiter::ds)

@@ -2021,7 +2021,6 @@ class MegaContactRequestList
  */
 class MegaRequest
 {
-//TODO: add relevant docs regarding backups in these class methods
     public:
         enum {
             TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
@@ -2354,6 +2353,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
+         * - MegaApi::startBackup - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -2362,6 +2362,8 @@ class MegaRequest
         /**
          * @brief Return the number of times that a request has temporarily failed
          * @return Number of times that a request has temporarily failed
+         * This value is valid for these requests:
+         * - MegaApi::startBackup - Returns the maximun number of backups to keep
          */
         virtual int getNumRetry() const;
 
@@ -2433,6 +2435,7 @@ class MegaRequest
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
+         * - MegaApi::startBackup - Returns the cron like time string to define period
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2464,8 +2467,10 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
-         * - MegaApi::setMaxConnections - Returns the number of connections
-         * - MegaApi::queryTransferQuota - Returns the amount of bytes to be transferred
+         * - MegaApi::startBackup - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
+         * - MegaApi::removeBackup - Returns the tag of the deleted backup
+         * - MegaApi::startTimer - Returns the selected period
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2584,6 +2589,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
+         * - MegaApi::startBackup - Returns the tag asociated with the backup
          *
          * @return Tag of a transfer related to the request
          */
@@ -3751,6 +3757,20 @@ public:
     virtual std::string getPeriodString() const;
 
     /**
+     * @brief Returns the next absolute timestamp of the next backup.
+     * @param oldStartTime Reference timestamp of the previous backup. If none provided it'll use current one.
+     *
+     * Successive nested calls to this functions will give you a full schedule of the next backups.
+     *
+     * Timestamp measures are given in number of seconds that elapsed since January 1, 1970 (midnight UTC/GMT),
+     * not counting leap seconds (in ISO 8601: 1970-01-01T00:00:00Z).
+     *
+     * @return timestamp of the next backup.
+     */
+    virtual long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+
+
+    /**
      * @brief Returns the number of backups to keep
      *
      * @return Maximun number of Backups to store
@@ -3803,7 +3823,7 @@ public:
     virtual long long getTotalFiles() const;
 
     /**
-     * @brief Returns the starting time of the request (in deciseconds)
+     * @brief Returns the starting time of the current backup being processed (in deciseconds)
      *
      * The returned value is a monotonic time since some unspecified starting point expressed in
      * deciseconds.
@@ -8382,7 +8402,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the cron like time string to define period
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
-         * - MegaRequest::getBackupTag - Tag asociated with the backup
+         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
          * -
          * @param localFolder Local folder
          * @param parent MEGA folder to hold the backups
@@ -8416,7 +8436,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_ABORT_CURRENT_BACKUP
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns the tag of the deleted backup
+         * - MegaRequest::getNumber - Returns the tag of the aborted backup
          *
          * Possible return values for this function are:
          * - MegaError::API_OK if successfully aborted an ongoing backup
