@@ -298,6 +298,7 @@ protected:
     std::list<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
+    int pendingTags;
     // backup instance stats
     int64_t currentBKStartTime;
     int64_t updateTime;

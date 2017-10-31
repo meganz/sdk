@@ -18581,6 +18581,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     //copy currentBackup data
     this->recursive = backup->recursive;
     this->pendingTransfers = backup->pendingTransfers;
+    this->pendingTags = backup->pendingTags;
     for (std::list<string>::iterator it = backup->pendingFolders.begin(); it != backup->pendingFolders.end(); it++)
     {
         this->pendingFolders.push_back(*it);
@@ -18733,10 +18734,10 @@ void MegaBackupController::removeexceeding()
                 {
                     const char *backstvalue = childNode->getCustomAttr("BACKST");
 
-//                    if ((!backstvalue || (!strcmp(backstvalue,"ONGOING") ) && childNode->getHandle() != currentHandle) )
-                    if ((backstvalue && (!strcmp(backstvalue,"ONGOING") ) && childNode->getHandle() != currentHandle) )
+                    if ( ( !backstvalue || !strcmp(backstvalue,"ONGOING") ) && ( childNode->getHandle() != currentHandle ) )
                     {
                         LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status to MISCARRIED";
+                        this->pendingTags++;
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
@@ -19023,6 +19024,7 @@ void MegaBackupController::clearCurrentBackupData()
 {
     this->recursive = 0;
     this->pendingTransfers = 0;
+    this->pendingTags = 0;
     this->pendingFolders.clear();
     for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
     {
@@ -19115,10 +19117,12 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
         currentHandle = handle;
         if (state == BACKUP_ONGOING)
         {
+            this->pendingTags++;
             megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
         }
         else
         {
+            this->pendingTags++;
             megaApi->setCustomNodeAttribute(parent, "BACKST", "SKIPPED", this);
         }
     }
@@ -19205,7 +19209,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
 bool MegaBackupController::checkCompletion()
 {
-    if(!recursive && !pendingFolders.size() && !pendingTransfers)
+    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingTags)
     {
         LOG_debug << "Folder transfer finished - " << this->getTransferredBytes() << " of " << this->getTotalBytes();
         MegaNode *node = megaApi->getNodeByHandle(currentHandle);
@@ -19213,10 +19217,12 @@ bool MegaBackupController::checkCompletion()
         {
             if (failedTransfers.size())
             {
+                this->pendingTags++;
                 megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this);
             }
             else if (state != BACKUP_SKIPPING)
             {
+                this->pendingTags++;
                 megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
             }
             delete node;
@@ -19230,9 +19236,6 @@ bool MegaBackupController::checkCompletion()
         megaApi->fireOnBackupFinish(this, MegaError(API_OK));
         megaApi->fireOnBackupStateChanged(this);
 
-        //TODO: this will be executed before setCustomNodeAttribute is actually executed for older skipped ones.
-        // hence its checks for BACKST attribute will fail
-        // manage state changing attribute?? this could be hazardous
         removeexceeding();
 
         return true;
@@ -19264,17 +19267,18 @@ void MegaBackupController::abortCurrent()
 {
     LOG_debug << "Setting backup as aborted: " << currentName;
 
-    state = BACKUP_ACTIVE;
-    megaApi->fireOnBackupStateChanged(this);
     if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
     {
         megaApi->fireOnBackupFinish(this, MegaError(API_EINCOMPLETE));
     }
 
+    state = BACKUP_ACTIVE;
+    megaApi->fireOnBackupStateChanged(this);
 
     MegaNode *node = megaApi->getNodeByHandle(currentHandle);
     if (node)
     {
+        this->pendingTags++;
         megaApi->setCustomNodeAttribute(node, "BACKST", "ABORTED");
         delete node;
     }
@@ -19311,8 +19315,31 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         pendingremovals--;
         if (!pendingremovals)
         {
-            state = BACKUP_ACTIVE;
+            if (!pendingTags)
+            {
+                state = BACKUP_ACTIVE;
+            }
             megaApi->fireOnBackupStateChanged(this);
+        }
+    }
+    else if(type == MegaRequest::TYPE_SET_ATTR_NODE)
+    {
+        pendingTags--;
+
+        if (!pendingTags)
+        {
+            if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+            {
+                checkCompletion();
+            }
+            else // from REMOVING OR after abort
+            {
+                if (state != BACKUP_ACTIVE)
+                {
+                    state = BACKUP_ACTIVE;
+                    megaApi->fireOnBackupStateChanged(this);
+                }
+            }
         }
     }
 
