@@ -18532,6 +18532,15 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->backupListener = NULL;
 
+    this->maxBackups = maxBackups;
+
+    this->pendingremovals = 0;
+
+    this->lastwakeuptime = 0;
+
+    this->tag = tag;
+    this->folderTransferTag = folderTransferTag;
+
     valid = true;
     this->setPeriod(period);
     this->setPeriodstring(speriod);
@@ -18539,17 +18548,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     if (valid)
     {
         megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
-
-        this->pendingremovals = 0;
-        this->maxBackups = maxBackups;
-
-        this->tag = tag;
-        this->folderTransferTag = folderTransferTag;
-
-        this->lastwakeuptime = 0;
         this->state = MegaBackup::BACKUP_ACTIVE;
         megaApi->fireOnBackupStateChanged(this);
-
         removeexceeding();
     }
     else
@@ -19079,8 +19079,10 @@ void MegaBackupController::start(bool skip)
         }
         else
         {
-            //TODO: fire on backup finish? (or fire started later?
-            LOG_err << "Could not start backup: "<< name << ". Backup already exists";
+            LOG_err << "Could not start backup: "<< backupname << ". Backup already exists";
+            megaApi->fireOnBackupFinish(this, MegaError(API_EEXIST));
+            state = BACKUP_ACTIVE;
+
         }
 
         delete child;
@@ -19418,15 +19420,43 @@ void MegaBackupController::setPeriodstring(const string &value)
         }
         else
         {
-            int64_t wds = Waiter::ds;
             this->startTime = this->getNextStartTimeDs(lastbackuptime-offsetds);
-            LOG_debug << " Next Backup set in " << startTime - wds << " deciseconds" ;
         }
-        if (this->startTime < Waiter::ds && !attendPastBackups)
+        if (this->startTime < Waiter::ds)
         {
-            this->startTime = Waiter::ds;
-        }
+            //to avoid skipping (do empty backups with SKIPPED attr) for a long while (e.g: period too short or downtime too long)
+            // we determine a max number of executions to skip.
 
+            int maxBackupToSkip = maxBackups + 10;
+            int64_t starttimes[maxBackupToSkip];
+            int64_t next = lastbackuptime-offsetds;
+            int64_t previousnext = next;
+
+            for (int i = 0; i < maxBackupToSkip; i++)
+            {
+                starttimes[i] = startTime;
+            }
+
+            int j = 0;
+
+            do
+            {
+                previousnext = next;
+                next = this->getNextStartTimeDs(next);
+                starttimes[j] = next;
+                j = (j==(maxBackupToSkip-1))?0:j+1;
+            } while (next > previousnext && next < Waiter::ds);
+
+            if (!attendPastBackups)
+            {
+                this->startTime = next;
+            }
+            else
+            {
+                this->startTime = starttimes[j]; //starttimes[j] should have the oldest time
+            }
+        }
+        LOG_debug << " Next Backup set in " << startTime - Waiter::ds << " deciseconds. At: " << epochdsToString((this->startTime+this->offsetds));
     }
 }
 

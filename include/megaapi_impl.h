@@ -276,7 +276,7 @@ protected:
     int state;
     int tag;
     int64_t lastwakeuptime;
-    int64_t lastbackuptime;
+    int64_t lastbackuptime; //ds absolute
     int pendingremovals;
     int folderTransferTag; //reused between backup instances
     std::string basepath;
