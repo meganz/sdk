@@ -6212,7 +6212,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     return backupFolders;
 }
 
-void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
     if(parent) request->setNodeHandle(parent->getHandle());
@@ -6229,6 +6229,7 @@ void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, int64_t p
     request->setNumRetry(numBackups);
     request->setNumber(period);
     request->setText(periodstring.c_str());
+    request->setFlag(attendPastBackups);
 
     request->setListener(listener);
     requestQueue.push(request);
@@ -16048,6 +16049,8 @@ void MegaApiImpl::sendPendingRequests()
                 mbc->setPeriod(request->getNumber());
                 mbc->setPeriodstring(request->getText());
                 mbc->setMaxBackups(request->getNumRetry());
+                mbc->setAttendPastBackups(request->getFlag());
+
                 request->setTransferTag(tagexisting);
                 if (!mbc->isValid())
                 {
@@ -16061,8 +16064,11 @@ void MegaApiImpl::sendPendingRequests()
                 int tag = request->getTag();
                 int tagForFolderTansferTag = client->nextreqtag();
                 string speriod = request->getText();
+                bool attendPastBackups= request->getFlag();
+
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
-                                                                     request->getFile(), speriod.c_str(), request->getNumber(), request->getNumRetry());
+                                                                     request->getFile(), attendPastBackups, speriod.c_str(),
+                                                                     request->getNumber(), request->getNumRetry());
                 mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setBackup?
                 if (mbc->isValid())
                 {
@@ -18511,7 +18517,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, const char *speriod, int64_t period, int maxBackups)
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
 {
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " speriod=" << speriod << " Number-of-Backups=" << maxBackups;
 
@@ -18524,7 +18530,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
 
-    this->attendPastBackups = true;
+    this->attendPastBackups = attendPastBackups;
 
     clearCurrentBackupData();
 
@@ -18594,6 +18600,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->numberFiles = backup->numberFiles;
     this->totalFiles = backup->totalFiles;
     this->numberFolders = backup->numberFolders;
+    this->attendPastBackups = backup->attendPastBackups;
 
     this->offsetds=backup->getOffsetds();
     this->lastbackuptime=backup->getLastBackupTime();
@@ -18838,6 +18845,16 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
 //    int64_t toret = atol(rest.c_str());
     int64_t toret = stringTimeTods(rest);
     return toret;
+}
+
+bool MegaBackupController::getAttendPastBackups() const
+{
+    return attendPastBackups;
+}
+
+void MegaBackupController::setAttendPastBackups(bool value)
+{
+    attendPastBackups = value;
 }
 
 bool MegaBackupController::isValid() const
@@ -19190,14 +19207,13 @@ bool MegaBackupController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers)
     {
-//        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        LOG_debug << "Folder transfer finished - "; //TODO: restablish the former with this->getTransferredBytes
+        LOG_debug << "Folder transfer finished - " << this->getTransferredBytes() << " of " << this->getTotalBytes();
         MegaNode *node = megaApi->getNodeByHandle(currentHandle);
         if (node)
         {
             if (failedTransfers.size())
             {
-                megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this); //TODO: review attr values
+                megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this);
             }
             else if (state != BACKUP_SKIPPING)
             {

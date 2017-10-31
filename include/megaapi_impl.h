@@ -219,7 +219,7 @@ public:
 class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, const char *speriod, int64_t period=-1, int maxBackups = 10);
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
     MegaBackupController(MegaBackupController *backup);
     ~MegaBackupController();
 
@@ -238,8 +238,7 @@ public:
     int getMaxBackups() const;
     int getState() const;
     long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
-
-
+    bool getAttendPastBackups() const;
 
     // MegaBackup setters
     void setLocalFolder(const std::string &value);
@@ -249,6 +248,7 @@ public:
     void setPeriodstring(const std::string &value);
     void setMaxBackups(int value);
     void setState(int value);
+    void setAttendPastBackups(bool value);
 
     //getters&setters
     int64_t getStartTime() const;
@@ -289,8 +289,7 @@ protected:
     bool valid;
     int64_t offsetds; //times offset with epoch time?
     int64_t startTime; // when shalll the next backup begin
-
-    bool attendPastBackups; //TODO: getters, setters and in public API and constructor and setBackup
+    bool attendPastBackups;
 
     // backup instance related
     handle currentHandle;
@@ -1726,7 +1725,7 @@ class MegaApiImpl : public MegaApp
 
         //Backups
         MegaStringList *getBackupFolders(int backuptag);
-        void setBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
         void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 

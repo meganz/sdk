@@ -2503,6 +2503,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
+         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3725,6 +3726,13 @@ public:
      * @return Identifier of the backup
      */
     virtual int getTag() const;
+
+    /**
+     * @brief Returns if backups that should have happen in the past should be taken care of
+     *
+     * @return Whether past backups should be taken care of
+     */
+    virtual bool getAttendPastBackups() const;
 
     /**
      * @brief Returns the period of the backup
@@ -8408,16 +8416,19 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
          * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
-         * -
+         * - MegaRequest::getFlag - Returns whether to attend past backups (ocurred while not running)
+         *
+         *
          * @param localFolder Local folder
          * @param parent MEGA folder to hold the backups
+         * @param attendPastBackups attend backups that ought to have started before
          * @param period period between backups in deciseconds
          * @param periodstring cron like time string to define period
          * @param numBackups maximun number of backups to keep
          * @param listener MegaRequestListener to track this request
          *
          */
-        void setBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Remove a backup
