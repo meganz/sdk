@@ -2124,9 +2124,9 @@ MegaStringList *MegaApi::getBackupFolders(int backuptag) const
     return pImpl->getBackupFolders(backuptag);
 }
 
-void MegaApi::startBackup(const char* localPath, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApi::setBackup(const char* localPath, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
-    pImpl->startBackup(localPath, parent, period, periodstring, numBackups, listener);
+    pImpl->setBackup(localPath, parent, period, periodstring, numBackups, listener);
 }
 
 void MegaApi::removeBackup(int tag, MegaRequestListener *listener)

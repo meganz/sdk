@@ -224,7 +224,7 @@ public:
     ~MegaBackupController();
 
     void update();
-    void start();
+    void start(bool skip = false);
     void removeexceeding();
     void abortCurrent();
 
@@ -289,6 +289,8 @@ protected:
     bool valid;
     int64_t offsetds; //times offset with epoch time?
     int64_t startTime; // when shalll the next backup begin
+
+    bool attendPastBackups; //TODO: getters, setters and in public API and constructor and setBackup
 
     // backup instance related
     handle currentHandle;
@@ -1595,6 +1597,7 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
+        static void fillLocalTimeStruct(const time_t *ttime, struct tm *dt);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -1723,7 +1726,7 @@ class MegaApiImpl : public MegaApp
 
         //Backups
         MegaStringList *getBackupFolders(int backuptag);
-        void startBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
         void removeBackup(int tag, MegaRequestListener *listener=NULL);
         void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
 

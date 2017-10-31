@@ -11279,7 +11279,7 @@ void MegaClient::execmovetosyncdebris()
     target = SYNCDEL_BIN;
 
     ts = time(NULL);
-    ptm = localtime(&ts);
+    ptm = localtime(&ts); //TODO: this ain't thread safe (see MegaApiImpl::fillLocalTimeStruct)
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris

@@ -2353,7 +2353,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
-         * - MegaApi::startBackup - Returns the path of the local folder
+         * - MegaApi::setBackup - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -2363,7 +2363,7 @@ class MegaRequest
          * @brief Return the number of times that a request has temporarily failed
          * @return Number of times that a request has temporarily failed
          * This value is valid for these requests:
-         * - MegaApi::startBackup - Returns the maximun number of backups to keep
+         * - MegaApi::setBackup - Returns the maximun number of backups to keep
          */
         virtual int getNumRetry() const;
 
@@ -2435,7 +2435,7 @@ class MegaRequest
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
-         * - MegaApi::startBackup - Returns the cron like time string to define period
+         * - MegaApi::setBackup - Returns the cron like time string to define period
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2467,7 +2467,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
-         * - MegaApi::startBackup - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaApi::setBackup - Returns the period between backups in deciseconds (-1 if cron time used)
          * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
@@ -2589,7 +2589,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
-         * - MegaApi::startBackup - Returns the tag asociated with the backup
+         * - MegaApi::setBackup - Returns the tag asociated with the backup
          *
          * @return Tag of a transfer related to the request
          */
@@ -3684,6 +3684,7 @@ public:
         BACKUP_INITIALSCAN = 0,
         BACKUP_ACTIVE,
         BACKUP_ONGOING,
+        BACKUP_SKIPPING,
         BACKUP_REMOVING_EXCEEDING
     };
 
@@ -3795,6 +3796,9 @@ public:
      *
      * - BACKUP_ONGOING
      * A backup is being performed
+     *
+     * - BACKUP_SKIPPING
+     * A backup is being skipped
      *
      * - BACKUP_REMOVING_EXCEEDING
      * The backup is active and an exceeding backup is being removed
@@ -8394,7 +8398,8 @@ class MegaApi
         /**
          * @brief Starts a backup of a local folder into a remote location
          *
-         * Determined by the selected period several backups will be stored in the selected locations
+         * Determined by the selected period several backups will be stored in the selected location
+         * If a backup with the same local folder and remote location exists, its parameters will be updated
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_BACKUP
          * Valid data in the MegaRequest object received on callbacks:
@@ -8412,7 +8417,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          */
-        void startBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Remove a backup

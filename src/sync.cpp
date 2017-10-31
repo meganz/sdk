@@ -1181,7 +1181,7 @@ bool Sync::movetolocaldebris(string* localpath)
     size_t t = localdebris.size();
     char buf[32];
     time_t ts = time(NULL);
-    struct tm* ptm = localtime(&ts);
+    struct tm* ptm = localtime(&ts); //TODO: this ain't thread safe (see MegaApiImpl::fillLocalTimeStruct)
     string day, localday;
     bool havedir = false;
 

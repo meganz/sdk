@@ -4354,6 +4354,29 @@ void MegaApiImpl::setStatsID(const char *id)
     MegaClient::statsid = MegaApi::strdup(id);
 }
 
+void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
+{
+#if __cplusplus >= 201103L
+    localtime_s(ttime, dt);
+#elif _MSC_VER >= 1400 // MSVCRT (2005+): std::localtime is threadsafe
+    *dt = *localtime_r(&ttime);
+#elif _WIN32
+    static MegaMutex * mtx = new MegaMutex();
+    static bool initiated = false;
+    if (!initiated)
+    {
+        mtx->init(true);
+        initiated = true;
+    }
+    mtx->lock();
+    struct tm *newtm = localtime(ttime);
+    *dt = *newtm;
+    mtx->unlock();
+#else //POSIX
+    localtime_r(ttime, dt);
+#endif
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -6189,7 +6212,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     return backupFolders;
 }
 
-void MegaApiImpl::startBackup(const char* localFolder, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
     if(parent) request->setNodeHandle(parent->getHandle());
@@ -12342,7 +12365,7 @@ void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaE
 
 void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
 {
-//    notificationNumber++; //TODO: what is this for
+//    notificationNumber++; //TODO: should we use notificationNumber for backups??
 
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
@@ -16040,7 +16063,7 @@ void MegaApiImpl::sendPendingRequests()
                 string speriod = request->getText();
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
                                                                      request->getFile(), speriod.c_str(), request->getNumber(), request->getNumRetry());
-                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in startBackup?
+                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setBackup?
                 if (mbc->isValid())
                 {
                     backupsMap[tag] = mbc;
@@ -18501,6 +18524,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     this->megaApi = megaApi;
     this->client = megaApi->getMegaClient();
 
+    this->attendPastBackups = true;
+
     clearCurrentBackupData();
 
     lastbackuptime = getLastBackupTime();
@@ -18526,6 +18551,10 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
         megaApi->fireOnBackupStateChanged(this);
 
         removeexceeding();
+    }
+    else
+    {
+        this->state = MegaBackup::BACKUP_FAILED;;
     }
 }
 
@@ -18566,15 +18595,14 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
     this->totalFiles = backup->totalFiles;
     this->numberFolders = backup->numberFolders;
 
-    //TODO: do use setters??? they do extra stuff
-    this->setOffsetds(backup->getOffsetds());
-    this->setLastbackuptime(backup->getLastBackupTime());
-    this->setState(backup->getState());
-    this->setStartTime(backup->getStartTime());
-    this->setPeriod(backup->getPeriod());
-    this->setCcronexpr(backup->getCcronexpr());
-    this->setPeriodstring(backup->getPeriodString());
-    this->setValid(backup->isValid());
+    this->offsetds=backup->getOffsetds();
+    this->lastbackuptime=backup->getLastBackupTime();
+    this->state=backup->getState();
+    this->startTime=backup->getStartTime();
+    this->period=backup->getPeriod();
+    this->ccronexpr=backup->getCcronexpr();
+    this->periodstring=backup->getPeriodString();
+    this->valid=backup->isValid();
 
     this->setLocalFolder(backup->getLocalFolder());
     this->setBackupName(backup->getBackupName());
@@ -18599,7 +18627,7 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
 {
     if (oldStartTimeds == -1)
     {
-        oldStartTimeds = startTime;
+        return startTime;
     }
     if (period != -1)
     {
@@ -18615,15 +18643,7 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
 
         time_t newt = cron_next((cron_expr *)&ccronexpr, current);
         long long newStarTimeds = newt*10-offsetds;
-        if (newStarTimeds > oldStartTimeds)
-        {
-            return newStarTimeds;
-        }
-        else
-        {
-            LOG_err << "Invalid calculated NextStartTime" ;
-            return -1; //TODO: deal with this value error and do not ever start
-        }
+        return newStarTimeds;
     }
 }
 
@@ -18631,11 +18651,10 @@ void MegaBackupController::update()
 {
     if (!valid)
     {
-        return;
-    }
-    if (startTime < 0)
-    {
-        LOG_err << "Backup not updated due to invalid startTime";
+        if (!isBusy())
+        {
+            state = BACKUP_FAILED;
+        }
         return;
     }
     if (Waiter::ds > startTime)
@@ -18643,6 +18662,14 @@ void MegaBackupController::update()
         if (!isBusy())
         {
             long long nextStartTime = getNextStartTimeDs(startTime);
+            if (nextStartTime <= startTime)
+            {
+                LOG_err << "Invalid calculated NextStartTime" ;
+                valid = false;
+                state = BACKUP_FAILED;
+                return;
+            }
+
             if (nextStartTime > Waiter::ds)
             {
                 start();
@@ -18650,7 +18677,7 @@ void MegaBackupController::update()
             else
             {
                 LOG_warn << " BACKUP discarded (too soon, time for the next): " << basepath;
-                //TODO: mark as SKIPPED. Where? folder does not exist yet!!
+                start(true);
                 megaApi->startTimer(1); //wake sdk
             }
 
@@ -18699,7 +18726,8 @@ void MegaBackupController::removeexceeding()
                 {
                     const char *backstvalue = childNode->getCustomAttr("BACKST");
 
-                    if (!backstvalue || (!strcmp(backstvalue,"ONGOING") && childNode->getHandle() != currentHandle) )
+//                    if ((!backstvalue || (!strcmp(backstvalue,"ONGOING") ) && childNode->getHandle() != currentHandle) )
+                    if ((backstvalue && (!strcmp(backstvalue,"ONGOING") ) && childNode->getHandle() != currentHandle) )
                     {
                         LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status to MISCARRIED";
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
@@ -18949,17 +18977,17 @@ void MegaBackupController::setState(int value)
 
 bool MegaBackupController::isBusy() const
 {
-    return (state == MegaBackup::BACKUP_ONGOING) || (state == MegaBackup::BACKUP_REMOVING_EXCEEDING);
+    return (state == BACKUP_ONGOING) || (state == BACKUP_REMOVING_EXCEEDING || (state == BACKUP_SKIPPING));
 }
-
 
 std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
 {
-    struct tm * dt;
+    struct tm dt;
     char buffer [40];
     time_t rawtime = rawtimeds/10;
-    dt = localtime(&rawtime);
-    strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", dt);
+    megaApi->fillLocalTimeStruct(&rawtime, &dt); //Notice this is not thread safe
+
+    strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 
     return std::string(buffer);
 }
@@ -18997,7 +19025,7 @@ void MegaBackupController::clearCurrentBackupData()
 }
 
 
-void MegaBackupController::start()
+void MegaBackupController::start(bool skip)
 {
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTimeDs(startTime)-offsetds << " ds" ;
     clearCurrentBackupData();
@@ -19028,7 +19056,14 @@ void MegaBackupController::start()
     }
     else
     {
-        state = BACKUP_ONGOING;
+        if (skip)
+        {
+            state = BACKUP_SKIPPING;
+        }
+        else
+        {
+            state = BACKUP_ONGOING;
+        }
         megaApi->fireOnBackupStateChanged(this);
 
         string path = basepath;
@@ -19059,7 +19094,14 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     if(currentHandle == UNDEF)//main folder of the backup instance
     {
         currentHandle = handle;
-        megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
+        if (state == BACKUP_ONGOING)
+        {
+            megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
+        }
+        else
+        {
+            megaApi->setCustomNodeAttribute(parent, "BACKST", "SKIPPED", this);
+        }
     }
     else
     {
@@ -19127,9 +19169,13 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
         delete da;
     }
+    else if (state == BACKUP_SKIPPING)
+    {
+        //do nth
+    }
     else
     {
-        LOG_warn << " Folder created while not ONGOING "; //TODO: add extra info
+        LOG_warn << " Backup folder created while not ONGOING: " << localPath;
     }
 
     delete parent;
@@ -19151,7 +19197,7 @@ bool MegaBackupController::checkCompletion()
             {
                 megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this); //TODO: review attr values
             }
-            else
+            else if (state != BACKUP_SKIPPING)
             {
                 megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
             }
@@ -19166,7 +19212,11 @@ bool MegaBackupController::checkCompletion()
         megaApi->fireOnBackupFinish(this, MegaError(API_OK));
         megaApi->fireOnBackupStateChanged(this);
 
+        //TODO: this will be executed before setCustomNodeAttribute is actually executed for older skipped ones.
+        // hence its checks for BACKST attribute will fail
+        // manage state changing attribute?? this could be hazardous
         removeexceeding();
+
         return true;
     }
     return false;
@@ -19198,6 +19248,10 @@ void MegaBackupController::abortCurrent()
 
     state = BACKUP_ACTIVE;
     megaApi->fireOnBackupStateChanged(this);
+    if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+    {
+        megaApi->fireOnBackupFinish(this, MegaError(API_EINCOMPLETE));
+    }
 
 
     MegaNode *node = megaApi->getNodeByHandle(currentHandle);
@@ -19351,7 +19405,6 @@ void MegaBackupController::setPeriodstring(const string &value)
 
         if (err != NULL)
         {
-            state = BACKUP_FAILED;
             valid = false;
             return;
         }
@@ -19369,8 +19422,10 @@ void MegaBackupController::setPeriodstring(const string &value)
             this->startTime = this->getNextStartTimeDs(lastbackuptime-offsetds);
             LOG_debug << " Next Backup set in " << startTime - wds << " deciseconds" ;
         }
-        if (this->startTime < Waiter::ds)
+        if (this->startTime < Waiter::ds && !attendPastBackups)
+        {
             this->startTime = Waiter::ds;
+        }
 
     }
 }
