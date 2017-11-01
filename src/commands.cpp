@@ -164,7 +164,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
         arg("ssl", 2);
     }
 
-	arg("r", 1);
+    arg("r", 1);
 }
 
 void CommandGetFA::procresult()
@@ -468,6 +468,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+    arg("v", 2);  // version 2: server can supply details for cloudraid files
 
     if (client->usehttps)
     {
@@ -543,7 +544,21 @@ void CommandGetFile::procresult()
         switch (client->json.getnameid())
         {
             case 'g':
-                client->json.storeobject(tslot ? &tslot->tempurl : NULL);
+                tslot->tempurls.clear();  // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                tslot->tempurl.clear();
+                if (client->json.enterarray())
+                {
+                    for (;;) {
+                        std::string tu;
+                        if (!client->json.storeobject(&tu))
+                            break;
+                        else if (tslot)
+                            tslot->tempurls.push_back(tu);
+                    }
+                    client->json.leavearray();
+                }
+                else
+                    client->json.storeobject(tslot ? &tslot->tempurl : NULL);
                 e = API_OK;
                 break;
 
@@ -690,7 +705,13 @@ void CommandGetFile::procresult()
 
                                         if (tslot->tempurl.size() && s >= 0)
                                         {
+                                            tslot->transferbuf.setIsRaid(false, tslot->transfer);
                                             return tslot->progress();
+                                        }
+                                        else if (tslot->tempurls.size() == RAIDPARTS && s >= 0)
+                                        {
+                                            tslot->transferbuf.setIsRaid(true, tslot->transfer);  // starting raid download
+                                            return tslot->progress();   
                                         }
 
                                         if (e == API_EOVERQUOTA && !tl)

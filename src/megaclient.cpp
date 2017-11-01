@@ -31,7 +31,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+string MegaClient::APIURL = "https://staging.api.mega.co.nz/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
@@ -2816,6 +2816,8 @@ bool MegaClient::dispatch(direction_t d)
 
                 if (d == PUT)
                 {
+                    ts->transferbuf.setIsRaid(false, ts->transfer);
+
                     if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
                     {
                         LOG_warn << "Modification detected starting upload";

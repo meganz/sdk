@@ -25,6 +25,7 @@
 #include "http.h"
 #include "node.h"
 #include "backofftimer.h"
+#include "raid.h"
 
 namespace mega {
 // active transfer
@@ -71,18 +72,27 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // storage server access URL
+    // storage server access URL for non-raid
     string tempurl;
 
-    // maximum number of parallel connections and connection aray
+    // storage server access URLs for raid download.  If this is populated then it has 6 entries, and tempurl is empty.
+    std::vector<string> tempurls;
+
+    // maximum number of parallel connections and connection array
     int connections;
     HttpReqXfer** reqs;
+
+    // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
+    TransferBufferManager transferbuf;
 
     // async IO operations
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
     void doio(MegaClient*);
+
+    // helper for doio to delay connection creation until we know if it's raid or non-raid
+    bool createconnectionsonce();
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
