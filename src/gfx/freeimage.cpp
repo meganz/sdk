@@ -150,6 +150,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
             if (bpp != 24) {
                 if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
                     FreeImage_Unload(dib);
+                    dib = tdib;
                     return 0;
                 }
                 FreeImage_Unload(dib);
