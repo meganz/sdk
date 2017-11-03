@@ -58,8 +58,6 @@ GfxProcCG::~GfxProcCG() {
     }
 }
 
-extern const char *__progname;
-
 const char* GfxProcCG::supportedformats() {
     return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.heic.";
 }
@@ -197,11 +195,6 @@ int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
 
 bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
     if (!imageSource) {
-        return false;
-    }
-    
-    // Don't generate previews with the File Provider to avoid crashes due to memory limitations
-    if (rh && strcmp(((char *)__progname), "MEGAPickerFileProvider")==0) {
         return false;
     }
 
