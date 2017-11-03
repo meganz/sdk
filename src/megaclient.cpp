@@ -9336,6 +9336,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
+        fnstats.cache = FetchNodesStats::API_NO_CACHE;
         fnstats.nodesCached = nodes.size();
         fnstats.timeToCached = Waiter::ds - fnstats.startTime;
         fnstats.timeToResult = fnstats.timeToCached;
@@ -9356,6 +9357,7 @@ void MegaClient::fetchnodes(bool nocache)
     else if (!fetchingnodes)
     {
         fnstats.mode = FetchNodesStats::MODE_API;
+        fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
 
         // prevent the processing of previous sc requests
@@ -11926,6 +11928,7 @@ void FetchNodesStats::init()
 {
     mode = MODE_NONE;
     type = TYPE_NONE;
+    cache = API_NONE;
     nodesCached = 0;
     nodesCurrent = 0;
     actionPackets = 0;
@@ -11958,7 +11961,7 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToFirstByte << "," << timeToLastByte << ","
         << timeToCached << "," << timeToResult << ","
         << timeToSyncsResumed << "," << timeToCurrent << ","
-        << timeToTransfersResumed << "]";
+        << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
 }
 
