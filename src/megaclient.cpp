@@ -2768,7 +2768,7 @@ bool MegaClient::dispatch(direction_t d)
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nexttransfer->cachedtempurl.size())
+                if (d == GET || nexttransfer->cachedtempurls.size())
                 {
                     m_off_t p = 0;
 
@@ -2816,7 +2816,6 @@ bool MegaClient::dispatch(direction_t d)
 
                 if (d == PUT)
                 {
-                    ts->transferbuf.setIsRaid(false, ts->transfer);
 
                     if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
                     {
@@ -2858,11 +2857,11 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nexttransfer->cachedtempurl.size())
+                if (!nexttransfer->cachedtempurls.empty())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->tempurl =  nexttransfer->cachedtempurl;
-                    nexttransfer->cachedtempurl.clear();
+                    ts->transferbuf.setIsRaid(nexttransfer->cachedtempurls.size() == RAIDPARTS, nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos);
+                    nexttransfer->cachedtempurls.clear();
                 }
                 else
                 {
@@ -11471,7 +11470,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->cachedtempurl.clear();
+                    t->cachedtempurls.clear();
 
                     if (d == PUT)
                     {
@@ -11508,7 +11507,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                         if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
-                            t->cachedtempurl.clear();
+                            t->cachedtempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -11653,7 +11652,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
                     slot->transfer->bt.arm();
-                    slot->transfer->cachedtempurl = slot->tempurl;
+                    slot->transfer->cachedtempurls = slot->transferbuf.tempUrlVector();
                     delete slot;
                 }
             }

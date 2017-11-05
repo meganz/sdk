@@ -124,7 +124,7 @@ bool TransferSlot::createconnectionsonce()
     if (connections != 0 || reqs != nullptr || asyncIO != nullptr)
         return true;  // already done
 
-    if (tempurl.empty() && tempurls.empty())
+    if (transferbuf.tempUrlVector().empty())
         return false;   // too soon, we don't know raid / non-raid yet
 
     connections = transferbuf.isRaid() ? RAIDPARTS : (transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1);
@@ -645,7 +645,7 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_verbose << "Async read succeeded";
                                 m_off_t npos = ChunkedHash::chunkceil(asyncIO[i]->pos, transfer->size);
 
-                                string finaltempurl = transferbuf.isRaid() ? tempurls[i] : tempurl;
+                                string finaltempurl = transferbuf.tempURL(i);
                                 if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
                                 {
                                     size_t index = finaltempurl.find("/", 8);
@@ -800,13 +800,13 @@ void TransferSlot::doio(MegaClient* client)
                             failure = true;
                             bool changeport = false;
 
-                            if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
+                            if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing download port";
                                 client->usealtdownport = !client->usealtdownport;
                                 changeport = true;
                             }
-                            else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
+                            else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing upload port";
                                 client->usealtupport = !client->usealtupport;
@@ -925,7 +925,7 @@ void TransferSlot::doio(MegaClient* client)
 
                     if (prepare)
                     {
-                        string finaltempurl = transferbuf.isRaid() ? tempurls[i] : tempurl;
+                        string finaltempurl = transferbuf.tempURL(i);
                         if (transfer->type == GET && client->usealtdownport
                                 && !memcmp(finaltempurl.c_str(), "http:", 5))
                         {
@@ -1012,13 +1012,13 @@ void TransferSlot::doio(MegaClient* client)
         failure = true;
         bool changeport = false;
 
-        if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
+        if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
         {
-            LOG_debug << "Automatically changing download port due to a timeout";
+            LOG_debug << "Automatically changing download port due to a timeout";   // todo: should this be per connection for raid, or keep the same logic?
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
         }
-        else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
+        else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
         {
             LOG_debug << "Automatically changing upload port due to a timeout";
             client->usealtupport = !client->usealtupport;

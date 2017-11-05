@@ -159,18 +159,18 @@ bool Transfer::serialize(string *d)
         d->append((const char*)&hasUltoken, sizeof(char));
     }
 
-    if (slot)
+    // store raid URL string(s) in the same record as non-raid, 0-delimited in the case of raid
+    const std::vector<std::string>& urls = slot ? slot->transferbuf.tempUrlVector() : cachedtempurls;
+    std::string combinedUrls;
+    for (std::vector<std::string>::const_iterator i = urls.begin(); i != urls.end(); ++i)
     {
-        ll = (unsigned short)slot->tempurl.size();
-        d->append((char*)&ll, sizeof(ll));
-        d->append(slot->tempurl.data(), ll);
+        if (i != urls.begin())
+            combinedUrls.append("", 1); // '\0' separator
+        combinedUrls.append(*i);
     }
-    else
-    {
-        ll = (unsigned short)cachedtempurl.size();
-        d->append((char*)&ll, sizeof(ll));
-        d->append(cachedtempurl.data(), ll);
-    }
+    ll = (unsigned short)combinedUrls.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(combinedUrls.data(), ll);
 
     char s = state;
     d->append((const char*)&s, sizeof(s));
@@ -220,7 +220,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    byte key[SymmCipher::KEYLENGTH];
     memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
@@ -305,7 +304,21 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         return NULL;
     }
 
-    t->cachedtempurl.assign(ptr, ll);
+    std::string combinedUrls;
+    combinedUrls.assign(ptr, ll);
+    for (size_t p = 0; p < ll; )
+    {
+        size_t n = combinedUrls.find('\0');
+        t->cachedtempurls.push_back(combinedUrls.substr(p, n));
+        assert(!t->cachedtempurls.back().empty());
+        p += (n == std::string::npos) ? ll : (n + 1);
+    }
+    if (!t->cachedtempurls.empty() && t->cachedtempurls.size() != 1 && t->cachedtempurls.size() != RAIDPARTS)
+    {
+        LOG_err << "Transfer unserialization failed - temp URL incorrect components";
+        delete t;
+        return NULL;
+    }
     ptr += ll;
 
     char state = MemAccess::get<char>(ptr);
@@ -388,7 +401,7 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    cachedtempurl.clear();
+    cachedtempurls.clear();
     if (type == PUT)
     {
         chunkmacs.clear();
@@ -1625,8 +1638,9 @@ error TransferList::pause(Transfer *transfer, bool enable)
         if (transfer->slot)
         {
             transfer->bt.arm();
-            transfer->cachedtempurl = transfer->slot->tempurl;
-            delete transfer->slot;
+            transfer->cachedtempurls = transfer->slot->transferbuf.tempUrlVector();
+            delete transfer->slot;  
+            transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
         client->transfercacheadd(transfer);
@@ -1713,8 +1727,9 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
         if (lastActiveTransfer)
         {
             lastActiveTransfer->bt.arm();
-            lastActiveTransfer->cachedtempurl = lastActiveTransfer->slot->tempurl;
-            delete lastActiveTransfer->slot;
+            lastActiveTransfer->cachedtempurls = lastActiveTransfer->slot->transferbuf.tempUrlVector();
+            delete lastActiveTransfer->slot; 
+            lastActiveTransfer->slot = NULL;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer);
             client->app->transfer_update(lastActiveTransfer);
@@ -1732,8 +1747,9 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
             if (!(*cit)->slot && isReady(*cit))
             {
                 transfer->bt.arm();
-                transfer->cachedtempurl = (*it)->slot->tempurl;
-                delete transfer->slot;
+                transfer->cachedtempurls = (*it)->slot->transferbuf.tempUrlVector();
+                delete transfer->slot; 
+                transfer->slot = NULL;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;
             }

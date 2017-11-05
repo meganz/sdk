@@ -330,19 +330,22 @@ void CommandPutFile::procresult()
         return;
     }
 
+    std::vector<std::string> tempurls;
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &tslot->tempurl);
+                tempurls.push_back("");
+                client->json.storeobject(canceled ? NULL : &tempurls.back());
                 break;
 
             case EOO:
                 if (canceled) return;
 
-                if (tslot->tempurl.size())
+                if (tempurls.size() == 1)
                 {
+                    tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
                 }
@@ -538,27 +541,33 @@ void CommandGetFile::procresult()
     string fileattrstring;
     string filenamestring;
     string filefingerprint;
+    std::vector<string> tempurls;
 
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'g':
-                tslot->tempurls.clear();  // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
-                tslot->tempurl.clear();
-                if (client->json.enterarray())
+                if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                 {
                     for (;;) {
                         std::string tu;
                         if (!client->json.storeobject(&tu))
+                        {
                             break;
-                        else if (tslot)
-                            tslot->tempurls.push_back(tu);
+                        }
+                        tempurls.push_back(tu);
                     }
                     client->json.leavearray();
                 }
                 else
-                    client->json.storeobject(tslot ? &tslot->tempurl : NULL);
+                {
+                    std::string tu;
+                    if (client->json.storeobject(&tu))
+                    {
+                        tempurls.push_back(tu);
+                    }
+                }
                 e = API_OK;
                 break;
 
@@ -703,14 +712,14 @@ void CommandGetFile::procresult()
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tslot->tempurl.size() && s >= 0)
+                                        if (tempurls.size() == 1 && s >= 0)
                                         {
-                                            tslot->transferbuf.setIsRaid(false, tslot->transfer);
+                                            tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos);
                                             return tslot->progress();
                                         }
-                                        else if (tslot->tempurls.size() == RAIDPARTS && s >= 0)
+                                        else if (tempurls.size() == RAIDPARTS && s >= 0)
                                         {
-                                            tslot->transferbuf.setIsRaid(true, tslot->transfer);  // starting raid download
+                                            tslot->transferbuf.setIsRaid(true, tslot->transfer, tempurls, tslot->transfer->pos);  // starting raid download
                                             return tslot->progress();   
                                         }
 

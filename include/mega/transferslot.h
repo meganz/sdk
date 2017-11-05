@@ -72,12 +72,6 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // storage server access URL for non-raid
-    string tempurl;
-
-    // storage server access URLs for raid download.  If this is populated then it has 6 entries, and tempurl is empty.
-    std::vector<string> tempurls;
-
     // maximum number of parallel connections and connection array
     int connections;
     HttpReqXfer** reqs;

@@ -51,8 +51,10 @@ namespace mega {
             void swap(FilePiece& other);
         };
 
+        // call this before starting a transfer. Extracts the vector content
+        void setIsRaid(bool b, Transfer* transfer, std::vector<std::string>& tempUrls, m_off_t resumepos);
 
-        void setIsRaid(bool b, Transfer* transfer);
+        // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid();
 
         // pass a downloaded buffer to the manager, pre-decryption.  Takes ownership of the buffer 
@@ -64,11 +66,19 @@ namespace mega {
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
         void bufferWriteCompleted(unsigned connectionNum);
 
+        // temp URL to use on a given connection.  The same on all connections for a non-raid file.
+        const std::string& tempURL(unsigned connectionNum);
+
+        // reference to the tempurls.  Useful for caching raid and non-raid
+        const std::vector<std::string>& tempUrlVector() const;
+
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
         m_off_t transferPos(unsigned connectionNum);
+
+        // Return the size of a particluar part of the file, for raid.  Or for non-raid the size of the whole wile.
         m_off_t transferSize(unsigned connectionNum);
-        void setTransferPos(m_off_t newpos, unsigned connectionNum);
-        void incrementTransferPos(m_off_t offset, unsigned connectionNum);
+
+        // Increment the file position in a way that works for raid and non-raid
         void transferPosUpdateMinimum(m_off_t minpos, unsigned connectionNum);
 
         // get the next pos to start transferring from/to on this connection
@@ -86,6 +96,10 @@ namespace mega {
         bool is_raid;
         bool raidKnown;
 
+        // storage server access URLs.  It either has 6 entries for a raid file, or 1 entry for a non-raid file, or empty if we have not looked up a tempurl yet.
+        std::vector<std::string> tempurls;
+        static std::string emptyReturnString;
+
         m_off_t raidrequestpartpos[RAIDPARTS];                  // for raid, how far through the raid part we are currently
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];       // for raid, the http requested data before combining
         std::map<unsigned, FilePiece*> asyncoutputbuffers;      // the data to output currently, per connection, raid and non-raid.  re-accessible in case retries are needed
@@ -93,6 +107,7 @@ namespace mega {
 
         m_off_t raidpartspos;
         m_off_t outputfilepos;
+        size_t resumewastedbytes;
 
         void combineRaidParts(unsigned connectionNum);
         FilePiece* combineRaidParts(size_t partslen, size_t bufflen, m_off_t filepos, FilePiece& prevleftoverchunk);
