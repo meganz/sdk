@@ -128,6 +128,8 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
     if (!w || !h) return false;
 
+    if (dib == NULL) return false;
+
     transform(w, h, rw, rh, px, py);
 
     if (!w || !h) return false;
@@ -182,6 +184,9 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcFreeImage::freebitmap()
 {
-    FreeImage_Unload(dib);
+    if (dib != NULL)
+    {
+        FreeImage_Unload(dib);
+    }
 }
 } // namespace
