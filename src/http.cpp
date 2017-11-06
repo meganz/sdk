@@ -500,6 +500,11 @@ void HttpReq::http_buf_t::swap(http_buf_t& other)
     size_t te = end; end = other.end; other.end = te;
 }
 
+bool HttpReq::http_buf_t::isNull()
+{
+    return buf == NULL;
+}
+
 byte* HttpReq::http_buf_t::datastart()
 { 
     return buf + start; 

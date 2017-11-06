@@ -62,6 +62,7 @@ namespace mega {
 
         // get the file output data to write to the filesystem, on the asyncIO associated with a particular connection (or synchronously).  Buffer ownership is retained here.
         FilePiece* getAsyncOutputBufferPointer(unsigned connectionNum);
+        FilePiece* getAnySubsequentAsyncOutputBufferPointer(unsigned connectionNum);
 
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
         void bufferWriteCompleted(unsigned connectionNum);
@@ -81,14 +82,21 @@ namespace mega {
         // Increment the file position in a way that works for raid and non-raid
         void transferPosUpdateMinimum(m_off_t minpos, unsigned connectionNum);
 
-        // get the next pos to start transferring from/to on this connection
-        m_off_t nextTransferPos(unsigned connectionNum);
+        // Get the file position to upload/download to on the specified connection
+        m_off_t nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& skipForRaid);
 
         // calculate the exact size of each of the 6 parts of a raid file.  Some may not have a full last sector
         static m_off_t raidPartSize(unsigned part, m_off_t fullfilesize);
 
         TransferBufferManager();
         ~TransferBufferManager();
+
+
+        // parameters to control raid download
+
+        enum { RaidLinesPerChunk = 16 * 1024 };
+        enum { MaxChunksPerRead = 5 };
+
 
     private:
 
@@ -111,9 +119,14 @@ namespace mega {
 
         void combineRaidParts(unsigned connectionNum);
         FilePiece* combineRaidParts(size_t partslen, size_t bufflen, m_off_t filepos, FilePiece& prevleftoverchunk);
+        void recoverSectorFromParity(byte* dest, byte const* inputbufs[], unsigned offset);
 
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r);
+
+        // get the next pos to start transferring from/to on this connection
+        m_off_t nextTransferPos(unsigned connectionNum);
+
     };
 
 

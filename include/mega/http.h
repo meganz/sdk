@@ -270,6 +270,7 @@ struct MEGA_API HttpReq
         http_buf_t(byte* b, size_t s, size_t e);  // takes ownership of the byte*, which must have been allocated with new[]
         ~http_buf_t();
         void swap(http_buf_t& other);
+        bool isNull();
     private: 
         byte* buf;
     private:

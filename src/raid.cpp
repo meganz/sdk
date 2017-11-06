@@ -35,7 +35,7 @@ namespace mega
     
     TransferBufferManager::FilePiece::FilePiece(m_off_t p, size_t len) 
         : pos(p)
-        , buf(new byte[len + SymmCipher::BLOCKSIZE], 0, len)   // SymmCipher::ctr_crypt requirement: decryption: data must be padded to BLOCKSIZE
+        , buf(new byte[len + std::min<size_t>(SymmCipher::BLOCKSIZE, RAIDSECTOR)], 0, len)   // SymmCipher::ctr_crypt requirement: decryption: data must be padded to BLOCKSIZE.  Also make sure we can xor up to RAIDSECTOR more for convenience
     {
     }   
     
@@ -161,6 +161,16 @@ namespace mega
         return (i == asyncoutputbuffers.end()) ? NULL : i->second;
     }
 
+    TransferBufferManager::FilePiece* TransferBufferManager::getAnySubsequentAsyncOutputBufferPointer(unsigned connectionNum)
+    {
+        if (isRaid() && getAsyncOutputBufferPointer(connectionNum) == NULL)
+        {
+            combineRaidParts(connectionNum);
+            return getAsyncOutputBufferPointer(connectionNum);
+        }
+        return NULL;
+    }
+
 
     void TransferBufferManager::bufferWriteCompleted(unsigned connectionNum)
     {
@@ -239,6 +249,74 @@ namespace mega
         }
     }
 
+    m_off_t TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& skipForRaid)
+    {
+        skipForRaid = false;
+        if (!isRaid())
+        {
+            m_off_t npos = ChunkedHash::chunkceil(nextTransferPos(connectionNum), transferSize(connectionNum));
+
+            if (transfer->type == GET && transfer->size)
+            {
+                m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
+                if (maxReqSize > maxDownloadRequestSize)
+                {
+                    maxReqSize = maxDownloadRequestSize;
+                }
+
+                if (maxReqSize > 0x100000)
+                {
+                    m_off_t val = 0x100000;
+                    while (val <= maxReqSize)
+                    {
+                        val <<= 1;
+                    }
+                    maxReqSize = val >> 1;
+                    maxReqSize -= 0x100000;
+                }
+                else
+                {
+                    maxReqSize = 0;
+                }
+
+                chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
+                m_off_t reqSize = npos - transferPos(connectionNum);
+                while (npos < transferSize(connectionNum)
+                    && reqSize <= maxReqSize
+                    && (it == transfer->chunkmacs.end()
+                        || (!it->second.finished && !it->second.offset)))
+                {
+                    npos = ChunkedHash::chunkceil(npos, transferSize(connectionNum));
+                    reqSize = npos - transferPos(connectionNum);
+                    it = transfer->chunkmacs.find(npos);
+                }
+                LOG_debug << "Downloading chunk of size " << reqSize << " on connection " << connectionNum;
+            }
+            return npos;
+        }
+        else  // raid
+        {
+            m_off_t curpos = transferPos(connectionNum);
+            m_off_t skipPointBlockPos = curpos - (curpos % (RaidLinesPerChunk * RAIDSECTOR * RAIDPARTS));
+            m_off_t skipPoint = skipPointBlockPos + connectionNum * RaidLinesPerChunk * RAIDSECTOR;
+            m_off_t npos;
+            if (curpos < skipPoint)
+            {
+                npos = skipPoint;
+            }
+            else if (curpos < skipPoint + RaidLinesPerChunk * RAIDSECTOR)
+            {
+                skipForRaid = true;
+                npos = skipPoint + RaidLinesPerChunk * RAIDSECTOR;
+            }
+            else
+            {
+                npos = skipPoint + RaidLinesPerChunk * RAIDSECTOR * RAIDPARTS;
+            }
+            return std::min<m_off_t>(npos, transferSize(connectionNum));
+        }
+    }
+
     m_off_t TransferBufferManager::transferSize(unsigned connectionNum)
     {
         if (isRaid())
@@ -278,7 +356,7 @@ namespace mega
         assert(!asyncoutputbuffers[connectionNum]);
         assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + leftoverchunk.buf.datalen());
 
-        size_t partslen = 0x10000000, suminputlen = 0;
+        size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
         for (unsigned i = RAIDPARTS; i--; )
         {
             if (raidinputparts[i].empty())
@@ -290,45 +368,49 @@ namespace mega
                 FilePiece& r = *raidinputparts[i].front();
                 assert(r.pos + r.buf.start == raidpartspos);  // check all are in sync at the front 
                 partslen = std::min<size_t>(partslen, r.buf.datalen());
-                if (i > 0)
-                {
-                    suminputlen += r.buf.datalen();
-                }
+                (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
             }
         }
 
-        // for correct mac processing, we need to process the output file in pieces delimied by the chunkfloor / chunkceil algorithm
+        // for correct mac processing, we need to process the output file in pieces delimited by the chunkfloor / chunkceil algorithm
         m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
-        assert(newdatafilepos + suminputlen <= transfer->size);
-        bool processToEndOfFile = newdatafilepos + suminputlen == transfer->size   // if we are getting all the remaining data to the end of the file then no need to break it up
-                    && partslen*(RAIDPARTS - 1) + RAIDLINE >= suminputlen;  // wait for part 0 to arrive also, until proper raid
+        assert(newdatafilepos + sumdatalen <= transfer->size);
+        bool processToEndOfFile =  newdatafilepos + sumdatalen == transfer->size   // if we are getting all the remaining data to the end of the file then no need to break it up
+                                && (xorlen - partslen) == std::min<m_off_t>(transfer->size - newdatafilepos - partslen*(RAIDPARTS - 1), RAIDSECTOR)
+                                && partslen*(RAIDPARTS - 1) + RAIDLINE >= sumdatalen;  
 
         if (partslen > 0 || processToEndOfFile)
         {
             m_off_t macchunkpos = ChunkedHash::chunkfloor(newdatafilepos + partslen * (RAIDPARTS - 1));
             
-            size_t buflen = static_cast<size_t>(processToEndOfFile ? suminputlen : partslen * (RAIDPARTS - 1));
+            size_t buflen = static_cast<size_t>(processToEndOfFile ? sumdatalen : partslen * (RAIDPARTS - 1));
             FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
             raidpartspos += partslen;
-            suminputlen -= partslen * (RAIDPARTS - 1);
+            LOG_debug << "raidpartspos: " << raidpartspos;
+            sumdatalen -= partslen * (RAIDPARTS - 1);
             outputfilepos += partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
+            byte* dest = outputrec->buf.datastart() + partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
             leftoverchunk.swap(FilePiece());  // this data is entirely included in the outputrec now, so discard and reset
 
-            if (processToEndOfFile && suminputlen > 0)
+            if (processToEndOfFile && sumdatalen > 0)
             {
                 // fill in the last of the buffer with non-full sectors from the end of the file
-                assert(outputfilepos + suminputlen == transfer->size);
-                byte* dest = outputrec->buf.datastart() + partslen * (RAIDPARTS - 1);
-                for (int j = 1; j < RAIDPARTS; ++j)
+                assert(outputfilepos + sumdatalen == transfer->size);
+                byte const* inputbufs[RAIDPARTS];
+                for (unsigned j = RAIDPARTS; j--; )
                 {
-                    if (!raidinputparts[j].empty())
-                    {
-                        FilePiece& ip = *raidinputparts[j].front();
-                        memcpy(dest, ip.buf.datastart(), ip.buf.datalen());
-                        dest += ip.buf.datalen();
-                    }
+                    inputbufs[j] = raidinputparts[j].empty() || raidinputparts[j].front()->buf.isNull() ? NULL : raidinputparts[j].front()->buf.datastart();
                 }
-                assert(dest - outputrec->buf.datastart() == outputrec->buf.datalen());
+                for (unsigned j = 1; j < RAIDPARTS && sumdatalen > 0; ++j)
+                {
+                    unsigned n = std::min<unsigned>(RAIDSECTOR, sumdatalen);
+                    if (inputbufs[j])
+                        memcpy(dest, inputbufs[j], n);
+                    else
+                        recoverSectorFromParity(dest, inputbufs, 0);  // this one may write RAIDSECTOR bytes but the buffer is big enough
+                    dest += n;
+                    sumdatalen -= n;
+                }
             }
             else if (!processToEndOfFile && outputfilepos > macchunkpos)
             {
@@ -342,9 +424,6 @@ namespace mega
             }
 
             // discard any excess data that we had to fetch when resuming a file (to align the parts appropriately)
-            extern std::unique_ptr<byte[]> compareDecryptedData;
-            extern std::unique_ptr<byte[]> compareEncryptedData;
-            auto oldrwb = resumewastedbytes;
             size_t n = std::min<size_t>(outputrec->buf.datalen(), resumewastedbytes);
             if (n > 0)
             {
@@ -385,7 +464,8 @@ namespace mega
             byte const* inputbufs[RAIDPARTS];
             for (unsigned i = RAIDPARTS; i--; )
             {
-                inputbufs[i] = raidinputparts[i].front()->buf.datastart();
+                FilePiece* inputPiece = raidinputparts[i].front();
+                inputbufs[i] = inputPiece->buf.isNull() ? NULL : inputPiece->buf.datastart();
             }
 
             for (unsigned i = 0; i + RAIDSECTOR - 1 < partslen; i += RAIDSECTOR)
@@ -393,7 +473,10 @@ namespace mega
                 for (unsigned j = 1; j < RAIDPARTS; ++j)
                 {
                     assert(i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR + RAIDSECTOR <= result->buf.datalen());
-                    memcpy(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs[j] + i, RAIDSECTOR);
+                    if (inputbufs[j])
+                        memcpy(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs[j] + i, RAIDSECTOR);
+                    else
+                        recoverSectorFromParity(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs, i);
                 }
             }
 
@@ -406,10 +489,33 @@ namespace mega
                 {
                     delete raidinputparts[i].front();
                     raidinputparts[i].pop_front();
-                }
+                } 
             }
         }
         return result;
+    }
+
+    void TransferBufferManager::recoverSectorFromParity(byte* dest, byte const* inputbufs[], unsigned offset)
+    {
+        assert(sizeof(__int64)*2 == RAIDSECTOR);
+        bool set = false;
+        for (unsigned i = RAIDPARTS; i--; )
+        {
+            if (inputbufs[i])
+            {
+                if (!set)
+                {
+                    memcpy(dest, inputbufs[i] + offset, RAIDSECTOR);
+                    set = true;
+                }
+                else
+                {
+                    *(__int64*)dest ^= *(__int64*)(inputbufs[i] + offset);
+                    *(__int64*)(dest + sizeof(__int64)) ^= *(__int64*)(inputbufs[i] + offset + sizeof(__int64));
+                }
+            }
+
+        }
     }
 
     // decrypt, mac downloaded chunk
