@@ -39,6 +39,13 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
+
+#include "qplatformdefs.h"
+#include "qdir.h"
+
+#include <fstream>
+
+
 namespace mega {
     
 #ifdef USE_IOS
@@ -1373,8 +1380,140 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     }
 }
 
+#ifdef __linux__
+std::string &ltrimEtcProperty(std::string &s, const char &c)
+{
+    size_t pos = s.find_first_not_of(c);
+    s = s.substr(pos == string::npos ? s.length() : pos, s.length());
+    return s;
+}
+
+std::string &rtrimEtcProperty(std::string &s, const char &c)
+{
+    size_t pos = s.find_last_of(c);
+    size_t last = pos == string::npos ? s.length() : pos;
+    if (last + 1 < s.length())
+    {
+        if (s.at(last + 1) != c)
+        {
+            last = s.length();
+        }
+    }
+
+    s = s.substr(0, last);
+    return s;
+}
+
+std::string &trimEtcproperty(string &what)
+{
+    rtrimEtcProperty(what,' ');
+    ltrimEtcProperty(what,' ');
+    if (what.size() > 1)
+    {
+        if (what[0] == '\'' || what[0] == '"')
+        {
+            rtrimEtcProperty(what,what[0]);
+            ltrimEtcProperty(what,what[0]);
+        }
+    }
+    return what;
+}
+
+std::string getPropertyFromEtcFile(const char *configFile,const char *propertyName)
+{
+    std::ifstream infile(configFile);
+    std::string line;
+
+    while (getline(infile, line)) {
+        if (line.length() > 0 && line[0] != '#') {
+            if (!strlen(propertyName)) //if empty return first line
+            {
+                return trimEtcproperty(line);
+            }
+            std::string key, value;
+            size_t pos = line.find("=");
+            if (pos != string::npos && ((pos+1) < line.size()))
+            {
+                key = line.substr(0,pos);
+                rtrimEtcProperty(key,' ');
+
+                if (!strcmp(key.c_str(),propertyName))
+                {
+                    value = line.substr(pos+1);
+                    return trimEtcproperty(value);
+                }
+
+            }
+        }
+    }
+
+    return string();
+}
+
+string getDistro()
+{
+    string distro;
+    distro = getPropertyFromEtcFile("/etc/lsb-release", "DISTRIB_ID");
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/os-release", "ID");
+    }
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/redhat-release", "");
+    }
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/debian-release", "");
+    }
+    if (distro.size() > 20)
+    {
+        distro=distro.substr(0,20);
+    }
+    std::transform(distro.begin(), distro.end(), distro.begin(), ::tolower);
+    return distro;
+
+}
+
+string getDistroVersion()
+{
+    string version;
+    version = getPropertyFromEtcFile("/etc/lsb-release", "DISTRIB_RELEASE");
+    if (!version.size())
+    {
+        version = getPropertyFromEtcFile("/etc/os-release", "VERSION_ID");
+    }
+    std::transform(version.begin(), version.end(), version.begin(), ::tolower);
+    if (version.size() > 10)
+    {
+        version=version.substr(0,10);
+    }
+    return version;
+}
+#endif
+
 void PosixFileSystemAccess::osversion(string* u) const
 {
+#ifdef __linux__
+    string distro = getDistro();
+    if (distro.size())
+    {
+        u->append("<");
+        u->append(distro);
+        string distroversion = getDistroVersion();
+        if (distroversion.size())
+        {
+            u->append(" ");
+            u->append(distroversion);
+            u->append("> ");
+        }
+        else
+        {
+            u->append("> ");
+        }
+    }
+#endif
+
     utsname uts;
 
     if (!uname(&uts))
