@@ -39,12 +39,9 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
-
-#include "qplatformdefs.h"
-#include "qdir.h"
-
+#ifdef __linux
 #include <fstream>
-
+#endif
 
 namespace mega {
     
