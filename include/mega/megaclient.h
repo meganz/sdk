@@ -53,6 +53,12 @@ public:
         TYPE_NONE = 2
     };
 
+    enum {
+        API_CACHE = 0,
+        API_NO_CACHE = 1,    // use this for DB mode
+        API_NONE = 2
+    };
+
     FetchNodesStats();
     void init();
     void toJsonArray(string *json);
@@ -61,6 +67,7 @@ public:
     // General info //
     //////////////////
     int mode; // DB = 0, API = 1
+    int cache; // no-cache = 0, no-cache = 1
     int type; // Account = 0, Folder = 1
     dstime startTime; // startup time (ds)
 
