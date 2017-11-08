@@ -1495,18 +1495,17 @@ void PosixFileSystemAccess::osversion(string* u) const
     string distro = getDistro();
     if (distro.size())
     {
-        u->append("<");
         u->append(distro);
         string distroversion = getDistroVersion();
         if (distroversion.size())
         {
             u->append(" ");
             u->append(distroversion);
-            u->append("> ");
+            u->append("/");
         }
         else
         {
-            u->append("> ");
+            u->append("/");
         }
     }
 #endif
