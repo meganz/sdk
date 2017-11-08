@@ -59,25 +59,44 @@ namespace mega
         : transfer(NULL)
         , is_raid(false)
         , raidKnown(false)
+        , useOnlyFiveRaidConnections(false)
+        , unusedRaidConnection(0)
         , raidpartspos(0)
         , outputfilepos(0)
         , resumewastedbytes(0)
+        , raidLinesPerChunk(16 * 1024)
     {
         for (int i = RAIDPARTS; i--; )
         {
             raidrequestpartpos[i] = 0;
+            connectionPaused[i] = false;
+            raidHttpGetErrorCount[i] = 0;
         }
+    }
+
+    static void clearOwningFilePieces(std::deque<TransferBufferManager::FilePiece*>& q)
+    {
+        for (std::deque<TransferBufferManager::FilePiece*>::iterator i = q.begin(); i != q.end(); ++i)
+        {
+            delete *i;
+        }
+        q.clear();
+    }
+    static void clearOwningFilePieces(std::map<m_off_t, TransferBufferManager::FilePiece*>& q)
+    {
+        for (std::map<m_off_t, TransferBufferManager::FilePiece*>::iterator i = q.begin(); i != q.end(); ++i)
+        {
+            delete i->second;
+        }
+        q.clear();
     }
 
     TransferBufferManager::~TransferBufferManager()
     {
         for (int i = RAIDPARTS; i--; )
         {
-            while (!raidinputparts[i].empty())
-            {
-                delete raidinputparts[i].front();
-                raidinputparts[i].pop_front();
-            }
+            clearOwningFilePieces(raidinputparts[i]);
+            clearOwningFilePieces(raidinputparts_recovery[i]);
         }
         for (std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.begin(); i != asyncoutputbuffers.end(); ++i)
         {
@@ -85,12 +104,12 @@ namespace mega
         }
     }
 
-    void TransferBufferManager::setIsRaid(bool b, Transfer* t, std::vector<std::string>& tempUrls, m_off_t resumepos)
+    void TransferBufferManager::setIsRaid(bool b, Transfer* t, std::vector<std::string>& tempUrls, m_off_t resumepos, unsigned maxDownloadRequestSize)
     {
         is_raid = b;
         raidKnown = true;
         transfer = t;
-        tempurls.swap(tempUrls);  // later change this to std::move
+        tempurls.swap(tempUrls);  // move semantics
         outputfilepos = resumepos;
         if (is_raid)
         {
@@ -101,6 +120,19 @@ namespace mega
             for (int i = RAIDPARTS; i--; )
             {
                 raidrequestpartpos[i] = raidpartspos;
+            }
+
+            // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
+            raidLinesPerChunk = maxDownloadRequestSize / RAIDPARTS / 3 / RAIDSECTOR;
+            raidLinesPerChunk -= raidLinesPerChunk % 1024;
+            raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
+            raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
+
+            //If we can get the whole file with just 5 requests then do that to avoid latency of subsequent http requests
+            if (transfer->size / (RAIDPARTS - 1) <= RaidMaxChunksPerRead * raidLinesPerChunk * RAIDSECTOR)
+            {
+                useOnlyFiveRaidConnections = true;
+                unusedRaidConnection = rand() % RAIDPARTS;
             }
         }
     }
@@ -137,38 +169,48 @@ namespace mega
     }
 
     // takes ownership of the buffer 
-    void TransferBufferManager::submitBuffer(unsigned connectionNum, m_off_t partpos, HttpReq::http_buf_t* buf)
+    void TransferBufferManager::submitBuffer(unsigned connectionNum, FilePiece* piece)
     {
         if (isRaid())
         {
             assert(connectionNum < RAIDPARTS);
+            if (!piece->buf.isNull())
+            {
+                raidHttpGetErrorCount[connectionNum] = 0;
+            }
 
-            raidinputparts[connectionNum].push_back(new FilePiece(partpos, buf));
-            combineRaidParts(connectionNum);
+            std::deque<FilePiece*>& connectionpieces = raidinputparts[connectionNum];
+            m_off_t contiguouspos = connectionpieces.empty() ? raidpartspos : connectionpieces.back()->pos + connectionpieces.back()->buf.datalen();
+
+            assert(piece->pos >= contiguouspos);
+            if (piece->pos == contiguouspos)
+            {
+                transferPosUpdateMinimum(piece->pos + piece->buf.datalen(), connectionNum);  // in case of download piece arriving after connection failure recovery
+                raidinputparts[connectionNum].push_back(piece);
+            }
+            else
+            {
+                // we would have been downloading this on one connection (beyond a skip point) when another failed and we switched to 5 connection
+                raidinputparts_recovery[connectionNum][piece->pos] = piece;
+            }
         }
         else
         {
-            FilePiece* newpiece = new FilePiece(partpos, buf);
-            finalize(*newpiece);
+            finalize(*piece);
             assert(asyncoutputbuffers[connectionNum] == NULL);
-            asyncoutputbuffers[connectionNum] = newpiece;
+            asyncoutputbuffers[connectionNum] = piece;
         }
     }
 
     TransferBufferManager::FilePiece* TransferBufferManager::getAsyncOutputBufferPointer(unsigned connectionNum)
     {
         std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.find(connectionNum);
-        return (i == asyncoutputbuffers.end()) ? NULL : i->second;
-    }
-
-    TransferBufferManager::FilePiece* TransferBufferManager::getAnySubsequentAsyncOutputBufferPointer(unsigned connectionNum)
-    {
-        if (isRaid() && getAsyncOutputBufferPointer(connectionNum) == NULL)
+        if (isRaid() && (i == asyncoutputbuffers.end() || !i->second))
         {
             combineRaidParts(connectionNum);
-            return getAsyncOutputBufferPointer(connectionNum);
+            i = asyncoutputbuffers.find(connectionNum);
         }
-        return NULL;
+        return (i == asyncoutputbuffers.end()) ? NULL : i->second;
     }
 
 
@@ -179,10 +221,11 @@ namespace mega
         if (rp)
         {
             FilePiece& r = *rp;
-            for (chunkmac_map::iterator it = r.chunkmacs.begin(); it != r.chunkmacs.end(); it++)    // this code moved from TransferSlot::~TransferSlot (one async, one sync).  Also from TransferSlot::doio for REQ_SUCCESS GET sync write, and from REQ_ASYNCIO async write
+            for (chunkmac_map::iterator it = r.chunkmacs.begin(); it != r.chunkmacs.end(); it++)
             {
                 transfer->chunkmacs[it->first] = it->second;
             }
+
             r.chunkmacs.clear();
             transfer->progresscompleted += r.buf.datalen();
             LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
@@ -221,40 +264,38 @@ namespace mega
         }
     }
 
-    m_off_t TransferBufferManager::nextTransferPos(unsigned connectionNum)
+    m_off_t TransferBufferManager::nextTransferPos()
     {
-        if (!isRaid())
+        assert(!isRaid());
+        chunkmac_map& chunkmacs = transfer->chunkmacs;
+        while (chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos)) != chunkmacs.end())
         {
-            // original logic for non-raid: since several connections can be downloading pieces of the file, skip ahead if any of those have finished downloading (based on chunkmacs
-            chunkmac_map& chunkmacs = transfer->chunkmacs;
-            while (chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos)) != chunkmacs.end())
+            if (chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].finished)
             {
-                if (chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].finished)
-                {
-                    transfer->pos = ChunkedHash::chunkceil(transfer->pos);
-                }
-                else
-                {
-                    transfer->pos += chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].offset;
-                    break;
-                }
+                transfer->pos = ChunkedHash::chunkceil(transfer->pos);
             }
-            return transfer->pos;
+            else
+            {
+                transfer->pos += chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].offset;
+                break;
+            }
         }
-        else
-        {
-            // for raid, we don't skip ahead on any particular connection (yet).  pos[i] is already updated when the chunk was downloaded with pos.CurrentPosUpdateMinimum
-            // todo: for max download speed, use all six channels with round-robin parts skipped 
-            return transferPos(connectionNum);
-        }
+        return transfer->pos;
     }
 
-    m_off_t TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& skipForRaid)
+    std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid)
     {
-        skipForRaid = false;
+        // returning a pair for clarity - specifying the beginning and end position of the next data block, as the 'current pos' may be updated during this function
+        newInputBufferSupplied = false;
+        pauseConnectionForRaid = false;
+
         if (!isRaid())
         {
-            m_off_t npos = ChunkedHash::chunkceil(nextTransferPos(connectionNum), transferSize(connectionNum));
+            m_off_t npos = ChunkedHash::chunkceil(nextTransferPos(), transfer->size);
+            if (!transfer->size)
+            {
+                transfer->pos = 0;
+            }
 
             if (transfer->type == GET && transfer->size)
             {
@@ -280,40 +321,99 @@ namespace mega
                 }
 
                 chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
-                m_off_t reqSize = npos - transferPos(connectionNum);
-                while (npos < transferSize(connectionNum)
+                m_off_t reqSize = npos - transfer->pos;
+                while (npos < transfer->size
                     && reqSize <= maxReqSize
                     && (it == transfer->chunkmacs.end()
                         || (!it->second.finished && !it->second.offset)))
                 {
-                    npos = ChunkedHash::chunkceil(npos, transferSize(connectionNum));
-                    reqSize = npos - transferPos(connectionNum);
+                    npos = ChunkedHash::chunkceil(npos, transfer->size);
+                    reqSize = npos - transfer->pos;
                     it = transfer->chunkmacs.find(npos);
                 }
-                LOG_debug << "Downloading chunk of size " << reqSize << " on connection " << connectionNum;
+                LOG_debug << "Downloading chunk of size " << reqSize;
             }
-            return npos;
+            return std::make_pair(transfer->pos, npos);
         }
         else  // raid
         {
-            m_off_t curpos = transferPos(connectionNum);
-            m_off_t skipPointBlockPos = curpos - (curpos % (RaidLinesPerChunk * RAIDSECTOR * RAIDPARTS));
-            m_off_t skipPoint = skipPointBlockPos + connectionNum * RaidLinesPerChunk * RAIDSECTOR;
-            m_off_t npos;
-            if (curpos < skipPoint)
+            m_off_t curpos = transferPos(connectionNum);  // if we use submitBuffer, transferPos() may be updated to protect against single connection failure recovery
+            m_off_t maxpos = transferSize(connectionNum);
+
+            // if this connection gets too far ahead of the others, pause it until the others catch up a bit
+            if ((curpos >= raidpartspos + RaidReadAheadChunksPausePoint * raidLinesPerChunk * RAIDSECTOR) ||
+                (curpos > raidpartspos + RaidReadAheadChunksUnpausePoint * raidLinesPerChunk * RAIDSECTOR && connectionPaused[connectionNum]))
             {
-                npos = skipPoint;
+                connectionPaused[connectionNum] = true;
+                pauseConnectionForRaid = true;
+                return std::make_pair(curpos, curpos);
+            } 
+            else
+            {
+                connectionPaused[connectionNum] = false;
             }
-            else if (curpos < skipPoint + RaidLinesPerChunk * RAIDSECTOR)
+
+            // if we were in 6 connection mode, and had to switch to 5 connection due to a failure/timeout, check if there is an already downloaded piece we can use
+            std::map<m_off_t, FilePiece*>::iterator recovery_it = raidinputparts_recovery[connectionNum].begin();
+            if (recovery_it != raidinputparts_recovery[connectionNum].end())
             {
-                skipForRaid = true;
-                npos = skipPoint + RaidLinesPerChunk * RAIDSECTOR;
+                assert(recovery_it->second->pos >= curpos);
+                if (recovery_it->second->pos == curpos)
+                {
+                    // use previously received piece that was beyond a skip point
+                    newInputBufferSupplied = true;
+                    m_off_t npos = recovery_it->second->pos + recovery_it->second->buf.datalen();
+                    submitBuffer(connectionNum, recovery_it->second);
+                    raidinputparts_recovery[connectionNum].erase(recovery_it);
+                    transferPosUpdateMinimum(npos, connectionNum);
+                    return std::make_pair(curpos, npos);
+                }
+                else if (recovery_it->second->pos > curpos)
+                {
+                    // only allow downloading new data up to an existing downloaded piece
+                    maxpos = recovery_it->second->pos;  
+                }
+            }
+
+
+            m_off_t npos;
+            if (useOnlyFiveRaidConnections)
+            {
+                // 5 connection mode.  Either download the next large piece, or put a NULL buffer with similar offsets into the mechanism
+                npos = std::min<m_off_t>(curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead, maxpos);
+                if (unusedRaidConnection == connectionNum && npos > curpos)
+                {
+                    submitBuffer(connectionNum, new TransferBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));  
+                    transferPosUpdateMinimum(npos, connectionNum);
+                    newInputBufferSupplied = true;
+                }
             }
             else
             {
-                npos = skipPoint + RaidLinesPerChunk * RAIDSECTOR * RAIDPARTS;
+                // 6 connection mode.  Figure out where the next piece to skip for this connection is, and load up to that. 
+                // If we're at a skip point, put a NULL buffer with those offsets into the mechanism
+                m_off_t skipPointBlockPos = curpos - (curpos % (raidLinesPerChunk * RAIDSECTOR * RAIDPARTS));
+                m_off_t skipPoint = skipPointBlockPos + connectionNum * raidLinesPerChunk * RAIDSECTOR;
+                if (curpos < skipPoint)
+                {
+                    npos = skipPoint;
+                }
+                else if (curpos < skipPoint + raidLinesPerChunk * RAIDSECTOR)
+                {
+                    npos = std::min<m_off_t>(skipPoint + raidLinesPerChunk * RAIDSECTOR, maxpos);
+                    if (npos > curpos)
+                    {
+                        submitBuffer(connectionNum, new TransferBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));
+                        transferPosUpdateMinimum(npos, connectionNum);
+                        newInputBufferSupplied = true;
+                    }
+                }
+                else
+                {
+                    npos = skipPoint + raidLinesPerChunk * RAIDSECTOR * std::min<unsigned>(RAIDPARTS, RaidMaxChunksPerRead + 1);
+                }
             }
-            return std::min<m_off_t>(npos, transferSize(connectionNum));
+            return std::make_pair(curpos, std::min<m_off_t>(npos, maxpos));
         }
     }
 
@@ -366,7 +466,7 @@ namespace mega
             else
             {
                 FilePiece& r = *raidinputparts[i].front();
-                assert(r.pos + r.buf.start == raidpartspos);  // check all are in sync at the front 
+                assert(r.pos == raidpartspos);  // check all are in sync at the front 
                 partslen = std::min<size_t>(partslen, r.buf.datalen());
                 (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
             }
@@ -385,6 +485,7 @@ namespace mega
             
             size_t buflen = static_cast<size_t>(processToEndOfFile ? sumdatalen : partslen * (RAIDPARTS - 1));
             FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
+            rollInputBuffers(partslen);
             raidpartspos += partslen;
             LOG_debug << "raidpartspos: " << raidpartspos;
             sumdatalen -= partslen * (RAIDPARTS - 1);
@@ -396,21 +497,8 @@ namespace mega
             {
                 // fill in the last of the buffer with non-full sectors from the end of the file
                 assert(outputfilepos + sumdatalen == transfer->size);
-                byte const* inputbufs[RAIDPARTS];
-                for (unsigned j = RAIDPARTS; j--; )
-                {
-                    inputbufs[j] = raidinputparts[j].empty() || raidinputparts[j].front()->buf.isNull() ? NULL : raidinputparts[j].front()->buf.datastart();
-                }
-                for (unsigned j = 1; j < RAIDPARTS && sumdatalen > 0; ++j)
-                {
-                    unsigned n = std::min<unsigned>(RAIDSECTOR, sumdatalen);
-                    if (inputbufs[j])
-                        memcpy(dest, inputbufs[j], n);
-                    else
-                        recoverSectorFromParity(dest, inputbufs, 0);  // this one may write RAIDSECTOR bytes but the buffer is big enough
-                    dest += n;
-                    sumdatalen -= n;
-                }
+                combineLastRaidLine(dest, sumdatalen);
+                rollInputBuffers(RAIDSECTOR);
             }
             else if (!processToEndOfFile && outputfilepos > macchunkpos)
             {
@@ -440,7 +528,7 @@ namespace mega
             }
             else
             {
-                delete outputrec;  // this would happen if we got some data to process on all channels, but not enough to reach the next chunk boundary yet (and combined data is in leftoverchunk)
+                delete outputrec;  // this would happen if we got some data to process on all connections, but not enough to reach the next chunk boundary yet (and combined data is in leftoverchunk)
             }
         }
     }
@@ -461,7 +549,7 @@ namespace mega
         // usual case, for simple and fast processing: all input buffers are the same size, and aligned, and a multiple of raidsector
         if (partslen > 0)
         {
-            byte const* inputbufs[RAIDPARTS];
+            byte* inputbufs[RAIDPARTS];
             for (unsigned i = RAIDPARTS; i--; )
             {
                 FilePiece* inputPiece = raidinputparts[i].front();
@@ -479,25 +567,13 @@ namespace mega
                         recoverSectorFromParity(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs, i);
                 }
             }
-
-            // remove finished input buffers
-            for (unsigned i = RAIDPARTS; i--; )
-            {
-                FilePiece& ip = *raidinputparts[i].front();
-                ip.buf.start += partslen;
-                if (ip.buf.start >= ip.buf.end)
-                {
-                    delete raidinputparts[i].front();
-                    raidinputparts[i].pop_front();
-                } 
-            }
         }
         return result;
     }
 
-    void TransferBufferManager::recoverSectorFromParity(byte* dest, byte const* inputbufs[], unsigned offset)
+    void TransferBufferManager::recoverSectorFromParity(byte* dest, byte* inputbufs[], unsigned offset)
     {
-        assert(sizeof(__int64)*2 == RAIDSECTOR);
+        assert(sizeof(m_off_t)*2 == RAIDSECTOR);
         bool set = false;
         for (unsigned i = RAIDPARTS; i--; )
         {
@@ -510,12 +586,65 @@ namespace mega
                 }
                 else
                 {
-                    *(__int64*)dest ^= *(__int64*)(inputbufs[i] + offset);
-                    *(__int64*)(dest + sizeof(__int64)) ^= *(__int64*)(inputbufs[i] + offset + sizeof(__int64));
+                    *(m_off_t*)dest ^= *(m_off_t*)(inputbufs[i] + offset);
+                    *(m_off_t*)(dest + sizeof(m_off_t)) ^= *(m_off_t*)(inputbufs[i] + offset + sizeof(m_off_t));
                 }
             }
 
         }
+    }
+
+    void TransferBufferManager::combineLastRaidLine(byte* dest, unsigned remainingbytes)
+    {
+        // we have to be careful to use the right number of bytes from each sector
+        for (unsigned i = 1; i < RAIDPARTS && remainingbytes > 0; ++i)
+        {
+            if (!raidinputparts[i].empty())
+            {
+                FilePiece* sector = raidinputparts[i].front();
+                unsigned n = std::min<unsigned>(remainingbytes, sector->buf.datalen());
+                if (!sector->buf.isNull())
+                {
+                    memcpy(dest, sector->buf.datastart(), n);
+                }
+                else
+                {
+                    memset(dest, 0, n);
+                    for (unsigned j = RAIDPARTS; j--; )
+                    {
+                        if (!raidinputparts[j].empty() && !raidinputparts[j].front()->buf.isNull())
+                        {
+                            FilePiece* xs = raidinputparts[j].front();
+                            for (unsigned x = std::min<unsigned>(n, xs->buf.datalen()); x--; )
+                            {
+                                dest[x] ^= xs->buf.datastart()[x];
+                            }
+                        }
+                    }
+                }
+                dest += n;
+                remainingbytes -= n;
+            }
+        }
+    }
+
+    void TransferBufferManager::rollInputBuffers(unsigned dataToDiscard)
+    {
+        // remove finished input buffers
+        for (unsigned i = RAIDPARTS; i--; )
+        {
+            if (!raidinputparts[i].empty())
+            {
+                FilePiece& ip = *raidinputparts[i].front();
+                ip.buf.start += dataToDiscard;
+                ip.pos += dataToDiscard;
+                if (ip.buf.start >= ip.buf.end)
+                {
+                    delete raidinputparts[i].front();
+                    raidinputparts[i].pop_front();
+                }
+            }
+            }
     }
 
     // decrypt, mac downloaded chunk
@@ -561,5 +690,70 @@ namespace mega
         }
     }
 
+
+    bool TransferBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
+    {
+        if (isRaid())
+        {
+            raidHttpGetErrorCount[errorConnectionNum] += 1;
+
+            unsigned errorSum = 0;
+            for (unsigned i = RAIDPARTS; i--; )
+                errorSum += raidHttpGetErrorCount[i];
+
+            if (errorSum >= 3)
+                return false;
+
+
+            // try to switch to 5 connection raid, or a different 5 connections
+            if (useOnlyFiveRaidConnections)
+            {
+                LOG_warn << "5 connection cloudraid shutting down connection " << errorConnectionNum << " due to error, and starting " << unusedRaidConnection << " instead";
+
+                // start up the old unused connection, and cancel this one.  Other connections all have real data since we were already in 5 connection mode
+                clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
+                clearOwningFilePieces(raidinputparts[errorConnectionNum]);
+                clearOwningFilePieces(raidinputparts_recovery[unusedRaidConnection]);
+                clearOwningFilePieces(raidinputparts_recovery[errorConnectionNum]);
+                raidrequestpartpos[unusedRaidConnection] = raidpartspos;
+                raidrequestpartpos[errorConnectionNum] = raidpartspos;
+
+                unusedRaidConnection = errorConnectionNum;
+                return true;
+            }
+            else
+            {
+                // running in 6 connection mode. switch to 5 connection, while keeping already downloaded input buffers (including thosein progress), discarding and re-requesting skipped sections.
+                LOG_warn << "6 connection cloudraid shutting down connection " << errorConnectionNum << " due to error";
+
+                useOnlyFiveRaidConnections = true;
+                unusedRaidConnection = errorConnectionNum;
+                for (unsigned j = RAIDPARTS; j--; )
+                {
+                    raidrequestpartpos[j] = raidpartspos;
+                    std::deque<FilePiece*> fixedraidinputparts;
+                    for (std::deque<FilePiece*>::iterator i = raidinputparts[j].begin(); i != raidinputparts[j].end(); ++i)
+                    {
+                        if ((*i)->buf.isNull())
+                        {
+                            delete *i;
+                        }
+                        else if ((*i)->pos == raidrequestpartpos[j])
+                        {
+                            fixedraidinputparts.push_back(*i);
+                            raidrequestpartpos[j] += (*i)->buf.datalen();
+                        }
+                        else
+                        {
+                            raidinputparts_recovery[j][(*i)->pos] = *i;
+                        }
+                    }
+                    raidinputparts[j].swap(fixedraidinputparts);
+                }
+                return true;
+            }
+        }
+        return false; 
+    }
 
 }; // namespace

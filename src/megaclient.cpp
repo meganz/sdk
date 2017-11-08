@@ -2860,7 +2860,7 @@ bool MegaClient::dispatch(direction_t d)
                 if (!nexttransfer->cachedtempurls.empty())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->transferbuf.setIsRaid(nexttransfer->cachedtempurls.size() == RAIDPARTS, nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos);
+                    ts->transferbuf.setIsRaid(nexttransfer->cachedtempurls.size() == RAIDPARTS, nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos, ts->maxDownloadRequestSize);
                     nexttransfer->cachedtempurls.clear();
                 }
                 else

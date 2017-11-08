@@ -345,7 +345,7 @@ void CommandPutFile::procresult()
 
                 if (tempurls.size() == 1)
                 {
-                    tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos);
+                    tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
                 }
@@ -714,12 +714,12 @@ void CommandGetFile::procresult()
 
                                         if (tempurls.size() == 1 && s >= 0)
                                         {
-                                            tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos);
+                                            tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
                                             return tslot->progress();
                                         }
                                         else if (tempurls.size() == RAIDPARTS && s >= 0)
                                         {
-                                            tslot->transferbuf.setIsRaid(true, tslot->transfer, tempurls, tslot->transfer->pos);  // starting raid download
+                                            tslot->transferbuf.setIsRaid(true, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);  // starting raid download
                                             return tslot->progress();   
                                         }
 
