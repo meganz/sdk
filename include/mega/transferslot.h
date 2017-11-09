@@ -112,6 +112,8 @@ struct MEGA_API TransferSlot
 
 protected:
     void toggleport(HttpReqXfer* req);
+    bool tryRaidRecoveryFromHttpGetError(unsigned i);
+
 };
 } // namespace
 

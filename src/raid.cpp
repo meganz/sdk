@@ -197,7 +197,7 @@ namespace mega
         else
         {
             finalize(*piece);
-            assert(asyncoutputbuffers[connectionNum] == NULL);
+            assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers.find(connectionNum)->second);
             asyncoutputbuffers[connectionNum] = piece;
         }
     }
@@ -216,21 +216,24 @@ namespace mega
 
     void TransferBufferManager::bufferWriteCompleted(unsigned connectionNum)
     {
-        assert(asyncoutputbuffers[connectionNum]);
-        FilePiece* rp = asyncoutputbuffers[connectionNum];
-        if (rp)
+        std::map<unsigned, FilePiece*>::iterator aob = asyncoutputbuffers.find(connectionNum);
+        if (aob != asyncoutputbuffers.end())
         {
-            FilePiece& r = *rp;
-            for (chunkmac_map::iterator it = r.chunkmacs.begin(); it != r.chunkmacs.end(); it++)
+            assert(aob->second);
+            if (aob->second)
             {
-                transfer->chunkmacs[it->first] = it->second;
-            }
+                FilePiece& r = *aob->second;
+                for (chunkmac_map::iterator it = r.chunkmacs.begin(); it != r.chunkmacs.end(); it++)
+                {
+                    transfer->chunkmacs[it->first] = it->second;
+                }
 
-            r.chunkmacs.clear();
-            transfer->progresscompleted += r.buf.datalen();
-            LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
-            delete asyncoutputbuffers[connectionNum];
-            asyncoutputbuffers[connectionNum] = NULL;
+                r.chunkmacs.clear();
+                transfer->progresscompleted += r.buf.datalen();
+                LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
+                delete aob->second;
+                aob->second = NULL;
+            }
         }
     }
 
@@ -491,7 +494,8 @@ namespace mega
             sumdatalen -= partslen * (RAIDPARTS - 1);
             outputfilepos += partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
             byte* dest = outputrec->buf.datastart() + partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
-            leftoverchunk.swap(FilePiece());  // this data is entirely included in the outputrec now, so discard and reset
+            FilePiece emptyFilePiece;
+            leftoverchunk.swap(emptyFilePiece);  // this data is entirely included in the outputrec now, so discard and reset
 
             if (processToEndOfFile && sumdatalen > 0)
             {
@@ -504,7 +508,8 @@ namespace mega
             {
                 // mac processing must be done in chunks, delimited by chunkfloor and chunkceil.  If we don't have the right amount then hold the remainder over for next time.
                 size_t excessdata = static_cast<size_t>(outputfilepos - macchunkpos);
-                leftoverchunk.swap(FilePiece(outputfilepos - excessdata, excessdata));
+                FilePiece newleftover(outputfilepos - excessdata, excessdata);
+                leftoverchunk.swap(newleftover);
                 memcpy(leftoverchunk.buf.datastart(), outputrec->buf.datastart() + outputrec->buf.datalen() - excessdata, excessdata);
                 outputrec->buf.end -= excessdata;
                 outputfilepos -= excessdata;
