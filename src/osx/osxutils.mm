@@ -33,6 +33,7 @@ void path2localMac(string* path, string* local)
     {
          LOG_err << "Failed getting file system representation (APFS filesystem)";
          local->clear();
+         [tempPath release];
          return;
     }
 
@@ -44,6 +45,8 @@ void path2localMac(string* path, string* local)
     {
         local->clear();
     }
+
+    [tempPath release];
 }
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
