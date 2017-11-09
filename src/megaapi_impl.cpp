@@ -10649,7 +10649,7 @@ void MegaApiImpl::logout_result(error e)
 
         while (!transferMap.empty())
         {
-            std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+            std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
             if (it->second)
             {
                 it->second->setState(MegaTransfer::STATE_FAILED);
@@ -13794,7 +13794,7 @@ void MegaApiImpl::sendPendingRequests()
 
             while (!transferMap.empty())
             {
-                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
                 if (it->second)
                 {
                     it->second->setState(MegaTransfer::STATE_FAILED);
@@ -14982,7 +14982,7 @@ void MegaApiImpl::sendPendingRequests()
 
             while (!transferMap.empty())
             {
-                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
                 if (it->second)
                 {
                     it->second->setState(MegaTransfer::STATE_FAILED);
