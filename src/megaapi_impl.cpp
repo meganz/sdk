@@ -12591,10 +12591,18 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
             childrenNodes.insert(i, n);
 		}
 	}
-    sdkMutex.unlock();
 
-    if(childrenNodes.size()) return new MegaNodeListPrivate(childrenNodes.data(), childrenNodes.size());
-    else return new MegaNodeListPrivate();
+    MegaNodeListPrivate *result = NULL;
+    if (childrenNodes.size())
+    {
+        result = new MegaNodeListPrivate(childrenNodes.data(), childrenNodes.size());
+    }
+    else
+    {
+        result = new MegaNodeListPrivate();
+    }
+    sdkMutex.unlock();
+    return result;
 }
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
@@ -12621,8 +12629,10 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
         assert(current->type == FILENODE);
         versions.push_back(current);
     }
+
+    MegaNodeListPrivate *result = new MegaNodeListPrivate(versions.data(), versions.size());
     sdkMutex.unlock();
-    return new MegaNodeListPrivate(versions.data(), versions.size());
+    return result;
 }
 
 int MegaApiImpl::getNumVersions(MegaNode *node)
@@ -12742,7 +12752,6 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
             }
         }
     }
-    sdkMutex.unlock();
 
     MegaNodeListPrivate *fileList;
     if (files.size())
@@ -12764,6 +12773,7 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
         folderList = new MegaNodeListPrivate();
     }
 
+    sdkMutex.unlock();
     return new MegaChildrenListsPrivate(folderList, fileList);
 }
 
