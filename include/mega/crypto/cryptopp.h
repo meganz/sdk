@@ -274,11 +274,10 @@ public:
     static const int PUBKEY = 2;
 
     CryptoPP::Integer key[PRIVKEY];
+    unsigned int padding;
 
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
-
-    bool usePadding = false;
 
     /**
      * @brief Sets a key from a buffer.

@@ -2910,12 +2910,6 @@ void CommandPubKeyRequest::procresult()
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                     {
                         client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
-
-                        // Webclient adds padding to the 1/2/3 bytes used by exponent
-                        if (len_pubk == 264)
-                        {
-                            client->pubk.usePadding = true;
-                        }
                         return;
                     }
     #endif
