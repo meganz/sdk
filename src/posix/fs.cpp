@@ -1383,17 +1383,12 @@ string &ltrimEtcProperty(string &s, const char &c)
 
 string &rtrimEtcProperty(string &s, const char &c)
 {
-    size_t pos = s.find_last_of(c);
-    size_t last = pos == string::npos ? s.length() : pos;
-    if (last + 1 < s.length())
+    size_t pos = s.find_last_not_of(c);
+    if (pos != string::npos)
     {
-        if (s.at(last + 1) != c)
-        {
-            last = s.length();
-        }
+        pos++;
     }
-
-    s = s.substr(0, last);
+    s = s.substr(0, pos);
     return s;
 }
 
