@@ -9548,26 +9548,16 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            // Verification could fail because a legacy bug in Webclient. Retry...
-            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
-            pubk.serializekeyforjs(pubkstr, true);
-            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
-                                        pubkstr.size(),
-                                        &sigPubk,
-                                        (unsigned char*) puEd255.data()))
-            {
-                LOG_warn << "Verification of signature of public key for RSA failed";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99414, "Verification of signature of public key for RSA failed");
+            reqtag = creqtag;
 
-                int creqtag = reqtag;
-                reqtag = 0;
-                sendevent(99414, "Verification of signature of public key for RSA failed");
-                reqtag = creqtag;
-
-                clearKeys();
-                resetKeyring();
-                return;
-            }
+            clearKeys();
+            resetKeyring();
+            return;
         }
 
         // if we reached this point, everything is OK

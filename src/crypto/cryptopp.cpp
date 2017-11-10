@@ -464,14 +464,14 @@ void AsymmCipher::resetkey()
     }
 }
 
-void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
+void AsymmCipher::serializekeyforjs(string& d)
 {
     unsigned sizePQ = key[PUB_PQ].ByteCount();
     unsigned sizeE = key[PUB_E].ByteCount();
     char c;
 
     d.clear();
-    d.reserve(!fixedSize ? sizePQ + sizeE : sizePQ + 4);
+    d.reserve(!usePadding ? sizePQ + sizeE : sizePQ + 4);
 
     for (int j = key[PUB_PQ].ByteCount(); j--;)
     {
@@ -479,7 +479,7 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
         d.append(&c, sizeof c);
     }
 
-    if (fixedSize)
+    if (usePadding)
     {
         // accounts created by webclient use 4 bytes for serialization of exponent
         // --> add left-padding up to 4 bytes for compatibility reasons

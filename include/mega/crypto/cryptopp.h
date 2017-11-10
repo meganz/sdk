@@ -278,6 +278,8 @@ public:
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
 
+    bool usePadding = false;
+
     /**
      * @brief Sets a key from a buffer.
      *
@@ -362,11 +364,13 @@ public:
     /**
      * @brief Serialize public key for compatibility with the webclient.
      *
+     * It also add padding (PUB_E size is forced to 4 bytes) in case the
+     * of the key, at reception from server, indicates it has zero-padding.
+     *
      * @param d String to take the serialized key without size-headers
-     * @param fixedSize Boolean to indicate if PUB_E size is forced to 4 bytes
      * @return Void.
      */
-    void serializekeyforjs(string& d, bool fixedSize = false);
+    void serializekeyforjs(string& d);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
