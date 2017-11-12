@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -15,7 +15,7 @@
     <RootNamespace>mega</RootNamespace>
     <Keyword>Qt4VSv1.0</Keyword>
     <ProjectName>mega</ProjectName>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -25,7 +25,7 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>debug\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <OutputDirectory>release\</OutputDirectory>
@@ -34,7 +34,7 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>release\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -58,7 +58,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(CRYPTOPP_INCLUDE);$(OPENSSL_INCLUDE);$(CURL_INCLUDE);$(CARES_INCLUDE);$(ZLIB_INCLUDE);$(SQLITE_INCLUDE);..\..\include\mega\wincurl;..\..\include;..\..\third_party\utf8proc;.;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\zlib;3rdparty\include;3rdparty\include\libuv;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>debug\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
@@ -66,10 +66,10 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>debug\</ObjectFileName>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
@@ -146,7 +146,6 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\3rdparty\sqlite-3.20.1\sqlite3.c" />
     <ClCompile Include="..\..\src\attrmap.cpp" />
     <ClCompile Include="..\..\src\backofftimer.cpp" />
     <ClCompile Include="..\..\src\base64.cpp" />
@@ -184,6 +183,7 @@
     <ClCompile Include="..\..\src\sharenodekeys.cpp" />
     <ClCompile Include="..\..\src\crypto\sodium.cpp" />
     <ClCompile Include="..\..\src\db\sqlite.cpp" />
+    <ClCompile Include="3rdparty\libs\sqlite3.c" />
     <ClCompile Include="..\..\src\sync.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />

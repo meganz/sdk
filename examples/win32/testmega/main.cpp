@@ -22,9 +22,6 @@
 #include <megaapi.h>
 #include <Windows.h>
 #include <iostream>
-#include <memory>
-#include <filesystem>
-#include <mega/logging.h>
 
 //ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "EMAIL"
@@ -36,34 +33,6 @@
 
 using namespace mega;
 using namespace std;
-
-std::unique_ptr<MegaNode> bigFileNode = nullptr;
-
-class MyMegaRequestListener : public MegaRequestListener
-{
-public:
-    virtual void onRequestStart(MegaApi* api, MegaRequest *request)
-    {
-        cout << "MyMegaRequestListener::onRequestStart" << endl;
-    }
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e)
-    {
-        cout << "MyMegaRequestListener::onRequestFinish" << endl;
-    }
-    virtual void onRequestUpdate(MegaApi*api, MegaRequest *request)
-    {
-        cout << "MyMegaRequestListener::onRequestUpdate" << endl;
-    }
-    virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error)
-    {
-        cout << "MyMegaRequestListener::onRequestTemporaryError" << endl;
-    }
-};
-MyMegaRequestListener myMyMegaRequestListener;
-
-bool paused = false;
-time_t pauseTime = 0;
-size_t pauseByteCount = 10000000;
 
 class MyListener: public MegaListener
 {
@@ -105,15 +74,6 @@ public:
 						cout << "*****   Folder: ";
 				
 					cout << node->getName() << endl;
-
-#if 0
-                    if (std::string(node->getName()) == "kimorg-20110421-021857+0600.tif")  //"nonRaidVersion.tst") //"out.dat.original")
-                        bigFileNode.reset(node->copy());
-#else
-                    if (std::string(node->getName()) == "nonRaidVersion.tst") //"out.dat.original")
-                        bigFileNode.reset(node->copy());
-#endif
-
 				}
 				cout << "***** Done" << endl;
 
@@ -158,19 +118,6 @@ public:
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 	{
 		cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << endl; 
-
-
-        if (transfer->getTransferredBytes() > pauseByteCount)
-        {
-            cout << "*** requesting pause! *****" << endl;
-
-            api->pauseTransfers(true, &myMyMegaRequestListener);
-            paused = true;
-            pauseTime = time(NULL);
-        }
-
-        
-
 	}
 
 	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error)
@@ -201,32 +148,6 @@ public:
 };
 
 
-
-class MyMegaTransferListener : public MegaTransferListener
-{
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
-    {
-        cout << "onTransferStart" << endl;
-    }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
-    {
-        cout << "onTransferFinish" << endl;
-    }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
-    {
-        cout << "onTransferUpdate" << endl;
-    }
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override
-    {
-        cout << "onTransferTemporaryError" << endl;
-    }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
-    {
-        cout << "onTransferData " << size << endl;
-        return true;
-    }
-};
-
 int main()
 {
 	//Check the documentation of MegaApi to know how to enable local caching
@@ -234,9 +155,7 @@ int main()
 
 	//By default, logs are sent to stdout
 	//You can use MegaApi::setLoggerObject to receive SDK logs in your app
-	//megaApi->setLogLevel(MegaApi::LOG_LEVEL_INFO);
-    megaApi->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
-    SimpleLogger::setAllOutputs(&cout);
+	megaApi->setLogLevel(MegaApi::LOG_LEVEL_INFO);
 
 	MyListener listener;
 
@@ -260,30 +179,6 @@ int main()
 	{
 		Sleep(1000);
 	}
-
-
-    if (bigFileNode)
-    {
-        std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
-        MyMegaTransferListener myTL;
-        megaApi->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
-    }
-
-
-    while (1)
-    {
-        Sleep(1000);
-
-        if (paused && (time(NULL) - pauseTime > 5))
-        {
-            cout << "*** requesting resume! *****" << endl;
-            megaApi->pauseTransfers(false, &myMyMegaRequestListener);
-            paused = false;
-            pauseByteCount += 10000000;
-        }
-
-    }
-
 
 #ifdef HAVE_LIBUV
 	cout << "Do you want to enable the local HTTP server (y/n)?" << endl;
