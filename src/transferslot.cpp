@@ -88,14 +88,14 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     if (GlobalMemoryStatusEx(&statex))
     {
         LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
-        if (statex.ullAvailPhys < 268435456 // 256 MB
-                || statex.ullAvailVirtual < 268435456)
+        if (statex.ullAvailPhys < 536870912 // 512 MB
+                || statex.ullAvailVirtual < 536870912)
         {
-            if (statex.ullAvailPhys < 134217728 // 128 MB
-                    || statex.ullAvailVirtual < 134217728)
+            if (statex.ullAvailPhys < 268435456 // 256 MB
+                    || statex.ullAvailVirtual < 268435456)
             {
-                if (statex.ullAvailPhys < 67108864 // 64 MB
-                        || statex.ullAvailVirtual < 67108864)
+                if (statex.ullAvailPhys < 134217728 // 128 MB
+                        || statex.ullAvailVirtual < 134217728)
                 {
                     maxDownloadRequestSize = 2097152; // 2 MB
                 }
