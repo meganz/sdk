@@ -350,7 +350,7 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pread(fd, (char*)dst, len, pos) == len;
 #else
-    lseek(fd, pos, SEEK_SET);
+    lseek64(fd, pos, SEEK_SET);
     return read(fd, (char*)dst, len) == len;
 #endif
 }
@@ -361,7 +361,7 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pwrite(fd, data, len, pos) == len;
 #else
-    lseek(fd, pos, SEEK_SET);
+    lseek64(fd, pos, SEEK_SET);
     return write(fd, data, len) == len;
 #endif
 }
