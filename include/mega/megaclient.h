@@ -1130,7 +1130,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();

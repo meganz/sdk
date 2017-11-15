@@ -722,7 +722,7 @@ bool MegaClient::warnlevel()
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name)
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
     Node *found = NULL;
@@ -738,12 +738,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type == FOLDERNODE)
+            if ((*it)->type != FILENODE && !skipfolders)
             {
                 return *it;
             }
 
             found = *it;
+            if (skipfolders)
+            {
+                return found;
+            }
         }
     }
 
@@ -11755,7 +11759,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str());
+        Node *ovn = childnodebyname(parent, name->c_str(), true);
         if (ovn)
         {
             ovhandle = ovn->nodehandle;
