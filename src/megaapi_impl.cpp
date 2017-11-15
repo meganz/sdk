@@ -10911,6 +10911,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         {
             if (ffp.unserializefingerprint(&it->second))
             {
+                ffp.size = size;
                 mtime = ffp.mtime;
 
                 char bsize[sizeof(size)+1];
