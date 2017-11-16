@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <string>   // the MEGA SDK assumes writable, contiguous string::data()
 #include <sstream>
+#include <fstream>
 #include <map>
 #include <deque>
 #include <set>

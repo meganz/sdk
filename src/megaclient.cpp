@@ -921,6 +921,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
                      "." TOSTRING(MEGA_MICRO_VERSION));
 
     LOG_debug << "User-Agent: " << useragent;
+    LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
+
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
@@ -2298,7 +2300,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry && (syncsup || !statecurrent)))
+    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry && !pendingcs && !csretrying))
     {
         nds = Waiter::ds;
     }
@@ -2639,7 +2641,7 @@ bool MegaClient::dispatch(direction_t d)
                 // generate fresh random encryption key/CTR IV for this file
                 byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                 PrnGen::genblock(keyctriv, sizeof keyctriv);
-                nexttransfer->key.setkey(keyctriv);
+                memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
                 nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
             }
             else
@@ -2669,7 +2671,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     if (k)
                     {
-                        nexttransfer->key.setkey(k, FILENODE);
+                        memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
+                        SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
                         nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                         nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                         break;
@@ -2828,7 +2831,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, &nexttransfer->key, -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -6108,10 +6111,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     {
                         app->reload("Node inconsistency");
 
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99437, "Node inconsistency");
-                        reqtag = creqtag;
+                        static bool reloadnotified = false;
+                        if (!reloadnotified)
+                        {
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99437, "Node inconsistency");
+                            reqtag = creqtag;
+                            reloadnotified = true;
+                        }
                     }
                 }
 
@@ -9328,6 +9336,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
+        fnstats.cache = FetchNodesStats::API_NO_CACHE;
         fnstats.nodesCached = nodes.size();
         fnstats.timeToCached = Waiter::ds - fnstats.startTime;
         fnstats.timeToResult = fnstats.timeToCached;
@@ -9348,6 +9357,7 @@ void MegaClient::fetchnodes(bool nocache)
     else if (!fetchingnodes)
     {
         fnstats.mode = FetchNodesStats::MODE_API;
+        fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
 
         // prevent the processing of previous sc requests
@@ -11918,6 +11928,7 @@ void FetchNodesStats::init()
 {
     mode = MODE_NONE;
     type = TYPE_NONE;
+    cache = API_NONE;
     nodesCached = 0;
     nodesCurrent = 0;
     actionPackets = 0;
@@ -11950,7 +11961,7 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToFirstByte << "," << timeToLastByte << ","
         << timeToCached << "," << timeToResult << ","
         << timeToSyncsResumed << "," << timeToCurrent << ","
-        << timeToTransfersResumed << "]";
+        << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
 }
 

@@ -160,8 +160,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
 }
 
 CGImageRef GfxProcCG::createThumbnailWithMaxSize(int size) {
-    const double maxSizeDouble = size;
-    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &maxSizeDouble);
+    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
     CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
     CFRelease(maxSize);
 
@@ -191,7 +190,7 @@ int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
         return std::max(rw, rh);
     }
     // square rw*rw crop thumbnail
-    return (int)(rw * std::max(w, h) / std::min(w, h));
+    return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
 }
 
 bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
