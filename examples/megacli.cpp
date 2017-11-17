@@ -2346,22 +2346,63 @@ static void process_line(char* l)
 
                                 TreeProcCopy tc;
                                 unsigned nc;
+                                handle ovhandle = UNDEF;
+
+                                if (!n->nodekey.size())
+                                {
+                                    cout << "Cannot copy a node without key" << endl;
+                                    return;
+                                }
+
+                                if (n->attrstring)
+                                {
+                                    n->applykey();
+                                    n->setattr();
+                                    if (n->attrstring)
+                                    {
+                                        cout << "Cannot copy underyptable node" << endl;
+                                        return;
+                                    }
+                                }
+
+                                string sname;
+                                if (newname.size())
+                                {
+                                    sname = newname;
+                                    client->fsaccess->normalize(&sname);
+                                }
+                                else
+                                {
+                                    attr_map::iterator it = n->attrs.map.find('n');
+                                    if (it != n->attrs.map.end())
+                                    {
+                                        sname = it->second;
+                                    }
+                                }
+
+                                if (tn && n->type == FILENODE)
+                                {
+                                    Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
+                                    if (ovn)
+                                    {
+                                        if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
+                                        {
+                                            cout << "Skipping identical node" << endl;
+                                            return;
+                                        }
+
+                                        ovhandle = ovn->nodehandle;
+                                    }
+                                }
 
                                 // determine number of nodes to be copied
-                                client->proctree(n, &tc);
+                                client->proctree(n, &tc, false, ovhandle != UNDEF);
 
                                 tc.allocnodes();
                                 nc = tc.nc;
 
                                 // build new nodes array
-                                client->proctree(n, &tc);
-
-                                string sname;
-                                attr_map::iterator it = n->attrs.map.find('n');
-                                if (it != n->attrs.map.end())
-                                {
-                                    sname = it->second;
-                                }
+                                client->proctree(n, &tc, false, ovhandle != UNDEF);
 
                                 // if specified target is a filename, use it
                                 if (newname.size())
@@ -2373,10 +2414,7 @@ static void process_line(char* l)
                                     AttrMap attrs;
 
                                     attrs.map = n->attrs.map;
-
-                                    client->fsaccess->normalize(&newname);
-                                    attrs.map['n'] = newname;
-                                    sname = newname;
+                                    attrs.map['n'] = sname;
 
                                     key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
 
@@ -2388,14 +2426,10 @@ static void process_line(char* l)
 
                                 // tree root: no parent
                                 tc.nn->parenthandle = UNDEF;
+                                tc.nn->ovhandle = ovhandle;
 
                                 if (tn)
                                 {
-                                    if (tc.nn->type == FILENODE)
-                                    {
-                                        tc.nn->ovhandle = client->getovhandle(tn, &sname);
-                                    }
-
                                     // add the new nodes
                                     client->putnodes(tn->nodehandle, tc.nn, nc);
 
@@ -3111,7 +3145,6 @@ static void process_line(char* l)
 
                                     client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
-                                    newnode->ovhandle = client->getovhandle(n, &newname);
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
@@ -4739,8 +4772,25 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         cout << "The file won't be imported, the provided key is invalid." << endl;
         pdf_to_import = false;
     }
-    else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
+    else if (client->loggedin() != NOTLOGGEDIN)
     {
+        if (pdf_to_import)
+        {
+            n = client->nodebyhandle(client->rootnodes[0]);
+        }
+        else
+        {
+            n = client->nodebyhandle(cwd);
+        }
+
+        if (!n)
+        {
+            cout << "Target folder not found." << endl;
+            pdf_to_import = false;
+            delete [] buf;
+            return;
+        }
+
         AttrMap attrs;
         JSON json;
         nameid name;
@@ -4763,19 +4813,37 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             if (name == 'n')
             {
                 client->fsaccess->normalize(t);
-                newnode->ovhandle = client->getovhandle(n, t);
-                break;
             }
         }
 
-        if (pdf_to_import)
+        attr_map::iterator it = attrs.map.find('n');
+        if (it != attrs.map.end())
         {
-            client->putnodes(client->rootnodes[0], newnode, 1);
+            Node *ovn = client->childnodebyname(n, it->second.c_str(), true);
+            if (ovn)
+            {
+                attr_map::iterator it2 = attrs.map.find('c');
+                if (it2 != attrs.map.end())
+                {
+                    FileFingerprint ffp;
+                    if (ffp.unserializefingerprint(&it2->second))
+                    {
+                        ffp.size = size;
+                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
+                        {
+                            cout << "Success. (identical node skipped)" << endl;
+                            pdf_to_import = false;
+                            delete [] buf;
+                            return;
+                        }
+                    }
+                }
+
+                newnode->ovhandle = ovn->nodehandle;
+            }
         }
-        else
-        {
-            client->putnodes(n->nodehandle, newnode, 1);
-        }
+
+        client->putnodes(n->nodehandle, newnode, 1);
     }
     else
     {
