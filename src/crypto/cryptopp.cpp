@@ -454,7 +454,7 @@ int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numby
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
     int ret = decodeintarray(key, numints, data, len);
-    padding = (numints == PUBKEY) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
+    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
     return ret;
 }
 
