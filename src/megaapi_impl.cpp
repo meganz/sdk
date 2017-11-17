@@ -10886,6 +10886,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
             JSON::unescape(t);
+
+            if (name == 'n')
+            {
+                client->fsaccess->normalize(t);
+            }
         }
 
         delete[] buf;
