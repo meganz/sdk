@@ -1529,6 +1529,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
         if (!appGlobalsClass)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get android/app/AppGlobals";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1537,6 +1538,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
         if (!getInitialApplicationMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getInitialApplication()";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1561,6 +1563,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getContentResolverMID = env->GetMethodID(contextClass, "getContentResolver", "()Landroid/content/ContentResolver;");
         if (!getContentResolverMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getContentResolver()";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1577,6 +1580,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jclass settingsSecureClass = env->FindClass("android/provider/Settings$Secure");
         if (!settingsSecureClass)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get Settings.Secure class";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1585,6 +1589,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getStringMID = env->GetStaticMethodID(settingsSecureClass, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
         if (!getStringMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getString()";
             MEGAjvm->DetachCurrentThread();
             return;
