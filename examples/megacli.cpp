@@ -2360,7 +2360,7 @@ static void process_line(char* l)
                                     n->setattr();
                                     if (n->attrstring)
                                     {
-                                        cout << "Cannot copy underyptable node" << endl;
+                                        cout << "Cannot copy undecryptable node" << endl;
                                         return;
                                     }
                                 }
@@ -2580,15 +2580,18 @@ static void process_line(char* l)
                             string localname;
                             string name;
                             nodetype_t type;
+                            Node* n = NULL;
 
                             if (words.size() > 2)
                             {
-                                Node* n;
-
                                 if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
                                 {
                                     target = n->nodehandle;
                                 }
+                            }
+                            else    // target is current path
+                            {
+                                n = client->nodebyhandle(target);
                             }
 
                             if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
@@ -2611,6 +2614,25 @@ static void process_line(char* l)
 
                                     if (type == FILENODE)
                                     {
+                                        FileAccess *fa = client->fsaccess->newfileaccess();
+                                        if (fa->fopen(&name, true, false))
+                                        {
+                                            FileFingerprint fp;
+                                            fp.genfingerprint(fa);
+
+                                            Node *previousNode = client->childnodebyname(n, name.c_str());
+                                            if (previousNode && previousNode->type == type)
+                                            {
+                                                if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                                                {
+                                                    cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                                                    delete fa;
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        delete fa;
+
                                         f = new AppFilePut(&localname, target, targetuser.c_str());
                                         f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
                                         client->startxfer(PUT, f);
