@@ -58,6 +58,19 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool rec
     FileAccess *fa = fsaccess->newfileaccess();
     fsaccess->path2local(&legacydbpath, &locallegacydbpath);
     bool legacydbavailable = fa->fopen(&locallegacydbpath);
+
+    if (!legacydbavailable)
+    {
+        ostringstream prevoss;
+        prevoss << dbpath;
+        prevoss << "megaclient_statecache";
+        prevoss << (LEGACY_DB_VERSION - 1);
+        prevoss << "_" << *name << ".db";
+        legacydbpath = prevoss.str();
+        fsaccess->path2local(&legacydbpath, &locallegacydbpath);
+        legacydbavailable = fa->fopen(&locallegacydbpath);
+    }
+
     delete fa;
 
     if (legacydbavailable)
