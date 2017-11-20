@@ -13358,7 +13358,7 @@ void MegaApiImpl::sendPendingTransfers()
 
                 if (type == FILENODE)
                 {
-                    Node *previousNode = client->childnodebyname(parent, fileName);
+                    Node *previousNode = client->childnodebyname(parent, fileName, true);
                     if (previousNode && previousNode->type == type)
                     {
                         if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))

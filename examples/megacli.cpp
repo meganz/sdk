@@ -2620,7 +2620,7 @@ static void process_line(char* l)
                                             FileFingerprint fp;
                                             fp.genfingerprint(fa);
 
-                                            Node *previousNode = client->childnodebyname(n, name.c_str());
+                                            Node *previousNode = client->childnodebyname(n, name.c_str(), true);
                                             if (previousNode && previousNode->type == type)
                                             {
                                                 if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
