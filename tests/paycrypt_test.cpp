@@ -87,7 +87,7 @@ TEST(PayCrypterTest, allFeatures)
     sym.cbc_encrypt_pkcs_padding(&input, iv, &result);
 
     //Check result
-    char base64Result[result.size()*4/3+4];
+    char* base64Result = new char[result.size()*4/3+4];
     Base64::btoa((const byte *)result.data(), result.size(), base64Result);
     ASSERT_STREQ(base64Result, CIPHER_BYTES);
     //////////////////////
@@ -114,7 +114,7 @@ TEST(PayCrypterTest, allFeatures)
     hmacProcessor.get((byte *)mac.data());
 
     //Check result
-    char macResult[mac.size()*4/3+4];
+    char* macResult = new char[mac.size()*4/3+4];
     Base64::btoa((const byte *)mac.data(), mac.size(), macResult);
     ASSERT_STREQ(macResult, HMAC);
     //////////////////////
@@ -130,11 +130,11 @@ TEST(PayCrypterTest, allFeatures)
     string CRYPT_PAYLOAD = mac;
     CRYPT_PAYLOAD.append((char *)iv, ivLen);
     CRYPT_PAYLOAD.append(result);
-    char expectedPayload[CRYPT_PAYLOAD.size()*4/3+4];
+    char* expectedPayload = new char[CRYPT_PAYLOAD.size()*4/3+4];
     Base64::btoa((const byte *)CRYPT_PAYLOAD.data(), CRYPT_PAYLOAD.size(), expectedPayload);
 
     //Check result
-    char encryptPayloadResult[payCrypterResult.size()*4/3+4];
+    char* encryptPayloadResult = new char[payCrypterResult.size()*4/3+4];
     Base64::btoa((const byte *)payCrypterResult.data(), payCrypterResult.size(), encryptPayloadResult);
     ASSERT_STREQ(expectedPayload, encryptPayloadResult);
     //////////////////////
@@ -146,7 +146,7 @@ TEST(PayCrypterTest, allFeatures)
     ASSERT_TRUE(payCrypter.rsaEncryptKeys(&message, pubkdata, pubkdatalen, &rsaRes, false));
 
     //Check result
-    char rsaResult[rsaRes.size()*4/3+4];
+    char* rsaResult = new char[rsaRes.size()*4/3+4];
     Base64::btoa((const byte *)rsaRes.data(), rsaRes.size(), rsaResult);
     ASSERT_STREQ(rsaResult, CRYPT_GORT_SAYS);
     //////////////////////
@@ -157,7 +157,7 @@ TEST(PayCrypterTest, allFeatures)
     ASSERT_TRUE(payCrypter.rsaEncryptKeys(&message, pubkdata, pubkdatalen, &cryptKeysBytesBin, false));
 
     //Check result
-    char cryptKeysBytes[cryptKeysBytesBin.size()*4/3+4];
+    char* cryptKeysBytes = new char[cryptKeysBytesBin.size()*4/3+4];
     Base64::btoa((const byte *)cryptKeysBytesBin.data(), cryptKeysBytesBin.size(), cryptKeysBytes);
     ASSERT_STREQ(cryptKeysBytes, CRYPT_KEYS_BYTES);
     //////////////////////
@@ -171,11 +171,11 @@ TEST(PayCrypterTest, allFeatures)
     //Prepare the expected result
     string expectedResult = cryptKeysBytesBin;
     expectedResult.append(CRYPT_PAYLOAD);
-    char expectedBase64Result[expectedResult.size()*4/3+4];
+    char* expectedBase64Result = new char[expectedResult.size()*4/3+4];
     Base64::btoa((const byte *)expectedResult.data(), expectedResult.size(), expectedBase64Result);
 
     //Check result
-    char finalCheck[finalResult.size()*4/3+4];
+    char* finalCheck = new char[finalResult.size()*4/3+4];
     Base64::btoa((const byte *)finalResult.data(), finalResult.size(), finalCheck);
     ASSERT_STREQ(finalCheck, expectedBase64Result);
     //////////////////////

@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/logging.h"
 #include "mega/base64.h"
+#include "mega/mediafileattribute.h"
 #include "megawaiter.h"
 
 namespace mega {
@@ -220,7 +221,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    byte key[SymmCipher::KEYLENGTH];
     memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
@@ -434,6 +434,7 @@ void Transfer::failed(error e, dstime timeleft)
     }
 }
 
+
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
 void Transfer::complete()
@@ -529,14 +530,18 @@ void Transfer::complete()
 
         if (!transient_error)
         {
-            // set FileFingerprint on source node(s) if missing
+            
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                if (NULL != (n = client->nodebyhandle((*it)->h)))
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
-                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                            client->checkaccess(n, OWNER))
+                    bool weCanUpdate = (*it)->hprivate && !(*it)->hforeign;
+                    
+                    // add preview / thumbnail for image files if they don't have any yet
+                    if (weCanUpdate &&
+                        client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                        nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                        client->checkaccess(n, OWNER))
                     {
                         int missingattr = 0;
                         nodes.insert(n->nodehandle);
@@ -555,14 +560,32 @@ void Transfer::complete()
                         }
                     }
 
-                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
-                            && fingerprint.size == n->size)
+                    // set FileFingerprint on source node(s) if missing
+                    if (weCanUpdate &&
+                        fingerprint.isvalid && success && (!n->isvalid || fixfingerprint) &&
+                        fingerprint.size == n->size)
                     {
                         *(FileFingerprint*)n = fingerprint;
 
                         n->serializefingerprint(&n->attrs.map['c']);
                         client->setattr(n);
                     }
+
+                    // Add video file attributes for video files that don't have any yet
+#ifdef USE_MEDIAINFO
+                    if (!n->hasfileattribute(8))   // todo: later on check weCanUpdate 
+                    {
+                        char ext[8];
+                        std::string locallyEncodedDestName, mediafileattributes;
+                        client->fsaccess->path2local(&(*it)->name, &locallyEncodedDestName);
+                        if (client->fsaccess->getextension(&locallyEncodedDestName, ext, sizeof(ext))
+                            && VideoProperties::isVideoFilenameExt(ext)
+                            && VideoProperties::extractVideoPropertyFileAttributes(localfilename, mediafileattributes, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2)))   // using the 'nonce', not the file encryption key
+                        {
+                            client->reqs.add(new CommandAttachFADirect(n->nodehandle, mediafileattributes.c_str()));
+                        }
+                    }
+#endif
                 }
             }
 
@@ -570,6 +593,7 @@ void Transfer::complete()
             {
                 (*(FileFingerprint*)this) = fingerprint;
             }
+
 
             // ...and place it in all target locations. first, update the files'
             // local target filenames, in case they have changed during the upload
@@ -1198,7 +1222,7 @@ bool DirectReadSlot::doio()
             LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
             if (req->timeleft > 0)
             {
-                backoff = req->timeleft * 10;
+                backoff = dstime(req->timeleft * 10);
             }
             else
             {

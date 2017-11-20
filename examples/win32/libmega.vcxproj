@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -15,17 +15,17 @@
     <RootNamespace>mega</RootNamespace>
     <Keyword>Qt4VSv1.0</Keyword>
     <ProjectName>mega</ProjectName>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <OutputDirectory>debug\</OutputDirectory>
     <ATLMinimizesCRunTimeLibraryUsage>false</ATLMinimizesCRunTimeLibraryUsage>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>debug\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <OutputDirectory>release\</OutputDirectory>
@@ -34,7 +34,7 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>release\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -58,7 +58,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\zlib;3rdparty\include;3rdparty\include\libuv;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\MATTW\source\repos\3rdparty\zenlib\ZenLib\Source;C:\Users\MATTW\source\repos\3rdparty\mediainfolib\MediaInfoLib\Source;$(CRYPTOPP_INCLUDE);$(OPENSSL_INCLUDE);$(CURL_INCLUDE);$(CARES_INCLUDE);$(ZLIB_INCLUDE);$(SQLITE_INCLUDE);..\..\include\mega\wincurl;..\..\include;..\..\third_party\utf8proc;.;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>debug\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
@@ -66,13 +66,13 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>debug\</ObjectFileName>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;_WIN32;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;USE_MEDIAINFO;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
       <WarningLevel>Level3</WarningLevel>
     </ClCompile>
     <Link>
@@ -146,6 +146,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\3rdparty\sqlite-3.20.1\sqlite3.c" />
     <ClCompile Include="..\..\src\attrmap.cpp" />
     <ClCompile Include="..\..\src\backofftimer.cpp" />
     <ClCompile Include="..\..\src\base64.cpp" />
@@ -158,12 +159,13 @@
     <ClCompile Include="..\..\src\fileattributefetch.cpp" />
     <ClCompile Include="..\..\src\filefingerprint.cpp" />
     <ClCompile Include="..\..\src\filesystem.cpp" />
-    <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
+    <ClCompile Include="..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
+    <ClCompile Include="..\..\src\win32\console.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
     <ClCompile Include="..\..\src\http.cpp" />
@@ -182,7 +184,6 @@
     <ClCompile Include="..\..\src\sharenodekeys.cpp" />
     <ClCompile Include="..\..\src\crypto\sodium.cpp" />
     <ClCompile Include="..\..\src\db\sqlite.cpp" />
-    <ClCompile Include="3rdparty\libs\sqlite3.c" />
     <ClCompile Include="..\..\src\sync.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />
@@ -213,10 +214,12 @@
     <ClInclude Include="..\..\include\mega.h" />
     <ClInclude Include="..\..\include\megaapi.h" />
     <ClInclude Include="..\..\include\megaapi_impl.h" />
+    <ClInclude Include="..\..\include\mega\mediafileattribute.h" />
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
+    <ClInclude Include="..\..\include\mega\raid.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />

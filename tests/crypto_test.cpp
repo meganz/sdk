@@ -33,25 +33,25 @@ TEST(Crypto, AES_GCM)
 //    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   // Base64
     string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
-    byte keyBytes[keyLen];
+    byte* keyBytes = new byte[keyLen];
     keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
 
     string ivStr = "R8q1njARXS7urWv3";
     unsigned ivLen = 12;
-    byte ivBytes[ivLen];
+    byte* ivBytes = new byte[ivLen];
     ivLen = Base64::atob(ivStr.data(), ivBytes, ivLen);
 
     unsigned tagLen = 16;
 
     string plainStr = "dGQhwoovwoHDr8OnwossdGI4DsK9w5M";
     unsigned plainLen = plainStr.length();
-    byte plainBytes[plainLen];
+    byte* plainBytes = new byte[plainLen];
     plainLen = Base64::atob(plainStr.data(), plainBytes, plainLen);
     string plainText((const char*)plainBytes, plainLen);
 
     string cipherStr = "L3zqVYAOsRk7zMg2KsNTVShcad8TjIQ7umfsvia21QO0XTj8vaeR";
     unsigned cipherLen = cipherStr.length();
-    byte cipherBytes[cipherLen];
+    byte* cipherBytes = new byte[cipherLen];
     cipherLen = Base64::atob(cipherStr.data(), cipherBytes, cipherLen);
     string cipherText((const char*)cipherBytes, cipherLen);
 
@@ -73,6 +73,43 @@ TEST(Crypto, AES_GCM)
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
 }
+
+
+
+// Test encryption/decryption of the xxTEA algorithm that we use for media file attributes
+TEST(Crypto, xxTea)
+{
+    // two cases with data generated in the javascript version
+    {
+        uint32_t key1[4] = { 0x0, 0x1, 0x2, 0x3 };
+        uint32_t data1[16];
+        for (unsigned i = sizeof(data1) / sizeof(data1[0]); i--; ) data1[i] = i;
+        uint32_t encCmpData[16] = { 140302874, 3625593116, 1921165214, 2581869937, 2444819365, 2195760850, 718076837, 454900461, 2002331402, 793381415, 760353645, 2589596551, 709756921, 4142288381, 633884585, 418697353 };
+        xxteaEncrypt(data1, 16, key1);
+        ASSERT_TRUE(0 == memcmp(data1, encCmpData, sizeof(data1)));
+        xxteaDecrypt(data1, 16, key1);
+        for (unsigned i = sizeof(data1) / sizeof(data1[0]); i--; )
+        {
+            ASSERT_TRUE(data1[i] == i);
+        }
+    }
+
+    {
+        int32_t key2[4] = { -0x0, -0x1, -0x2, -0x3 };
+        uint32_t data2[16];
+        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; ) data2[i] = -(int32_t)i;
+        uint32_t encCmpData2[16] = { 1331968695, 2520133218, 2881973170, 783802011, 1812010991, 1359505125, 15067484, 3344073997, 4210258643, 824383226, 3584459687, 2866083302, 881254637, 502181030, 680349945, 1722488731 };
+        xxteaEncrypt(data2, 16, (uint32_t*)key2);
+        ASSERT_TRUE(0 == memcmp(data2, encCmpData2, sizeof(data2)));
+        xxteaDecrypt(data2, 16, (uint32_t*)key2);
+        for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; )
+        {
+            ASSERT_TRUE(data2[i] == uint32_t(-(int)i));
+        }
+    }
+
+}
+
 
 // Test encryption/decryption using AES in mode CCM
 // (test vectors from 'tlvstore_test.js', in Webclient)

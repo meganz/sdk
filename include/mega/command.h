@@ -398,6 +398,18 @@ public:
     CommandAttachFA(handle, fatype, handle, int);
 };
 
+class MEGA_API CommandAttachFADirect : public Command
+{
+    // for pre-prepared attribute strings that are not handles to something else.
+    handle h;
+    string attributes;
+
+public:
+    void procresult();
+
+    CommandAttachFADirect(handle, const char* attribs);
+};
+
 
 class MEGA_API CommandPutNodes : public Command
 {

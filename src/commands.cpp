@@ -285,6 +285,23 @@ void CommandAttachFA::procresult()
     client->app->putfa_result(h, type, e);
 }
 
+
+CommandAttachFADirect::CommandAttachFADirect(handle nh, const char* attribs)
+{
+    cmd("pfa");
+    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
+    arg("fa", attribs);
+
+    h = nh;
+}
+
+void CommandAttachFADirect::procresult()
+{
+    // no need to notify app in this case
+}
+
+
+
 // request upload target URL
 CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 {
