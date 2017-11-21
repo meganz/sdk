@@ -618,7 +618,7 @@ void CommandGetFile::procresult()
 
                     key.setkey(filekey, FILENODE);
 
-                    if ((buf = Node::decryptattr(tslot ? &tslot->transfer->key : &key,
+                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
                                                  at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
@@ -881,6 +881,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
+        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        {
+            arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
+        }
+
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
 
@@ -1010,7 +1015,8 @@ void CommandPutNodes::procresult()
 
     e = API_EINTERNAL;
 
-    for (;;)
+    bool noexit = true;
+    while (noexit)
     {
         switch (client->json.getnameid())
         {
@@ -1022,6 +1028,17 @@ void CommandPutNodes::procresult()
                 else
                 {
                     LOG_err << "Parse error (readnodes)";
+                    e = API_EINTERNAL;
+                    noexit = false;
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                if (!client->readnodes(&client->json, 1))
+                {
+                    LOG_err << "Parse error (readversions)";
+                    e = API_EINTERNAL;
+                    noexit = false;
                 }
                 break;
 
@@ -1036,29 +1053,31 @@ void CommandPutNodes::procresult()
 
                 // fall through
             case EOO:
-                client->applykeys();
-
-#ifdef ENABLE_SYNC
-                if (source == PUTNODES_SYNC)
-                {
-                    client->app->putnodes_result(e, type, NULL);
-                    client->putnodes_sync_result(e, nn, nnsize);
-                }
-                else
-#endif
-                if (source == PUTNODES_APP)
-                {
-                    client->app->putnodes_result(e, type, nn);
-                }
-#ifdef ENABLE_SYNC
-                else
-                {
-                    client->putnodes_syncdebris_result(e, nn);
-                }
-#endif
-                return;
+                noexit = false;
+                break;
         }
     }
+
+    client->applykeys();
+
+#ifdef ENABLE_SYNC
+    if (source == PUTNODES_SYNC)
+    {
+        client->app->putnodes_result(e, type, NULL);
+        client->putnodes_sync_result(e, nn, nnsize);
+    }
+    else
+#endif
+    if (source == PUTNODES_APP)
+    {
+        client->app->putnodes_result(e, type, nn);
+    }
+#ifdef ENABLE_SYNC
+    else
+    {
+        client->putnodes_syncdebris_result(e, nn);
+    }
+#endif
 }
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
@@ -1213,12 +1232,17 @@ void CommandMoveNode::procresult()
     }
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th)
+CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
 {
     cmd("d");
     notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
+
+    if (keepversions)
+    {
+        arg("v", 1);
+    }
 
     h = th;
     tag = client->reqtag;
@@ -1497,7 +1521,8 @@ void CommandLogin::procresult()
                     // password using symmetric challenge
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking tsid";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     // add missing RSA keypair
@@ -1517,7 +1542,8 @@ void CommandLogin::procresult()
 
                     if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking private key";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     if (!checksession)
@@ -3010,6 +3036,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
         arg("pro", "1", 0);
     }
 
+    arg("v", 1);
+
     tag = client->reqtag;
 }
 
@@ -3123,7 +3151,10 @@ void CommandGetUserQuota::procresult()
                         ns->bytes = client->json.getint();
                         ns->files = client->json.getint();
                         ns->folders = client->json.getint();
+                        ns->version_bytes = client->json.getint();
+                        ns->version_files = client->json.getint();
 
+                        while(client->json.storeobject());
                         client->json.leavearray();
                     }
 
@@ -3774,6 +3805,15 @@ void CommandFetchNodes::procresult()
         {
             case 'f':
                 // nodes
+                if (!client->readnodes(&client->json, 0))
+                {
+                    client->fetchingnodes = false;
+                    return client->app->fetchnodes_result(API_EINTERNAL);
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                // old versions
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;
@@ -5385,6 +5425,57 @@ void CommandGetMegaAchievements::procresult()
                     LOG_err << "Failed to parse MEGA achievements";
                     client->app->getmegaachievements_result(details, API_EINTERNAL);
                     return;
+                }
+                break;
+        }
+    }
+}
+
+CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
+{
+    cmd("wpdf");
+
+    tag = client->reqtag;
+}
+
+void CommandGetWelcomePDF::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getwelcomepdf_result(UNDEF, NULL, (error)client->json.getint());
+        return;
+    }
+
+    handle ph = UNDEF;
+    byte keybuf[FILENODEKEYLENGTH];
+    int len_key = 0;
+    string key;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle(MegaClient::NODEHANDLE);
+                break;
+
+            case 'k':
+                len_key = client->json.storebinary(keybuf, sizeof keybuf);
+                break;
+
+            case EOO:
+                if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
+                {
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                }
+                key.assign((const char *) keybuf, len_key);
+                return client->app->getwelcomepdf_result(ph, &key, API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse welcome PDF response";
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
                 }
                 break;
         }

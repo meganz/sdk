@@ -722,10 +722,15 @@ bool MegaClient::warnlevel()
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name)
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
     Node *found = NULL;
+
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
 
     fsaccess->normalize(&nname);
 
@@ -733,12 +738,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type == FOLDERNODE)
+            if ((*it)->type != FILENODE && !skipfolders)
             {
                 return *it;
             }
 
             found = *it;
+            if (skipfolders)
+            {
+                return found;
+            }
         }
     }
 
@@ -752,6 +761,9 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    updatedfilesize = ~0;
+    updatedfilets = 0;
+    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -913,6 +925,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
                      "." TOSTRING(MEGA_MICRO_VERSION));
 
     LOG_debug << "User-Agent: " << useragent;
+    LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
+
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
@@ -1200,7 +1214,23 @@ void MegaClient::exec()
                 switch (fc->req.status)
                 {
                     case REQ_SUCCESS:
-                        fc->parse(this, cit->first, true);
+                        if (fc->req.contenttype.find("text/html") != string::npos
+                            && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
+                            fc->urltime = 0;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99436, "Automatic change to HTTPS");
+                            reqtag = creqtag;
+                        }
+                        else
+                        {
+                            fc->parse(this, cit->first, true);
+                        }
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed(this);
@@ -1233,6 +1263,20 @@ void MegaClient::exec()
                         // timeout! fall through...
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
+
+                        if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
+                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99436, "Automatic change to HTTPS");
+                            reqtag = creqtag;
+                        }
+
                         fc->failed(this);
                         fc->timeout.reset();
                         fc->bt.backoff();
@@ -1247,7 +1291,7 @@ void MegaClient::exec()
                 {
                     fc->req.in.clear();
 
-                    if (Waiter::ds - fc->urltime > 600)
+                    if (!fc->urltime || (Waiter::ds - fc->urltime) > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
                         LOG_debug << "Getting fresh download URL";
@@ -1350,6 +1394,7 @@ void MegaClient::exec()
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
 
@@ -1389,6 +1434,7 @@ void MegaClient::exec()
                             {
                                 delete pendingcs;
                                 pendingcs = NULL;
+                                csretrying = false;
                                 break;
                             }
                         }
@@ -1551,9 +1597,9 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry && !pendingcs && !csretrying)
 #else
-        if (!scpaused && jsonsc.pos)
+        if (!scpaused && jsonsc.pos && !pendingcs && !csretrying)
 #endif
         {
             // FIXME: reload in case of bad JSON
@@ -1818,81 +1864,84 @@ void MegaClient::exec()
                     syncextraretry = false;
                 }
 
-                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                if (!syncnagleretry)
                 {
-                    if (!syncfsopsfailed)
+                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                     {
-                        syncfslockretry = false;
-
-                        // not retrying local operations: process pending notifyqs
-                        for (it = syncs.begin(); it != syncs.end(); )
+                        if (!syncfsopsfailed)
                         {
-                            Sync* sync = *it++;
+                            syncfslockretry = false;
 
-                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
+                            // not retrying local operations: process pending notifyqs
+                            for (it = syncs.begin(); it != syncs.end(); )
                             {
-                                delete sync;
-                                continue;
-                            }
-                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                            {
-                                // process items from the notifyq until depleted
-                                if (sync->dirnotify->notifyq[q].size())
+                                Sync* sync = *it++;
+
+                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                                 {
-                                    dstime dsretry;
-
-                                    syncops = true;
-
-                                    if ((dsretry = sync->procscanq(q)))
+                                    delete sync;
+                                    continue;
+                                }
+                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                {
+                                    // process items from the notifyq until depleted
+                                    if (sync->dirnotify->notifyq[q].size())
                                     {
-                                        // we resume processing after dsretry has elapsed
-                                        // (to avoid open-after-creation races with e.g. MS Office)
-                                        if (EVER(dsretry))
+                                        dstime dsretry;
+
+                                        syncops = true;
+
+                                        if ((dsretry = sync->procscanq(q)))
                                         {
-                                            syncnaglebt.backoff(dsretry + 1);
-                                            syncnagleretry = true;
+                                            // we resume processing after dsretry has elapsed
+                                            // (to avoid open-after-creation races with e.g. MS Office)
+                                            if (EVER(dsretry))
+                                            {
+                                                syncnaglebt.backoff(dsretry + 1);
+                                                syncnagleretry = true;
+                                            }
+                                            else
+                                            {
+                                                syncactivity = true;
+                                            }
+
+                                            if (syncadding)
+                                            {
+                                                break;
+                                            }
                                         }
                                         else
                                         {
-                                            syncactivity = true;
-                                        }
+                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                            if (!syncadding)
+                                            {
+                                                LOG_debug << "Running syncup to create missing folders";
+                                                syncup(&sync->localroot, &nds);
+                                                sync->cachenodes();
+                                            }
 
-                                        if (syncadding)
-                                        {
+                                            // we interrupt processing the notifyq if the completion
+                                            // of a node creation is required to continue
                                             break;
                                         }
                                     }
-                                    else
-                                    {
-                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                        if (!syncadding)
-                                        {
-                                            LOG_debug << "Running syncup to create missing folders";
-                                            syncup(&sync->localroot, &nds);
-                                            sync->cachenodes();
-                                        }
 
-                                        // we interrupt processing the notifyq if the completion
-                                        // of a node creation is required to continue
-                                        break;
+                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                    {
+                                        sync->changestate(SYNC_ACTIVE);
+
+                                        // scan for items that were deleted while the sync was stopped
+                                        // FIXME: defer this until RETRY queue is processed
+                                        sync->scanseqno++;
+                                        sync->deletemissing(&sync->localroot);
                                     }
                                 }
-
-                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-                                {
-                                    sync->changestate(SYNC_ACTIVE);
-
-                                    // scan for items that were deleted while the sync was stopped
-                                    // FIXME: defer this until RETRY queue is processed
-                                    sync->scanseqno++;
-                                    sync->deletemissing(&sync->localroot);
-                                }
                             }
-                        }
 
-                        if (syncadding)
-                        {
-                            break;
+                            if (syncadding)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -2052,6 +2101,7 @@ void MegaClient::exec()
                             // we have no sync-related operations pending - trigger processing if at least one
                             // filesystem item is notified or initiate a full rescan if there has been
                             // an event notification failure (or event notification is unavailable)
+                            bool scanfailed = false;
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 Sync* sync = *it;
@@ -2086,19 +2136,22 @@ void MegaClient::exec()
                                             {
                                                 LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
+                                                scanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
                                                 sync->dirnotify->error = false;
-                                                fsaccess->notifyerr = false;
-
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
-
-                                                syncscanbt.backoff(50 + totalnodes / 128);
                                             }
                                         }
                                     }
                                 }
+                            }
+
+                            if (scanfailed)
+                            {
+                                fsaccess->notifyerr = false;
+                                syncscanbt.backoff(50 + totalnodes / 128);
                             }
 
                             // clear pending global notification error flag if all syncs were marked
@@ -2251,7 +2304,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry && (syncsup || !statecurrent)))
+    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry && !pendingcs && !csretrying))
     {
         nds = Waiter::ds;
     }
@@ -2592,7 +2645,7 @@ bool MegaClient::dispatch(direction_t d)
                 // generate fresh random encryption key/CTR IV for this file
                 byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                 PrnGen::genblock(keyctriv, sizeof keyctriv);
-                nexttransfer->key.setkey(keyctriv);
+                memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
                 nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
             }
             else
@@ -2622,7 +2675,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     if (k)
                     {
-                        nexttransfer->key.setkey(k, FILENODE);
+                        memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
+                        SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
                         nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                         nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                         break;
@@ -2781,7 +2835,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, &nexttransfer->key, -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -3018,6 +3072,8 @@ void MegaClient::disconnect()
 
     httpio->lastdata = NEVER;
     httpio->disconnect();
+
+    app->notify_disconnect();
 }
 
 void MegaClient::abortlockrequest()
@@ -4113,6 +4169,10 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
+                    readnodes(j, 1);
+                    break;
+
+                case MAKENAMEID2('f', '2'):
                     readnodes(j, 1);
                     break;
 
@@ -5708,16 +5768,30 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n)
+error MegaClient::unlink(Node* n, bool keepversions)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
 
-    reqs.add(new CommandDelNode(this, n->nodehandle));
+    bool kv = (keepversions && n->type == FILENODE);
+    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
 
     mergenewshares(1);
+
+    if (kv)
+    {
+        Node *newerversion = n->parent;
+        if (n->children.size())
+        {
+            Node *olderversion = n->children.back();
+            olderversion->setparent(newerversion);
+            olderversion->changed.parent = true;
+            olderversion->tag = reqtag;
+            notifynode(olderversion);
+        }
+    }
 
     TreeProcDel td;
     proctree(n, &td);
@@ -6022,6 +6096,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             if ((n = nodebyhandle(h)))
             {
+                Node* p = NULL;
+                if (!ISUNDEF(ph))
+                {
+                    p = nodebyhandle(ph);
+                }
+
                 if (n->changed.removed)
                 {
                     // node marked for deletion is being resurrected, possibly
@@ -6031,17 +6111,25 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
+                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency (parent linkage)");
+                        app->reload("Node inconsistency");
+
+                        static bool reloadnotified = false;
+                        if (!reloadnotified)
+                        {
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            sendevent(99437, "Node inconsistency");
+                            reqtag = creqtag;
+                            reloadnotified = true;
+                        }
                     }
                 }
 
                 if (!ISUNDEF(ph))
                 {
-                    Node* p;
-
-                    if ((p = nodebyhandle(ph)))
+                    if (p)
                     {
                         n->setparent(p);
                         n->changed.parent = true;
@@ -7295,9 +7383,9 @@ void MegaClient::resetKeyring()
 #endif
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
+void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
-    if (n->type != FILENODE)
+    if (!skipversions || n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
@@ -9252,6 +9340,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
+        fnstats.cache = FetchNodesStats::API_NO_CACHE;
         fnstats.nodesCached = nodes.size();
         fnstats.timeToCached = Waiter::ds - fnstats.startTime;
         fnstats.timeToResult = fnstats.timeToCached;
@@ -9272,6 +9361,7 @@ void MegaClient::fetchnodes(bool nocache)
     else if (!fetchingnodes)
     {
         fnstats.mode = FetchNodesStats::MODE_API;
+        fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
 
         // prevent the processing of previous sc requests
@@ -9462,26 +9552,16 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            // Verification could fail because a legacy bug in Webclient. Retry...
-            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
-            pubk.serializekeyforjs(pubkstr, true);
-            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
-                                        pubkstr.size(),
-                                        &sigPubk,
-                                        (unsigned char*) puEd255.data()))
-            {
-                LOG_warn << "Verification of signature of public key for RSA failed";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99414, "Verification of signature of public key for RSA failed");
+            reqtag = creqtag;
 
-                int creqtag = reqtag;
-                reqtag = 0;
-                sendevent(99414, "Verification of signature of public key for RSA failed");
-                reqtag = creqtag;
-
-                clearKeys();
-                resetKeyring();
-                return;
-            }
+            clearKeys();
+            resetKeyring();
+            return;
         }
 
         // if we reached this point, everything is OK
@@ -10935,10 +11015,10 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? send it to SyncDebris.
+                    // overwriting an existing remote node? tag it as the previous version
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        movetosyncdebris(l->node, l->sync->inshare);
+                        nnp->ovhandle = l->node->nodehandle;
                     }
 
                     // this is a file - copy, use original key & attributes
@@ -11408,13 +11488,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                     else
                     {
-                        if (t->progresscompleted)
-                        {
-                            LOG_warn << "Temporary file not found";
-                            t->chunkmacs.clear();
-                            t->progresscompleted = 0;
-                            t->pos = 0;
-                        }
+                        LOG_warn << "Temporary file not found";
+                        t->localfilename.clear();
+                        t->chunkmacs.clear();
+                        t->progresscompleted = 0;
+                        t->pos = 0;
                     }
                 }
                 else
@@ -11666,6 +11744,20 @@ m_off_t MegaClient::getmaxuploadspeed()
     return httpio->getmaxuploadspeed();
 }
 
+handle MegaClient::getovhandle(Node *parent, string *name)
+{
+    handle ovhandle = UNDEF;
+    if (parent && name)
+    {
+        Node *ovn = childnodebyname(parent, name->c_str(), true);
+        if (ovn)
+        {
+            ovhandle = ovn->nodehandle;
+        }
+    }
+    return ovhandle;
+}
+
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
@@ -11816,6 +11908,11 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
     reqs.add(new CommandGetMegaAchievements(this, details, false));
 }
 
+void MegaClient::getwelcomepdf()
+{
+    reqs.add(new CommandGetWelcomePDF(this));
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();
@@ -11825,6 +11922,7 @@ void FetchNodesStats::init()
 {
     mode = MODE_NONE;
     type = TYPE_NONE;
+    cache = API_NONE;
     nodesCached = 0;
     nodesCurrent = 0;
     actionPackets = 0;
@@ -11857,7 +11955,7 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToFirstByte << "," << timeToLastByte << ","
         << timeToCached << "," << timeToResult << ","
         << timeToSyncsResumed << "," << timeToCurrent << ","
-        << timeToTransfersResumed << "]";
+        << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
 }
 

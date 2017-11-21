@@ -122,7 +122,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
-    d->append((const char*)key.key, sizeof (key.key));
+    d->append((const char*)transferkey, sizeof (transferkey));
 
     ll = (unsigned short)chunkmacs.size();
     d->append((char*)&ll, sizeof(ll));
@@ -220,11 +220,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    byte key[SymmCipher::KEYLENGTH];
-    memcpy(key, ptr, SymmCipher::KEYLENGTH);
+    memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->key.setkey(key);
     t->localfilename.assign(filepath, ll);
 
     ll = MemAccess::get<unsigned short>(ptr);
@@ -350,6 +348,12 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
+}
+
+SymmCipher *Transfer::transfercipher()
+{
+    client->tmptransfercipher.setkey(transferkey);
+    return &client->tmptransfercipher;
 }
 
 // transfer attempt failed, notify all related files, collect request on

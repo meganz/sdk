@@ -209,7 +209,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @deprecated Property related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -218,7 +218,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
 
 /**
  * @brief The total number of nodes in the account
@@ -804,7 +804,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate;
@@ -829,7 +829,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
@@ -4478,6 +4478,34 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSdeviceToken:(NSString *)deviceToken;
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
 
 /**
  * @brief Get the MEGA Achievements of the account logged in

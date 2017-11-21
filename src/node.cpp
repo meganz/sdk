@@ -572,9 +572,9 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpcipher.setkey(&nodekey))
+    if (client->tmpnodecipher.setkey(&nodekey))
     {
-        return &client->tmpcipher;
+        return &client->tmpnodecipher;
     }
 
     return NULL;
@@ -841,7 +841,7 @@ bool Node::setparent(Node* p)
             p = p->parent;
         }
 
-        if (!p)
+        if (!p || p->type == FILENODE)
         {
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
@@ -1460,11 +1460,6 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         // otherwise, overwrite node if it already exists and complete in its
         // place
         h = parent->node->nodehandle;
-        if (node && node->parent && node->parent->localnode)
-        {
-            sync->client->movetosyncdebris(node, sync->inshare);
-            sync->client->execsyncdeletions();
-        }
     }
 
     File::completed(t, this);

@@ -1580,6 +1580,14 @@ using namespace mega;
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSVoIP, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSVoIP, deviceToken ? [deviceToken UTF8String] : NULL);
+}
+
 - (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getAccountAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

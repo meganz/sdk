@@ -88,14 +88,14 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     if (GlobalMemoryStatusEx(&statex))
     {
         LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
-        if (statex.ullAvailPhys < 268435456 // 256 MB
-                || statex.ullAvailVirtual < 268435456)
+        if (statex.ullAvailPhys < 536870912 // 512 MB
+                || statex.ullAvailVirtual < 536870912)
         {
-            if (statex.ullAvailPhys < 134217728 // 128 MB
-                    || statex.ullAvailVirtual < 134217728)
+            if (statex.ullAvailPhys < 268435456 // 256 MB
+                    || statex.ullAvailVirtual < 268435456)
             {
-                if (statex.ullAvailPhys < 67108864 // 64 MB
-                        || statex.ullAvailVirtual < 67108864)
+                if (statex.ullAvailPhys < 134217728 // 128 MB
+                        || statex.ullAvailVirtual < 134217728)
                 {
                     maxDownloadRequestSize = 2097152; // 2 MB
                 }
@@ -282,10 +282,11 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
+    SymmCipher *cipher = transfer->transfercipher();
     for (chunkmac_map::iterator it = macs->begin(); it != macs->end(); it++)
     {
         SymmCipher::xorblock(it->second.mac, mac);
-        transfer->key.ecb_encrypt(mac);
+        cipher->ecb_encrypt(mac);
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -417,7 +418,7 @@ void TransferSlot::doio(MegaClient* client)
                                     transfer->failcount = 0;
                                     transfer->chunkmacs[reqs[i]->pos].finished = true;
                                     transfer->progresscompleted += reqs[i]->size;
-                                    memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);
+                                    memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
@@ -454,6 +455,21 @@ void TransferSlot::doio(MegaClient* client)
                                 errorcount++;
                                 reqs[i]->status = REQ_PREPARED;
                                 break;
+                            }
+
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            {
+                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
+                                return transfer->failed(API_EAGAIN);
                             }
 
                             // fail with returned error
@@ -571,6 +587,21 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            {
+                                LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
+                                client->usehttps = true;
+                                client->app->notify_change_to_https();
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
+
+                                return transfer->failed(API_EAGAIN);
+                            }
+
                             int creqtag = client->reqtag;
                             client->reqtag = 0;
                             client->sendevent(99430, "Invalid chunk size");
@@ -606,7 +637,7 @@ void TransferSlot::doio(MegaClient* client)
                                     }
                                 }
 
-                                reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                          &transfer->chunkmacs, transfer->ctriv,
                                          asyncIO[i]->pos, npos);
 
@@ -709,6 +740,21 @@ void TransferSlot::doio(MegaClient* client)
 
                 case REQ_FAILURE:
                     LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
+                    if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
+                            && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
+                        client->usehttps = true;
+                        client->app->notify_change_to_https();
+
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99436, "Automatic change to HTTPS");
+                        client->reqtag = creqtag;
+
+                        return transfer->failed(API_EAGAIN);
+                    }
+
                     if (reqs[i]->httpstatus == 509)
                     {
                         if (reqs[i]->timeleft < 0)
@@ -901,7 +947,7 @@ void TransferSlot::doio(MegaClient* client)
                             return transfer->failed(API_EINTERNAL);
                         }
 
-                        reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                        reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                                                  &transfer->chunkmacs, transfer->ctriv,
                                                                  transfer->pos, npos);
                         reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);

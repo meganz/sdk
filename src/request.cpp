@@ -116,12 +116,15 @@ void RequestDispatcher::nextRequest()
 {
     r ^= 1;
 
-    while(!reqbuf.empty() && reqs[r].cmdspending() < MAX_COMMANDS)
+    if (!reqs[r].cmdspending())
     {
-        Command *c = reqbuf.front();
-        reqbuf.pop();
-        reqs[r].add(c);
-        LOG_debug << "Command extracted from secondary buffer: " << reqbuf.size();
+        while(!reqbuf.empty() && reqs[r].cmdspending() < MAX_COMMANDS)
+        {
+            Command *c = reqbuf.front();
+            reqbuf.pop();
+            reqs[r].add(c);
+            LOG_debug << "Command extracted from secondary buffer: " << reqbuf.size();
+        }
     }
 }
 

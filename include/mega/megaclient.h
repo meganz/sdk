@@ -53,6 +53,12 @@ public:
         TYPE_NONE = 2
     };
 
+    enum {
+        API_CACHE = 0,
+        API_NO_CACHE = 1,    // use this for DB mode
+        API_NONE = 2
+    };
+
     FetchNodesStats();
     void init();
     void toJsonArray(string *json);
@@ -61,6 +67,7 @@ public:
     // General info //
     //////////////////
     int mode; // DB = 0, API = 1
+    int cache; // no-cache = 0, no-cache = 1
     int type; // Account = 0, Folder = 1
     dstime startTime; // startup time (ds)
 
@@ -302,7 +309,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*);
+    error unlink(Node*, bool = false);
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
@@ -535,6 +542,9 @@ public:
     // get mega achievements list (for advertising for unregistered users)
     void getmegaachievements(AchievementsDetails *details);
 
+    // get welcome pdf
+    void getwelcomepdf();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -554,6 +564,9 @@ public:
 
     // get max upload speed
     m_off_t getmaxuploadspeed();
+
+    // get the handle of the older version for a NewNode
+    handle getovhandle(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -753,6 +766,11 @@ public:
 
     // directory change notification
     struct FileSystemAccess* fsaccess;
+
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
 
     // bitmap graphics handling
     GfxProc* gfx;
@@ -1112,7 +1130,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1208,7 +1226,7 @@ public:
     handle getpublicfolderhandle();
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
@@ -1216,7 +1234,8 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
-    SymmCipher tmpcipher;
+    SymmCipher tmpnodecipher;
+    SymmCipher tmptransfercipher;
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);

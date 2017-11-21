@@ -1153,6 +1153,11 @@ MUser^ MegaSDK::getMyUser()
     return ref new MUser(megaApi->getMyUser(), true);
 }
 
+bool MegaSDK::isAchievementsEnabled()
+{
+    return megaApi->isAchievementsEnabled();
+}
+
 void MegaSDK::setLogLevel(MLogLevel logLevel)
 {
     MegaApi::setLogLevel((int)logLevel);
@@ -3537,6 +3542,26 @@ bool MegaSDK::createPreview(String^ imagePath, String^ dstPath)
 bool MegaSDK::isOnline()
 {
     return megaApi->isOnline();
+}
+
+void MegaSDK::getAccountAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getAccountAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getAccountAchievements()
+{
+    megaApi->getAccountAchievements();
+}
+
+void MegaSDK::getMegaAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getMegaAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getMegaAchievements()
+{
+    megaApi->getMegaAchievements();
 }
 
 MegaRequestListener *MegaSDK::createDelegateMRequestListener(MRequestListenerInterface^ listener, bool singleListener)

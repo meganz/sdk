@@ -224,6 +224,9 @@ struct MEGA_API MegaApp
     // get mega-achievements
     virtual void getmegaachievements_result(AchievementsDetails*, error) {}
 
+    // get welcome pdf
+    virtual void getwelcomepdf_result(handle, string*, error) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }
@@ -280,8 +283,13 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
+    virtual void notify_change_to_https() { }
+
     // account confirmation via signup link
     virtual void notify_confirmation(const char* email) { }
+
+    // network layer disconnected
+    virtual void notify_disconnect() { }
 
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }

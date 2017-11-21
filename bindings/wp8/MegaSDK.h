@@ -227,6 +227,7 @@ namespace mega
         String^ getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
         MUser^ getMyUser();
+        bool isAchievementsEnabled();
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
@@ -558,6 +559,11 @@ namespace mega
         bool createPreview(String^ imagePath, String^ dstPath);
 
         bool isOnline();
+
+        void getAccountAchievements(MRequestListenerInterface^ listener);
+        void getAccountAchievements();
+        void getMegaAchievements(MRequestListenerInterface^ listener);
+        void getMegaAchievements();
 
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;

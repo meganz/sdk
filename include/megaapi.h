@@ -2014,6 +2014,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
+            TYPE_RESTORE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -2618,7 +2619,9 @@ public:
 
     enum {
         EVENT_COMMIT_DB = 0,
-        EVENT_ACCOUNT_CONFIRMATION = 1
+        EVENT_ACCOUNT_CONFIRMATION = 1,
+        EVENT_CHANGE_TO_HTTPS = 2,
+        EVENT_DISCONNECT = 3
     };
 
     virtual ~MegaEvent();
@@ -4207,6 +4210,21 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
+         * its communications. This happens when the SDK is able to detect that MEGA servers can't be
+         * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
+         * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
+         * is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
+         * applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
+         * that applications that receive one of these events save that information on its settings and
+         * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
+         * and automatically switch to HTTPS every time that the application starts.
+         *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+         * existing open-connections, since they have become unusable. It's recommended that the app
+         * receiving this event reset its connections with other servers, since the disconnect
+         * performed by the SDK is due to a network change or IP addresses becoming invalid.
+         *
          * You can check the type of event by calling MegaEvent::getType
          *
          * The SDK retains the ownership of the details of the event (\c event).
@@ -4519,6 +4537,21 @@ class MegaListener
          *
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
+         *
+         *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
+         * its communications. This happens when the SDK is able to detect that MEGA servers can't be
+         * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
+         * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
+         * is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
+         * applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
+         * that applications that receive one of these events save that information on its settings and
+         * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
+         * and automatically switch to HTTPS every time that the application starts.
+         *
+         *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+         * existing open-connections, since they have become unusable. It's recommended that the app
+         * receiving this event reset its connections with other servers, since the disconnect
+         * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
          * You can check the type of event by calling MegaEvent::getType
          *
@@ -5036,6 +5069,8 @@ class MegaApi
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
          * it could be retrying forever.
+         * Using true in this parameter will trigger the callback MegaGlobalListener::onEvent and the callback
+         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
          *
          * @param includexfers true to retry also transfers
          * It's not recommended to set this flag. Transfer has a retry counter and are aborted after a number of retries
@@ -5250,11 +5285,24 @@ class MegaApi
         /**
          * @brief Initialize the creation of a new MEGA account
          *
+         * This function automatically imports a Welcome PDF file into the new account. The file is
+         * automatically imported in the language used for the account. In case there is no file
+         * available for the language of the account, it will not be imported.
+         *
+         * @note If the account has been created correctly, but there is any error related to the
+         * importing of the file, this request will still return API_OK. However, the nodehandle
+         * at the MegaRequest::getNodeHandle will be INVALID_HANDLE.
+         *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the name of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the nodehandle of the Welcome PDF file, if it
+         * was imported successfully.
          *
          * If this request succeeds, a confirmation email will be sent to the users.
          * If an account with the same email already exists, you will get the error code
@@ -5842,7 +5890,6 @@ class MegaApi
          */
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
 
-
         /**
          * @brief Copy a node in the MEGA account changing the file name
          *
@@ -5885,14 +5932,52 @@ class MegaApi
          * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
          * the node to the Rubbish Bin use MegaApi::moveNode
          *
+         * If the node has previous versions, they will be deleted too
+         *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+         * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
          *
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
          */
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a version of a file from the MEGA account
+         *
+         * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+         * the node to the Rubbish Bin use MegaApi::moveNode.
+         *
+         * If the node has previous versions, they won't be deleted.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+         * - MegaRequest::getFlag - Returns true because previous versions will be preserved
+         *
+         * @param node Node to remove
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeVersion(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Restore a previous version of a file
+         *
+         * Only versions of a file can be restored, not the current version (because it's already current).
+         * The node will be copied and set as current. All the version history will be preserved without changes,
+         * being the old current node the previous version of the new current node, and keeping the restored
+         * node also in its previous place in the version history.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESTORE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to restore
+         *
+         * @param version Node with the version to restore
+         * @param listener MegaRequestListener to track this request
+         */
+        void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Clean the Rubbish Bin in the MEGA account
@@ -8505,6 +8590,27 @@ class MegaApi
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
+         * @brief Get all versions of a file
+         * @param node Node to check
+         * @return List with all versions of the node, including the current version
+         */
+        MegaNodeList* getVersions(MegaNode *node);
+
+        /**
+         * @brief Get the number of versions of a file
+         * @param node Node to check
+         * @return Number of versions of the node, including the current version
+         */
+        int getNumVersions(MegaNode *node);
+
+        /**
+         * @brief Check if a file has previous versions
+         * @param node Node to check
+         * @return true if the node has any previous version
+         */
+        bool hasVersions(MegaNode *node);
+
+        /**
          * @brief Get file and folder children of a MegaNode separatedly
          *
          * If the parent node doesn't exist or it isn't a folder, this function
@@ -10740,6 +10846,12 @@ public:
     virtual long long getStorageUsed();
 
     /**
+     * @brief Get the used storage by versions
+     * @return Used storage by versions (in bytes)
+     */
+    virtual long long getVersionStorageUsed();
+
+    /**
      * @brief Get the maximum available bandwidth for the account
      * @return Maximum available bandwidth (in bytes)
      */
@@ -10801,6 +10913,28 @@ public:
      * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
      */
     virtual long long getNumFolders(MegaHandle handle);
+
+    /**
+     * @brief Get the used storage by versions in for a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Used storage by versions (in bytes)
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
+    virtual long long getVersionStorageUsed(MegaHandle handle);
+
+    /**
+     * @brief Get the number of versioned files in a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Number of versioned files in the node
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
+    virtual long long getNumVersionFiles(MegaHandle handle);
 
     /**
      * @brief Creates a copy of this MegaAccountDetails object.
@@ -11254,9 +11388,9 @@ public:
     /**
      * @brief Returns the actual storage achieved by this account
      *
-     * This function considers the base storage (permanent) plus all the
-     * storage granted to the logged in account as result of the unlocked
-     * achievements. It does not consider the expired achievements.
+     * This function considers all the storage granted to the logged in
+     * account as result of the unlocked achievements. It does not consider
+     * the expired achievements nor the permanent base storage.
      *
      * @return The achieved storage for this account
      */
