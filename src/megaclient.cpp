@@ -1890,7 +1890,7 @@ void MegaClient::exec()
                                             // (to avoid open-after-creation races with e.g. MS Office)
                                             if (EVER(dsretry))
                                             {
-                                                if (!syncnagleretry || syncnaglebt.backoffdelta() <= (dsretry + 1))
+                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
                                                 {
                                                     syncnaglebt.backoff(dsretry + 1);
                                                 }
