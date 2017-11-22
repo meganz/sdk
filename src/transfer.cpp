@@ -571,21 +571,6 @@ void Transfer::complete()
                         client->setattr(n);
                     }
 
-                    // Add video file attributes for video files that don't have any yet
-#ifdef USE_MEDIAINFO
-                    if (!n->hasfileattribute(8))   // todo: later on check weCanUpdate 
-                    {
-                        char ext[8];
-                        std::string locallyEncodedDestName, mediafileattributes;
-                        client->fsaccess->path2local(&(*it)->name, &locallyEncodedDestName);
-                        if (client->fsaccess->getextension(&locallyEncodedDestName, ext, sizeof(ext))
-                            && VideoProperties::isVideoFilenameExt(ext)
-                            && VideoProperties::extractVideoPropertyFileAttributes(localfilename, mediafileattributes, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2)))   // using the 'nonce', not the file encryption key
-                        {
-                            client->reqs.add(new CommandAttachFADirect(n->nodehandle, mediafileattributes.c_str()));
-                        }
-                    }
-#endif
                 }
             }
 
@@ -737,6 +722,26 @@ void Transfer::complete()
                         tmplocalname = localname;
                         success = true;
                     }
+
+#ifdef USE_MEDIAINFO
+                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
+                    if (success)
+                    {
+                        char ext[8];
+                        Node* n;
+                        if (client->fsaccess->getextension(&tmplocalname, ext, sizeof(ext)) &&
+                            VideoProperties::isVideoFilenameExt(ext) &&
+                            (n = client->nodebyhandle((*it)->h)))
+                        {
+                            //if (!n->hasfileattribute(8) || VideoProperties::timeToRetryVideoPropertyExtraction(n->fileattrstring, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2)))
+                            {
+                                // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
+                                std::string mediafileattributes = VideoProperties::extractVideoPropertyFileAttributes(tmplocalname, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2));   // using the 'nonce', not the file encryption key
+                                client->reqs.add(new CommandAttachFADirect(n->nodehandle, mediafileattributes.c_str()));
+                            }
+                        }
+                    }
+#endif
                 }
 
                 if (!success)

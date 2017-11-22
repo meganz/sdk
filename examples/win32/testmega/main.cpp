@@ -42,7 +42,7 @@
 using namespace mega;
 using namespace std;
 
-auto loglevel = MegaApi::LOG_LEVEL_DEBUG;
+auto loglevel = MegaApi::LOG_LEVEL_WARNING;
 
 std::unique_ptr<MegaNode> bigFileNode = NULL;
 
@@ -143,21 +143,26 @@ public:
 					else
 						cout << "*****   Folder: ";
 				
-					cout << node->getName() << endl;
+                    std::string name(node->getName());
+                    cout << name << endl;
 
-                    if (std::string(node->getName()) == "MEGA.png")
+                    if (name == "MEGA.png")
                         megaPNGPresent = true;
 
 #if 0
-                    if (std::string(node->getName()) == "kimorg-20110421-021857+0600.tif")  
+                    if (name) == "kimorg-20110421-021857+0600.tif")  
                         bigFileNode.reset(node->copy());
 #elif 0
-    if (std::string(node->getName()) == "nonRaidVersion.tst") //"out.dat.original")
+    if (name == "nonRaidVersion.tst") //"out.dat.original")
         bigFileNode.reset(node->copy());
 #else
-    if (std::string(node->getName()) == "IMG_7112.MOV") //"out.dat.original")
+    if (name == "IMG_7112.MOV") //"out.dat.original")
         bigFileNode.reset(node->copy());
 #endif
+
+    if (name.size() > 5 && name.substr(0,5) == "small") 
+        api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
+
 
 				}
 				cout << "***** Done" << endl;
@@ -204,7 +209,7 @@ public:
             if (bigFileNode)
             {
                 std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
-                api->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
+                //api->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
 
                 paused = false;
                 pauseByteCount = 7000000;
@@ -218,7 +223,7 @@ public:
 	
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 	{
-		cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << endl; 
+		LOG_info << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes(); 
 
 
         if (transfer->getTransferredBytes() > pauseByteCount)
@@ -482,7 +487,7 @@ int main()
     if (bigFileNode)
     {
         std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
-        megaApi->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
+        //megaApi->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
 
 
 

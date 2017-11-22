@@ -31,7 +31,7 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 
 struct VideoProperties
 {
-    bool shortformat;
+    byte shortformat; 
     uint32_t width;
     uint32_t height;
     uint32_t fps;
@@ -54,8 +54,13 @@ struct VideoProperties
     static bool isVideoFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters, and get its encoded attributes.
-    static bool extractVideoPropertyFileAttributes(const std::string& localFilename, std::string& mediafileattributes, uint32_t attributekey[4]);
+    static std::string extractVideoPropertyFileAttributes(const std::string& localFilename, uint32_t attributekey[4]);
+
+    // Check if we should retry video property extraction, due to previous failure with older library
+    static bool timeToRetryVideoPropertyExtraction(const std::string& fileattributes, uint32_t fakey[4]);
 #endif
+
+
 
 };
 
