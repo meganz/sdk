@@ -249,7 +249,6 @@ VideoProperties VideoProperties::decodeVideoPropertiesAttributes(const std::stri
 
 bool VideoProperties::isVideoFilenameExt(const std::string& ext)
 {
-    // todo: extract this list from mediainfo library
     static const char* supportedformats = ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.act.aif.aifc.aiff.amr.asf.au.avc.avi.caf.dd+.dif.divx.dv.eac3.ec3.evo.f4a.f4b.f4v.flv.h261.h263.h264.h265.hevc.isma.ismt.ismv.jpm.jpx.k3g.kar.lxf.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mid.midi.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.opus.pss.qt.spx.tmf.tp.trp.ts.ty.vc1.vob.wav.webm.wma.wmv.wtv.";
 
     for (const char* ptr = supportedformats; NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
