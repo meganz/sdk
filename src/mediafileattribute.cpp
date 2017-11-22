@@ -261,7 +261,9 @@ bool VideoProperties::isVideoFilenameExt(const std::string& ext)
     return false;
 }
 
-static const char* codecsInOrder =  // In the order they appear in Codecs.CSV in MediInfoLib 17.10.  Add additional codecs at the end so indexes stay unchanged
+#define MEGA_MEDIAINFO_CONFIG_REVISION 1 // increment on lib config change etc
+
+static const char* codecsInOrder =  // In the order they appear in Codecs.CSV in MediaInfoLib 17.10.  Add additional codecs at the end so indexes stay unchanged
 "| BIT| JPG| PNG| RAW| RGB| RL4| RL8|1978|2VUY|3IV0|3IV1|3IV2|3IVD|3IVX|3VID|8BPS|AAS4|AASC|ABYR|ACTL|ADV1|ADVJ|AEIK|AEMI|AFLC|AFLI|AHDV|AJPG|ALPH|AMPG|AMR |ANIM|AP41|AP42|ASLC|ASV1|ASV2|ASVX|ATM4|"
 "AUR2|AURA|AUVX|AV1X|AVC1|AVD1|AVDJ|AVDN|AVDV|AVI1|AVI2|AVID|AVIS|AVMP|AVR |AVRn|AVRN|AVUI|AVUP|AYUV|AZPR|AZRP|BGR |BHIV|BINK|BIT |BITM|BLOX|BLZ0|BT20|BTCV|BTVC|BW00|BW10|BXBG|BXRG|BXY2|BXYV|CC12|"
 "CDV5|CDVC|CDVH|CFCC|CFHD|CGDI|CHAM|CJPG|CLJR|CLLC|CLPL|CM10|CMYK|COL0|COL1|CPLA|CRAM|CSCD|CT10|CTRX|CUVC|CVID|cvid|CWLT|CYUV|CYUY|D261|D263|DAVC|DC25|DCAP|DCL1|DCT0|DFSC|DIB |DIV1|DIV2|DIV3|DIV4|"
@@ -293,7 +295,7 @@ static const char* codecsInOrder =  // In the order they appear in Codecs.CSV in
 "2003|2004|2005|2006|2007|3313|4143|4201|4243|43AC|564C|566F|5756|674F|6750|6751|676F|6770|6771|7A21|7A22|A100|A101|A102|A103|A104|A105|A106|A107|A109|DFAC|F1AC|FFFE|FFFF|S_TEXT/UTF8|S_TEXT/SSA|"
 "S_TEXT/ASS|S_TEXT/USF|S_KATE|S_DVBSUB|S_IMAGE/BMP|S_VOBSUB|S_HDMV/PGS|S_HDMV/TEXTST|";
 
-static const char* containersInOrder =  // In the order they appear in Format.CSV in MediInfoLib 17.10.  Add additional containers at the end so indexes stay unchanged
+static const char* containersInOrder =  // In the order they appear in Format.CSV in MediaInfoLib 17.10.  Add additional containers at the end so indexes stay unchanged
 "|AAF|AIFF|AMV|AVI|BDAV|Blu-ray Clip info|Blu-ray Index|Blu-ray Movie object|Blu-ray Playlist|CDDA|CDXA|DASH MPD|DV|DivX|DPG|DVD Video|Flash Video|GXF|HDS F4M|HLS|Google Video|ISM|IVF|LXF|"
 "Matroska|MPEG-PS|MPEG-TS|MPEG-4|MTV|MXF|NSV|NUT|Ogg|PMP|PTX|QuickTime|RealMedia|RIFF-MMP|ShockWave|SKM|WebM|Windows Media|WTV|AVC|AVS Video|Dirac|FFV1|FFV2|FLC|FLI|FLIC|H.261|H.263|HEVC|"
 "MPEG Video|MPEG-4 Visual|Theora|VC-1|YUV4MPEG2|VP8|YUV|AAC|AC-3|ADIF|ADTS|ALS|AMR|Atrac|Atrac3|AU|CAF|DolbyE|DTS|DTS-HD|E-AC-3|Extended Module|FLAC|G.719|G.722|G.722.1|G.723|G.729|G.729.1|"
@@ -335,8 +337,6 @@ static inline uint32_t coalesce(uint32_t a, uint32_t b)
 {
     return a != 0 ? a : b;
 }
-
-#define MEGA_MEDIAINFO_CONFIG_REVISION 1 // increment on lib config change etc
 
 static unsigned MediaInfoLibVersion()
 {
