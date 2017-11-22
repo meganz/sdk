@@ -761,9 +761,6 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
-    updatedfilesize = ~0;
-    updatedfilets = 0;
-    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -1897,11 +1894,19 @@ void MegaClient::exec()
                                             // (to avoid open-after-creation races with e.g. MS Office)
                                             if (EVER(dsretry))
                                             {
-                                                syncnaglebt.backoff(dsretry + 1);
+                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
+                                                {
+                                                    syncnaglebt.backoff(dsretry + 1);
+                                                }
+
                                                 syncnagleretry = true;
                                             }
                                             else
                                             {
+                                                if (syncnagleretry)
+                                                {
+                                                    syncnaglebt.arm();
+                                                }
                                                 syncactivity = true;
                                             }
 
