@@ -14280,7 +14280,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->sctable->remove();
                     delete client->sctable;
                     client->sctable = NULL;
-
+                    client->pendingsccommit = false;
                     client->cachedscsn = UNDEF;
                 }
 

@@ -776,6 +776,9 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // there is data to commit to the database when possible
+    bool pendingsccommit;
+
     // transfer cache table
     DbTable* tctable;
     // scsn as read from sctable
@@ -967,6 +970,9 @@ public:
 
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
+
+    // minute of the last created folder in SyncDebris
+    m_time_t syncdebrisminute;
 
     // activity flag
     bool syncactivity;
