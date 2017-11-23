@@ -971,8 +971,8 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
-    // id of the last created folder in SyncDebris
-    m_time_t syncdebrisdayid;
+    // minute of the last created folder in SyncDebris
+    m_time_t syncdebrisminute;
 
     // activity flag
     bool syncactivity;
