@@ -11338,6 +11338,7 @@ void MegaClient::execmovetosyncdebris()
                 }
                 else
                 {
+                    LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
                     n->syncdeleted = SYNCDEL_NONE;
                     n->todebris_it = todebris.end();
                     todebris.erase(it++);
@@ -11351,6 +11352,7 @@ void MegaClient::execmovetosyncdebris()
         else if (n->syncdeleted == SYNCDEL_DEBRISDAY
                  || n->syncdeleted == SYNCDEL_FAILED)
         {
+            LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
             n->todebris_it = todebris.end();
             todebris.erase(it++);
