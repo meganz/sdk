@@ -762,6 +762,7 @@ void MegaClient::init()
     syncactivity = false;
     syncops = false;
     syncdebrisadding = false;
+    syncdebrisdayid = 0;
     syncscanfailed = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
@@ -11288,6 +11289,7 @@ void MegaClient::execmovetosyncdebris()
     ts = time(NULL);
     ptm = localtime(&ts);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    m_time_t currentdebrisdayid = ptm->tm_year * 10000 +  ptm->tm_mon * 100 + ptm->tm_mday;
 
     // locate //bin/SyncDebris
     if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
@@ -11346,7 +11348,8 @@ void MegaClient::execmovetosyncdebris()
                 it++;
             }
         }
-        else if (n->syncdeleted == SYNCDEL_DEBRISDAY)
+        else if (n->syncdeleted == SYNCDEL_DEBRISDAY
+                 || n->syncdeleted == SYNCDEL_FAILED)
         {
             n->syncdeleted = SYNCDEL_NONE;
             n->todebris_it = todebris.end();
@@ -11358,9 +11361,11 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding)
+    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
+            && (target == SYNCDEL_BIN || syncdebrisdayid != currentdebrisdayid))
     {
         syncdebrisadding = true;
+        syncdebrisdayid = currentdebrisdayid;
 
         // create missing component(s) of the sync debris folder of the day
         NewNode* nn;
