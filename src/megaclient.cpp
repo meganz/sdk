@@ -3440,7 +3440,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying)
+                        if (!pendingcs && !csretrying && !reqs.cmdspending())
                         {
                             sctable->commit();
                             sctable->begin();
